@@ -1,4 +1,4 @@
-import { runVisitorTurn } from '@kaki/agent';
+import { fakeVisitorResponder, runVisitorTurn } from '@kaki/agent';
 import { TurnJob, type RealtimeEvent } from '@kaki/contracts';
 import { createZoneDb, ping } from '@kaki/db';
 import { toMessage, toSummary } from '@kaki/inbox';
@@ -36,6 +36,8 @@ const queue = createQueueClient({ region: config.AWS_REGION, endpoint: config.AW
 const llm = gatewayFromConfig({
   provider: config.LLM_PROVIDER,
   anthropicApiKey: config.ANTHROPIC_API_KEY,
+  // The fake model answers from the facts in its prompt, with slots (FEAT-022).
+  fakeScript: fakeVisitorResponder,
 });
 
 const health = startHealthServer(config.HEALTH_PORT, { database: () => ping(visitorDb) });
@@ -61,7 +63,15 @@ const consuming = queue.consume<unknown>(
       tenantId: job.tenantId,
       conversationId: job.conversationId,
     });
-    const reply = await runVisitorTurn({ zdb: visitorDb, llm }, job);
+    // Each verified segment goes straight to Valkey (FEAT-022 D7); Postgres keeps the
+    // stored message, which replaces the segments.
+    const publishSegment = async (segment: { turnId: string; seq: number; text: string }) => {
+      const event: RealtimeEvent = { type: 'segment', ...segment };
+      await publisher
+        .publish(channels.conversation(job.tenantId, job.conversationId), event)
+        .catch((err) => log.warn({ err }, 'segment publish failed'));
+    };
+    const reply = await runVisitorTurn({ zdb: visitorDb, llm, publishSegment }, job);
     if (!reply) {
       log.info('turn already handled');
       return;
@@ -82,7 +92,16 @@ const consuming = queue.consume<unknown>(
         log.warn({ err }, 'publish failed; clients will resume from Postgres'),
       );
     }
-    log.info({ messageId: message.id }, 'turn complete');
+    // NFR-01 latency (AC-12): measured from the first token request to release.
+    log.info(
+      {
+        messageId: message.id,
+        outcome: reply.outcome,
+        firstSegmentMs: reply.timings?.firstSegmentMs ?? null,
+        totalMs: reply.timings?.totalMs ?? null,
+      },
+      'turn complete',
+    );
   },
 );
 logger.info({ provider: config.LLM_PROVIDER }, 'agent-worker consuming conversation turns');

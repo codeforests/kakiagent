@@ -8,6 +8,7 @@ import { channels, TokenError, verifyToken, type Logger, type Subscriber } from 
 import Fastify from 'fastify';
 import { z } from 'zod';
 import type { Config } from './config.js';
+import { sseFrame } from './sse.js';
 
 export interface Deps {
   config: Config;
@@ -83,25 +84,29 @@ export async function buildApp(deps: Deps) {
     });
     raw.write('retry: 3000\n\n');
 
+    type StreamEvent = Extract<RealtimeEvent, { type: 'message' | 'segment' }>;
     let lastSent = lastEventId;
-    const send = (seq: number, event: unknown) => {
-      if (seq <= lastSent) return;
-      lastSent = seq;
-      raw.write(`id: ${seq}\nevent: message\ndata: ${JSON.stringify(event)}\n\n`);
+    const send = (event: StreamEvent) => {
+      if (event.type === 'message') {
+        if (event.message.seq <= lastSent) return;
+        lastSent = event.message.seq;
+      }
+      raw.write(sseFrame(event));
     };
 
     // Subscribe first, then replay, so nothing committed in between is missed; `send`
     // drops anything already delivered.
-    const buffered: { seq: number; event: unknown }[] = [];
+    // Segments (FEAT-022) are forwarded live; one that arrives during the replay waits
+    // behind it, and the stored message replaces it anyway.
+    const buffered: StreamEvent[] = [];
     let replaying = true;
     const unsubscribe = await subscriber.subscribe(
       channels.conversation(claims.t, conversationId),
       (e) => {
         const parsedEvent = RealtimeEvent.safeParse(e);
-        if (!parsedEvent.success || parsedEvent.data.type !== 'message') return;
-        const item = { seq: parsedEvent.data.message.seq, event: parsedEvent.data };
-        if (replaying) buffered.push(item);
-        else send(item.seq, item.event);
+        if (!parsedEvent.success || parsedEvent.data.type === 'conversation') return;
+        if (replaying) buffered.push(parsedEvent.data);
+        else send(parsedEvent.data);
       },
     );
     const heartbeat = setInterval(() => raw.write(': ping\n\n'), config.SSE_HEARTBEAT_MS);
@@ -119,7 +124,7 @@ export async function buildApp(deps: Deps) {
           visitorId: claims.v,
         }),
       );
-      for (const m of missed) send(m.seq, { type: 'message', message: toMessage(m) });
+      for (const m of missed) send({ type: 'message', message: toMessage(m) });
     } catch (err) {
       if (!(err instanceof NotFoundError)) req.log.error({ err }, 'sse replay failed');
       clearInterval(heartbeat);
@@ -128,7 +133,9 @@ export async function buildApp(deps: Deps) {
       return;
     }
     replaying = false;
-    for (const b of buffered.sort((a, z2) => a.seq - z2.seq)) send(b.seq, b.event);
+    const order = (e: StreamEvent) =>
+      e.type === 'message' ? e.message.seq : Number.MAX_SAFE_INTEGER;
+    for (const b of buffered.sort((a, z2) => order(a) - order(z2))) send(b);
   });
 
   // ---- Dashboard: WebSocket --------------------------------------------------------
