@@ -239,7 +239,9 @@ describe('runVisitorTurn (UC-20)', () => {
     // The rule that fired is logged, never the blocked text (FEAT-002 AC-8).
     const rows = await auditRows(result!.message.id);
     const blocked = rows.filter((r) => r.event_type === 'guardrail.segment_blocked');
-    expect(blocked.every((r) => typeof r.payload.kind === 'string')).toBe(true);
+    // Both scripted outputs are literal currency amounts, so the logged kind must be the
+    // verifier's `currency` rule, one entry per blocked segment (FEAT-002 acceptance).
+    expect(blocked.map((r) => r.payload)).toEqual([{ kind: 'currency' }, { kind: 'currency' }]);
     expect(JSON.stringify(rows)).not.toMatch(/S\$50|\$45|fudge/i);
     expect(rows.at(-1)!.payload).toMatchObject({
       outcome: 'escalated',
