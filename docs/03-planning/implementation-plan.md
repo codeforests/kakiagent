@@ -12,6 +12,7 @@ This plan turns the signed-off requirements, architecture and UX foundations int
 - **De-risk the core first, in a demoable way.** The first feature after the skeleton proves the hardest invariants: verified fact slots (ADR-008), tenant isolation (ADR-005) and visitor scope (ADR-009), through a real J2 answer.
 - **Every feature gets its own PR and an independent acceptance verification.** Each milestone ends with a live demo the owner signs off.
 - **Local first.** AWS accounts aren't available yet (SRS §8 item 2), so the skeleton is complete when it runs end to end locally with Terraform written but not applied. Deployment is its own milestone (MD), runnable at any point after M1.
+- **Accounts arrive after M1** (owner, 2026-10-19). The owner sets up AWS, Bedrock and the Anthropic developer account once M1 is done, so M1 is built and verified on the **fake (scripted) model provider**. An **M1.5 real-model gate** then re-checks M1 on a real model before M2 starts.
 - **Cut line: all Musts, no fixed date.** The pilot starts when every Must FR is shipped and verified and the pilot-readiness checks (M6) pass. Shoulds, the Could, and the owner's fast-follows (dashboard dark mode) come after the pilot (M7).
 
 This is a living order. Features beyond the next milestone are deliberately coarse: they're elaborated just in time by the detailed-design step, and the remaining sequence is re-checked at every milestone demo. Nothing past M1 is a fixed commitment.
@@ -99,6 +100,11 @@ flowchart LR
 - The owner signs off; the plan's remaining order is re-checked and this document updated.
 
 **The evaluation set grows with the agent.** AGT-14's ≥ 300 cases are built feature by feature, not at the end. Each agent-touching feature adds its own cases (FEAT-022: prices and groundedness; FEAT-023: Singlish, Chinese and out-of-scope; FEAT-025: red-team and harmful content; FEAT-051: withdrawal), so the full set exists by M6.
+
+**Before real-model access (M1).** For agent features built before M1.5, the acceptance verdict is **"accepted — real-model check pending"**:
+- Deterministic behaviour (verifier, slot renderer, RLS, scopes, audit, send gate) is fully verified in M1, using the fake provider with recorded model fixtures and **adversarial fake outputs**: literal prices, wrong or missing slots, injected instructions echoed back.
+- Model-dependent checks (groundedness, price accuracy, Singlish/Chinese intent, red-team) are re-run at M1.5.
+- The RTM Test ref for those FRs carries `(partial)` until M1.5 upgrades the report.
 
 ---
 
@@ -265,8 +271,9 @@ Feature IDs are in definition order and are permanent: they are never renumbered
 |---|---|---|
 | **M0 Skeleton** | FEAT-001 | A widget message round trip locally; dashboard sees it live; CI green |
 | **M1 Trustworthy answers** | FEAT-022 → 002 → 003 → 005 → 004 → 011 → 023 → 024 → 025 | J2 and J7 on a seeded bakery: exact prices from approved facts, Singlish and Chinese, out-of-scope refusal, injection refused; audit chain verifies; real sign-in |
-| **MD Deploy** (when AWS is available; any time after M1) | `initial-deployment` skill: Terraform apply to dev, then staging; Bedrock `au.` provider; GuardDuty check (R7); price check (R1); Cohere embeddings and the Singlish/Chinese retrieval check (P3); residency and backup configuration (NFR-07, NFR-08); a basic WAF rate rule on dev until FEAT-071 | FEAT-001's deployed done-when passes; eval fast subset on Bedrock |
-| **M2 Owner onboarding** | FEAT-009 → 012 → 013 → 014 → 015 → 016 → 017 → 027 → 028 → 018 → 019 → 032 → 033 → 058 → 034 → 057 → 006 → 054 → 035 | J1 in under 15 minutes, J8 kill switch, J11 coaching correction |
+| **M1.5 Real-model gate** (after the owner sets up the accounts; blocks M2) | No new features. Add the Anthropic-dev provider key (Bedrock `au.` once AWS exists); replay every M1 eval case on the real model; measure the slot regeneration rate (> 5% → ADR-008 review, P2), Singlish/Chinese retrieval (P3) and red-team results; fix prompts if needed; upgrade the pending M1 acceptance reports and RTM `(partial)` entries | J2 and J7 on a real model |
+| **MD Deploy** (alongside or right after M1.5, as the accounts arrive together) | `initial-deployment` skill: Terraform apply to dev, then staging; Bedrock `au.` provider; GuardDuty check (R7); price check (R1); Cohere embeddings and the Singlish/Chinese retrieval check (P3); residency and backup configuration (NFR-07, NFR-08); a basic WAF rate rule on dev until FEAT-071 | FEAT-001's deployed done-when passes; eval fast subset on Bedrock |
+| **M2 Owner onboarding** | FEAT-009 → 012 → 013 → 014 → 015 → 016 → 017 → 027 → 028 → 018 → 019 → 032 → 033 → 058 → 034 → 057 → 006 → 054 → 035 | Interim demos after FEAT-013 (crawl → review) and FEAT-027 (coaching) (owner, 2026-10-19). Milestone demo: J1 in under 15 minutes, J8 kill switch, J11 coaching correction |
 | **M3 Human in the loop** | FEAT-007 → 008 → 042 → 043 → 052 → 044 → 045 → 046 → 049 → 055 → 056 → 050 → 051 | J3 quote approved from a phone (email alert), J4 takeover, J10 withdrawal; a staff member invited and given approval rights |
 | **M4 Channels and context** | FEAT-036 → 037 → 039 → 038 → 026 → 029 | J5 widget → Telegram, J9 after-hours email; owner alerts on Telegram |
 | **M5 Governance and operations** | FEAT-060 → 061 → 059 → 062 → 070 → 063 → 010 → 067 → 065 → 066 → 071 → 072 → 073 | J6 PDPA deletion with chain still verifying; operator support session; downgrade preview |
@@ -291,6 +298,7 @@ graph LR
         F024["FEAT-024 Persona"]
         F025["FEAT-025 Safety"]
     end
+    G15{{"M1.5 real-model gate"}}
     subgraph m2["M2 Owner onboarding"]
         F009["FEAT-009 Profile"]
         F012["FEAT-012 Crawl"]
@@ -360,6 +368,8 @@ graph LR
     F004 --> F023
     F023 --> F024
     F023 --> F025
+    F025 --> G15
+    G15 --> F009
     F005 --> F009
     F011 --> F012
     F012 --> F013
@@ -443,15 +453,15 @@ graph LR
 It also produces the first real eval cases. If slot discipline doesn't hold with real models, we learn it in week two, not month four.
 
 **Acceptance criteria** (to be refined into AC-n by detailed design):
-1. A price in any reply equals a `visitor_facts` value exactly. On the seeded eval subset, price accuracy is 100% and there are zero invented prices (AGT-02).
+1. A price in any reply equals a `visitor_facts` value exactly. On the seeded eval subset, price accuracy is 100% and there are zero invented prices (AGT-02). *In M1, measured with recorded fixtures and adversarial fake outputs; re-measured on the real model at M1.5.*
 2. No reply text is shown before its sentence passes the verifier. A test with a fake model emitting a literal wrong price shows the sentence is blocked and regenerated, or the turn escalates, and nothing unverified reaches the SSE stream (AGT-02, CHN-02).
-3. Every AI message stores the fact IDs it used. Groundedness on the seed subset is ≥ 95% and no answer cites a non-existent fact (AGT-01).
+3. Every AI message stores the fact IDs it used. Groundedness on the seed subset is ≥ 95% and no answer cites a non-existent fact (AGT-01). *Measured as for AC 1.*
 4. A fact in "needs review", "rejected" or "disabled", or one belonging to another tenant, is never retrieved for a visitor turn. This is tested at the DB grant level, with the visitor role querying the base table, and at the API level (AGT-16, GOV-03).
 5. The first message of every conversation carries the AI disclosure (AGT-11).
 6. For a GST-registered tenant, quoted prices are GST-inclusive (KB-15). The renderer formats S$ (NFR-10).
 7. A manual fact edit is used in answers within 60 seconds (KB-07).
 8. Latency is reported, not yet gated, until MD: time to first verified sentence and full reply, recorded in the PR (NFR-01, OI-1).
-9. The eval fast-subset job runs with ≥ 20 price/groundedness cases (the start of AGT-14's ≥ 50 price cases).
+9. The eval fast-subset job runs with ≥ 20 price/groundedness cases (the start of AGT-14's ≥ 50 price cases). *It runs on the fake provider in M1 and on the real model from M1.5.* AC 2 and AC 4–7 are fully verifiable in M1.
 
 **Hand-off to `ui-design`: screens**
 - **SCR-WGT-002** (chat panel: greeting, replying with segment release, error states; the anchor already exists in the manifest).
@@ -554,15 +564,16 @@ Stood up in FEAT-001 and extended by later features. Items marked (FR) are requi
 
 | # | Risk or assumption | Effect on the plan | Mitigation |
 |---|---|---|---|
-| P1 | **No AWS accounts yet** (SRS §8 item 2) | NFRs measured against real infrastructure (latency, residency, backups) can't be verified until MD. MD before M5 exposes a dev widget before FEAT-071's rate limits | The local-first skeleton; MD can run at any point after M1; acceptance reports mark these NFRs as "pending environment"; MD adds a basic WAF rate rule on dev |
-| P2 | **Slot discipline may fail with real models** (R4) | It could force a prompt or verifier redesign | FEAT-022 goes first and measures the regeneration rate; a rate > 5% triggers an ADR-008 review before M2 |
-| P3 | **Singlish and Chinese retrieval quality** (R5) | Could change the embedding provider | FEAT-023 adds a retrieval subset. The real check needs Cohere Embed Multilingual v3, which arrives at MD, so the decision is due at MD (or at the M1 demo if MD has run by then) |
-| P4 | **Dev uses the Anthropic API, prod uses Bedrock `au.`** | Behaviour or prompt-cache differences | `llm-gateway` provider parity tests; the eval reruns on Bedrock at MD |
+| P1 | **No AWS, Bedrock or Anthropic accounts until after M1** (SRS §8 item 2; owner, 2026-10-19) | No real-model checks in M1. NFRs measured against real infrastructure (latency, residency, backups) can't be verified until MD. MD before M5 exposes a dev widget before FEAT-071's rate limits | Local-first skeleton; fake provider in M1; the M1.5 gate; MD alongside M1.5; acceptance reports mark these items "pending environment" or "real-model check pending"; MD adds a basic WAF rate rule on dev |
+| P2 | **Slot discipline may fail with real models** (R4) | It could force a prompt or verifier redesign | FEAT-022 builds the verifier against adversarial fake outputs; the M1.5 gate measures the real regeneration rate, and > 5% triggers an ADR-008 review before M2 |
+| P3 | **Singlish and Chinese retrieval quality** (R5) | Could change the embedding provider | FEAT-023 adds a retrieval subset. The real check needs a real model (M1.5) and Cohere Embed Multilingual v3, which arrives at MD, so the decision is due at MD, which runs alongside M1.5 |
+| P4 | **Provider differences**: M1 uses a fake provider, dev uses the Anthropic API from M1.5, prod uses Bedrock `au.` | Behaviour or prompt-cache differences | `llm-gateway` provider parity tests; the eval reruns at M1.5 (Anthropic API) and at MD (Bedrock) |
 | P5 | **Eval-set authoring effort**, especially 100 Singlish and 50 Chinese cases | Could delay M6 | Cases are written per feature, starting at M1; pilot SMEs supply real phrasing |
 | P6 | **The M2 critical path is long** (19 features before the J1 demo) | Owner feedback on onboarding arrives late | Interim demos are offered after FEAT-013 (crawl → review) and FEAT-027 (coaching) without waiting for the milestone close |
 | P7 | **Pilot SMEs and legal review** (SRS §8 items 1 and 3) | Blocks M6, not construction | Track as M6 entry criteria |
 | P8 | **GuardDuty availability** (R7) | Could change upload safety at MD | ClamAV in the local build is the designed fallback |
 | P9 | **Open requirement issues OI-3 and OI-4** (architecture §12) | Could reshape FEAT-041 and FEAT-017 | FEAT-017 follows OI-4's reading; FEAT-041 is post-pilot, so OI-3 must be decided before it starts |
+| P10 | **Fake-provider tests can pass while real-model behaviour differs** | M1 can look green but fail on a real model | Adversarial fake outputs in every agent feature; "real-model check pending" verdicts; M1.5 blocks M2 until it passes |
 
 **Coverage result:**
 - All 99 Must FRs are implemented by a feature or placed in foundations (§4, §7).
