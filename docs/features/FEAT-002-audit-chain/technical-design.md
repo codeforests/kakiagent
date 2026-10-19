@@ -212,6 +212,7 @@ sequenceDiagram
 - **Model and prompt version in agent decisions** (ADR-014 decision 1's payload list) need the model ID, which `composeReply` doesn't expose until FEAT-004's router and usage ledger. FEAT-004 adds `{ model, promptVersion }` to `agent.decision`.
 - **Verify in the launch environment** (D8): needs a one-off ECS task definition or the FEAT-060 action; set up at MD alongside the first deploy.
 - **`contact_id` has no foreign key** until `contacts` exists (FEAT-049). FEAT-061's DSR deletion calls `audit.erasePii`.
+- **From acceptance (minor, non-blocking):** the runtime check accepts any lowercase code as an ID, so a lowercased NRIC or a one-word name could pass in `actorId`, `subjectId` or a payload code (M1; tighten with FEAT-003's masking patterns or at FEAT-060); deleting entries newer than the last anchor is caught only at the next anchor run, ≤ 15 minutes, which ADR-014 accepts (M2; FEAT-060 can show the last anchor time); the CLI's exit codes were checked by hand, not by a test (M3).
 - **S3 retention locally** is 1 day; production uses `audit_anchor_retention_days` (D7 policy, OI-5), set when the environment is applied at MD.
 
 ## 9. Self-check
