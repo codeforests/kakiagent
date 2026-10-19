@@ -1,6 +1,7 @@
 # ADR-004: Aurora PostgreSQL with pgvector as the single system of record
 
 **Status:** Accepted — architecture phase signed off by the product owner on 2026-10-19
+**Superseded in part:** until the prod trigger, the engine is RDS PostgreSQL, single AZ, per [ADR-024](ADR-024-rds-postgres-for-launch.md) (owner, 2026-10-19). Everything else here stands; Aurora is the target at the trigger.
 **Date:** 2026-10-19
 **Requirements addressed:** GOV-03, NFR-03, NFR-04, NFR-05, NFR-08, INB-11, KB-07, KB-14, AGT-17, GOV-05, AUTH-07
 

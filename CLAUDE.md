@@ -43,6 +43,7 @@ These span many documents and are easy to break by accident. Read the cited ADR 
 - **All side effects go through the transactional outbox → SQS.** Consumers are idempotent. Timers live in Postgres (ADR-012).
 - **The AI send gate** (kill switch, channel live, no human owner) is checked before every turn and every AI send. Concurrency is enforced by the database (ADR-013).
 - **The audit log is a per-tenant hash chain with no PII**; personal data goes to the deletable `audit_pii` store (ADR-014). NRIC, card and bank numbers are masked at the edge and never stored unmasked. PII lives only in contact-keyed tables (ADR-015).
+- **Launch profile:** until the prod trigger (10 paying tenants), infrastructure runs as one lean environment: 2 AZs, one task per role, RDS PostgreSQL single AZ, NAT instance, no Bot Control, 15-minute canary. The ADR-003/ADR-004 design is the target restored at the trigger, so don't use Aurora-only features (ADR-023, ADR-024).
 - **Widget budget:** loader ≤ 14 KB gz (initial load ≤ 30 KB, NFR-02), closed Shadow DOM, runtime theme detection, lazy chat panel (ADR-016).
 
 ## How features are built (from the implementation plan §3)

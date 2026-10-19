@@ -1,6 +1,7 @@
 # ADR-021: Observability and per-tenant usage metering
 
 **Status:** Accepted — architecture phase signed off by the product owner on 2026-10-19
+**Superseded in part:** until the prod trigger, the synthetic canary runs every 15 minutes from scheduler-worker instead of CloudWatch Synthetics every 5 minutes, per [ADR-023](ADR-023-launch-environment-before-prod.md) (owner, 2026-10-19).
 **Date:** 2026-10-19
 **Requirements addressed:** NFR-11, NFR-13, NFR-20, NFR-01, NFR-04, NFR-18, GOV-13, DSH-04, DSH-06, DSH-08, CHN-12, GOV-10, UC-34, UC-38
 

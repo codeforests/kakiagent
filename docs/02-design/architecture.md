@@ -485,6 +485,7 @@ graph TB
 - **Residency controls:** SCP region lock, no cross-region replication, in-region backups, the AWS AI services opt-out policy, and Bedrock retention "none" with invocation logging off in the Australian Regions.
 - **Scaling (NFR-03):** api and realtime auto-scale on CPU and connections (minimum 2 each, across AZs); agent-worker on SQS age (minimum 2, target age < 1 s); ingest-worker on SQS age (scale to N, with one warm task); Aurora Serverless v2 0.5–16 ACUs per instance.
 - **Maintenance windows:** Aurora and ElastiCache maintenance windows set within 02:00–06:00 SGT (NFR-04).
+- **Launch profile (owner, 2026-10-19):** the diagram above is the target. Until the prod trigger (10 paying tenants), one environment runs a lean profile: 2 AZs, one task per role, RDS PostgreSQL single AZ, one Valkey node, one NAT instance, no interface endpoints, no Bot Control, a 15-minute canary. See [ADR-023](adr/ADR-023-launch-environment-before-prod.md), [ADR-024](adr/ADR-024-rds-postgres-for-launch.md) and [launch-cost-analysis.md](../03-planning/launch-cost-analysis.md).
 
 ## 8. Cross-cutting concepts
 
@@ -581,6 +582,8 @@ English UI (NFR-10). Agent language and register come from triage (AGT-03). Form
 | [ADR-020](adr/ADR-020-authentication-sessions-and-authorization.md) | Authentication, sessions, authorisation | AUTH-01..08 |
 | [ADR-021](adr/ADR-021-observability-and-usage-metering.md) | Observability and usage metering | NFR-11, GOV-13, DSH-08 |
 | [ADR-022](adr/ADR-022-ai-evaluation-gate-in-ci.md) | AI evaluation gate in CI | AGT-14, NFR-12 |
+| [ADR-023](adr/ADR-023-launch-environment-before-prod.md) | One lean launch environment until the prod trigger (added 2026-10-19) | NFR-03, NFR-04, NFR-08, GOV-13 |
+| [ADR-024](adr/ADR-024-rds-postgres-for-launch.md) | RDS PostgreSQL instead of Aurora until the prod trigger (added 2026-10-19) | NFR-03, NFR-04, NFR-08 |
 
 ## 10. Quality requirements — NFR to design mapping
 
@@ -613,7 +616,7 @@ Every NFR in the SRS is Must priority (RTM). Each maps to the design element tha
 
 | # | Risk / debt | Mitigation | Revisit when |
 |---|---|---|---|
-| R1 | **Bedrock prices for the `au.` profile not confirmed** (the pricing page did not render); the cost model assumes list + 10% | Confirm in the AWS Pricing Calculator during planning; the usage ledger reports real cost from day one | Before pilot |
+| R1 | **Bedrock prices for the `au.` profile not confirmed** (the pricing page did not render); the cost model assumes list + 10% | Confirm in the AWS Pricing Calculator during planning; the usage ledger reports real cost from day one | **Resolved 2026-10-19:** the AWS price list shows regional = list × 1.10 ([launch-cost-analysis.md](../03-planning/launch-cost-analysis.md) §5) |
 | R2 | **Bedrock feature lag** vs the first-party API (some beta features are "unconfirmed" on Bedrock) | The design relies only on GA features (Messages API, streaming, tools, prompt caching, structured outputs); the Anthropic API stays a documented fallback, swappable as another `llm-gateway` provider | Any feature we need is missing |
 | R3 | **Cost depends on conversation length and Sonnet share**; long catering conversations exceed the target | Cost governor, per-tenant routing thresholds, pilot measurement | First 4 weeks of pilot |
 | R4 | **Slot discipline**: the model may still write literal prices | The verifier blocks them; ≥ 50 price eval cases; regeneration then escalation | Eval shows > 5% regeneration rate |
@@ -624,7 +627,7 @@ Every NFR in the SRS is Must priority (RTM). Each maps to the design element tha
 | R9 | **Self-hosted authentication** is security-critical code | Maintained library; ASVS L1; penetration test | Pen-test findings |
 | R10 | **Shadow DOM exposes chat to host-page scripts** | Closed shadow root; DPA wording; iframe option (Q4) | Tenant or legal concern |
 | R11 | **Bedrock training and retention terms** need legal confirmation for the DPA (training use not stated on the pages read) | Legal review (SRS §8 item 3) before publishing GOV-07 documents | Before pilot |
-| R12 | **Aurora Serverless v2 cost** at steady load may exceed provisioned instances | Review after 1 month of pilot metrics | Month 1 |
+| R12 | **Aurora Serverless v2 cost** at steady load may exceed provisioned instances | Review after 1 month of pilot metrics. Deferred: the launch period uses RDS ([ADR-024](adr/ADR-024-rds-postgres-for-launch.md)) | At the prod trigger |
 
 ## 12. Open issues for requirements
 

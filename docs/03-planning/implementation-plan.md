@@ -1,6 +1,6 @@
 # Implementation Plan: KakiAgent MVP
 
-> Status: **Signed off by the product owner, 2026-10-19** · Last updated: 2026-10-19 (revised after owner review: Team and My account moved to M3, alerts split by channel, NFR ownership added in §7)
+> Status: **Signed off by the product owner, 2026-10-19** · Last updated: 2026-10-19 (revised after owner review: Team and My account moved to M3, alerts split by channel, NFR ownership added in §7; then MD, M6, FEAT-071 and CI/CD aligned with the launch environment, ADR-023 and ADR-024)
 > Inputs (all found, all signed off): [SRS v0.4](../01-requirements/SRS.md) · [use-cases.md](../01-requirements/use-cases.md) · [rtm.md](../01-requirements/rtm.md) · [architecture.md](../02-design/architecture.md) + [ADR-001..022](../02-design/adr/) · [ux-foundations.md](../02-design/ux-foundations.md) · [design.md](../02-design/design.md) · [design-manifest.json](../design-manifest.json)
 > Fidelity: full. Every FR, UC and SCR ID below resolves in those documents.
 
@@ -42,7 +42,7 @@ The thinnest end-to-end path through every runtime role, with the design system 
 1. `pnpm dev` starts every role locally. The Playwright test `skeleton.e2e.ts` sends a widget message and sees the reply in the widget (SSE) and in the dashboard (WebSocket).
 2. The cross-tenant RLS test passes: tenant B's role can't read tenant A's message, even with a hand-written query.
 3. CI is green on the PR, and the widget loader is within budget under size-limit.
-4. Pending until MD: the same test passes against the deployed dev environment.
+4. Pending until MD: the same test passes against the deployed launch environment (ADR-023).
 
 ---
 
@@ -236,7 +236,7 @@ Feature IDs are in definition order and are permanent: they are never renumbered
 | ID | Feature | Pri | FRs | UCs | Screens | Blocks / endpoints | Data |
 |---|---|---|---|---|---|---|---|
 | FEAT-070 | Operator console: MFA sign-in, tenants, plan change, suspension, operator audit | M | DSH-06, DSH-04 (p) | UC-34 | SCR-OPS-001, -002, -003, -008, SCR-APP-059 (p: suspended) | operator API (separate role) | operators, tenants |
-| FEAT-071 | Abuse protection and spend alerts (rate limits, Bot Control rules, 3× spend alert) | M | GOV-13 | UC-34 | SCR-OPS-006, SCR-WGT-002 (p: rate-limited) | Valkey limits; WAF rules (Terraform); spend alarm | usage_events |
+| FEAT-071 | Abuse protection and spend alerts (rate limits, WAF rate and managed rules, 3× spend alert; Bot Control deferred until abuse appears, ADR-023) | M | GOV-13 | UC-34 | SCR-OPS-006, SCR-WGT-002 (p: rate-limited) | Valkey limits; WAF rules (Terraform); spend alarm | usage_events |
 | FEAT-072 | Security incident register and tenant notifications | M | GOV-10 | UC-38 | SCR-OPS-007 | incident runbook | incidents |
 | FEAT-073 | Legal documents, versions, re-acceptance and sub-processor notices | M | GOV-07 (p), AUTH-08 (p) | UC-34 | SCR-OPS-009 | document versions | legal_documents |
 
@@ -272,12 +272,12 @@ Feature IDs are in definition order and are permanent: they are never renumbered
 | **M0 Skeleton** | FEAT-001 | A widget message round trip locally; dashboard sees it live; CI green |
 | **M1 Trustworthy answers** | FEAT-022 → 002 → 003 → 005 → 004 → 011 → 023 → 024 → 025 | J2 and J7 on a seeded bakery: exact prices from approved facts, Singlish and Chinese, out-of-scope refusal, injection refused; audit chain verifies; real sign-in |
 | **M1.5 Real-model gate** (after the owner sets up the accounts; blocks M2) | No new features. Add the Anthropic-dev provider key (Bedrock `au.` once AWS exists); replay every M1 eval case on the real model; measure the slot regeneration rate (> 5% → ADR-008 review, P2), Singlish/Chinese retrieval (P3) and red-team results; fix prompts if needed; upgrade the pending M1 acceptance reports and RTM `(partial)` entries | J2 and J7 on a real model |
-| **MD Deploy** (alongside or right after M1.5, as the accounts arrive together) | `initial-deployment` skill: Terraform apply to dev, then staging; Bedrock `au.` provider; GuardDuty check (R7); price check (R1); Cohere embeddings and the Singlish/Chinese retrieval check (P3); residency and backup configuration (NFR-07, NFR-08); a basic WAF rate rule on dev until FEAT-071 | FEAT-001's deployed done-when passes; eval fast subset on Bedrock |
+| **MD Deploy** (alongside or right after M1.5, as the accounts arrive together) | `initial-deployment` skill: Terraform apply of the one launch environment with the launch profile (ADR-023, RDS per ADR-024); Bedrock `au.` provider; GuardDuty check (R7); price check (R1, resolved 2026-10-19 by launch-cost-analysis.md §5); Cohere embeddings and the Singlish/Chinese retrieval check (P3); residency and backup configuration (NFR-07, NFR-08); a basic WAF rate rule until FEAT-071 | FEAT-001's deployed done-when passes; eval fast subset on Bedrock |
 | **M2 Owner onboarding** | FEAT-009 → 012 → 013 → 014 → 015 → 016 → 017 → 027 → 028 → 018 → 019 → 032 → 033 → 058 → 034 → 057 → 006 → 054 → 035 | Interim demos after FEAT-013 (crawl → review) and FEAT-027 (coaching) (owner, 2026-10-19). Milestone demo: J1 in under 15 minutes, J8 kill switch, J11 coaching correction |
 | **M3 Human in the loop** | FEAT-007 → 008 → 042 → 043 → 052 → 044 → 045 → 046 → 049 → 055 → 056 → 050 → 051 | J3 quote approved from a phone (email alert), J4 takeover, J10 withdrawal; a staff member invited and given approval rights |
 | **M4 Channels and context** | FEAT-036 → 037 → 039 → 038 → 026 → 029 | J5 widget → Telegram, J9 after-hours email; owner alerts on Telegram |
 | **M5 Governance and operations** | FEAT-060 → 061 → 059 → 062 → 070 → 063 → 010 → 067 → 065 → 066 → 071 → 072 → 073 | J6 PDPA deletion with chain still verifying; operator support session; downgrade preview |
-| **M6 Pilot readiness** (no new features) | Full eval ≥ 300 + red-team ≥ 50; E2E J1–J11 on staging; k6 load test (NFR-01, -03, -16); dependency-outage drill (NFR-17, NFR-04 fallback); restore drill (NFR-08); incident tabletop (GOV-10); manual WCAG audit; real-device browser pass (NFR-14); ASVS L1 and Cyber Essentials checklists (NFR-05, NFR-06); residency check of every store and model call (NFR-07); operator on-call rota (NFR-20); legal review (SRS §8 item 3); pen test before the first paying tenant (NFR-15) | Pilot go/no-go with the readiness report |
+| **M6 Pilot readiness** (no new features) | Full eval ≥ 300 + red-team ≥ 50; E2E J1–J11 on the launch environment; k6 load test (NFR-01, -03, -16); dependency-outage drill (NFR-17, NFR-04 fallback); restore drill (NFR-08); incident tabletop (GOV-10); manual WCAG audit; real-device browser pass (NFR-14); ASVS L1 and Cyber Essentials checklists (NFR-05, NFR-06); residency check of every store and model call (NFR-07); operator on-call rota (NFR-20); legal review (SRS §8 item 3); pen test before the first paying tenant (NFR-15) | Pilot go/no-go with the readiness report |
 | **M7 After pilot** (Shoulds, the Could, fast-follows) | FEAT-074, 040, 041, 031, 030, 020, 021, 047, 048, 053, 064, 068, 069, plus other industry templates (ONB-06 remainder, scheduled as a new feature when it's picked up) | Re-planned with pilot feedback |
 
 ### Dependency graph (main edges)
@@ -523,7 +523,7 @@ Stood up in FEAT-001 and extended by later features. Items marked (FR) are requi
   - ClamAV standing in for GuardDuty.
   - Fake and Anthropic-dev LLM providers, for test data only (Q1).
   - Seed script for the bakery and second tenant.
-- **CI/CD:** GitHub Actions; required checks on `main`; PR template with the acceptance-report section; Renovate; Trivy; `pnpm audit` (NFR-15). CD to dev and staging is added at MD; prod promotion by image digest with the eval gate and manual approval (ADR-003, ADR-022).
+- **CI/CD:** GitHub Actions; required checks on `main`; PR template with the acceptance-report section; Renovate; Trivy; `pnpm audit` (NFR-15). CD to the launch environment is added at MD, gated by CI and the eval gate (ADR-023, ADR-022). The dev → staging → prod promotion by image digest with manual approval (ADR-003) returns at the prod trigger.
 - **Observability:** OpenTelemetry traces across api → SQS → workers; IDs-only logs; usage ledger from FEAT-004; health endpoints; alarms are defined in Terraform and applied at MD (NFR-11).
 - **Security:**
   - Secrets via env in dev and Secrets Manager from MD.
