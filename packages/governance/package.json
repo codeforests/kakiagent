@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Audit chain, PII store, DSR, retention, kill switch, incidents (architecture \u00a75.2). Skeleton: audit.append.",
+  "description": "Audit chain, PII store, DSR, retention, kill switch, incidents (architecture §5.2). Skeleton: audit.append.",
   "exports": {
     ".": "./src/index.ts"
   },
@@ -15,7 +15,8 @@
     "test:coverage": "vitest run --coverage --passWithNoTests"
   },
   "dependencies": {
-    "@kaki/db": "workspace:*"
+    "@kaki/db": "workspace:*",
+    "@kaki/platform": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "22.20.5",
