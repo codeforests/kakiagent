@@ -103,7 +103,7 @@ graph TD
     set --> splan["Plan and usage"]
 ```
 
-**Mobile tab bar:** Home · Inbox · Approvals · Review · More (Knowledge, Coach, Leads, Insights, Settings, My account, Help). **Top bar on every page:** tenant switcher, search, **AI status pill / kill switch**, help, notifications, avatar.
+**Mobile tab bar:** Home · Inbox · Approvals · Review · More (Knowledge, Coach, Leads, Insights, Settings, My account, Help). **Rule (owner decision, 2026-10-19): sections that need the owner's action come first.** The four tabs are the "needs you" loop (A5 principle 4), and Leads stays under More. A role without access to a tab gets the next eligible section in its place: an Agent without approval rights sees Home · Inbox · Leads · More. **Top bar on every page:** tenant switcher, search, **AI status pill / kill switch**, help, notifications, avatar.
 
 **Navigation by role** (from SRS §2.1):
 
@@ -217,8 +217,8 @@ States key: **L** loading · **E** empty · **X** error · **P** populated · pl
 | SCR-APP-008 | Wizard · Review your facts | The Review hub's facts and conflicts in the wizard frame; Approve all; coverage summary | Owner, Admin | L, E (still extracting), P, all approved | KB-16, KB-06, KB-09, ONB-08 · UC-15, UC-12 |
 | SCR-APP-009 | Wizard · Rules and privacy | Safe-default boundary rules, persona, AI disclosure, PDPA purpose statement, privacy-notice link or template | Owner, Admin | default, X | APR-01, AGT-08, AGT-11, LED-02, GOV-14 · UC-03, UC-29 |
 | SCR-APP-010 | Wizard · Test your assistant | The Coach chat (APP-030) embedded, with suggested test questions from the template | Owner, Admin | E (suggested prompts), P | ONB-05, AGT-17 · UC-04 |
-| SCR-APP-011 | Wizard · Add to your website | Widget preview matched to the site, overrides, snippet + platform steps, install check; optional other channels | Owner, Admin | waiting, detected, wrong domain | ONB-07, CHN-11, CHN-14 · UC-05, UC-25 |
-| SCR-APP-012 | Go-live check | Readiness checklist with blocking items and warnings; choose channels; Go live | Owner, Admin | blocked, warnings, ready, live | ONB-09, ONB-10 · UC-03 |
+| SCR-APP-011 | Wizard · Add to your website | Widget preview matched to the site, overrides, snippet + platform steps, install check; optional other channels | Owner, Admin | waiting, detected, wrong domain, pre-live form locked (purpose statement or privacy notice missing) | ONB-07, CHN-11, CHN-14 · UC-05, UC-25 |
+| SCR-APP-012 | Go-live check | Readiness checklist with blocking items and warnings (including whether the pre-live contact form is allowed: it needs the purpose statement and privacy notice); choose channels; Go live | Owner, Admin | blocked, warnings, ready, live | ONB-09, ONB-10 · UC-03 |
 
 **Home**
 
@@ -288,7 +288,7 @@ States key: **L** loading · **E** empty · **X** error · **P** populated · pl
 | ID | Screen | Purpose | Roles | Key states | Traces |
 |---|---|---|---|---|---|
 | SCR-APP-036 | Channels | All channels with live / offline / degraded state; go live and go offline per channel; connect new | Owner, Admin | P, degraded | ONB-10, CHN-12 · UC-25 |
-| SCR-APP-037 | Website widget | Theme preview and overrides, position, logo; allowed origins; snippet and install check; pre-live mode (message or hidden); tracking and consent mode; proactive greetings | Owner, Admin | P, install pending | ONB-07, ONB-10, CHN-02, CHN-03, CHN-11, CHN-13, CHN-14, AGT-10 · UC-05 |
+| SCR-APP-037 | Website widget | Theme preview and overrides, position, logo; allowed origins; snippet and install check; pre-live mode (contact form, offered only once the purpose statement and privacy notice are set, or hidden); tracking and consent mode; proactive greetings | Owner, Admin | P, install pending | ONB-07, ONB-10, CHN-02, CHN-03, CHN-11, CHN-13, CHN-14, AGT-10 · UC-05 |
 | SCR-APP-038 | Email channel | Forwarding address; custom domain with SPF, DKIM and DMARC records; reply cap | Owner, Admin | forwarding only, domain pending, verified, failing | CHN-04, CHN-10 · UC-25, UC-27 |
 | SCR-APP-039 | Telegram | Connect a BotFather token; private-chats-only note; owner alerts via Telegram | Owner, Admin | disconnected, connected, revoked | CHN-05 · UC-25 |
 | SCR-APP-040 | Messenger and Instagram | Connect a Page or IG business account; app-review status; messaging-window note | Owner, Admin | disconnected, sandbox, connected, revoked | CHN-06 · UC-25 |
@@ -334,6 +334,8 @@ Touch devices only: control height and input type size go up (design.md §4.9, "
 | **Visitor** (SRS §2) | A prospective customer on the SME's site, **mostly on a phone**, in English, Singlish or Chinese, often in a hurry | Get a fast, accurate answer (J2, J7); leave details or ask for a quote (J3); reach a person (J4); continue on Telegram or email (J5); control their data (J10) |
 
 **Device target:** mobile-first. On screens under 480 px the panel is full-screen; on larger screens it's a floating panel. It runs inside any host page (WordPress, Wix, Shopify, plain HTML), in light or dark, and must never break the page (NFR-14). Budgets: loader ≤ 14 KB gz and initial load ≤ 30 KB including theme detection (NFR-02, CHN-14, ADR-016).
+
+**Language (owner decision, 2026-10-19):** the widget's own labels and notices follow the visitor's language, either English or 简体中文. The language is taken from the conversation's detected language, falling back to the browser language, then English. Texts the tenant writes (disclosure, purpose statement, fallback message) are shown as entered (design.md §4.9).
 
 #### Information architecture and navigation
 A single panel with no navigation tree. The header menu holds the visitor controls that are always available (CHN-13).
@@ -492,14 +494,15 @@ flowchart TB
 
 | # | Item | Default until decided |
 |---|---|---|
-| UX-Q1 | **Dashboard dark mode in the MVP?** Tokens are ready; shipping it adds QA cost across ~60 screens. The widget must support dark mode regardless (CHN-14). | Planning decides. Recommendation: light only for APP and OPS at launch, with dark mode as a fast-follow |
+| UX-Q1 | **Dashboard dark mode in the MVP?** Tokens are ready; shipping it adds QA cost across ~60 screens. The widget must support dark mode regardless (CHN-14). | **Decided 2026-10-19 (owner):** light only for APP and OPS at launch; dark mode is a fast-follow. The widget supports both from day one |
 | UX-Q2 | **"Approve all" placement.** Placing it first speeds up ONB-08 but risks automation bias (IMDA). | Shown in the wizard and Review header, always behind a count-by-type confirmation; prices are listed first and conflicts are excluded (KB-16) |
 | UX-Q3 | **Coach quick panel on mobile.** A slide-over is cramped at 375 px. | Below 768 px it opens the full Coach page with context passed in |
-| UX-Q4 | **Language of system text in the widget.** Visitor-facing system notices ("Mei Ling joined") are in English, but the bot replies in the visitor's language (AGT-03). NFR-10 keeps the dashboard UI in English; it doesn't say how widget chrome should handle language. | Widget chrome follows the visitor's detected language for EN and 简体中文 (a small string table, within the budget). To be confirmed |
+| UX-Q4 | **Language of system text in the widget.** The bot replies in the visitor's language (AGT-03), and NFR-10 keeps the dashboard UI in English, but no requirement says how widget chrome should handle language. | **Decided 2026-10-19 (owner):** widget chrome follows the visitor's language, EN or 简体中文, from a small string table (design.md §4.9) |
+| UX-Q5 | **Mobile tab bar order.** | **Decided 2026-10-19 (owner):** Home · Inbox · Approvals · Review · More. Sections needing owner action come first; Leads stays under More (B1) |
 | UX-R1 | **Theme detection may pick the wrong brand colour** on cluttered sites. | The tenant previews and overrides in APP-011 / APP-037; detection results are shown as editable swatches |
 | UX-R2 | **The ≤ 15-minute go-live (ONB-08)** depends on extraction speed and on owners trusting Approve all. | To be measured in the pilot; the wizard lets users continue while the crawl runs |
-| UX-R3 | **Assumptions not yet tested with users:** the bottom-tab choice (Approvals vs Leads), the Review-hub grouping and the wording of consent cards. | Validate with pilot SMEs (SRS §8 item 1) using the anchor prototypes |
-| UX-R4 | **Pre-live widget mode** "coming soon + lead capture" collects personal data before go-live, so it needs the purpose statement and privacy link from the readiness check, which may not be done yet. | The pre-live form is available only once the purpose statement and privacy notice are set. Otherwise the widget stays hidden |
+| UX-R3 | **Assumptions not yet tested with users:** the Review-hub grouping and the wording of consent cards. | Validate with pilot SMEs (SRS §8 item 1) using the anchor prototypes |
+| UX-R4 | **Pre-live widget mode** "coming soon + contact form" collects personal data before go-live, so it needs the purpose statement and privacy link from the readiness check, which may not be done yet. | **Decided 2026-10-19 (owner):** the pre-live form is available only once the purpose statement and privacy notice are set; otherwise the widget stays hidden (SCR-APP-011, -012, -037) |
 
 No problems were found in the upstream documents that block this phase. UX-Q4 and UX-R4 are interpretations of SRS wording, recorded here rather than edited upstream.
 

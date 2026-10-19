@@ -101,4 +101,5 @@ A `system-notice` with a retry or the polite limit message (GOV-13). Not prototy
 
 - **A1–A3** were found by the anchors and applied directly to design.md (§3, §4.6, §4.9) and tokens.json (`widget.*`), because the design system is still an unsigned draft in this same phase. Signed-off versions will need the ux-foundations amendment path instead.
 - **Not covered by anchors:** the desktop three-pane inbox, Home KPIs (charts depend on the data-visualisation gap in design.md §9) and the operator console's dark chrome. These are validated by the first features that build them, with anchor-level scrutiny.
+- **Dark mode in the dashboard prototypes:** SCR-APP-019 and SCR-APP-015 still render dark when your OS is in dark mode. This previews the fast-follow; the launch build of APP is light only (design.md §9).
 - **Prototype limitations:** the IBM Plex font loads from Google Fonts in the prototypes only (production self-hosts it). The state switcher overlaps the header at 375 px and isn't part of the design.
