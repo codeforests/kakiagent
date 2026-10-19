@@ -21,7 +21,7 @@
       Done when: `pnpm dev`'s scheduler logs an anchor run against LocalStack (or the stand-in), typecheck and lint are clean, and `terraform validate` and `terraform test` pass where Terraform is available (CI runs both).
 - [x] T9 — CLI: `pnpm audit:verify` (design §3.4; AC-10)
       Done when: on the local database it prints `ok: true` and exits 0, exits 1 after a tamper with the broken `seq`, and exits 2 for an invalid tenant ID.
-- [ ] T10 — Docs: scaffold-notes §4 stub row, AGENTS.md command list (design §5)
+- [x] T10 — Docs: scaffold-notes §4 stub row, AGENTS.md command list (design §5)
       Done when: both name the chain, the anchor job and the CLI.
 - [ ] T11 — Verify: every acceptance criterion (design §6) demonstrably passes; format, lint (with boundaries), typecheck, unit, integration and coverage green; E2E skeleton and facts flows still pass
       Done when: the commands in AGENTS.md "Checks" pass and each AC is mapped to the test or run that shows it.
