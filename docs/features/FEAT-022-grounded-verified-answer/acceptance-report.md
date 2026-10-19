@@ -1,7 +1,7 @@
 # Acceptance Report: FEAT-022 — Grounded, verified answer from a hand-entered fact
 
-> Current verdict: **Design defect** (re-verification 1, at `d9befc0`; see the last section) · Date: 2026-10-19
-> Initial verdict: Rework, at `44bc8c2` (kept below as recorded)
+> Current verdict: **Design defect, with one rework finding** (re-verification 2, at `fa30a46`; see the last section) · Date: 2026-10-19
+> Earlier verdicts, kept below as recorded: Rework at `44bc8c2` (initial); Design defect at `d9befc0` (re-verification 1)
 > Standard: technical-design.md §6 (AC-1..AC-16) and §5 (verifier spec) @ `44bc8c2` · Sources: SRS.md v0.4 (AGT-01, AGT-02, AGT-06, AGT-11, AGT-16, CHN-02, KB-07, KB-15, NFR-01, NFR-04, NFR-10), use-cases.md v0.4 (UC-20, UC-13)
 > Repo state audited: `44bc8c2` on `claude/project-thread-91q4ac` (clean tree)
 
@@ -219,3 +219,108 @@ The other 26 ordinary sentences probed passed, including "good for 2 to 3 people
 ### RTM
 
 Not written. Verdict: design defect. When a later re-verification is accepted, Test ref `features/FEAT-022-grounded-verified-answer/acceptance-report.md (partial)` goes on AGT-01, AGT-02, AGT-06, AGT-11, AGT-16, CHN-02, KB-07, KB-15, NFR-01, NFR-04 and NFR-10. All are partial: they are partial touchpoints, and the real-model checks for AC-1, AC-4, AC-15 and AC-12 latency are still pending.
+
+---
+
+## Re-verification 2 — 2026-10-19 · Verdict: **Design defect** (with one rework finding)
+
+> Repo state audited: `fa30a46` (design amendment D13, fixes for R5/R6) · Standard: technical-design.md §6, §5 and D13 (§7), re-derived against ADR-008 decision 2, AGT-02 and NFR-10 (the agent handles Simplified Chinese)
+
+### Summary
+
+D13 ("the model types no numbers") closes everything the first two runs found:
+- every DD1 phrasing;
+- every DD2 split;
+- R5 and R6.
+
+All suites are green.
+
+Three classes of model-typed price still reach the visitor as `answered`:
+- **R7 (rework).** Chinese number words such as 五十 and 十, written with no currency marker. D13 says "any number word of ten or more", but the code checks English words only.
+- **DD3 (design defect).** Prices written as number words below ten next to a price word, such as "They are three each." D13's ten-or-more threshold exempts these on purpose. For a bakery whose cupcakes cost S$3 to S$9, that is a realistic way to invent a price.
+- **DD3 (design defect).** Currency amounts with no numeral at all: "It costs a dollar.", "A few bucks only.", "a fiver".
+
+The verdict takes the more severe class, **design defect**. DD3 goes to detailed-design for a D13 follow-up, and R7 goes to implementation. The RTM is not written.
+
+### The replaced unit test: legitimate
+
+`render-verify.test.ts` had asserted that "We have 3 flavours to choose from." and "The 1 kg cake serves about 8 people." pass. The R1–R4 rework had also added "It is good for 2 to 3 people." to that list. All three were replaced. I judge the replacement legitimate, not a weakening:
+- D13 now requires that a model-typed digit fails. Keeping those assertions would have tested the old standard.
+- The replacement asserts the opposite of the old cases: `'We have 3 flavours.'` is now blocked, along with 14 other D13 forms. It keeps the pass intent in the D13-conforming form ("We have three flavours to choose from.") and adds a positive test for the one exception, a count the visitor typed before a quantity noun ("enough for 8 people").
+- AC-3's own pass case still holds. I re-checked it directly: "Sure, we can do 200 cupcakes." passes when the visitor typed "200 cupcakes".
+- The change is declared in tasks.md "Implementation notes", it follows an explicit design decision (D13, with driver, cost and the rejected alternative), and it moves the test toward the amended criterion rather than toward the code.
+
+The other changes in `ad38472..fa30a46` only add tests: 15 D13 cases, an R5 case, a visitor-count case, a DD2 segmenter case, and 6 eval recordings (31 → 37). I found no skips and no loosened assertions.
+
+### Independent execution (at `fa30a46`)
+
+| Check | Result |
+| :- | :- |
+| `pnpm format:check` | pass |
+| `pnpm turbo run lint --force`; `pnpm boundaries` | 24/24; no dependency violations |
+| `pnpm turbo run typecheck --force` | 26/26 |
+| `pnpm turbo run test --force` | 21/21 (agent 75 unit tests) |
+| `pnpm turbo run test:coverage --force --concurrency=1` (unit + integration) | 15/15; agent 85 tests, 98.5% lines |
+| `pnpm turbo run build --force`; `pnpm size` | 9/9; loader 1.75 kB, panel 9.34 kB gz |
+| `pnpm eval --fast` | 37 cases; prices 29/29, groundedness 8/8 |
+| E2E (Chromium, `E2E_REUSE_SERVERS=true`) | 4/4 |
+
+### Direct verification
+
+**Earlier findings, all now blocked:**
+- R1–R4;
+- every DD1 phrasing (including "start from 50", "would be about 50", "approx 50", "~50", "between 50 and 60", "55 each", "55 per kg", "Pricing: 50", "Members pay 50", "It is 55.00", "or 50 for members");
+- R6 ("50$", "50 S$");
+- R5 ("S$55.000", and "S$55.00 thousand").
+
+**DD2 segment splits** (fed through the `Segmenter` in 3-character chunks):
+- "S$\n50", "Price:\n50" and "SGD\n50" now stay in one segment and are blocked.
+- Splits that D13 still allows, such as "The price is\n50", "It costs approx. 50." and a 160-character cut before "50", put the number in its own segment, which is blocked. Only the harmless first half can be released, followed by a regeneration.
+
+**Still released.** Each was run through `composeReply` with the fake provider scripted to return the same output on both attempts. All were published with outcome `answered`:
+
+| Model output | Class |
+| :- | :- |
+| `价格是五十。` ("the price is fifty") | R7 |
+| `只要五十蚊。` ("only fifty", colloquial 蚊) | R7 |
+| `They are three each.` | DD3 |
+| `It costs a dollar.` | DD3 |
+
+`verifySegment` alone also passes:
+- **Chinese number words:** "它是十。".
+- **Small number words as prices:** "Each cupcake is nine.", "Cupcakes are five per piece.", "It is five five.", "It is five-oh.", "It is nine point nine.".
+- **Currency amounts with no numeral:** "Just a dollar each.", "A couple of dollars.", "A few bucks only.", "Half a dollar.", "It is a tenner.", "It is a fiver.", "It is dozens of dollars.", "It is hundreds.".
+- **Non-ASCII digits:** "It is ٥٠." and "It is ५०.", because JS `\d` is ASCII-only even with the `u` flag (Roman "Ⅴ" passes too).
+
+**Real slot values in claims no fact supports.** The verifier passes these, as ADR-008 allows, because every value comes from a slot: "Two for S$55.00.", "S$55.00 each, or S$55.00 for two.", "Save S$55.00 today.", "S$55.00 off.", "half of S$55.00", "S$55.00k". A lexical verifier can't catch them, but they misstate price terms.
+
+**False positives that would hurt a real model** (findings for M1.5, not blockers):
+- D13 blocks every model-typed digit. A real model writes "1 kg", "open 7 days" or "for 2 people" (unless the visitor typed it) often enough that the regeneration and escalation rate is likely to matter. The prompt now asks for counts in words, but only M1.5 can measure the effect.
+- "Order at least one day ahead." is blocked as a duration. That is by design, but it is common FAQ wording, so durations must come from FAQ slots.
+- "Maybe 3 of them." is reported as a `date` because of the "may" month pattern (M5 still open). "It costs maybe more." passes.
+
+### Findings
+
+**Design defect (blocking), routed to detailed-design for a D13 follow-up:**
+- **DD3 — D13 leaves two forms of typed price open.**
+  - *Number words below ten.* D13 blocks "any number word of ten or more", which exempts "three", "five" and "nine". The design allows them so the model can write small counts in words. But next to a price word that comes *after* the number (each, per, a piece, apiece), or in strung forms ("five five", "nine point nine"), they are prices.
+  - *Currency amounts with no numeral.* ADR-008 decision 2 requires "currency amounts in any form". §5 catches currency words only after a number or a number word, so "a dollar", "a few bucks", "a couple of dollars", "a fiver", "a tenner" and "dozens of dollars" all pass.
+  
+  A sufficient amendment would make two rules:
+  1. Any currency word or sign (dollar(s), buck(s), cent(s), fiver, tenner, ringgit, 元, 块, 蚊, $, S$) in model-typed text outside a slot rendering is a violation.
+  2. A number word of any size is a violation when a price word stands next to it on either side (each, per, apiece, a piece, for, at, only, just, price, cost), or when it is strung with another number word or "point".
+  
+  D3's count exception before a quantity noun would stay as it is.
+
+**Rework (code, within D13 as written):**
+- **R7 — Chinese number words are not covered.** D13 says "any digit, or any number word of ten or more". The `BIG_WORDS` pattern lists English words only, so 十, 五十, 一百 and so on pass when no 元 or 块 follows ("价格是五十。", "它是十。"). The agent answers in Simplified Chinese (NFR-10, FEAT-023), so this is a live path. Also, the Chinese-numeral currency pattern accepts 元 and 块 but not 蚊 ("五十蚊" passes), while the digit form already includes 蚊. A fix needs failing unit tests and an eval recording first.
+
+**Minor:**
+- **M7.** Digits outside ASCII (Arabic-Indic, Devanagari) and Roman numerals pass. Using `\p{Nd}` instead of `\d` would close this cheaply.
+- **M8.** Slot values used in claims no fact supports ("Two for S$55.00", "Save S$55.00", "S$55.00 off") pass the verifier. Track them in the M1.5 red-team and eval cases; a lexical fix is not expected.
+- **M9.** The false-positive rate of D13 on a real model is to be measured at M1.5 (see above).
+- M1–M6 from the earlier runs still stand; M5 is the "maybe" date false positive.
+
+### RTM
+
+Not written. Verdict: design defect. When a later re-verification is accepted, Test ref `features/FEAT-022-grounded-verified-answer/acceptance-report.md (partial)` goes on AGT-01, AGT-02, AGT-06, AGT-11, AGT-16, CHN-02, KB-07, KB-15, NFR-01, NFR-04 and NFR-10.
