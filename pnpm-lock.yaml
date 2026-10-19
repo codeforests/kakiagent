@@ -401,6 +401,9 @@ importers:
       '@kaki/inbox':
         specifier: workspace:*
         version: link:../inbox
+      '@kaki/kb':
+        specifier: workspace:*
+        version: link:../kb
       '@kaki/llm-gateway':
         specifier: workspace:*
         version: link:../llm-gateway

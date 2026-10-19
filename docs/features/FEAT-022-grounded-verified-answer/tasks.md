@@ -9,7 +9,7 @@
       Done when: `rls.int.test.ts` covers cross-tenant reads/writes on each new table, permission denied for the visitor role on the base tables, and every excluded status in `visitor_facts`/`visitor_chunks`; it passes.
 - [x] T3 — `llm-gateway`: `stream`, `embed`, the `embed` logical model, scripted streaming and the deterministic embedder in the fake provider, streaming in `anthropic-dev` (design §3.5)
       Done when: unit tests for stream chunking, scripted multi-attempt outputs, embedding determinism and similarity ordering pass.
-- [ ] T4 — `agent` domain: slots, renderer (S$, GST), segmenter, verifier (design §5; AGT-02, KB-15, NFR-10)
+- [x] T4 — `agent` domain: slots, renderer (S$, GST), segmenter, verifier (design §5; AGT-02, KB-15, NFR-10)
       Done when: unit tests for AC-1 (render), AC-3 (verifier), AC-10 (GST and formatting) and the segmenter's slot and decimal rules pass.
 - [ ] T5 — `agent` domain: prompt and `composeReply` with regeneration, escalation, gate re-check and fallback (design §5; D2; AC-2, AC-5, AC-13, AC-14 mid-stream)
       Done when: unit tests with scripted fake outputs for pass, regenerate-then-pass, fail twice, provider error and gate closing between segments pass, and no failing segment reaches `publish`.

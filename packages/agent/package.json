@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Visitor and coaching turns: retrieval, slot rendering, verification, tools (ADR-008, ADR-009). Skeleton: echo turn.",
+  "description": "Visitor and coaching turns: retrieval, slot rendering, verification, tools (ADR-008, ADR-009).",
   "exports": {
     ".": "./src/index.ts"
   },
@@ -17,6 +17,7 @@
   "dependencies": {
     "@kaki/db": "workspace:*",
     "@kaki/inbox": "workspace:*",
+    "@kaki/kb": "workspace:*",
     "@kaki/llm-gateway": "workspace:*"
   },
   "devDependencies": {
