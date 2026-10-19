@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SCR-APP-019 · Review · Facts (anchor)</title>
+<!-- Prototype only: production self-hosts IBM Plex (design.md §2.2). -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono&display=swap">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="components.css">
+<style>
+  .page-head { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-4) var(--space-5); margin-bottom: var(--space-5); }
+  .page-head .grow { flex: 1 1 280px; display: grid; gap: var(--space-2); }
+  .queue { max-width: 880px; display: grid; gap: var(--space-7); }
+  .filters { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; margin-top: var(--space-5); }
+  .filters .select { width: auto; min-width: 160px; }
+  .filters .hint { margin-left: auto; }
+  .bulkbar { position: sticky; top: 0; z-index: var(--z-sticky); display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); border: 1px solid var(--color-border-default); border-radius: var(--radius-lg); background: var(--color-bg-surface); box-shadow: var(--shadow-sm); }
+  .bulkbar .grow { flex: 1; }
+  .group { display: grid; gap: var(--space-4); }
+  .group-head { display: flex; align-items: center; gap: var(--space-3); }
+  .group-head h2 { font-size: var(--type-title-sm-size); line-height: var(--type-title-sm-line); }
+
+  /* fact-card (design.md §4.6) */
+  .fact { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--space-4); }
+  .fact.is-done { padding-block: var(--space-4); }
+  .fact .sel { padding-top: 3px; }
+  .fact-body { display: grid; gap: var(--space-4); min-width: 0; }
+  .fact-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+  .fact-meta .src { margin-left: auto; }
+  .fact-value { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2) var(--space-5); }
+  .fact-value .price { font-size: var(--type-title-sm-size); font-weight: var(--font-weight-semibold); font-variant-numeric: tabular-nums; margin-left: auto; }
+  .passage { margin: 0; background: var(--color-bg-subtle); border-left: 3px solid var(--color-border-strong); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; padding: var(--space-3) var(--space-4); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line); color: var(--color-text-secondary); display: grid; gap: var(--space-2); }
+  .passage mark { background: var(--color-accent-soft); color: var(--color-text-primary); border-radius: 2px; padding: 0 2px; }
+  .flags { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+  .actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+  .done-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4); }
+  .done-row .grow { flex: 1; min-width: 0; }
+  @media (max-width: 639px) {
+    .actions .btn { flex: 1 1 100%; }
+    .fact-meta .src { margin-left: 0; flex-basis: 100%; }
+    .filters .hint { display: none; }
+    .filters .select { flex: 1 1 140px; min-width: 0; }
+  }
+  .kbd { font-family: var(--font-family-mono); font-size: var(--type-caption-size); border: 1px solid var(--color-border-default); border-bottom-width: 2px; border-radius: var(--radius-sm); padding: 0 4px; }
+  .confirm-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  .confirm-table th, .confirm-table td { text-align: left; padding: var(--space-3) 0; border-bottom: 1px solid var(--color-border-default); }
+  .confirm-table td:last-child, .confirm-table th:last-child { text-align: right; }
+  .confirm-table tfoot td { font-weight: var(--font-weight-semibold); border-bottom: 0; }
+  .confirm-table thead th { font-weight: var(--font-weight-medium); color: var(--color-text-secondary); font-size: var(--type-body-sm-size); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></symbol>
+  <symbol id="i-inbox" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5h13L22 12v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6z"/></symbol>
+  <symbol id="i-stamp" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12l2 2 4-4"/><rect x="3" y="4" width="18" height="16" rx="2"/></symbol>
+  <symbol id="i-review" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5z"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0 1 14 0"/><path d="M17 4a4 4 0 0 1 0 8M22 21a7 7 0 0 0-4-6.3"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
+  <symbol id="i-party" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></symbol>
+</svg>
+
+<a class="skip" href="#main">Skip to content</a>
+
+<div class="proto-bar" role="toolbar" aria-label="Prototype states">
+  <button data-state="default" aria-pressed="true">Default</button>
+  <button data-state="loading" aria-pressed="false">Loading</button>
+  <button data-state="empty" aria-pressed="false">Empty</button>
+  <button data-state="error" aria-pressed="false">Error</button>
+  <button data-open="dialog" aria-pressed="false">Approve all dialog</button>
+</div>
+
+<div class="shell">
+  <nav class="sidebar" aria-label="Main">
+    <div class="wordmark">K<span>akiAgent</span></div>
+    <a class="nav-item" href="#"><svg><use href="#i-home"/></svg><span class="label">Home</span></a>
+    <a class="nav-item" href="#"><svg><use href="#i-inbox"/></svg><span class="label">Inbox</span><span class="count">3</span></a>
+    <a class="nav-item" href="#"><svg><use href="#i-stamp"/></svg><span class="label">Approvals</span><span class="count count-pending">1</span></a>
+    <a class="nav-item" href="#" aria-current="page"><svg><use href="#i-review"/></svg><span class="label">Review</span><span class="count count-warn" data-count>49</span></a>
+    <a class="nav-item" href="#"><svg><use href="#i-book"/></svg><span class="label">Knowledge</span></a>
+    <a class="nav-item" href="#"><svg><use href="#i-chat"/></svg><span class="label">Coach</span></a>
+    <a class="nav-item" href="#"><svg><use href="#i-users"/></svg><span class="label">Leads</span></a>
+    <a class="nav-item" href="#"><svg><use href="#i-chart"/></svg><span class="label">Insights</span></a>
+    <a class="nav-item" href="#"><svg><use href="#i-gear"/></svg><span class="label">Settings</span></a>
+  </nav>
+
+  <header class="topbar">
+    <span class="tenant">Kueh &amp; Co. Bakery</span>
+    <span class="grow"></span>
+    <button class="ai-pill" type="button" aria-label="AI status: live. Open pause controls"><span class="dot"></span>Live</button>
+    <span class="avatar hide-sm" aria-label="Signed in as Tan Ah Kow">TA</span>
+  </header>
+
+  <main class="main" id="main">
+    <div class="queue">
+      <div>
+        <div class="page-head">
+          <div class="grow">
+            <h1>Review</h1>
+            <p class="muted">Your assistant only uses facts you approve. Prices, policies and promotions are listed first.</p>
+          </div>
+          <button class="btn btn-secondary" type="button" data-open="dialog" data-needs-facts>Approve all…</button>
+        </div>
+        <div class="tabs" role="tablist" aria-label="Review queues">
+          <button class="tab" role="tab" aria-selected="true">Facts <span class="count count-warn" data-count>42</span></button>
+          <button class="tab" role="tab" aria-selected="false">Conflicts <span class="count">2</span></button>
+          <button class="tab" role="tab" aria-selected="false">Corrections <span class="count">5</span></button>
+        </div>
+        <div class="filters" data-needs-facts>
+          <label class="sr-only" for="f-source">Source</label>
+          <select class="select" id="f-source"><option>All sources</option><option>kuehco.sg (website)</option><option>Price list 2026.xlsx</option><option>WhatsApp export</option></select>
+          <label class="sr-only" for="f-type">Fact type</label>
+          <select class="select" id="f-type"><option>All types</option><option>Prices</option><option>Policies</option><option>Promotions</option><option>FAQs</option><option>Hours</option></select>
+          <span class="hint caption muted">Keys: <span class="kbd">A</span> approve · <span class="kbd">E</span> edit · <span class="kbd">R</span> reject · <span class="kbd">J</span>/<span class="kbd">K</span> move</span>
+        </div>
+      </div>
+
+      <!-- DEFAULT -->
+      <div data-view="default" class="queue">
+        <div class="bulkbar" aria-live="polite">
+          <input type="checkbox" class="checkbox" id="sel-all" aria-label="Select all prices">
+          <span class="grow body-sm"><b>2 selected</b> <span class="muted">of 12 prices</span></span>
+          <button class="btn btn-primary btn-sm" type="button">Approve 2</button>
+          <button class="btn btn-ghost btn-sm" type="button">Reject</button>
+        </div>
+
+        <section class="group" aria-labelledby="g-prices">
+          <div class="group-head"><h2 id="g-prices">Prices</h2><span class="count">12</span></div>
+
+          <article class="card fact" aria-labelledby="f1">
+            <input type="checkbox" class="checkbox sel" checked aria-label="Select Chocolate fudge cake, 1 kg">
+            <div class="fact-body">
+              <div class="fact-meta">
+                <span class="chip chip-fact-review"><svg><use href="#i-alert"/></svg>Needs review</span>
+                <span class="body-sm muted">Price · 92% confidence</span>
+                <a class="src body-sm" href="#">kuehco.sg/cakes</a>
+              </div>
+              <div class="fact-value">
+                <h3 id="f1">Chocolate fudge cake, 1 kg</h3>
+                <span class="price">S$55.00 <span class="caption muted">GST incl.</span></span>
+              </div>
+              <blockquote class="passage" cite="https://kuehco.sg/cakes">
+                <span>“…our signature <mark>Chocolate Fudge (1kg) – $55</mark>, eggless option available on request. Order 3 days ahead…”</span>
+                <span class="caption">Website · crawled 18 Oct 2026</span>
+              </blockquote>
+              <div class="actions">
+                <button class="btn btn-primary" type="button" data-approve>Approve</button>
+                <button class="btn btn-secondary" type="button">Edit and approve</button>
+                <button class="btn btn-ghost" type="button">Reject</button>
+              </div>
+            </div>
+          </article>
+
+          <article class="card fact" aria-labelledby="f2">
+            <input type="checkbox" class="checkbox sel" checked aria-label="Select Corporate cupcake box of 12">
+            <div class="fact-body">
+              <div class="fact-meta">
+                <span class="chip chip-fact-review"><svg><use href="#i-alert"/></svg>Needs review</span>
+                <span class="body-sm muted">Price · <span style="color:var(--color-warning-default)">64% confidence</span></span>
+                <a class="src body-sm" href="#">Price list 2026.xlsx · row 18</a>
+              </div>
+              <div class="fact-value">
+                <h3 id="f2">Corporate cupcake box (12 pcs)</h3>
+                <span class="price">S$36.00</span>
+              </div>
+              <div class="flags">
+                <span class="chip chip-fact-review"><svg><use href="#i-warn"/></svg>GST treatment unknown</span>
+              </div>
+              <blockquote class="passage">
+                <span>“Cupcake box 12pcs | <mark>36.00</mark> | min order 5 boxes”</span>
+                <span class="caption">Spreadsheet · uploaded 19 Oct 2026</span>
+              </blockquote>
+              <div class="actions">
+                <button class="btn btn-primary" type="button" data-approve>Approve</button>
+                <button class="btn btn-secondary" type="button">Edit and approve</button>
+                <button class="btn btn-ghost" type="button">Reject</button>
+              </div>
+            </div>
+          </article>
+
+          <article class="card fact is-done" aria-label="Pandan chiffon cake approved">
+            <span></span>
+            <div class="done-row">
+              <span class="chip chip-fact-approved"><svg><use href="#i-check"/></svg>Approved</span>
+              <span class="grow body-sm"><b>Pandan chiffon cake, whole</b> · <span class="num">S$28.00</span></span>
+              <button class="btn btn-ghost btn-sm" type="button">Undo</button>
+            </div>
+          </article>
+        </section>
+
+        <section class="group" aria-labelledby="g-policies">
+          <div class="group-head"><h2 id="g-policies">Policies</h2><span class="count">6</span></div>
+          <article class="card fact" aria-labelledby="f4">
+            <input type="checkbox" class="checkbox sel" aria-label="Select Delivery policy">
+            <div class="fact-body">
+              <div class="fact-meta">
+                <span class="chip chip-fact-review"><svg><use href="#i-alert"/></svg>Needs review</span>
+                <span class="body-sm muted">Policy · 88% confidence</span>
+                <a class="src body-sm" href="#">kuehco.sg/faq</a>
+              </div>
+              <div class="fact-value"><h3 id="f4">Delivery: islandwide, S$15 flat; free above S$120</h3></div>
+              <div class="flags"><span class="chip chip-fact-conflict"><svg><use href="#i-warn"/></svg>Conflicts with 1 source</span><span class="chip chip-neutral"><svg><use href="#i-clock"/></svg>Source is 14 months old</span></div>
+              <blockquote class="passage">
+                <span>“We deliver <mark>islandwide for a flat $15</mark> (<mark>free for orders above $120</mark>), except Sentosa and Jurong Island.”</span>
+                <span class="caption">Website · crawled 18 Oct 2026 · page last changed Aug 2025</span>
+              </blockquote>
+              <div class="actions">
+                <a class="btn btn-secondary" href="#">Resolve conflict</a>
+              </div>
+            </div>
+          </article>
+        </section>
+      </div>
+
+      <!-- LOADING -->
+      <div data-view="loading" hidden aria-busy="true" class="group">
+        <span class="sr-only">Loading facts…</span>
+        <div class="card" style="display:grid;gap:var(--space-4)"><div class="skel" style="height:22px;width:40%"></div><div class="skel" style="height:24px;width:70%"></div><div class="skel" style="height:56px"></div><div class="skel" style="height:36px;width:55%"></div></div>
+        <div class="card" style="display:grid;gap:var(--space-4)"><div class="skel" style="height:22px;width:35%"></div><div class="skel" style="height:24px;width:60%"></div><div class="skel" style="height:56px"></div><div class="skel" style="height:36px;width:55%"></div></div>
+      </div>
+
+      <!-- EMPTY -->
+      <div data-view="empty" hidden class="card state">
+        <svg><use href="#i-party"/></svg>
+        <h2>No facts waiting for review</h2>
+        <p>New facts show up here after a source finishes processing. Your assistant is using 142 approved facts.</p>
+        <a class="btn btn-primary" href="#">Add a source</a>
+      </div>
+
+      <!-- ERROR -->
+      <div data-view="error" hidden class="card state error" role="alert">
+        <svg><use href="#i-warn"/></svg>
+        <h2>We couldn't load your facts</h2>
+        <p>Your connection dropped while loading the review queue. Nothing you approved was lost.</p>
+        <button class="btn btn-primary" type="button" data-state-go="default">Try again</button>
+      </div>
+    </div>
+  </main>
+
+  <nav class="tabbar" aria-label="Main">
+    <a href="#"><svg><use href="#i-home"/></svg>Home</a>
+    <a href="#"><svg><use href="#i-inbox"/></svg>Inbox<span class="count">3</span></a>
+    <a href="#"><svg><use href="#i-stamp"/></svg>Approvals<span class="count count-pending">1</span></a>
+    <a href="#" aria-current="page"><svg><use href="#i-review"/></svg>Review<span class="count count-warn">49</span></a>
+    <a href="#"><svg><use href="#i-more"/></svg>More</a>
+  </nav>
+</div>
+
+<!-- approve-all-dialog (design.md §4.6) -->
+<div class="scrim" data-dialog hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlg-title" aria-describedby="dlg-desc">
+    <h2 id="dlg-title">Approve 41 facts?</h2>
+    <p id="dlg-desc" class="muted">Your assistant will start using these facts with visitors within a minute. You can still edit or disable any fact later.</p>
+    <table class="confirm-table">
+      <thead><tr><th scope="col">Type</th><th scope="col">Facts</th></tr></thead>
+      <tbody>
+        <tr><td>Prices</td><td>11</td></tr>
+        <tr><td>Policies</td><td>5</td></tr>
+        <tr><td>Promotions</td><td>2</td></tr>
+        <tr><td>FAQs</td><td>19</td></tr>
+        <tr><td>Products and hours</td><td>4</td></tr>
+      </tbody>
+      <tfoot><tr><td>Total</td><td>41</td></tr></tfoot>
+    </table>
+    <div class="alert alert-warning body-sm">
+      <svg><use href="#i-warn"/></svg>
+      <p>1 policy with a conflict is not included. Resolve it in <a href="#">Conflicts</a>.</p>
+    </div>
+    <div class="dialog-actions">
+      <button class="btn btn-secondary" type="button" data-close>Cancel</button>
+      <button class="btn btn-primary" type="button" data-confirm>Approve 41 facts</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" role="status" hidden data-toast>
+  <span class="chip chip-fact-approved"><svg><use href="#i-check"/></svg></span>
+  <span class="body-sm" data-toast-text>Approved 41 facts</span>
+  <button class="btn btn-ghost btn-sm" type="button" data-toast-close>Undo</button>
+</div>
+
+<script>
+  const views = document.querySelectorAll('[data-view]');
+  const bar = document.querySelectorAll('.proto-bar [data-state]');
+  const dlg = document.querySelector('[data-dialog]');
+  const toast = document.querySelector('[data-toast]');
+  let lastFocus = null;
+  function setState(s) {
+    views.forEach(v => v.hidden = v.dataset.view !== s);
+    bar.forEach(b => b.setAttribute('aria-pressed', b.dataset.state === s));
+    document.querySelectorAll('[data-needs-facts]').forEach(el => el.hidden = s === 'empty');
+  }
+  function openDialog() {
+    lastFocus = document.activeElement; dlg.hidden = false;
+    document.querySelector('.proto-bar [data-open]').setAttribute('aria-pressed', 'true');
+    dlg.querySelector('[data-close]').focus();
+  }
+  function closeDialog() {
+    dlg.hidden = true;
+    document.querySelector('.proto-bar [data-open]').setAttribute('aria-pressed', 'false');
+    if (lastFocus) lastFocus.focus();
+  }
+  function showToast(t) {
+    toast.querySelector('[data-toast-text]').textContent = t; toast.hidden = false;
+    clearTimeout(showToast.t); showToast.t = setTimeout(() => toast.hidden = true, 5000);
+  }
+  bar.forEach(b => b.addEventListener('click', () => setState(b.dataset.state)));
+  document.querySelectorAll('[data-state-go]').forEach(b => b.addEventListener('click', () => setState(b.dataset.stateGo)));
+  document.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', openDialog));
+  dlg.querySelector('[data-close]').addEventListener('click', closeDialog);
+  dlg.addEventListener('click', e => { if (e.target === dlg) closeDialog(); });
+  document.addEventListener('keydown', e => {
+    if (!dlg.hidden && e.key === 'Escape') closeDialog();
+    if (!dlg.hidden && e.key === 'Tab') {
+      const f = dlg.querySelectorAll('button, a[href]'); const first = f[0], last = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  });
+  dlg.querySelector('[data-confirm]').addEventListener('click', e => {
+    const b = e.currentTarget; b.innerHTML = '<span class="spinner" aria-hidden="true"></span>Approve 41 facts'; b.setAttribute('aria-busy', 'true');
+    setTimeout(() => { b.textContent = 'Approve 41 facts'; b.removeAttribute('aria-busy'); closeDialog(); setState('empty'); showToast('Approved 41 facts'); }, 900);
+  });
+  toast.querySelector('[data-toast-close]').addEventListener('click', () => { toast.hidden = true; setState('default'); });
+  document.querySelectorAll('[data-approve]').forEach(b => b.addEventListener('click', () => {
+    const card = b.closest('.fact'); const name = card.querySelector('h3').textContent;
+    const price = card.querySelector('.price')?.firstChild.textContent.trim() || '';
+    card.classList.add('is-done');
+    card.innerHTML = `<span></span><div class="done-row"><span class="chip chip-fact-approved"><svg><use href="#i-check"/></svg>Approved</span><span class="grow body-sm"><b>${name}</b> · <span class="num">${price}</span></span><button class="btn btn-ghost btn-sm" type="button">Undo</button></div>`;
+    showToast('Approved: ' + name);
+  }));
+</script>
+</body>
+</html>

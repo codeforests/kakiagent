@@ -16,7 +16,8 @@ The product owner signs off each phase before the next one starts. Don't jump ah
 |---|---|---|
 | Requirements | `docs/01-requirements/` (`SRS.md`, `use-cases.md`, `rtm.md`) | Signed off 2026-10-19 (SRS v0.4, decisions D1–D11) |
 | Architecture | `docs/02-design/architecture.md`, `docs/02-design/adr/ADR-001..022` | Signed off and merged 2026-10-19 |
-| Next | UX foundations, then implementation planning | Not started |
+| UX foundations | `docs/02-design/ux-foundations.md`, `design.md`, `tokens.json`, `anchor-screens.md` + `anchors/`, `docs/design-manifest.json` | Signed off 2026-10-19 (owner decisions UX-Q1, Q4, Q5, R4 recorded) |
+| Next | Implementation planning | In progress |
 
 ## Document rules
 
@@ -42,5 +43,12 @@ These span many documents and are easy to break by accident. Read the cited ADR 
 - **The AI send gate** (kill switch, channel live, no human owner) is checked before every turn and every AI send. Concurrency is enforced by the database (ADR-013).
 - **The audit log is a per-tenant hash chain with no PII**; personal data goes to the deletable `audit_pii` store (ADR-014). NRIC, card and bank numbers are masked at the edge and never stored unmasked. PII lives only in contact-keyed tables (ADR-015).
 - **Widget budget:** loader ≤ 14 KB gz (initial load ≤ 30 KB, NFR-02), closed Shadow DOM, runtime theme detection, lazy chat panel (ADR-016).
+
+## UI and design rules
+
+- **Before building any UI, read `docs/02-design/design.md`.** It and `tokens.json` are the only source of design values. Never hard-code colours, spacing or radii. The CSS block in design.md §2.5 and `anchors/tokens.css` are generated from tokens.json: edit tokens.json, then run `python3 docs/02-design/tools/gen_tokens_css.py`, which rewrites both and fails if any colour pair drops below WCAG AA.
+- **Screen IDs** (`SCR-APP-`, `SCR-WGT-`, `SCR-OPS-`) are permanent, like requirement IDs. The inventory is in `ux-foundations.md`; next free IDs are listed in its §1.
+- `docs/design-manifest.json` is the screen registry, written only by the ui-design step.
+- The widget uses only `--kaki-*` variables inside its closed Shadow DOM (ADR-016, design.md §4.9).
 
 Inference cost and latency figures are estimates from 2026-10-19 (ADR-007, `architecture.md` §8.5 and §11). Check model availability and prices against live docs before relying on them.

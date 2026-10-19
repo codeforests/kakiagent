@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "policy": {
+    "fallback": "code-native",
+    "note": "Set 2026-10-19 by the product owner (no design tool connected; HTML prototypes for anchors). Overridable per screen. Paths are relative to docs/."
+  },
+  "screens": {
+    "SCR-APP-015": {
+      "name": "Conversation",
+      "surface": "APP",
+      "feature": "anchor",
+      "strategy": "code-native",
+      "source": {
+        "spec": "02-design/anchor-screens.md#scr-app-015--conversation",
+        "prototype": "02-design/anchors/scr-app-015-conversation.html"
+      },
+      "states": {
+        "covered": ["ai-handling", "human-mine", "human-other", "context-sheet"],
+        "gaps": ["waiting-for-approval", "closed", "flagged", "desktop two-pane and three-pane layouts"],
+        "supplements": []
+      },
+      "contract_bindings": [],
+      "conformance": {
+        "result": "pass",
+        "corrections": ["composer height while holding a suggestion (amendment A2, applied to design.md §4.6)"],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-10-19"
+    },
+    "SCR-APP-019": {
+      "name": "Review · Facts",
+      "surface": "APP",
+      "feature": "anchor",
+      "strategy": "code-native",
+      "source": {
+        "spec": "02-design/anchor-screens.md#scr-app-019--review--facts",
+        "prototype": "02-design/anchors/scr-app-019-review-facts.html"
+      },
+      "states": {
+        "covered": ["default", "loading", "empty", "error", "approve-all", "bulk-selection"],
+        "gaps": [],
+        "supplements": []
+      },
+      "contract_bindings": [],
+      "conformance": {
+        "result": "pass",
+        "corrections": ["single-column queue instead of list + detail (amendment A1, applied to design.md §3)"],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-10-19"
+    },
+    "SCR-WGT-002": {
+      "name": "Chat panel",
+      "surface": "WGT",
+      "feature": "anchor",
+      "strategy": "code-native",
+      "source": {
+        "spec": "02-design/anchor-screens.md#scr-wgt-002--chat-panel",
+        "prototype": "02-design/anchors/scr-wgt-002-chat-panel.html"
+      },
+      "states": {
+        "covered": ["greeting", "replying", "consent", "human", "fallback", "host-light", "host-dark", "host-pale-brand-clamped"],
+        "gaps": ["error", "rate-limited", "after-hours", "waiting-for-approval", "attachment"],
+        "supplements": []
+      },
+      "contract_bindings": [],
+      "conformance": {
+        "result": "pass",
+        "corrections": ["full --kaki-* variable set added to tokens.json widget.* (amendment A3)"],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-10-19"
+    }
+  }
+}

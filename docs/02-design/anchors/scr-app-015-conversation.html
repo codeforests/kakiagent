@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SCR-APP-015 · Conversation, mobile (anchor)</title>
+<!-- Prototype only: production self-hosts IBM Plex (design.md §2.2). -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono&display=swap">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="components.css">
+<style>
+  /* The anchor targets the < 768 px layout (INB-06). On wider screens the prototype is framed at phone width. */
+  body { min-height: 100dvh; }
+  .phone { max-width: 420px; margin: 0 auto; height: 100dvh; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; background: var(--color-bg-canvas); }
+  @media (min-width: 640px) { .phone { margin-block: var(--space-10); height: 760px; border: 1px solid var(--color-border-default); border-radius: var(--radius-xl); overflow: hidden; box-shadow: var(--shadow-lg); } }
+  .thead { position: sticky; top: 0; z-index: var(--z-sticky); display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-3) var(--space-3) var(--space-2); padding-top: calc(var(--space-3) + env(safe-area-inset-top, 0px)); background: var(--color-bg-surface); border-bottom: 1px solid var(--color-border-default); }
+  .thead .who { min-width: 0; display: grid; }
+  .thead .who b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .thead .sub { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+  .icon-btn svg { width: var(--size-icon-md); height: var(--size-icon-md); }
+  .thread { overflow-y: auto; padding: var(--space-5) var(--space-5) var(--space-7); display: flex; flex-direction: column; gap: var(--space-4); }
+  .sys { display: flex; align-items: center; gap: var(--space-4); color: var(--color-text-secondary); font-size: var(--type-caption-size); line-height: var(--type-caption-line); text-align: center; }
+  .sys::before, .sys::after { content: ""; flex: 1; height: 1px; background: var(--color-border-default); }
+  .msg { display: grid; gap: var(--space-1); max-width: 85%; }
+  .msg .by { font-size: var(--type-caption-size); line-height: var(--type-caption-line); color: var(--color-text-secondary); }
+  .bubble { padding: var(--space-3) var(--space-4); border-radius: var(--radius-xl); font-size: var(--type-body-lg-size); line-height: var(--type-body-lg-line); }
+  .msg.visitor { align-self: flex-start; }
+  .msg.visitor .bubble { background: var(--color-bg-surface); border: 1px solid var(--color-border-default); border-bottom-left-radius: var(--radius-sm); }
+  .msg.ai, .msg.staff { align-self: flex-end; justify-items: end; }
+  .msg.ai .bubble { background: var(--color-accent-soft); border-bottom-right-radius: var(--radius-sm); }
+  .msg.staff .bubble { background: var(--color-info-soft); border-bottom-right-radius: var(--radius-sm); }
+  .facts-used { display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: flex-end; }
+  .fact-chip { display: inline-flex; align-items: center; gap: var(--space-2); height: 22px; padding: 0 var(--space-3); border-radius: var(--radius-full); border: 1px solid var(--color-border-default); background: var(--color-bg-surface); font-size: var(--type-caption-size); color: var(--color-text-secondary); text-decoration: none; }
+  .note { align-self: stretch; background: var(--color-warning-soft); border-radius: var(--radius-lg); padding: var(--space-3) var(--space-4); display: grid; gap: var(--space-1); }
+  .note .by { color: var(--color-warning-default); font-weight: var(--font-weight-medium); }
+
+  /* composer region */
+  .dock { background: var(--color-bg-surface); border-top: 1px solid var(--color-border-default); padding: var(--space-4) var(--space-5) calc(var(--space-4) + env(safe-area-inset-bottom, 0px)); display: grid; gap: var(--space-4); }
+  .takeover { display: grid; gap: var(--space-4); }
+  .takeover .line { display: flex; align-items: center; gap: var(--space-3); }
+  .takeover .btns { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
+  .btn { height: var(--size-control-lg); }
+  .suggest-label { display: flex; align-items: center; gap: var(--space-3); color: var(--color-accent-default); font-size: var(--type-caption-size); font-weight: var(--font-weight-medium); }
+  .composer { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: end; gap: var(--space-3); }
+  .composer textarea { min-height: var(--size-control-lg); max-height: 144px; font-size: var(--type-body-lg-size); line-height: var(--type-body-lg-line); }
+  .composer .icon-btn { width: var(--size-control-lg); height: var(--size-control-lg); }
+  .row-actions { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); }
+
+  /* context sheet (bottom sheet on mobile) */
+  .sheet .dialog { gap: var(--space-5); max-height: 85dvh; overflow-y: auto; }
+  .kv { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: var(--space-3) var(--space-4); font-size: var(--type-body-sm-size); line-height: var(--type-body-sm-line); }
+  .kv dt { color: var(--color-text-secondary); }
+  .kv dd { margin: 0; }
+  .sec { display: grid; gap: var(--space-3); border-top: 1px solid var(--color-border-default); padding-top: var(--space-4); }
+  .sec h3 { font-size: var(--type-body-size); }
+  .typing { display: inline-flex; gap: 4px; padding: var(--space-4); }
+  .typing i { width: 6px; height: 6px; border-radius: var(--radius-full); background: var(--color-text-secondary); animation: pulse 1s infinite; }
+  .typing i:nth-child(2) { animation-delay: .15s; } .typing i:nth-child(3) { animation-delay: .3s; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-back" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></symbol>
+  <symbol id="i-bot" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 4v4M9 14h.01M15 14h.01"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-db" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/></symbol>
+  <symbol id="i-hand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-4 0v5M14 10V4a2 2 0 0 0-4 0v6M10 10.5V6a2 2 0 0 0-4 0v8a8 8 0 0 0 16 0v-3a2 2 0 0 0-4 0"/></symbol>
+</svg>
+
+<div class="proto-bar" role="toolbar" aria-label="Prototype states">
+  <button data-state="ai" aria-pressed="true">AI handling</button>
+  <button data-state="mine" aria-pressed="false">Taken over + suggestion</button>
+  <button data-state="other" aria-pressed="false">Someone else has it</button>
+  <button data-open="sheet" aria-pressed="false">Context sheet</button>
+</div>
+
+<div class="phone">
+  <header class="thead">
+    <a class="btn btn-ghost icon-btn" href="#" aria-label="Back to inbox"><svg><use href="#i-back"/></svg></a>
+    <div class="who">
+      <b>Tan Li Wei</b>
+      <span class="sub caption muted">
+        <span class="chip" data-chip>…</span>
+        <span>Widget · kuehco.sg/catering</span>
+      </span>
+    </div>
+    <button class="btn btn-ghost icon-btn" type="button" data-open="sheet" aria-label="Contact and conversation details"><svg><use href="#i-info"/></svg></button>
+  </header>
+
+  <div class="thread" role="log" aria-live="polite" aria-label="Conversation with Tan Li Wei">
+    <div class="sys">Today · conversation started 2:14 pm</div>
+    <div class="msg ai"><span class="by">Assistant · 2:14 pm</span><div class="bubble">Hi! I'm Kaki, the AI assistant for Kueh &amp; Co. A person can take over at any time. How can I help?</div></div>
+    <div class="msg visitor"><span class="by">Tan Li Wei · 2:15 pm</span><div class="bubble">can or not deliver to Tampines on sat? need 3 kueh lapis for office</div></div>
+    <div class="msg ai">
+      <span class="by">Assistant · 2:15 pm</span>
+      <div class="bubble">Can! We deliver islandwide on Saturdays for a flat S$15. Kueh lapis (whole) is S$42 each, so 3 would be S$126, and delivery is free above S$120.</div>
+      <div class="facts-used"><a class="fact-chip" href="#"><svg width="12" height="12"><use href="#i-db"/></svg>Delivery policy</a><a class="fact-chip" href="#"><svg width="12" height="12"><use href="#i-db"/></svg>Kueh lapis · S$42</a></div>
+    </div>
+    <div class="msg visitor"><span class="by">Tan Li Wei · 2:17 pm</span><div class="bubble">ok. can do 10% off if i order every month? talk to boss pls</div></div>
+    <div class="sys">Escalated: visitor asked for a person · 2:17 pm</div>
+    <div class="note"><span class="by caption">Internal note · Mei Ling · not visible to the visitor</span><span class="body-sm">Regular office client from last year. Boss usually OKs 5% for monthly orders.</span></div>
+    <div class="sys" data-joined hidden>You took over · visitor sees "Ah Kow joined"</div>
+  </div>
+
+  <div class="dock">
+    <!-- AI handling -->
+    <div class="takeover" data-dock="ai">
+      <div class="line body-sm"><svg width="16" height="16" style="color:var(--color-accent-default)"><use href="#i-bot"/></svg><span>The assistant is holding this conversation. It told the visitor the team will reply.</span></div>
+      <div class="btns">
+        <button class="btn btn-primary" type="button" data-go="mine"><svg><use href="#i-hand"/></svg>Take over</button>
+        <button class="btn btn-secondary" type="button" data-go="mine"><svg><use href="#i-spark"/></svg>Suggest a reply</button>
+      </div>
+    </div>
+
+    <!-- Taken over by me, with AI suggestion (INB-03) -->
+    <div data-dock="mine" hidden style="display:grid;gap:var(--space-3)">
+      <span class="suggest-label"><svg width="14" height="14"><use href="#i-spark"/></svg>AI suggestion · checked against your facts · edit before sending</span>
+      <div class="composer">
+        <button class="btn btn-ghost icon-btn" type="button" aria-label="Attach or insert saved reply"><svg><use href="#i-plus"/></svg></button>
+        <label class="sr-only" for="reply">Reply to Tan Li Wei</label>
+        <textarea class="input" id="reply" rows="5">Hi Li Wei, thanks for the regular order! 3 kueh lapis come to S$126 with free delivery. Let me check the monthly discount with the boss and get back to you by 5 pm today. Shall I confirm Saturday's order first?</textarea>
+        <button class="btn btn-primary icon-btn" type="button" aria-label="Send"><svg><use href="#i-send"/></svg></button>
+      </div>
+      <div class="row-actions">
+        <span class="caption muted">The suggestion only uses approved facts. Anything you add yourself isn't checked.</span>
+      </div>
+      <button class="btn btn-secondary" type="button" data-go="ai">Hand back to assistant</button>
+    </div>
+
+    <!-- Someone else owns it (INB-09) -->
+    <div class="takeover" data-dock="other" hidden>
+      <div class="line body-sm"><span class="avatar" aria-hidden="true">ML</span><span><b>Mei Ling</b> is handling this conversation.</span></div>
+      <button class="btn btn-secondary" type="button">Ask Mei Ling to hand it over</button>
+    </div>
+  </div>
+</div>
+
+<!-- context-sidebar as bottom sheet (INB-04) -->
+<div class="scrim sheet" data-sheet hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+    <div style="display:flex;align-items:center;gap:var(--space-4)"><span class="avatar">TL</span><div><h2 id="sheet-title" style="font-size:var(--type-title-sm-size)">Tan Li Wei</h2><span class="caption muted">Returning visitor · 3rd visit</span></div></div>
+    <dl class="kv">
+      <dt>Email</dt><dd>liwei.tan@example.sg <span class="chip chip-success">Verified</span></dd>
+      <dt>Phone</dt><dd class="num">+65 9123 4567 <span class="chip chip-neutral">Not verified</span></dd>
+      <dt>Channels</dt><dd>Widget, email</dd>
+    </dl>
+    <section class="sec"><h3>Lead</h3>
+      <dl class="kv"><dt>Status</dt><dd>New · <span class="chip chip-conv-escalated">Hot</span></dd><dt>Why hot</dt><dd>Corporate order, repeat purchase intent, viewed catering page 3 min</dd><dt>Consent</dt><dd>Enquiry consent 2:16 pm · marketing: no</dd></dl>
+    </section>
+    <section class="sec"><h3>Intent</h3>
+      <dl class="kv"><dt>Now on</dt><dd>/catering</dd><dt>Viewed</dt><dd>/cakes, /kueh, /catering</dd><dt>Source</dt><dd class="mono">utm_source=google</dd></dl>
+    </section>
+    <section class="sec"><h3>Facts used</h3><div class="facts-used" style="justify-content:flex-start"><a class="fact-chip" href="#">Delivery policy</a><a class="fact-chip" href="#">Kueh lapis · S$42</a></div></section>
+    <div class="dialog-actions"><button class="btn btn-secondary" type="button" data-close>Close</button></div>
+  </div>
+</div>
+
+<script>
+  const chip = document.querySelector('[data-chip]');
+  const CHIPS = { ai: ['chip-conv-escalated', 'Escalated'], mine: ['chip-conv-human', 'Human · you'], other: ['chip-conv-human', 'Human · Mei Ling'] };
+  function setState(s) {
+    document.querySelectorAll('[data-dock]').forEach(d => d.hidden = d.dataset.dock !== s);
+    document.querySelectorAll('.proto-bar [data-state]').forEach(b => b.setAttribute('aria-pressed', b.dataset.state === s));
+    chip.className = 'chip ' + CHIPS[s][0]; chip.textContent = CHIPS[s][1];
+    document.querySelector('[data-joined]').hidden = s !== 'mine';
+    const t = document.querySelector('.thread'); t.scrollTop = t.scrollHeight;
+  }
+  document.querySelectorAll('.proto-bar [data-state]').forEach(b => b.addEventListener('click', () => setState(b.dataset.state)));
+  document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => setState(b.dataset.go)));
+  const sheet = document.querySelector('[data-sheet]'); let lastFocus;
+  document.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => { lastFocus = document.activeElement; sheet.hidden = false; sheet.querySelector('[data-close]').focus(); }));
+  const close = () => { sheet.hidden = true; lastFocus && lastFocus.focus(); };
+  sheet.querySelector('[data-close]').addEventListener('click', close);
+  sheet.addEventListener('click', e => { if (e.target === sheet) close(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !sheet.hidden) close(); });
+  setState('ai');
+</script>
+</body>
+</html>

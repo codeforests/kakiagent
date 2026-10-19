@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SCR-WGT-002 · Widget chat panel (anchor)</title>
+<!-- The page around the widget is a MOCK HOST SITE with its own fonts and deliberately hostile CSS.
+     It is not part of the design system. The widget itself is the <kaki-agent> element. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;700&family=Nunito:wght@400;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="tokens.css">
+<style>
+  /* ---- mock host site (not design-system code) ---- */
+  .host { --host-brand: #C2410C; --host-bg: #FFF8F1; --host-fg: #3B2412; font-family: "Nunito", sans-serif; background: var(--host-bg); color: var(--host-fg); min-height: 100dvh; margin: 0; }
+  .host.host-dark { --host-bg: #1C1410; --host-fg: #F5E9DD; }
+  .host.host-pale { --host-brand: #F6C453; }
+  .host * { box-sizing: border-box; }
+  /* Hostile resets a real theme might ship; they must not reach the widget (CHN-14) */
+  .host button { all: unset; background: hotpink; font-size: 30px; }
+  .host div { line-height: 3; }
+  .host-nav { display: flex; gap: 24px; align-items: center; padding: 16px max(16px, 5vw); border-bottom: 1px solid color-mix(in srgb, var(--host-fg) 15%, transparent); line-height: 1.4 !important; }
+  .host-nav b { font-family: "Fraunces", serif; font-size: 22px; margin-right: auto; }
+  .host-hero { padding: 48px max(16px, 5vw); max-width: 760px; line-height: 1.5 !important; }
+  .host-hero h1 { font-family: "Fraunces", serif; font-size: clamp(32px, 6vw, 56px); margin: 0 0 12px; }
+  .host-cta { display: inline-block; background: var(--host-brand); color: #fff; padding: 12px 22px; border-radius: 999px; text-decoration: none; font-weight: 700; }
+  .host-pale .host-cta { color: #3B2412; }
+  .host-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; padding: 0 max(16px, 5vw) 120px; line-height: 1.4 !important; }
+  .host-grid article { background: color-mix(in srgb, var(--host-fg) 6%, transparent); border-radius: 18px; padding: 16px; }
+  .host-grid h3 { font-family: "Fraunces", serif; margin: 0 0 4px; }
+
+  /* ---- prototype controls (not part of the design) ---- */
+  .proto { position: fixed; z-index: 2147483647; left: 50%; transform: translateX(-50%); top: 8px; display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; max-width: calc(100vw - 16px); padding: 4px; border-radius: 8px; background: #0F1720; font: 12px/1.3 "IBM Plex Sans", sans-serif; line-height: 1.3 !important; }
+  .proto span { color: #94A3B8; padding: 4px 6px; }
+  .proto a { color: #fff; padding: 4px 10px; border-radius: 6px; text-decoration: none; cursor: pointer; }
+  .proto a[aria-pressed="true"] { background: #fff; color: #0F1720; }
+</style>
+</head>
+<body class="host">
+<nav class="proto" aria-label="Prototype controls">
+  <span>State:</span>
+  <a role="button" tabindex="0" data-s="greeting" aria-pressed="true">Greeting</a>
+  <a role="button" tabindex="0" data-s="replying" aria-pressed="false">Verified segments</a>
+  <a role="button" tabindex="0" data-s="consent" aria-pressed="false">Consent card</a>
+  <a role="button" tabindex="0" data-s="human" aria-pressed="false">Staff joined</a>
+  <a role="button" tabindex="0" data-s="fallback" aria-pressed="false">AI paused</a>
+  <span>Host:</span>
+  <a role="button" tabindex="0" data-h="orange" aria-pressed="true">Orange brand</a>
+  <a role="button" tabindex="0" data-h="pale" aria-pressed="false">Pale brand</a>
+  <a role="button" tabindex="0" data-h="dark" aria-pressed="false">Dark site</a>
+</nav>
+
+<header class="host-nav"><b>Kueh &amp; Co.</b><span>Cakes</span><span>Kueh</span><span>Catering</span></header>
+<section class="host-hero">
+  <h1>Handmade kueh, baked in Tampines since 1998</h1>
+  <p>Eggless options, corporate boxes and festive orders. Islandwide delivery.</p>
+  <a class="host-cta" href="#">Order now</a>
+</section>
+<section class="host-grid">
+  <article><h3>Kueh lapis</h3><p>Nine layers, whole loaf. S$42</p></article>
+  <article><h3>Chocolate fudge, 1 kg</h3><p>Eggless available. S$55</p></article>
+  <article><h3>Corporate box</h3><p>12 assorted kueh. From S$36</p></article>
+</section>
+
+<kaki-agent data-bot="Kaki" data-business="Kueh &amp; Co."></kaki-agent>
+
+<script>
+/* ================= Widget prototype =================
+   Closed Shadow DOM, :host { all: initial }, --kaki-* variables only (ADR-016, design.md §4.9).
+   Fixed colour values are copied from tokens.json (color.*, light and dark) because the
+   real widget bundles them at build time; it never reads the host's CSS variables. */
+const KAKI_TOKENS = {
+  light: { surface: '#FFFFFF', subtle: '#EEF2F5', text: '#0F1720', muted: '#5B6B7C', border: '#D9E0E7', borderStrong: '#7D8C9B', successFg: '#137333', successBg: '#E7F5EC', infoFg: '#1D4ED8', infoBg: '#E8EEFC', dangerFg: '#B91C1C', dangerBg: '#FCE9E9' },
+  dark:  { surface: '#121A22', subtle: '#18222C', text: '#E6EDF3', muted: '#94A3B8', border: '#243241', borderStrong: '#56697D', successFg: '#4ADE80', successBg: '#12301E', infoFg: '#93B4FF', infoBg: '#18233F', dangerFg: '#F87171', dangerBg: '#3A1616' },
+  accentDefault: '#0E7490', radius: 12
+};
+
+/* --- theme detection + contrast clamp (CHN-14) --- */
+const hex2rgb = h => { h = h.replace('#', ''); return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16)); };
+const rgb2hex = c => '#' + c.map(v => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('').toUpperCase();
+const lum = c => { const [r, g, b] = c.map(v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+const parseColor = s => { const m = s.match(/\d+(\.\d+)?/g); return m ? m.slice(0, 3).map(Number) : null; };
+function clampAccent(brand, scheme) {
+  const panel = hex2rgb(KAKI_TOKENS[scheme].surface);
+  const target = scheme === 'dark' ? [255, 255, 255] : [0, 0, 0];
+  let c = brand.slice(), steps = 0;
+  const ok = col => Math.max(ratio(col, [255, 255, 255]), ratio(col, hex2rgb('#0B1117'))) >= 4.5 && ratio(col, panel) >= 3;
+  while (!ok(c) && steps < 40) { c = c.map((v, i) => v + (target[i] - v) * 0.06); steps++; }
+  const onAccent = ratio(c, [255, 255, 255]) >= ratio(c, hex2rgb('#0B1117')) ? '#FFFFFF' : '#0B1117';
+  return { accent: rgb2hex(c), onAccent, adjusted: steps > 0 };
+}
+function detectTheme() {
+  const body = getComputedStyle(document.body);
+  const bg = parseColor(body.backgroundColor) || [255, 255, 255];
+  const scheme = lum(bg) < 0.2 ? 'dark' : 'light';
+  const cta = document.querySelector('a[class*="cta"], button[class*="primary"], .button, .btn');
+  let brand = cta && parseColor(getComputedStyle(cta).backgroundColor);
+  if (!brand || (brand[0] === brand[1] && brand[1] === brand[2])) brand = hex2rgb(KAKI_TOKENS.accentDefault);
+  const radius = cta ? Math.min(20, parseFloat(getComputedStyle(cta).borderTopLeftRadius) || KAKI_TOKENS.radius) : KAKI_TOKENS.radius;
+  const font = body.fontFamily || 'system-ui';
+  return { scheme, brand, radius, font, ...clampAccent(brand, scheme) };
+}
+
+const CSS = `
+:host { all: initial; position: fixed !important; z-index: 2147483000 !important; right: 20px; bottom: 20px; }
+*, *::before, *::after { box-sizing: border-box; }
+.root { font-family: var(--kaki-font); color: var(--kaki-text); font-size: 14px; line-height: 20px; -webkit-font-smoothing: antialiased; }
+button, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--kaki-accent); outline-offset: 2px; }
+.launcher { width: 56px; height: 56px; border-radius: 9999px; border: 0; background: var(--kaki-accent); color: var(--kaki-on-accent); display: grid; place-items: center; cursor: pointer; box-shadow: 0 12px 32px -4px #0F172029; margin-left: auto; }
+.launcher svg { width: 24px; height: 24px; }
+.panel { width: 380px; height: min(640px, calc(100dvh - 120px)); display: flex; flex-direction: column; background: var(--kaki-surface); border: 1px solid var(--kaki-border); border-radius: calc(var(--kaki-radius) + 4px); box-shadow: 0 12px 32px -4px #0F172029; overflow: hidden; margin-bottom: 12px; }
+.panel[hidden] { display: none; }
+@media (max-width: 479px) {
+  :host { right: 0; bottom: 0; left: 0; top: 0; }
+  .panel { position: fixed; inset: 0; width: auto; height: 100dvh; border-radius: 0; margin: 0; border: 0; }
+  .launcher.open { display: none; }
+  .root.closed { position: fixed; right: 20px; bottom: 20px; }
+}
+.head { display: flex; align-items: center; gap: 10px; padding: 12px 8px 12px 16px; border-bottom: 1px solid var(--kaki-border); }
+.head .av { width: 32px; height: 32px; border-radius: 9999px; background: var(--kaki-accent); color: var(--kaki-on-accent); display: grid; place-items: center; font-weight: 600; flex: none; }
+.head .t { flex: 1; min-width: 0; display: grid; }
+.head .t b { font-size: 16px; line-height: 24px; }
+.head .t span { font-size: 12px; line-height: 16px; color: var(--kaki-muted); }
+.ib { width: 44px; height: 44px; border: 0; background: transparent; border-radius: var(--kaki-radius); display: grid; place-items: center; cursor: pointer; color: var(--kaki-text); }
+.ib:hover { background: var(--kaki-subtle); }
+.ib svg { width: 20px; height: 20px; }
+.menu { position: absolute; right: 12px; top: 60px; background: var(--kaki-surface); border: 1px solid var(--kaki-border); border-radius: 8px; box-shadow: 0 4px 12px -2px #0F17201F; padding: 4px; min-width: 200px; display: grid; }
+.menu[hidden] { display: none; }
+.menu button { border: 0; background: none; text-align: left; padding: 0 12px; height: 44px; border-radius: 6px; cursor: pointer; }
+.menu button:hover { background: var(--kaki-subtle); }
+.log { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.disc { font-size: 12px; line-height: 16px; color: var(--kaki-muted); text-align: center; padding: 0 12px 4px; }
+.m { max-width: 85%; padding: 8px 12px; font-size: 16px; line-height: 24px; border-radius: min(20px, calc(var(--kaki-radius) + 4px)); }
+.m.bot { align-self: flex-start; background: var(--kaki-subtle); border-bottom-left-radius: 4px; }
+.m.me { align-self: flex-end; background: var(--kaki-accent); color: var(--kaki-on-accent); border-bottom-right-radius: 4px; }
+.m.staff { align-self: flex-start; background: var(--kaki-info-bg); border-bottom-left-radius: 4px; }
+.by { font-size: 12px; line-height: 16px; color: var(--kaki-muted); margin: 4px 0 -6px 4px; }
+.fb { display: flex; gap: 2px; margin: -4px 0 0 2px; }
+.fb button { width: 36px; height: 36px; border: 0; background: none; border-radius: 6px; cursor: pointer; color: var(--kaki-muted); display: grid; place-items: center; }
+.fb button:hover { background: var(--kaki-subtle); color: var(--kaki-text); }
+.fb button[aria-pressed="true"] { color: var(--kaki-accent); }
+.fb svg { width: 16px; height: 16px; }
+.typing { align-self: flex-start; display: inline-flex; gap: 4px; padding: 14px 12px; background: var(--kaki-subtle); border-radius: 12px; }
+.typing i { width: 6px; height: 6px; border-radius: 9999px; background: var(--kaki-muted); animation: k-pulse 1s infinite; }
+.typing i:nth-child(2) { animation-delay: .15s } .typing i:nth-child(3) { animation-delay: .3s }
+@keyframes k-pulse { 50% { opacity: .35 } }
+.seg { animation: k-in 180ms cubic-bezier(.05,.7,.1,1); }
+@keyframes k-in { from { opacity: 0 } }
+.notice { align-self: center; font-size: 12px; line-height: 16px; color: var(--kaki-muted); background: var(--kaki-subtle); padding: 4px 10px; border-radius: 9999px; text-align: center; }
+.card { align-self: stretch; border: 1px solid var(--kaki-border); border-radius: var(--kaki-radius); padding: 12px; display: grid; gap: 10px; background: var(--kaki-surface); }
+.card p { margin: 0; }
+.card .small { font-size: 12px; line-height: 16px; color: var(--kaki-muted); }
+.card a { color: var(--kaki-text); text-underline-offset: 2px; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn { height: 44px; padding: 0 16px; border-radius: max(6px, calc(var(--kaki-radius) - 4px)); border: 1px solid var(--kaki-border-strong); background: var(--kaki-surface); cursor: pointer; font-weight: 500; flex: 1; }
+.btn.pri { background: var(--kaki-accent); color: var(--kaki-on-accent); border-color: var(--kaki-accent); }
+.chk { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; }
+.chk input { width: 18px; height: 18px; margin: 1px 0 0; accent-color: var(--kaki-accent); }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; padding: 0 16px 8px; }
+.chips button { height: 32px; padding: 0 12px; border-radius: 9999px; border: 1px solid var(--kaki-border-strong); background: var(--kaki-surface); cursor: pointer; font-size: 14px; }
+.comp { display: flex; gap: 8px; align-items: center; padding: 8px 8px 8px 16px; border-top: 1px solid var(--kaki-border); padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px)); }
+.comp input { flex: 1; min-width: 0; height: 44px; border: 1px solid var(--kaki-border-strong); background: var(--kaki-surface); border-radius: var(--kaki-radius); padding: 0 12px; font-size: 16px; }
+.send { width: 44px; height: 44px; border: 0; border-radius: var(--kaki-radius); background: var(--kaki-accent); color: var(--kaki-on-accent); display: grid; place-items: center; cursor: pointer; }
+.send svg { width: 20px; height: 20px; }
+.foot { font-size: 12px; line-height: 16px; color: var(--kaki-muted); text-align: center; padding: 0 16px 8px; }
+.foot a { color: var(--kaki-muted); }
+.fallback { flex: 1; padding: 20px 16px; display: grid; align-content: start; gap: 12px; }
+.fallback label { display: grid; gap: 4px; font-weight: 500; }
+.fallback input { height: 44px; border: 1px solid var(--kaki-border-strong); background: var(--kaki-surface); border-radius: var(--kaki-radius); padding: 0 12px; font-size: 16px; font-weight: 400; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+`;
+
+const ICON = {
+  chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+  x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+  more: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>',
+  send: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/></svg>',
+  up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10v12M15 5.9 14 10h5.8a2 2 0 0 1 2 2.3l-1.4 8a2 2 0 0 1-2 1.7H7V10l4-8a3 3 0 0 1 3 3.9z"/></svg>',
+  down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M17 14V2M9 18.1 10 14H4.2a2 2 0 0 1-2-2.3l1.4-8A2 2 0 0 1 5.6 2H17v12l-4 8a3 3 0 0 1-3-3.9z"/></svg>'
+};
+
+class KakiAgent extends HTMLElement {
+  connectedCallback() {
+    // ?a11y opens the shadow root so axe-core can audit it in CI; production is always closed (ADR-016).
+    this.root = this.attachShadow({ mode: new URLSearchParams(location.search).has('a11y') ? 'open' : 'closed' });
+    const sheet = new CSSStyleSheet(); sheet.replaceSync(CSS); this.root.adoptedStyleSheets = [sheet];
+    this.bot = this.dataset.bot; this.biz = this.dataset.business;
+    this.root.innerHTML = `
+      <div class="root closed" part="root">
+        <section class="panel" role="dialog" aria-label="Chat with ${this.bot}" hidden>
+          <header class="head">
+            <span class="av" aria-hidden="true">${this.bot[0]}</span>
+            <div class="t"><b>${this.bot}</b><span>AI assistant · ${this.biz}</span></div>
+            <button class="ib" data-menu aria-label="Chat options" aria-haspopup="menu" aria-expanded="false">${ICON.more}</button>
+            <button class="ib" data-close aria-label="Minimise chat">${ICON.x}</button>
+            <div class="menu" role="menu" hidden>
+              <button role="menuitem" data-person>Talk to a person</button>
+              <button role="menuitem">Privacy notice</button>
+              <button role="menuitem">End chat</button>
+            </div>
+          </header>
+          <div class="body" style="display:contents"></div>
+        </section>
+        <button class="launcher" data-launch aria-label="Chat with ${this.bot}" aria-expanded="false">${ICON.chat}</button>
+      </div>`;
+    const $ = s => this.root.querySelector(s);
+    this.panel = $('.panel'); this.body = $('.body'); this.launch = $('[data-launch]');
+    this.launch.addEventListener('click', () => this.toggle(true));
+    $('[data-close]').addEventListener('click', () => this.toggle(false));
+    const menu = $('.menu'), mb = $('[data-menu]');
+    mb.addEventListener('click', () => { menu.hidden = !menu.hidden; mb.setAttribute('aria-expanded', !menu.hidden); });
+    $('[data-person]').addEventListener('click', () => { menu.hidden = true; this.render('human'); });
+    this.applyTheme(); this.render('greeting'); this.toggle(true);
+  }
+  applyTheme() {
+    const t = detectTheme(); const k = KAKI_TOKENS[t.scheme];
+    const vars = { accent: t.accent, 'on-accent': t.onAccent, font: t.font, radius: t.radius + 'px', surface: k.surface, subtle: k.subtle, text: k.text, muted: k.muted, border: k.border, 'border-strong': k.borderStrong, 'info-bg': k.infoBg };
+    // set on the host element inline (outranks host stylesheets)
+    Object.entries(vars).forEach(([n, v]) => this.style.setProperty('--kaki-' + n, v, 'important'));
+    this.theme = t;
+    document.dispatchEvent(new CustomEvent('kaki-theme', { detail: t }));
+  }
+  toggle(open) {
+    this.panel.hidden = !open; this.launch.setAttribute('aria-expanded', open);
+    this.launch.classList.toggle('open', open); this.root.querySelector('.root').classList.toggle('closed', !open);
+    this.launch.innerHTML = open ? ICON.x : ICON.chat;
+  }
+  fb() { return `<div class="fb"><button aria-label="Helpful" aria-pressed="false">${ICON.up}</button><button aria-label="Not helpful" aria-pressed="false">${ICON.down}</button></div>`; }
+  composer(disabled) {
+    return `<div class="chips"><button>Talk to a person</button><button>Continue on Telegram</button></div>
+      <div class="comp"><label class="sr" for="kmsg">Message</label><input id="kmsg" placeholder="Type your message" ${disabled ? 'disabled' : ''}><button class="send" aria-label="Send">${ICON.send}</button></div>
+      <div class="foot">AI replies use the business's approved information. <a href="#">Privacy notice</a></div>`;
+  }
+  render(state) {
+    clearTimeout(this.timer);
+    const disc = `<p class="disc">You're chatting with ${this.bot}, an AI assistant for ${this.biz}. A person can take over at any time.</p>`;
+    const greet = `<div class="m bot">Hi! I can help with cakes, kueh, catering and delivery. What are you looking for?</div>`;
+    const q = `<div class="m me">got eggless cake or not? how much ah</div>`;
+    const a = `<div class="m bot">Got! Our chocolate fudge cake comes in an eggless version. The 1 kg cake is S$55, GST included. Please order 3 days ahead.</div>${this.fb()}`;
+    let log = '', comp = this.composer(false);
+    if (state === 'greeting') log = disc + greet;
+    if (state === 'replying') log = disc + greet + q + `<div class="m bot" data-stream></div>`;
+    if (state === 'consent') log = disc + greet + q + a + `<div class="m me">ok can deliver to Tampines sat? my number 9123 4567</div>
+      <div class="card" role="group" aria-labelledby="ctitle">
+        <p id="ctitle"><b>Can we keep your details?</b></p>
+        <p>${this.biz} will use your name and phone number to reply to your enquiry and arrange your order. <a href="#">Privacy notice</a></p>
+        <label class="chk"><input type="checkbox"> Also send me offers and news (optional)</label>
+        <div class="row"><button class="btn">Not now</button><button class="btn pri">Agree</button></div>
+        <p class="small">You can withdraw consent at any time by telling us here.</p>
+      </div>`;
+    if (state === 'human') log = disc + greet + q + a + `<div class="m me">can give 10% off for 20 cakes?</div>
+      <div class="notice" role="status">Asking the team… usually replies within 10 minutes</div>
+      <div class="notice" role="status">Mei Ling from ${this.biz} joined</div>
+      <p class="by">Mei Ling</p><div class="m staff">Hi! I can help with a bulk order. For 20 cakes, which date do you need them?</div>`;
+    if (state === 'fallback') {
+      this.body.innerHTML = `<div class="fallback" role="region" aria-label="Leave a message">
+        <p>Our team will get back to you soon. Leave your details and we'll contact you.</p>
+        <label>Name<input autocomplete="name"></label>
+        <label>Phone or email<input autocomplete="tel"></label>
+        <label class="chk" style="display:flex;font-weight:400"><input type="checkbox"> ${this.biz} may use these details to reply to me. <a href="#" style="color:inherit">Privacy notice</a></label>
+        <button class="btn pri" style="flex:none">Send</button>
+      </div>`;
+      return;
+    }
+    this.body.innerHTML = `<div class="log" role="log" aria-live="polite" aria-label="Chat messages">${log}</div>${comp}`;
+    const logEl = this.root.querySelector('.log'); logEl.scrollTop = logEl.scrollHeight;
+    if (state === 'replying') this.stream(this.root.querySelector('[data-stream]'), logEl);
+  }
+  /* Verified-segment release (ADR-008): whole sentences appear only after verification;
+     a typing indicator fills the gap. Never token by token. */
+  stream(el, logEl) {
+    const segs = ['Got! Our chocolate fudge cake comes in an eggless version.', ' The 1 kg cake is S$55, GST included.', ' Please order 3 days ahead.'];
+    el.hidden = true;
+    const typing = document.createElement('div'); typing.className = 'typing'; typing.setAttribute('aria-label', `${this.bot} is typing`); typing.innerHTML = '<i></i><i></i><i></i>';
+    logEl.appendChild(typing);
+    let i = 0;
+    const next = () => {
+      if (i === segs.length) { typing.remove(); el.insertAdjacentHTML('afterend', this.fb()); return; }
+      el.hidden = false; const s = document.createElement('span'); s.className = 'seg'; s.textContent = segs[i++]; el.appendChild(s);
+      logEl.appendChild(typing); logEl.scrollTop = logEl.scrollHeight;
+      this.timer = setTimeout(next, i === segs.length ? 500 : 900);
+    };
+    this.timer = setTimeout(next, 1100);
+  }
+}
+customElements.define('kaki-agent', KakiAgent);
+
+/* prototype wiring */
+const w = document.querySelector('kaki-agent');
+const press = (sel, el) => document.querySelectorAll(sel).forEach(b => b.setAttribute('aria-pressed', b === el));
+document.querySelectorAll('[data-s]').forEach(b => b.addEventListener('click', () => { press('[data-s]', b); w.toggle(true); w.render(b.dataset.s); }));
+document.querySelectorAll('[data-h]').forEach(b => b.addEventListener('click', () => {
+  press('[data-h]', b);
+  document.body.classList.toggle('host-pale', b.dataset.h === 'pale');
+  document.body.classList.toggle('host-dark', b.dataset.h === 'dark');
+  w.applyTheme();
+}));
+document.querySelectorAll('.proto [role=button]').forEach(b => b.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); b.click(); } }));
+</script>
+</body>
+</html>
