@@ -25,7 +25,7 @@
       Done when: `pnpm db:setup` twice in a row is idempotent and leaves one `needs_review` bakery fact and one approved second-tenant fact.
 - [x] T11 — Widget integration: segments per turn, typing indicator, disclosure row, replace on stored message, error notice (ui-design SCR-WGT-002)
       Done when: widget unit tests for segment merging pass, the panel renders the states in ui-design.md, and `pnpm size` stays within budget.
-- [ ] T12 — Dashboard integration: Knowledge → Facts list and the Fact create/edit page, consuming §3.2 (ui-design SCR-APP-027, SCR-APP-028)
+- [x] T12 — Dashboard integration: Knowledge → Facts list and the Fact create/edit page, consuming §3.2 (ui-design SCR-APP-027, SCR-APP-028)
       Done when: the pages render every state in ui-design.md against the running API, with typecheck and lint clean.
 - [ ] T13 — Evals: fixture tenants, recorded and adversarial cases (≥ 20 fast `prices`/`groundedness`), runner on `composeReply`, `prices-from-facts` and `cites` scorers (design §5; AC-1, AC-4, AC-15)
       Done when: `pnpm eval --fast` passes the thresholds, and a planted invented price in a case's expected output makes it fail.
