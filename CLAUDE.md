@@ -16,8 +16,8 @@ The product owner signs off each phase before the next one starts. Don't jump ah
 |---|---|---|
 | Requirements | `docs/01-requirements/` (`SRS.md`, `use-cases.md`, `rtm.md`) | Signed off 2026-10-19 (SRS v0.4, decisions D1–D11) |
 | Architecture | `docs/02-design/architecture.md`, `docs/02-design/adr/ADR-001..022` | Signed off and merged 2026-10-19 |
-| UX foundations | `docs/02-design/ux-foundations.md`, `design.md`, `tokens.json`, `anchor-screens.md` + `anchors/`, `docs/design-manifest.json` | In review (draft 2026-10-19) |
-| Next | Implementation planning | Not started (after UX sign-off) |
+| UX foundations | `docs/02-design/ux-foundations.md`, `design.md`, `tokens.json`, `anchor-screens.md` + `anchors/`, `docs/design-manifest.json` | Signed off 2026-10-19 (owner decisions UX-Q1, Q4, Q5, R4 recorded) |
+| Next | Implementation planning | In progress |
 
 ## Document rules
 

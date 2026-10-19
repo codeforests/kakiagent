@@ -1,6 +1,6 @@
 # UX Foundations: KakiAgent MVP
 
-> Status: **Draft, for product-owner review** · Last updated: 2026-10-19
+> Status: **Signed off by the product owner, 2026-10-19** · Last updated: 2026-10-19
 > Sources: [SRS.md](../01-requirements/SRS.md) v0.4 · [use-cases.md](../01-requirements/use-cases.md) v0.4 · [architecture.md](architecture.md) and ADR-001..022
 > Anchor screens: [anchor-screens.md](anchor-screens.md) · registry: [design-manifest.json](../design-manifest.json)
 > Design system: **[design.md](design.md) + [tokens.json](tokens.json)** are the single source of truth for every design value. This document references them and never restates values.

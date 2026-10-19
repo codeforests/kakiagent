@@ -1,6 +1,6 @@
 # Anchor Screens
 
-> Design system: [design.md](design.md) (provenance mode: research, fidelity: designed-from-requirements) · Status: **Draft, for product-owner review** · Date: 2026-10-19
+> Design system: [design.md](design.md) (provenance mode: research, fidelity: designed-from-requirements) · Status: **Signed off by the product owner, 2026-10-19** · Date: 2026-10-19
 > Purpose: check that the design system composes into real screens before features build on it.
 > Inventory: [ux-foundations.md](ux-foundations.md) · Registry: [../design-manifest.json](../design-manifest.json) · Prototypes: [anchors/](anchors/)
 
