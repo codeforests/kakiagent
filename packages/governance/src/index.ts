@@ -25,3 +25,4 @@ export {
   type BreakReason,
   type VerifyResult,
 } from './verify.js';
+export { anchorHeads, anchorKey, createS3AnchorStore, type AnchorStore } from './anchors.js';

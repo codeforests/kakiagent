@@ -15,10 +15,12 @@
     "test:coverage": "vitest run --coverage --passWithNoTests"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "3.1152.0",
     "@kaki/db": "workspace:*",
     "@kaki/platform": "workspace:*"
   },
   "devDependencies": {
+    "@testcontainers/localstack": "12.2.1",
     "@types/node": "22.20.5",
     "@types/pg": "8.23.1",
     "@vitest/coverage-v8": "5.0.5",

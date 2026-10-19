@@ -92,7 +92,7 @@ createS3AnchorStore(cfg: { bucket: string; region: string; endpoint?: string }):
 anchorHeads(zdb: ZoneDb /* outbox zone */, store: AnchorStore): Promise<{ anchored: number }>;
 ```
 
-- Object key `audit/<tenantId>/<seq, zero-padded to 20 digits>.json`, body `{ tenantId, seq, hash, anchoredAt }`, `Content-Type: application/json`. Retention comes from the bucket's default compliance-mode retention (Terraform `audit_anchor_retention_days`), so even the root account can't shorten it (ADR-014 decision 5, OI-5).
+- Object key `audit/<tenantId>/<seq, zero-padded to 20 digits>-<hash>.json`, so a listing alone yields every anchor without a read per object; body `{ tenantId, seq, hash, anchoredAt }`, `Content-Type: application/json`. Retention comes from the bucket's default compliance-mode retention (Terraform `audit_anchor_retention_days`), so even the root account can't shorten it (ADR-014 decision 5, OI-5).
 - `anchorHeads` reads the heads whose `seq` moved since their last anchor (`audit_heads_to_anchor()`), puts one object each, then records `anchored_seq` (`audit_mark_anchored()`). A crash between the two only causes the same head to be anchored again: the same key and body, harmless.
 
 ### 3.4 CLI
@@ -149,7 +149,7 @@ sequenceDiagram
     G->>G: hash = SHA-256(JCS(fields) || prev_hash)
     G->>DB: insert audit_entries (trigger checks link, moves head)
     S->>DB: audit_heads_to_anchor() every 15 min
-    S->>S3: put audit/tenant/seq.json
+    S->>S3: put audit/tenant/seq-hash.json
     S->>DB: audit_mark_anchored(tenant, seq)
 ```
 
