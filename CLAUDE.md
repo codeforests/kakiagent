@@ -17,7 +17,8 @@ The product owner signs off each phase before the next one starts. Don't jump ah
 | Requirements | `docs/01-requirements/` (`SRS.md`, `use-cases.md`, `rtm.md`) | Signed off 2026-10-19 (SRS v0.4, decisions D1–D11) |
 | Architecture | `docs/02-design/architecture.md`, `docs/02-design/adr/ADR-001..022` | Signed off and merged 2026-10-19 |
 | UX foundations | `docs/02-design/ux-foundations.md`, `design.md`, `tokens.json`, `anchor-screens.md` + `anchors/`, `docs/design-manifest.json` | Signed off 2026-10-19 (owner decisions UX-Q1, Q4, Q5, R4 recorded) |
-| Next | Implementation planning | In progress |
+| Implementation planning | `docs/03-planning/implementation-plan.md` (FEAT-001..074, milestones M0–M7) | In review (draft 2026-10-19) |
+| Next | Construction, starting with FEAT-001 (walking skeleton) | Not started (after planning sign-off) |
 
 ## Document rules
 
@@ -43,6 +44,13 @@ These span many documents and are easy to break by accident. Read the cited ADR 
 - **The AI send gate** (kill switch, channel live, no human owner) is checked before every turn and every AI send. Concurrency is enforced by the database (ADR-013).
 - **The audit log is a per-tenant hash chain with no PII**; personal data goes to the deletable `audit_pii` store (ADR-014). NRIC, card and bank numbers are masked at the edge and never stored unmasked. PII lives only in contact-keyed tables (ADR-015).
 - **Widget budget:** loader ≤ 14 KB gz (initial load ≤ 30 KB, NFR-02), closed Shadow DOM, runtime theme detection, lazy chat panel (ADR-016).
+
+## How features are built (from the implementation plan §3)
+
+- Build **one feature at a time in the plan's build order** (§5). Feature IDs (`FEAT-NNN`) are permanent; the next free ID is in plan §4.
+- Each feature runs the same loop, with its documents in `docs/features/FEAT-NNN-<slug>/`: detailed design (`technical-design.md`, `tasks.md`) → UI design (`ui-design.md`, manifest) → implementation (one commit per task, tests per task) → **independent acceptance verification in a fresh session** (`acceptance-report.md`) → its own PR on branch `feat/FEAT-NNN-<slug>`.
+- Never weaken, skip or delete a test to get green. A failing acceptance check goes back to implementation, or to the design if the design is wrong.
+- Each milestone ends with `pipeline-verify` and a live demo signed off by the owner.
 
 ## UI and design rules
 
