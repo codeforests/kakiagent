@@ -17,3 +17,8 @@ output "distribution_arn" {
   description = "CloudFront distribution ARN."
   value       = aws_cloudfront_distribution.this.arn
 }
+
+output "alb_dns_name" {
+  description = "Point origin_domain_name at this (a CNAME or alias record)."
+  value       = aws_lb.this.dns_name
+}

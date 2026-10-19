@@ -30,3 +30,13 @@ variable "github_repository" {
   type        = string
   default     = "codeforests/kakiagent"
 }
+
+variable "origin_domain_name" {
+  description = "DNS name of the ALB origin, for example origin.<domain>. Point it at the alb_dns_name output."
+  type        = string
+}
+
+variable "origin_certificate_arn" {
+  description = "ACM certificate in ap-southeast-1 covering origin_domain_name."
+  type        = string
+}

@@ -58,6 +58,7 @@ Monorepo tooling: pnpm 10.28.0 (`packageManager`), Turborepo 2.11.9, Node 22. Ve
 | **Eval job runs on every PR** | Plan §3 requires the fast subset only when `agent`, `kb`, prompts or model config change. On the fake provider it takes seconds, so path filtering is deferred until the set runs on a real model (M1.5). |
 | **Queue named `conversation-turns.fifo`** (plan §2 says `turns.fifo`) | The name matches the outbox topic enum, so each queue maps one-to-one to a topic. |
 | **Health endpoints are `/healthz` and `/readyz`** (plan §2 says `/health`) | Liveness and readiness are separate: ECS uses `/healthz` and the ALB target groups use `/readyz`. |
+| **CloudFront reaches the ALB over HTTPS only** | The ALB is public so CloudFront can reach it. Its security group admits only the CloudFront origin prefix list on 443, the listener is TLS 1.3/1.2, and requests without the CloudFront secret header get 403. Trivy's AWS-0053 (public ALB) and AWS-0104 (open egress for tasks and the NAT instance, which need Bedrock in ap-southeast-2, the channel APIs and AWS APIs) are accepted in `.trivyignore.yaml` with these reasons. |
 | **One `envs/prod` root with two profiles** | ADR-023 runs the future prod account lean until the prod trigger: 2 AZs, a fck-nat NAT instance, no interface endpoints, RDS PostgreSQL `db.t4g.small` single AZ (ADR-024), one `cache.t4g.micro` Valkey node, and one task per role, with ingest-worker at zero. `profile = "full"` restores ADR-003/ADR-004. `terraform test` plans both profiles on mocked providers, and it caught a task-policy `count` that would have failed the first apply. The 15-minute canary run by scheduler-worker (ADR-023 C3) is application code, so it is not in Terraform. |
 
 ## 4. What is stubbed, and which feature replaces it
@@ -80,9 +81,10 @@ Monorepo tooling: pnpm 10.28.0 (`packageManager`), Turborepo 2.11.9, Node 22. Ve
 ## 5. Pending first deployment (milestone MD)
 
 - Account bootstrap: AWS Organizations, the SCP region lock, and the state bucket for `backend "s3"` (`envs/prod/prod.s3.tfbackend.example`).
-- `terraform apply` of `infra/terraform/envs/prod` with the launch profile; setting the five Secrets Manager values (database URLs per trust zone, token secrets); running `pnpm db:setup`-equivalent migrations against Aurora with the owner secret.
+- `terraform apply` of `infra/terraform/envs/prod` with the launch profile; setting the five Secrets Manager values (database URLs per trust zone, token secrets); running `pnpm db:setup`-equivalent migrations against the database with the owner secret.
 - A CD workflow: OIDC role `kaki-prod-github-deploy` (module `ci-oidc`), image push by digest, an ECS rolling deploy, a static upload to the `static` bucket, and a CloudFront invalidation.
 - `terraform providers lock -platform=linux_arm64 -platform=darwin_arm64` if other platforms run Terraform. The committed lock file was produced on linux_amd64.
+- An origin domain (for example `origin.<domain>`) with an ACM certificate in ap-southeast-1 and a DNS record pointing at the `alb_dns_name` output. Set them as `origin_domain_name` and `origin_certificate_arn`.
 - Then done-when 4: run `skeleton.e2e.ts` against the CloudFront URL.
 - At the prod trigger: `profile = "full"`, the ADR-024 read-replica move to Aurora, and a staging root from the same modules.
 

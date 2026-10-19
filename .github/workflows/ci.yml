@@ -63,8 +63,10 @@ jobs:
       - run: pnpm size # ADR-016 loader ≤ 14 KB gz, NFR-02 initial load ≤ 30 KB gz
       - name: Dev sign-in is compiled out (plan §2)
         run: |
-          ! grep -q "dev/sign-in" apps/api/dist/main.js
-          ! grep -rq "dev/sign-in" apps/dashboard/dist/assets
+          if grep -rq "dev/sign-in" apps/api/dist/main.js apps/dashboard/dist/assets; then
+            echo "::error::The dev sign-in is in a production bundle"
+            exit 1
+          fi
 
   e2e:
     name: Skeleton E2E (${{ matrix.browser }})
@@ -114,6 +116,11 @@ jobs:
           scan-type: fs
           scan-ref: .
           scanners: vuln,secret,misconfig
+          # Dependencies are scanned through pnpm-lock.yaml; files shipped inside
+          # packages (their own CI Dockerfiles) are not ours to fix.
+          skip-dirs: '**/node_modules'
+          # Deliberate exceptions, each with its reason.
+          trivyignores: .trivyignore.yaml
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: '1'

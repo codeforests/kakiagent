@@ -17,3 +17,8 @@ output "database_endpoint" {
   description = "PostgreSQL writer endpoint (RDS in the launch profile, Aurora in full)."
   value       = module.data.database_endpoint
 }
+
+output "alb_dns_name" {
+  description = "Target for the origin_domain_name DNS record."
+  value       = module.edge.alb_dns_name
+}

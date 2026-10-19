@@ -95,6 +95,8 @@ module "edge" {
   static_bucket_name                 = module.storage.bucket_names["static"]
   static_bucket_arn                  = module.storage.bucket_arns["static"]
   static_bucket_regional_domain_name = module.storage.static_bucket_regional_domain_name
+  certificate_arn                    = var.origin_certificate_arn
+  origin_domain_name                 = var.origin_domain_name
 }
 
 # Application secrets: the per-trust-zone database URLs (ADR-005) and token keys. Values

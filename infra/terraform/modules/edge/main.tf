@@ -1,7 +1,7 @@
 # CloudFront + WAF in front of the ALB and the static bucket (ADR-003, architecture §7).
 # Static builds (widget, dashboard, operator) come from S3 through OAC. /api, /widget
-# and /ws go to the ALB uncached. The ALB only accepts requests that carry
-# CloudFront's secret origin header.
+# and /ws go to the ALB uncached, over HTTPS to the origin name on the ALB's
+# certificate. The ALB only accepts CloudFront's addresses and its secret header.
 
 data "aws_ec2_managed_prefix_list" "cloudfront" {
   name = "com.amazonaws.global.cloudfront.origin-facing"
@@ -18,8 +18,8 @@ resource "aws_security_group" "alb" {
   vpc_id      = var.vpc_id
   ingress {
     description     = "From CloudFront origin-facing addresses"
-    from_port       = var.certificate_arn == null ? 80 : 443
-    to_port         = var.certificate_arn == null ? 80 : 443
+    from_port       = 443
+    to_port         = 443
     protocol        = "tcp"
     prefix_list_ids = [data.aws_ec2_managed_prefix_list.cloudfront.id]
   }
@@ -68,10 +68,10 @@ resource "aws_lb_target_group" "role" {
 
 resource "aws_lb_listener" "this" {
   load_balancer_arn = aws_lb.this.arn
-  port              = var.certificate_arn == null ? 80 : 443
-  protocol          = var.certificate_arn == null ? "HTTP" : "HTTPS"
+  port              = 443
+  protocol          = "HTTPS"
   certificate_arn   = var.certificate_arn
-  ssl_policy        = var.certificate_arn == null ? null : "ELBSecurityPolicy-TLS13-1-2-2021-06"
+  ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
   default_action {
     type = "fixed-response"
     fixed_response {
@@ -228,7 +228,7 @@ resource "aws_cloudfront_distribution" "this" {
 
   origin {
     origin_id   = "alb"
-    domain_name = aws_lb.this.dns_name
+    domain_name = var.origin_domain_name
     custom_header {
       name  = "x-origin-verify"
       value = random_password.origin_verify.result
@@ -236,7 +236,7 @@ resource "aws_cloudfront_distribution" "this" {
     custom_origin_config {
       http_port                = 80
       https_port               = 443
-      origin_protocol_policy   = var.certificate_arn == null ? "http-only" : "https-only"
+      origin_protocol_policy   = "https-only"
       origin_ssl_protocols     = ["TLSv1.2"]
       origin_read_timeout      = 60
       origin_keepalive_timeout = 60

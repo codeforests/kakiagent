@@ -23,7 +23,9 @@ mock_provider "aws" {
 mock_provider "random" {}
 
 variables {
-  allowed_account_ids = ["000000000000"]
+  allowed_account_ids    = ["000000000000"]
+  origin_domain_name     = "origin.example.sg"
+  origin_certificate_arn = "arn:aws:acm:ap-southeast-1:000000000000:certificate/00000000-0000-0000-0000-000000000000"
 }
 
 run "launch_profile" {

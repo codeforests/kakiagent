@@ -45,9 +45,13 @@ variable "static_bucket_regional_domain_name" {
 }
 
 variable "certificate_arn" {
-  description = "ACM certificate (ap-southeast-1) for the ALB; null serves the origin over HTTP behind CloudFront (dev without a domain)."
+  description = "ACM certificate (ap-southeast-1) for the ALB listener, covering origin_domain_name. CloudFront reaches the origin over HTTPS only."
   type        = string
-  default     = null
+}
+
+variable "origin_domain_name" {
+  description = "DNS name CloudFront uses for the ALB origin (for example origin.<domain>), on the certificate and pointing at the ALB."
+  type        = string
 }
 
 variable "cloudfront_certificate_arn" {
