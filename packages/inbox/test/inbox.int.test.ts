@@ -58,7 +58,7 @@ describe('inbox repository (visitor trust zone)', () => {
       },
     ]);
     const audit = await c.query(
-      `select action from audit_events where tenant_id = $1 order by seq`,
+      `select event_type as action from audit_entries where tenant_id = $1 order by seq`,
       [TENANT_A],
     );
     expect(audit.rows.map((r) => r.action)).toEqual(['conversation.started', 'message.received']);

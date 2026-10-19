@@ -15,7 +15,7 @@
       Done when: unit tests over fixture chains and integration tests on the database report the first broken `seq` for each AC-4 tamper and for an altered PII row, and `ok: true` for an intact chain and after erasure.
 - [x] T6 — Anchors: `AnchorStore`, `createS3AnchorStore`, `anchorHeads`, the `startTestS3()` helper (design §3.3; D9, D10; AC-5, AC-11)
       Done when: integration tests against LocalStack (or `KAKI_TEST_S3_ENDPOINT`) show one object per moved head, nothing on a quiet second run, Object Lock retention on the objects, and `anchor_mismatch` after a consistent rewrite of an anchored chain.
-- [ ] T7 — Callers: payloads for `tool.lookup_kb`, `guardrail.segment_blocked`, the new `agent.decision`, related conversation refs in `inbox`, `{ version }` on `fact.updated`; move the tests that read `audit_events` (design §5; D1; AC-8)
+- [x] T7 — Callers: payloads for `tool.lookup_kb`, `guardrail.segment_blocked`, the new `agent.decision`, related conversation refs in `inbox`, `{ version }` on `fact.updated`; move the tests that read `audit_events` (design §5; D1; AC-8)
       Done when: the agent, inbox, kb and api integration tests pass reading `audit_entries`, and the turn test asserts the AC-8 payloads and the absence of message text.
 - [ ] T8 — Wiring: scheduler-worker `audit-anchor` loop and config; LocalStack bucket script and health check; `gen-local-env.mjs` and `.env.example` files; Terraform env var, S3 and KMS task policy (design §5)
       Done when: `pnpm dev`'s scheduler logs an anchor run against LocalStack (or the stand-in), typecheck and lint are clean, and `terraform validate` and `terraform test` pass where Terraform is available (CI runs both).

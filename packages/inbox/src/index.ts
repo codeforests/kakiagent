@@ -150,6 +150,7 @@ export async function appendVisitorMessage(
     actorId: input.visitorId,
     subjectType: 'message',
     subjectId: inserted.id,
+    related: [{ type: 'conversation', id: input.conversationId }],
   });
   return { message: inserted, created: true, conversation: updated ?? conversation };
 }
@@ -215,6 +216,7 @@ export async function appendAgentReply(
     actorType: 'agent',
     subjectType: 'message',
     subjectId: inserted.id,
+    related: [{ type: 'conversation', id: input.conversationId }],
   });
   return { message: inserted, conversation: conversation! };
 }
