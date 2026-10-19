@@ -447,9 +447,13 @@ describe('audit chain', () => {
   });
 
   it.each(['app_dashboard', 'app_agent_visitor'] as const)(
-    '%s cannot update or delete entries',
+    '%s cannot update, delete or truncate entries',
     async (role) => {
-      for (const q of [`update audit_entries set event_type = 'x'`, `delete from audit_entries`])
+      for (const q of [
+        `update audit_entries set event_type = 'x'`,
+        `delete from audit_entries`,
+        `truncate audit_entries`,
+      ])
         await expect(asRole(role, TENANT_A, (c) => c.query(q))).rejects.toThrow(
           /permission denied/,
         );
@@ -518,9 +522,15 @@ describe('audit chain', () => {
       await expect(
         asRole(role, TENANT_A, (c) => c.query(`select * from audit_heads`)),
       ).rejects.toThrow(/permission denied/);
-      await expect(
-        asRole(role, TENANT_A, (c) => c.query(`update audit_heads set seq = 0`)),
-      ).rejects.toThrow(/permission denied/);
+      // FEAT-002 acceptance: "read or write" covers insert and delete too (AC-3).
+      for (const q of [
+        `update audit_heads set seq = 0`,
+        `insert into audit_heads (tenant_id, seq, hash) values ('${TENANT_A}', 0, repeat('0', 64))`,
+        `delete from audit_heads`,
+      ])
+        await expect(asRole(role, TENANT_A, (c) => c.query(q))).rejects.toThrow(
+          /permission denied/,
+        );
     },
   );
 
