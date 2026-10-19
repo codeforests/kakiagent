@@ -43,7 +43,7 @@
 | KB-04 | Chat-history import (WhatsApp .txt export, Telegram JSON export) | Must | Active | Research P1 | UC-11 | ADR-010, ADR-015, ADR-018; SCR-APP-026 | FEAT-017 | _TBD_ |
 | KB-05 | LLM extraction into typed entities | Must | Active | Research P1; Appx A A15 | UC-03, UC-10, UC-15 | ADR-007, ADR-010, ADR-018; SCR-APP-019 | FEAT-011, FEAT-012 | _TBD_ |
 | KB-06 | Conflict detection | Must | Active | Research P1 | UC-12, UC-14, UC-15 | ADR-008, ADR-010, ADR-018; SCR-APP-008, SCR-APP-020 | FEAT-014 | _TBD_ |
-| KB-07 | KB manager | Must | Active | Research P1 | UC-12, UC-13 | ADR-004, ADR-010; SCR-APP-027, SCR-APP-028 | FEAT-011, FEAT-022 | _TBD_ |
+| KB-07 | KB manager | Must | Active | Research P1 | UC-12, UC-13 | ADR-004, ADR-010; SCR-APP-027, SCR-APP-028; features/FEAT-022-grounded-verified-answer/technical-design.md; features/FEAT-022-grounded-verified-answer/ui-design.md | FEAT-011, FEAT-022 | _TBD_ |
 | KB-08 | Freshness | Should | Active | Research P1 | UC-14 | ADR-010, ADR-012, ADR-018; SCR-APP-023, SCR-APP-024 | FEAT-020 | _TBD_ |
 | KB-09 | Coverage report | Must | Active | Research P1 | UC-03, UC-13, UC-16, UC-37 | ADR-010; SCR-APP-008, SCR-APP-021, SCR-APP-029 | FEAT-019 | _TBD_ |
 | KB-10 | Removed in v0.4, superseded by KB-18. Learn from human replies | Could | Removed (v0.4) | Research P1 | — | _TBD_ | _TBD_ | _TBD_ |
@@ -51,29 +51,29 @@
 | KB-12 | Processing status | Must | Active | Gap review v0.3 | UC-03, UC-10, UC-11, UC-13, UC-14 | ADR-012, ADR-018; SCR-APP-007, SCR-APP-023, SCR-APP-024 | FEAT-012 | _TBD_ |
 | KB-13 | Website authorisation | Must | Active | Gap review v0.3; Appx A A9; D9 | UC-03 | ADR-018; SCR-APP-007, SCR-APP-023 | FEAT-012 | _TBD_ |
 | KB-14 | Entity history | Should | Active | Gap review v0.3 | UC-13 | ADR-004, ADR-010; SCR-APP-028 | FEAT-021 | _TBD_ |
-| KB-15 | GST-aware prices | Must | Active | Gap review v0.3; Appx A A15; GST – price display for GST-registered businesses | UC-10, UC-20 | ADR-008, ADR-010, ADR-018; SCR-APP-019, SCR-APP-028 | FEAT-011, FEAT-022 | _TBD_ |
+| KB-15 | GST-aware prices | Must | Active | Gap review v0.3; Appx A A15; GST – price display for GST-registered businesses | UC-10, UC-20 | ADR-008, ADR-010, ADR-018; SCR-APP-019, SCR-APP-028; features/FEAT-022-grounded-verified-answer/technical-design.md; features/FEAT-022-grounded-verified-answer/ui-design.md | FEAT-011, FEAT-022 | _TBD_ |
 | KB-16 | Fact review and approval (D11) | Must | Active | Owner request v0.4; D11; IMDA – reducing automation bias | UC-03, UC-04, UC-14, UC-15 | ADR-008, ADR-009, ADR-010, ADR-014, ADR-018; SCR-APP-008, SCR-APP-019 | FEAT-013 | _TBD_ |
 | KB-17 | Stale facts | Must | Active | Owner request v0.4 | UC-13, UC-15, UC-16 | ADR-010, ADR-012; SCR-APP-013, SCR-APP-020, SCR-APP-021, SCR-APP-027, SCR-APP-028 | FEAT-014, FEAT-018 | _TBD_ |
 | KB-18 | Correction queue | Must | Active | Owner request v0.4; IMDA – reducing automation bias | UC-04, UC-16, UC-23, UC-36 | ADR-009, ADR-010; SCR-APP-013, SCR-APP-021, SCR-APP-022 | FEAT-018 | _TBD_ |
-| AGT-01 | Answers only from the tenant's approved KB facts (KB-16) and business profile… | Must | Active | Research P2 | UC-04, UC-20, UC-27 | ADR-006, ADR-007, ADR-008, ADR-009, ADR-022 | FEAT-022 | _TBD_ |
-| AGT-02 | Price and fact integrity | Must | Active | Research P2; Appx A A6 | UC-04, UC-20 | ADR-006, ADR-007, ADR-008, ADR-022 | FEAT-022 | _TBD_ |
+| AGT-01 | Answers only from the tenant's approved KB facts (KB-16) and business profile… | Must | Active | Research P2 | UC-04, UC-20, UC-27 | ADR-006, ADR-007, ADR-008, ADR-009, ADR-022; features/FEAT-022-grounded-verified-answer/technical-design.md | FEAT-022 | _TBD_ |
+| AGT-02 | Price and fact integrity | Must | Active | Research P2; Appx A A6 | UC-04, UC-20 | ADR-006, ADR-007, ADR-008, ADR-022; features/FEAT-022-grounded-verified-answer/technical-design.md | FEAT-022 | _TBD_ |
 | AGT-03 | Understands English, Singlish (code-switching, particles such as… | Must | Active | Research P4 | UC-20 | ADR-007, ADR-022 | FEAT-023 | _TBD_ |
 | AGT-04 | When confidence is low or the question is out of scope, the agent says it will… | Must | Active | Research P2 | UC-04, UC-20 | ADR-007, ADR-022 | FEAT-023 | _TBD_ |
 | AGT-05 | Uses web context | Must | Active | Research P3; Appx A A17 | UC-20 | ADR-014, ADR-016; SCR-WGT-002 | FEAT-029 | _TBD_ |
-| AGT-06 | Tools available to the agent | Must | Active | Research P2; IMDA Agentic AI v1.5 – defined operational boundaries; IMDA Agentic AI v1.5 – agent identity and access limits | UC-21, UC-22, UC-23, UC-26 | ADR-009, ADR-013, ADR-014 | FEAT-022, FEAT-038, FEAT-044, FEAT-049, FEAT-055 | _TBD_ |
+| AGT-06 | Tools available to the agent | Must | Active | Research P2; IMDA Agentic AI v1.5 – defined operational boundaries; IMDA Agentic AI v1.5 – agent identity and access limits | UC-21, UC-22, UC-23, UC-26 | ADR-009, ADR-013, ADR-014; features/FEAT-022-grounded-verified-answer/technical-design.md | FEAT-022, FEAT-038, FEAT-044, FEAT-049, FEAT-055 | _TBD_ |
 | AGT-07 | Prompt-injection resistance | Must | Active | Research P2; IMDA GenAI framework – prompt injection, transparency, harmful content | UC-20 | ADR-005, ADR-009, ADR-022 | FEAT-025 | _TBD_ |
 | AGT-08 | Configurable persona | Must | Active | Research P2 | UC-03, UC-20 | ADR-007; SCR-APP-009, SCR-APP-041 | FEAT-024 | _TBD_ |
 | AGT-09 | After hours | Must | Active | Research P2 | UC-20, UC-23, UC-27 | ADR-013; SCR-APP-041, SCR-WGT-002 | FEAT-023 | _TBD_ |
 | AGT-10 | Proactive greeting triggered by intent signals (for example, ≥ 30 seconds on… | Should | Active | Research P2; D2 | UC-20 | ADR-016; SCR-APP-037, SCR-WGT-001 | FEAT-030 | _TBD_ |
-| AGT-11 | Discloses that it is an AI assistant at the start of a conversation | Must | Active | Research P2; IMDA GenAI framework – prompt injection, transparency, harmful content | UC-03, UC-20 | ADR-008; SCR-APP-009, SCR-APP-041, SCR-WGT-002 | FEAT-022, FEAT-024 | _TBD_ |
+| AGT-11 | Discloses that it is an AI assistant at the start of a conversation | Must | Active | Research P2; IMDA GenAI framework – prompt injection, transparency, harmful content | UC-03, UC-20 | ADR-008; SCR-APP-009, SCR-APP-041, SCR-WGT-002; features/FEAT-022-grounded-verified-answer/technical-design.md; features/FEAT-022-grounded-verified-answer/ui-design.md | FEAT-022, FEAT-024 | _TBD_ |
 | AGT-12 | Conversation memory | Must | Active | Gap review v0.3; Appx A A21 | UC-20, UC-26 | ADR-007 | FEAT-026 | _TBD_ |
 | AGT-13 | Harmful and abusive content | Must | Active | Gap review v0.3; Appx A A21; IMDA GenAI framework – prompt injection, transparency, harmful content | UC-20 | ADR-022; SCR-APP-014 | FEAT-025, FEAT-042 | _TBD_ |
 | AGT-14 | Evaluation suite | Must | Active | Gap review v0.3; Appx A A12, A13; D1; IMDA Agentic AI v1.5 – testing before and after deployment | — (system-level) | ADR-022 | Foundations | _TBD_ |
 | AGT-15 | Visitor feedback | Should | Active | Gap review v0.3; Appx A A21 | UC-16, UC-20, UC-36 | ADR-010; SCR-APP-015, SCR-APP-021, SCR-APP-034, SCR-WGT-002, SCR-WGT-006 | FEAT-031 | _TBD_ |
-| AGT-16 | Visitor scope | Must | Active | Owner request v0.4; IMDA Agentic AI v1.5 – agent identity and access limits | UC-20 | ADR-005, ADR-009, ADR-022 | FEAT-022, FEAT-025 | _TBD_ |
+| AGT-16 | Visitor scope | Must | Active | Owner request v0.4; IMDA Agentic AI v1.5 – agent identity and access limits | UC-20 | ADR-005, ADR-009, ADR-022; features/FEAT-022-grounded-verified-answer/technical-design.md | FEAT-022, FEAT-025 | _TBD_ |
 | AGT-17 | Owner coaching mode | Must | Active | Owner request v0.4 | UC-04, UC-16 | ADR-004, ADR-009, ADR-010; SCR-APP-010, SCR-APP-030, SCR-APP-031 | FEAT-027, FEAT-028 | _TBD_ |
 | CHN-01 | Single ChannelAdapter abstraction (receive → normalise → agent → send) so new… | Must | Active | Research P3 | UC-25 | ADR-001, ADR-011 | FEAT-034 | _TBD_ |
-| CHN-02 | Web widget | Must | Active | Research P3; Appx A A6, A11 | UC-05, UC-20 | ADR-002, ADR-008, ADR-011, ADR-016, ADR-017; SCR-APP-037, SCR-WGT-001, SCR-WGT-002 | FEAT-022, FEAT-032, FEAT-033 | _TBD_ |
+| CHN-02 | Web widget | Must | Active | Research P3; Appx A A6, A11 | UC-05, UC-20 | ADR-002, ADR-008, ADR-011, ADR-016, ADR-017; SCR-APP-037, SCR-WGT-001, SCR-WGT-002; features/FEAT-022-grounded-verified-answer/technical-design.md; features/FEAT-022-grounded-verified-answer/ui-design.md | FEAT-022, FEAT-032, FEAT-033 | _TBD_ |
 | CHN-03 | First-party intent tracking (inside the widget script) | Must | Active | Research P3; Appx A A17; D8; PDPA – consent and purpose limitation | UC-20 | ADR-015, ADR-016; SCR-APP-015, SCR-APP-037, SCR-WGT-007 | FEAT-029 | _TBD_ |
 | CHN-04 | Email channel | Must | Active | Research P3; Appx A A10 | UC-25, UC-27 | ADR-011, ADR-018, ADR-019; SCR-APP-038 | FEAT-036 | _TBD_ |
 | CHN-05 | Telegram | Must | Active | Research P3; Appx A A21 | UC-25, UC-26 | ADR-011; SCR-APP-039 | FEAT-037 | _TBD_ |
