@@ -1,6 +1,6 @@
 # Implementation Plan: KakiAgent MVP
 
-> Status: **Draft, for product-owner review** · Last updated: 2026-10-19 (revised after owner review: Team and My account moved to M3, alerts split by channel, NFR ownership added in §7)
+> Status: **Signed off by the product owner, 2026-10-19** · Last updated: 2026-10-19 (revised after owner review: Team and My account moved to M3, alerts split by channel, NFR ownership added in §7)
 > Inputs (all found, all signed off): [SRS v0.4](../01-requirements/SRS.md) · [use-cases.md](../01-requirements/use-cases.md) · [rtm.md](../01-requirements/rtm.md) · [architecture.md](../02-design/architecture.md) + [ADR-001..022](../02-design/adr/) · [ux-foundations.md](../02-design/ux-foundations.md) · [design.md](../02-design/design.md) · [design-manifest.json](../design-manifest.json)
 > Fidelity: full. Every FR, UC and SCR ID below resolves in those documents.
 
