@@ -30,10 +30,22 @@ const ZH_NUM = '[一二两三四五六七八九十百千]+';
 const MONTH = String.raw`(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?`;
 const UNIT = String.raw`(?:working\s+|business\s+)?(?:days?|weeks?|hours?|hrs?|minutes?|mins?|months?|years?|yrs?)`;
 
+/** Currency codes and words, written before or after the amount. */
+const CODES = '(?:sgd|usd|myr|rm|eur|gbp|aud|rmb|cny)';
+const CUR_WORD = String.raw`(?:dollars?|bucks|cents?|ringgit|euros?|pounds?|yuan)`;
+const CUR_QUAL = String.raw`(?:singapore|sing|us|s|aussie)`;
+/** Between a price word and its number: "price is", "Price:", "price - ", "goes for around". */
+const PRICE_GAP = String.raw`\s*[:=\-–—]?\s*(?:(?:is|are|of|about|around|roughly|approximately|only|just)\s+)*`;
+/** A number that counts things, not money: "for 2 to 3 people". */
+const QUANTITY = String.raw`\s*(?:(?:to|-|–)\s*\d+\s*)?(?:people|pax|persons?|guests?|pieces?|pcs|slices?|servings?|kg|g|grams?|cm|inch(?:es)?|layers?|tiers?|cupcakes?|cakes?|boxes|box)\b`;
+
 const PATTERNS: [ViolationKind, RegExp][] = [
-  ['currency', new RegExp(String.raw`(?:S\$|US\$|SGD|\$)\s?${NUM}`, 'giu')],
-  ['currency', new RegExp(String.raw`${NUM}\s?(?:sgd|dollars?|bucks|cents?|元|块|蚊)`, 'giu')],
-  ['currency', new RegExp(String.raw`\b${WORDS}\s+(?:sing\s+)?(?:dollars?|bucks|cents?)\b`, 'giu')],
+  ['currency', new RegExp(String.raw`(?:S\$|US\$|\b${CODES}|[$€£¥₹])\s*${NUM}`, 'giu')],
+  [
+    'currency',
+    new RegExp(String.raw`${NUM}\s*(?:${CUR_QUAL}\s+)?(?:${CODES}\b|${CUR_WORD}|元|块|蚊)`, 'giu'),
+  ],
+  ['currency', new RegExp(String.raw`\b${WORDS}\s+(?:${CUR_QUAL}\s+)?${CUR_WORD}\b`, 'giu')],
   ['currency', new RegExp(`${ZH_NUM}\\s?(?:元|块)`, 'gu')],
   ['percentage', new RegExp(String.raw`${NUM}\s?(?:%|percent\b|per\s+cent\b)`, 'giu')],
   ['percentage', new RegExp(String.raw`\b${WORDS}\s+(?:percent|per\s+cent)\b`, 'giu')],
@@ -64,7 +76,14 @@ const PATTERNS: [ViolationKind, RegExp][] = [
   [
     'price_number',
     new RegExp(
-      String.raw`\b(?:prices?|priced|costs?|charges?|fees?|only|just|at)\s+(?:is\s+|are\s+|of\s+|about\s+|around\s+|only\s+|just\s+)?${NUM}`,
+      String.raw`\b(?:prices?|priced|costs?|charges?|fees?|only|just|at|for)${PRICE_GAP}${NUM}(?!\d|[.,]\d|${QUANTITY})`,
+      'giu',
+    ),
+  ],
+  [
+    'price_number',
+    new RegExp(
+      String.raw`\b(?:prices?|priced|costs?|charges?|fees?)${PRICE_GAP}${WORDS}\b(?!${QUANTITY}|\s+(?:${CUR_QUAL}\s+)?${CUR_WORD})`,
       'giu',
     ),
   ],
@@ -75,8 +94,12 @@ const PATTERNS: [ViolationKind, RegExp][] = [
   ['slot_syntax', /\[\[|\]\]/gu],
 ];
 
-/** Kinds a visitor's own literal number may justify: plain quantities only (FEAT-022 D3). */
-const VISITOR_LITERAL_KINDS = new Set<ViolationKind>(['stock', 'price_number']);
+/**
+ * Kinds a visitor's own literal number may justify: plain quantities only (FEAT-022
+ * D3). A number after a price word is a price, so "is it 20?" never justifies
+ * "the price is 20".
+ */
+const VISITOR_LITERAL_KINDS = new Set<ViolationKind>(['stock']);
 
 const MASK = '';
 
@@ -94,7 +117,9 @@ export function verifySegment(
     masked += inSpan ? MASK : ch;
     pos += ch.length;
   }
-  const visitor = visitorTexts.join('\n');
+  // Full-width digits and signs (５０, ＄) read as their ASCII forms.
+  masked = masked.normalize('NFKC');
+  const visitor = visitorTexts.join('\n').normalize('NFKC');
   const violations: Violation[] = [];
   for (const [kind, re] of PATTERNS) {
     for (const m of masked.matchAll(re)) {

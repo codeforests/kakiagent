@@ -107,6 +107,18 @@ describe('verifier (AC-3; AGT-02)', () => {
     ['It is in stock.', 'stock'],
     ['You get a full refund.', 'policy'],
     ['The price is 55.', 'price_number'],
+    // Acceptance rework R1–R4 and the gaps it listed.
+    ['The fudge cake goes for 50.', 'price_number'],
+    ['Price: 50.', 'price_number'],
+    ['Price - 55.', 'price_number'],
+    ['It costs fifty-five.', 'price_number'],
+    ['It is around 50 Singapore dollars.', 'currency'],
+    ['It is S$  50.', 'currency'],
+    ['That is USD 50.', 'currency'],
+    ['That is €50.', 'currency'],
+    ['That is RM50.', 'currency'],
+    ['价格是５０元。', 'currency'],
+    ['It is S＄50.', 'currency'],
     ['See [[f:9c1e4a2b.price', 'slot_syntax'],
   ])('blocks %j (%s)', (text, kind) => {
     const r = verifySegment(text, [], []);
@@ -130,6 +142,7 @@ describe('verifier (AC-3; AGT-02)', () => {
       'Hi! How can I help you today?',
       'We have 3 flavours to choose from.',
       'The 1 kg cake serves about 8 people.',
+      'It is good for 2 to 3 people.',
       'Let me check with the team and get back to you.',
     ])
       expect(verifySegment(t, [], []), t).toEqual({ ok: true });
@@ -143,6 +156,7 @@ describe('verifier (AC-3; AGT-02)', () => {
       false,
     );
     expect(verifySegment('Yes, it is $20.', [], ['is it $20?']).ok).toBe(false);
+    expect(verifySegment('Yes, the price is 20.', [], ['is the price 20?']).ok).toBe(false);
   });
 
   it('blocks a literal price typed next to a correct slot', () => {

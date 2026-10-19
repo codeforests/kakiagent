@@ -18,7 +18,7 @@ export const Expectation = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('contains'), text: z.string() }),
   z.object({ kind: z.literal('not-contains'), text: z.string() }),
   z.object({ kind: z.literal('matches'), pattern: z.string() }),
-  /** Every `S$` amount in the reply is a rendered price of the tenant's facts (AGT-02). */
+  /** Every money amount in the reply is a rendered price of the tenant's facts (AGT-02). */
   z.object({ kind: z.literal('prices-from-facts') }),
   /**
    * The reply's fact IDs include `ids` (all of them, with `exact`) and none outside the
@@ -98,7 +98,9 @@ export interface ScoreContext {
   renderedPrices: Set<string>;
 }
 
-const AMOUNT_RE = /S\$\d[\d,]*(?:\.\d+)?/gu;
+/** Any money amount, in any currency or spelling; only rendered `S$` prices may match. */
+const AMOUNT_RE =
+  /(?:S\$|US\$|[$€£¥]|\b(?:sgd|usd|rm|myr)\s*)\s*\d[\d,]*(?:\.\d+)?|\d[\d,]*(?:\.\d+)?\s*(?:(?:singapore|sing|us)\s+)?(?:dollars?|bucks|cents?|ringgit|元|块)/giu;
 
 export function score(reply: Reply, expectations: Expectation[], ctx: ScoreContext): boolean {
   const own = new Set(ctx.fixture.facts.map((f) => f.id));
@@ -111,7 +113,9 @@ export function score(reply: Reply, expectations: Expectation[], ctx: ScoreConte
       case 'matches':
         return new RegExp(e.pattern, 'u').test(reply.text);
       case 'prices-from-facts':
-        return [...reply.text.matchAll(AMOUNT_RE)].every((m) => ctx.renderedPrices.has(m[0]));
+        return [...reply.text.normalize('NFKC').matchAll(AMOUNT_RE)].every((m) =>
+          ctx.renderedPrices.has(m[0]),
+        );
       case 'cites':
         return (
           reply.factIds.every((id) => own.has(id)) &&
