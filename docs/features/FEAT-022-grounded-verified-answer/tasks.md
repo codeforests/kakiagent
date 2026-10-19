@@ -3,7 +3,7 @@
 > Executes: [technical-design.md](technical-design.md) and [ui-design.md](ui-design.md)
 > Status: pending | in-progress | done per task · Last updated: 2026-10-19
 
-- [ ] T1 — Migration: `tenants.ai_paused`, `business_profiles`, `facts`, `fact_versions`, `kb_chunks`, `messages.fact_ids`, `messages.disclosure` (0002, drizzle-kit), and RLS, roles, grants, `visitor_facts`, `visitor_chunks`, `visitor_tenant_state()` (0003, hand-written); `TENANT_SCOPED_TABLES`; seed the GST flags (design §4)
+- [x] T1 — Migration: `tenants.ai_paused`, `business_profiles`, `facts`, `fact_versions`, `kb_chunks`, `messages.fact_ids`, `messages.disclosure` (0002, drizzle-kit), and RLS, roles, grants, `visitor_facts`, `visitor_chunks`, `visitor_tenant_state()` (0003, hand-written); `TENANT_SCOPED_TABLES`; seed the GST flags (design §4)
       Done when: `pnpm db:setup` applies cleanly on a fresh database and the existing RLS suite passes with the new tables listed.
 - [ ] T2 — RLS and grant tests for the new tables and views (design §4; AC-6; AGT-16, GOV-03)
       Done when: `rls.int.test.ts` covers cross-tenant reads/writes on each new table, permission denied for the visitor role on the base tables, and every excluded status in `visitor_facts`/`visitor_chunks`; it passes.

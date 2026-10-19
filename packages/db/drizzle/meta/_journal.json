@@ -15,6 +15,20 @@
       "when": 1792417857927,
       "tag": "0001_rls_roles_grants",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792423284057,
+      "tag": "0002_facts_kb",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792423309820,
+      "tag": "0003_facts_rls_views",
+      "breakpoints": true
     }
   ]
 }

@@ -15,6 +15,8 @@ export interface SeedTenant {
   name: string;
   widgetKey: string;
   allowedOrigins: string[];
+  /** KB-15: the bakery quotes GST-inclusive prices; the second tenant isn't registered. */
+  gstRegistered: boolean;
 }
 
 /** The bakery and a second tenant (plan §7), with fixed IDs so tests and demos can refer to them. */
@@ -26,6 +28,7 @@ export function devTenants(allowedOrigins: string[]): SeedTenant[] {
       name: 'Kaki Bakery',
       widgetKey: 'wk_dev_bakery',
       allowedOrigins,
+      gstRegistered: true,
     },
     {
       id: '22222222-2222-4222-8222-222222222222',
@@ -33,6 +36,7 @@ export function devTenants(allowedOrigins: string[]): SeedTenant[] {
       name: 'Second Tenant Pte Ltd',
       widgetKey: 'wk_dev_second',
       allowedOrigins,
+      gstRegistered: false,
     },
   ];
 }
@@ -61,6 +65,11 @@ export async function seed(client: pg.ClientBase, tenants: SeedTenant[]): Promis
        on conflict (id) do update set name = excluded.name, widget_key = excluded.widget_key,
          allowed_origins = excluded.allowed_origins`,
       [t.id, t.slug, t.name, t.widgetKey, t.allowedOrigins],
+    );
+    await client.query(
+      `insert into business_profiles (tenant_id, gst_registered) values ($1, $2)
+       on conflict (tenant_id) do update set gst_registered = excluded.gst_registered, updated_at = now()`,
+      [t.id, t.gstRegistered],
     );
   }
 }

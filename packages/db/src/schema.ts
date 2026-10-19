@@ -1,8 +1,11 @@
 import { sql } from 'drizzle-orm';
 import {
   bigint,
+  boolean,
+  check,
   foreignKey,
   index,
+  integer,
   jsonb,
   pgTable,
   primaryKey,
@@ -10,6 +13,7 @@ import {
   timestamp,
   uniqueIndex,
   uuid,
+  vector,
 } from 'drizzle-orm/pg-core';
 
 /**
@@ -31,7 +35,22 @@ export const tenants = pgTable('tenants', {
     .array()
     .notNull()
     .default(sql`'{}'::text[]`),
+  /** Kill switch (architecture §6.5, ADR-013): read by the send gate via `visitor_tenant_state()`. */
+  aiPaused: boolean('ai_paused').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Business profile (ONB-03). FEAT-022 needs only the GST flag (KB-15); FEAT-009 adds the
+ * rest of the profile.
+ */
+export const businessProfiles = pgTable('business_profiles', {
+  tenantId: uuid('tenant_id')
+    .primaryKey()
+    .references(() => tenants.id),
+  gstRegistered: boolean('gst_registered').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
 export const conversations = pgTable(
@@ -69,6 +88,13 @@ export const messages = pgTable(
     clientMessageId: text('client_message_id'),
     /** The visitor message an agent reply answers: makes turn processing idempotent. */
     inReplyTo: uuid('in_reply_to'),
+    /** The facts the reply's slots rendered (AGT-01). */
+    factIds: uuid('fact_ids')
+      .array()
+      .notNull()
+      .default(sql`'{}'::uuid[]`),
+    /** The AI disclosure, on the first agent or system message of a conversation (AGT-11). */
+    disclosure: text('disclosure'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -84,6 +110,97 @@ export const messages = pgTable(
       t.clientMessageId,
     ),
     uniqueIndex('messages_in_reply_to_uq').on(t.tenantId, t.inReplyTo),
+  ],
+);
+
+export const FACT_TYPES = ['product', 'faq'] as const;
+export const FACT_STATUSES = [
+  'needs_review',
+  'approved',
+  'rejected',
+  'conflicted',
+  'disabled',
+] as const;
+export const GST_TREATMENTS = ['inclusive', 'exclusive', 'unknown'] as const;
+
+/**
+ * Facts (ADR-010): one row per fact with its current version and status. Visitors
+ * reach facts only through the `visitor_facts` view (migration 0003).
+ */
+export const facts = pgTable(
+  'facts',
+  {
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id),
+    id: uuid('id').notNull().defaultRandom(),
+    type: text('type', { enum: FACT_TYPES }).notNull(),
+    status: text('status', { enum: FACT_STATUSES }).notNull().default('needs_review'),
+    /** product: { name, priceCents, currency: 'SGD', unit? }; faq: { question, answer }. */
+    value: jsonb('value').notNull(),
+    gstTreatment: text('gst_treatment', { enum: GST_TREATMENTS }),
+    source: text('source').notNull().default('manual'),
+    version: integer('version').notNull().default(1),
+    validUntil: timestamp('valid_until', { withTimezone: true }),
+    lastConfirmedAt: timestamp('last_confirmed_at', { withTimezone: true }).notNull().defaultNow(),
+    createdBy: text('created_by'),
+    updatedBy: text('updated_by'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.id] }),
+    index('facts_tenant_status_updated_idx').on(t.tenantId, t.status, t.updatedAt.desc()),
+    check('facts_type_ck', sql`${t.type} in ('product', 'faq')`),
+    check(
+      'facts_status_ck',
+      sql`${t.status} in ('needs_review', 'approved', 'rejected', 'conflicted', 'disabled')`,
+    ),
+    check(
+      'facts_gst_ck',
+      sql`(${t.type} = 'product') = (${t.gstTreatment} is not null) and (${t.gstTreatment} is null or ${t.gstTreatment} in ('inclusive', 'exclusive', 'unknown'))`,
+    ),
+  ],
+);
+
+/** Immutable fact versions (KB-14). No role may update them. */
+export const factVersions = pgTable(
+  'fact_versions',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    factId: uuid('fact_id').notNull(),
+    version: integer('version').notNull(),
+    status: text('status', { enum: FACT_STATUSES }).notNull(),
+    value: jsonb('value').notNull(),
+    gstTreatment: text('gst_treatment', { enum: GST_TREATMENTS }),
+    changedBy: text('changed_by'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.factId, t.version] }),
+    foreignKey({ columns: [t.tenantId, t.factId], foreignColumns: [facts.tenantId, facts.id] }),
+  ],
+);
+
+/** Embedding dimensions: Cohere Embed Multilingual v3 (ADR-019). */
+export const EMBEDDING_DIMENSIONS = 1024;
+
+/** Searchable chunks (ADR-005). One per fact for now; document chunks arrive with FEAT-012. */
+export const kbChunks = pgTable(
+  'kb_chunks',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    id: uuid('id').notNull().defaultRandom(),
+    factId: uuid('fact_id').notNull(),
+    factVersion: integer('fact_version').notNull(),
+    content: text('content').notNull(),
+    embedding: vector('embedding', { dimensions: EMBEDDING_DIMENSIONS }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.id] }),
+    uniqueIndex('kb_chunks_fact_uq').on(t.tenantId, t.factId),
+    foreignKey({ columns: [t.tenantId, t.factId], foreignColumns: [facts.tenantId, facts.id] }),
   ],
 );
 
@@ -138,4 +255,8 @@ export const TENANT_SCOPED_TABLES = [
   'messages',
   'outbox',
   'audit_events',
+  'business_profiles',
+  'facts',
+  'fact_versions',
+  'kb_chunks',
 ] as const;
