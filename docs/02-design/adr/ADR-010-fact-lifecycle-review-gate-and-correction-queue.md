@@ -1,6 +1,6 @@
 # ADR-010: Fact lifecycle, the review gate and the correction queue
 
-**Status:** Proposed (awaiting product-owner sign-off)
+**Status:** Accepted — architecture phase signed off by the product owner on 2026-10-19
 **Date:** 2026-10-19
 **Requirements addressed:** KB-16, KB-17, KB-18, KB-03, KB-04, KB-05, KB-06, KB-07, KB-08, KB-09, KB-14, KB-15, AGT-15, AGT-17, INB-03, GOV-09, GOV-01, ONB-09, D11, UC-12, UC-13, UC-14, UC-15, UC-16
 

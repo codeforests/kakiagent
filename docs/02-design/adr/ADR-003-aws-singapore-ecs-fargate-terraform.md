@@ -1,6 +1,6 @@
 # ADR-003: AWS ap-southeast-1 on ECS Fargate, provisioned with Terraform
 
-**Status:** Proposed (awaiting product-owner sign-off)
+**Status:** Accepted — architecture phase signed off by the product owner on 2026-10-19
 **Date:** 2026-10-19
 **Requirements addressed:** NFR-01, C1, NFR-03, NFR-04, NFR-05, NFR-06, NFR-07, NFR-08, NFR-12, NFR-15, GOV-11
 

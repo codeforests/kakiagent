@@ -1,6 +1,6 @@
 # Architecture: KakiAgent MVP
 
-> Status: **Sign-off questions answered (2026-10-19); awaiting PR approval** · Last updated: 2026-10-19 · Author: Claude (for the product owner)
+> Status: **Approved** — signed off by the product owner on 2026-10-19 · Last updated: 2026-10-19 · Author: Claude (for the product owner)
 > Inputs (signed off, read-only): [SRS v0.4](../01-requirements/SRS.md), [use cases](../01-requirements/use-cases.md), [RTM](../01-requirements/rtm.md) · Decisions: [ADR-001 … ADR-022](adr/)
 
 ---

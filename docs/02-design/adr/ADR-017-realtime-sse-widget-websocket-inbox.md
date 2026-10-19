@@ -1,6 +1,6 @@
 # ADR-017: Real-time delivery — SSE for the widget, WebSocket for the inbox, Valkey fan-out
 
-**Status:** Proposed (awaiting product-owner sign-off)
+**Status:** Accepted — architecture phase signed off by the product owner on 2026-10-19
 **Date:** 2026-10-19
 **Requirements addressed:** INB-01, INB-02, CHN-02, NFR-01, NFR-03, NFR-04, NFR-17, GOV-08, DSH-01, LED-04, INB-05
 

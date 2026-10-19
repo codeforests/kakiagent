@@ -1,6 +1,6 @@
 # ADR-021: Observability and per-tenant usage metering
 
-**Status:** Proposed (awaiting product-owner sign-off)
+**Status:** Accepted — architecture phase signed off by the product owner on 2026-10-19
 **Date:** 2026-10-19
 **Requirements addressed:** NFR-11, NFR-13, NFR-20, NFR-01, NFR-04, NFR-18, GOV-13, DSH-04, DSH-06, DSH-08, CHN-12, GOV-10, UC-34, UC-38
 

@@ -1,6 +1,6 @@
 # ADR-002: TypeScript application stack
 
-**Status:** Proposed (awaiting product-owner sign-off)
+**Status:** Accepted — architecture phase signed off by the product owner on 2026-10-19
 **Date:** 2026-10-19
 **Requirements addressed:** C1, NFR-12, NFR-01, NFR-02, NFR-09, NFR-14, NFR-19, INB-06, CHN-02
 

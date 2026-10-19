@@ -1,6 +1,6 @@
 # ADR-004: Aurora PostgreSQL with pgvector as the single system of record
 
-**Status:** Proposed (awaiting product-owner sign-off)
+**Status:** Accepted — architecture phase signed off by the product owner on 2026-10-19
 **Date:** 2026-10-19
 **Requirements addressed:** GOV-03, NFR-03, NFR-04, NFR-05, NFR-08, INB-11, KB-07, KB-14, AGT-17, GOV-05, AUTH-07
 

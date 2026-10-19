@@ -1,6 +1,6 @@
 # ADR-013: Conversation, takeover and approval state machines with database-enforced concurrency
 
-**Status:** Proposed (awaiting product-owner sign-off)
+**Status:** Accepted — architecture phase signed off by the product owner on 2026-10-19
 **Date:** 2026-10-19
 **Requirements addressed:** NFR-04, INB-02, INB-05, INB-08, INB-09, APR-02, APR-03, APR-04, APR-06, GOV-08, AGT-06, AGT-09, LED-09, ONB-10, UC-22, UC-23, UC-31
 

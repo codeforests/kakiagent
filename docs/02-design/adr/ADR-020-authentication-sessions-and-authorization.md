@@ -1,6 +1,6 @@
 # ADR-020: Authentication, sessions and authorisation
 
-**Status:** Proposed (awaiting product-owner sign-off)
+**Status:** Accepted — architecture phase signed off by the product owner on 2026-10-19
 **Date:** 2026-10-19
 **Requirements addressed:** AUTH-01, AUTH-02, AUTH-03, AUTH-04, AUTH-05, AUTH-06, AUTH-08, ONB-01, DSH-03, DSH-06, APR-03, NFR-05, NFR-06, GOV-13, UC-01, UC-02, UC-06, UC-07, UC-33
 

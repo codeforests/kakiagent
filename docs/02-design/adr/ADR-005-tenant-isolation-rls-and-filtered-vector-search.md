@@ -1,6 +1,6 @@
 # ADR-005: Tenant isolation with Postgres RLS and tenant-filtered vector search
 
-**Status:** Proposed (awaiting product-owner sign-off)
+**Status:** Accepted — architecture phase signed off by the product owner on 2026-10-19
 **Date:** 2026-10-19
 **Requirements addressed:** GOV-03, AGT-07, AGT-16, DSH-06, NFR-05, NFR-03, AUTH-04
 

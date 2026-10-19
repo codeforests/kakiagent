@@ -1,6 +1,6 @@
 # ADR-018: Ingestion pipeline — quarantine, parse, extract, stage, promote
 
-**Status:** Proposed (awaiting product-owner sign-off)
+**Status:** Accepted — architecture phase signed off by the product owner on 2026-10-19
 **Date:** 2026-10-19
 **Requirements addressed:** KB-01, KB-02, KB-03, KB-04, KB-05, KB-06, KB-08, KB-11, KB-12, KB-13, KB-15, KB-16, ONB-04, NFR-16, NFR-17, NFR-19, GOV-04, CHN-09, CHN-04, DSH-04, UC-03, UC-10, UC-11, UC-14
 

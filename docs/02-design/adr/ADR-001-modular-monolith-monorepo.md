@@ -1,6 +1,6 @@
 # ADR-001: Modular monolith in a TypeScript monorepo
 
-**Status:** Proposed (awaiting product-owner sign-off)
+**Status:** Accepted — architecture phase signed off by the product owner on 2026-10-19
 **Date:** 2026-10-19
 **Requirements addressed:** NFR-12, NFR-03, NFR-04, CHN-01, constraint C1
 

@@ -1,6 +1,6 @@
 # ADR-015: PII masking, the PII-bearing stores and data-subject deletion
 
-**Status:** Proposed (awaiting product-owner sign-off)
+**Status:** Accepted — architecture phase signed off by the product owner on 2026-10-19
 **Date:** 2026-10-19
 **Requirements addressed:** GOV-04, GOV-05, GOV-06, GOV-12, AUTH-07, LED-02, LED-05, LED-06, LED-07, LED-08, KB-04, CHN-03, CHN-08, CHN-09, D7, D8, NFR-05, NFR-07, NFR-08, UC-28, UC-30, UC-35, J6, J10
 

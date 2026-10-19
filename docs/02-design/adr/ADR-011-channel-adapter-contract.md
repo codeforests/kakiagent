@@ -1,6 +1,6 @@
 # ADR-011: The ChannelAdapter contract
 
-**Status:** Proposed (awaiting product-owner sign-off)
+**Status:** Accepted — architecture phase signed off by the product owner on 2026-10-19
 **Date:** 2026-10-19
 **Requirements addressed:** NFR-05, CHN-01, CHN-02, CHN-04, CHN-05, CHN-06, CHN-07, CHN-08, CHN-10, CHN-12, INB-01, INB-02, INB-08, LED-04, NFR-17, NFR-18, UC-25, UC-26, UC-27; Phase 2 WhatsApp (SRS §1.3)
 

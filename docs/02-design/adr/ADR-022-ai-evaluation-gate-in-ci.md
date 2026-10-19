@@ -1,6 +1,6 @@
 # ADR-022: AI evaluation gate in CI
 
-**Status:** Proposed (awaiting product-owner sign-off)
+**Status:** Accepted — architecture phase signed off by the product owner on 2026-10-19
 **Date:** 2026-10-19
 **Requirements addressed:** AGT-14, AGT-01, AGT-02, AGT-03, AGT-04, AGT-07, AGT-13, AGT-16, LED-07, NFR-12, NFR-13, GOV-03, GOV-09, D1
 

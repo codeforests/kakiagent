@@ -1,6 +1,6 @@
 # ADR-009: Agent scopes — a visitor scope and a coaching scope fixed by the entry point
 
-**Status:** Proposed (awaiting product-owner sign-off)
+**Status:** Accepted — architecture phase signed off by the product owner on 2026-10-19
 **Date:** 2026-10-19
 **Requirements addressed:** AGT-16, AGT-17, AGT-07, AGT-06, AGT-01, KB-16, KB-18, ONB-05, GOV-03, GOV-01, DSH-02, DSH-04, UC-04, UC-20 (exception flows 3a, 3d)
 

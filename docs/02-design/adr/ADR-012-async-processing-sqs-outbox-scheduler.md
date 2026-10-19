@@ -1,6 +1,6 @@
 # ADR-012: Asynchronous processing with SQS, a transactional outbox and a durable scheduler
 
-**Status:** Proposed (awaiting product-owner sign-off)
+**Status:** Accepted — architecture phase signed off by the product owner on 2026-10-19
 **Date:** 2026-10-19
 **Requirements addressed:** NFR-16, NFR-17, NFR-03, NFR-04, NFR-11, CHN-12, INB-05, INB-08, APR-04, APR-06, LED-04, LED-06, LED-07, GOV-05, GOV-06, AUTH-07, KB-08, KB-12, KB-17, GOV-09, UC-22 (5d), UC-27 (3c)
 
