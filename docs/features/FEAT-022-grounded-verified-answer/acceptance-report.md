@@ -1,7 +1,7 @@
 # Acceptance Report: FEAT-022 — Grounded, verified answer from a hand-entered fact
 
-> Current verdict: **Design defect, with one rework finding** (re-verification 2, at `fa30a46`; see the last section) · Date: 2026-10-19
-> Earlier verdicts, kept below as recorded: Rework at `44bc8c2` (initial); Design defect at `d9befc0` (re-verification 1)
+> Current verdict: **Design defect, with one rework finding** (re-verification 3, at `20d392d`; see the last section) · Date: 2026-10-19
+> Earlier verdicts, kept below as recorded: Rework at `44bc8c2` (initial); Design defect at `d9befc0` (re-verification 1); Design defect at `fa30a46` (re-verification 2)
 > Standard: technical-design.md §6 (AC-1..AC-16) and §5 (verifier spec) @ `44bc8c2` · Sources: SRS.md v0.4 (AGT-01, AGT-02, AGT-06, AGT-11, AGT-16, CHN-02, KB-07, KB-15, NFR-01, NFR-04, NFR-10), use-cases.md v0.4 (UC-20, UC-13)
 > Repo state audited: `44bc8c2` on `claude/project-thread-91q4ac` (clean tree)
 
@@ -320,6 +320,113 @@ The other changes in `ad38472..fa30a46` only add tests: 15 D13 cases, an R5 case
 - **M8.** Slot values used in claims no fact supports ("Two for S$55.00", "Save S$55.00", "S$55.00 off") pass the verifier. Track them in the M1.5 red-team and eval cases; a lexical fix is not expected.
 - **M9.** The false-positive rate of D13 on a real model is to be measured at M1.5 (see above).
 - M1–M6 from the earlier runs still stand; M5 is the "maybe" date false positive.
+
+### RTM
+
+Not written. Verdict: design defect. When a later re-verification is accepted, Test ref `features/FEAT-022-grounded-verified-answer/acceptance-report.md (partial)` goes on AGT-01, AGT-02, AGT-06, AGT-11, AGT-16, CHN-02, KB-07, KB-15, NFR-01, NFR-04 and NFR-10.
+
+---
+
+## Re-verification 3 — 2026-10-19 · Verdict: **Design defect** (with one rework finding)
+
+> Repo state audited: `20d392d` (design D14) · Standard: technical-design.md §6, §5, D13 and D14 (§7), re-derived against ADR-008 decision 2 and AGT-02
+
+### Summary
+
+D14 closes R7 and the DD3 lists, and every suite is green. What D14 lists as known limits (Roman numerals, and claims built from real slot values) I treated as non-blocking, as instructed.
+
+Values the model invented still reach the visitor as `answered`. All are small number words or Chinese numerals used as a price or a discount, where the segment has none of the price words on D14's list. Examples:
+- "Only three."
+- "Just nine."
+- "It goes for nine."
+- "Three only."
+- "只要三。"
+- "Five% off today."
+- "It is S$55.00, or three for members."
+
+Part of this is code that misses §5's own rule (R8). The rest needs the design to change, because D14's list of price-context words is incomplete again (DD4). The verdict is **design defect**, and the RTM is not written.
+
+### Test diff
+
+`faf688e..20d392d` adds:
+- 13 blocked cases (the R7 and DD3 lists);
+- 3 cases that must pass ("十分感谢…", "我们一起想办法。", "Our pound cake is popular.");
+- 4 eval recordings (37 → 41 fast cases).
+
+The only removed line is the old `it.each` title, which was renamed. Nothing was weakened.
+
+### Independent execution (at `20d392d`)
+
+| Check | Result |
+| :- | :- |
+| `pnpm format:check` | pass |
+| `pnpm turbo run lint --force`; `pnpm boundaries` | 24/24; no dependency violations |
+| `pnpm turbo run typecheck --force` | 26/26 |
+| `pnpm turbo run test --force` | 21/21 (agent 88 unit tests) |
+| `pnpm turbo run test:coverage --force --concurrency=1` (unit + integration) | 15/15; agent 98 tests, 98.58% lines |
+| `pnpm turbo run build --force`; `pnpm size` | 9/9; loader 1.75 kB, panel 9.34 kB gz |
+| `pnpm eval --fast` | 41 cases; prices 33/33, groundedness 8/8 |
+| E2E (Chromium, `E2E_REUSE_SERVERS=true`) | 4/4 |
+
+### Direct verification
+
+**Earlier findings.** I re-ran all 148 cases that earlier probes expected to block, covering R1–R7, DD1–DD3 and the gap lists. 139 now block. The 9 that still pass:
+- **Values or forms still open:** "It is five-five." and "It is five-oh." (hyphenated strung number words; see R8).
+- **Known limits under D14:** "It is Ⅴ." (Roman numeral).
+- **Not values:** "It is two digits.", "It is hundreds.", "Roughly half price.", "Twice the price.", "It is free!", "No charge.". These are claims without a typed value. D14 leaves them to red-team evals, and I agree they are not lexical leaks.
+
+Also now blocked: "价格是五十。", "只要五十蚊。", "它是十。", "They are three each.", "Each cupcake is nine.", "five per piece", "a dollar", "a few bucks", "a fiver", "٥٠", "𝟓𝟎", "⁵⁰", "S﹩50", "50k".
+
+**Still released.** Each was run through `composeReply` with the fake provider scripted to return the same output on both attempts. All were published with outcome `answered`:
+
+| Model output | Why it passes | Class |
+| :- | :- | :- |
+| `Only three.` / `Just nine.` / `It goes for nine.` | §5 requires "number words after price words (… only, just, at, for)". The price-word number-word pattern only has price/priced/cost/charge/fee in front, and `only`, `just`, `at` and `for` are not in D14's context list | R8 |
+| `Five% off today.` | The percentage pattern takes digits or "percent" after a word, not a word followed by `%` | R8 |
+| `Three only.` | A price word *after* the number; `only` is not in D14's context list | DD4 |
+| `It is nine.` | No price word in the segment; the visitor's "how much" is not context | DD4 |
+| `只要三。` ("only three") | Single numeral; 只要 is not in the context list | DD4 |
+| `Save five today.` | "save", "off" and "cheaper" are not context words (only `discount\w*` is) | DD4 |
+| `It is [[f:…price]], or three for members.` → "It is S$55.00, or three for members." | The rendered price is masked, so the segment has no price word left | DD4 |
+
+`verifySegment` alone also passes:
+- "Three apiece.", "Three a piece.", "At three, it is a steal.", "Nine lah.", "Three!", "The cupcake? Three.";
+- "九而已。", "三。", "一个三。";
+- "Nine plus GST.", "Nine with GST.", "It is nine, after GST.";
+- "Five pct off.", "Five off.", "Five cheaper.", "It is cheaper by five.", "Nine-tenths off.";
+- "It is three-ish.", "It is S$55.00 or nine with a candle.".
+
+Slang currency also passes ("Five bob.", "A grand.", "Two grand.", "A dime.", "A penny."). These are unlikely in Singapore and are recorded as minor.
+
+**False positives** (for M1.5, not blocking):
+- "Each of the three flavours is popular.", "The price includes one candle." and "We deliver one to two cakes per order." are blocked. Any number word in a segment that contains each/per/price counts.
+- 20 other ordinary sentences pass, including "十分好吃！", "元旦快乐！", "每天都营业。", "Our cakes are worth the wait!" and "Each cake is handmade.".
+
+### Findings
+
+**Design defect (blocking), routed to detailed-design for a D14 follow-up:**
+- **DD4 — D14's price-context list is still an enumerated list, and the leaks are again in what it leaves out.** It lacks:
+  - §5's own price words: only, just, at, for;
+  - apiece and "a piece";
+  - GST words: plus GST, with GST, incl.;
+  - discount verbs: off, save, cheaper;
+  - Chinese 只要, 而已, 块 and 元 as context;
+  - the presence of a rendered price slot in the same segment.
+  
+  It also has no rule for a bare small number given as the answer to the visitor's price question ("It is nine.", "三。"). DD1 was the same kind of finding: each round closes a list and the next round finds what the list leaves out. **Recommendation:** extend D13's principle instead of D14's list. In the visitor scope, *every* number word and numeral the model types is a `number` violation, in English and Chinese and of any size. The only exception is D3's visitor-typed count before a quantity noun, and counts are dropped from the slot rule's "write counts in words" advice. That makes the rule as simple as D13's digit rule and closes R8 and DD4 together. The cost is more regenerations when the model wants to say "three flavours". M1.5 measures that cost, and D14's FP note already accepts it in kind.
+
+**Rework (code, within §5 and D14 as written):**
+- **R8 —**
+  - (a) §5's "bare numbers or number words after price words (… only, just, at, for …)" is not implemented for number words after only/just/at/for. "Only three.", "Just nine." and "It goes for nine." pass.
+  - (b) A number word followed by `%` or `pct` is a percentage ("Five% off", "Five pct off") but passes.
+  - (c) Hyphenated strung number words ("five-five", "five-oh") pass, although D14 makes strung number words a violation; `STRUNG_WORDS` only joins on whitespace.
+  
+  If the DD4 recommendation is adopted, R8 is closed by it.
+
+**Minor:**
+- **M10.** Slang currency ("bob", "grand", "dime", "penny") passes. Add to `CURRENCY_ANY` cheaply, or leave to red-team.
+- **M11.** "S$55.00k" passes, as part of D14's known limit on slot-value claims. Worth one eval case, because "k" turns the real value into a different amount.
+- M1–M9 from the earlier runs still stand.
 
 ### RTM
 
