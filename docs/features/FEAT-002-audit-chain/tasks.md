@@ -5,7 +5,7 @@
 
 - [x] T1 — Migration: drop `audit_events`; add `audit_entries`, `audit_heads`, `audit_pii` (0004, drizzle-kit); roles `kaki_audit_chain` and `kaki_audit_anchor`, `audit_head_lock()`, the link and immutability triggers, the anchor functions, RLS and grants (0005, hand-written); `TENANT_SCOPED_TABLES` (design §4)
       Done when: `setupDatabase` applies 0000–0005 cleanly on a fresh database and the RLS suite passes with the new tables listed.
-- [ ] T2 — RLS, grant and trigger tests for the new tables and functions (design §4; AC-3, AC-9; GOV-03)
+- [x] T2 — RLS, grant and trigger tests for the new tables and functions (design §4; AC-3, AC-9; GOV-03)
       Done when: `rls.int.test.ts` covers cross-tenant reads and writes on all three tables, the visitor role's denied reads, no direct access to `audit_heads`, UPDATE/DELETE/TRUNCATE rejected for the owner and app roles, and hand-written inserts with a wrong `seq` or `prev_hash` rejected; it passes.
 - [ ] T3 — Domain, pure: `canonical.ts` (RFC 8785), `payload.ts` (branded constructors and `assertAuditEntry`), `chain.ts` (hash input, entry hash, PII commitment) (design §5; AC-1, AC-7)
       Done when: unit tests pass for JCS key order, numbers and escapes (RFC 8785 examples), rejected values, every AC-7 rejection plus a `@ts-expect-error` for a plain string, and hash determinism.
