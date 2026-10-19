@@ -25,6 +25,7 @@
     "stack:reset": "docker compose down -v && docker compose up -d --wait && pnpm db:setup",
     "db:setup": "pnpm --filter @kaki/db run setup && pnpm --filter @kaki/kb run seed:dev",
     "db:generate": "pnpm --filter @kaki/db run generate",
+    "audit:verify": "pnpm --filter @kaki/governance run verify",
     "tokens": "pnpm --filter @kaki/design-tokens run build"
   },
   "devDependencies": {

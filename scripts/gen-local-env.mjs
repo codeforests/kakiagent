@@ -70,6 +70,9 @@ const files = {
     AWS_ACCESS_KEY_ID: 'test',
     AWS_SECRET_ACCESS_KEY: 'test',
   },
+  'packages/governance/.env': {
+    DASHBOARD_DATABASE_URL: pg('app_dashboard', s.APP_DASHBOARD_PASSWORD),
+  },
   'apps/ingest-worker/.env': {},
   'apps/widget/.env': {},
   'apps/dashboard/.env': {},

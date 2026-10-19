@@ -19,7 +19,7 @@
       Done when: the agent, inbox, kb and api integration tests pass reading `audit_entries`, and the turn test asserts the AC-8 payloads and the absence of message text.
 - [x] T8 — Wiring: scheduler-worker `audit-anchor` loop and config; LocalStack bucket script and health check; `gen-local-env.mjs` and `.env.example` files; Terraform env var, S3 and KMS task policy (design §5)
       Done when: `pnpm dev`'s scheduler logs an anchor run against LocalStack (or the stand-in), typecheck and lint are clean, and `terraform validate` and `terraform test` pass where Terraform is available (CI runs both).
-- [ ] T9 — CLI: `pnpm audit:verify` (design §3.4; AC-10)
+- [x] T9 — CLI: `pnpm audit:verify` (design §3.4; AC-10)
       Done when: on the local database it prints `ok: true` and exits 0, exits 1 after a tamper with the broken `seq`, and exits 2 for an invalid tenant ID.
 - [ ] T10 — Docs: scaffold-notes §4 stub row, AGENTS.md command list (design §5)
       Done when: both name the chain, the anchor job and the CLI.
