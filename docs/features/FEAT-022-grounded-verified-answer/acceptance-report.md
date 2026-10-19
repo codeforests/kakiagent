@@ -1,7 +1,7 @@
 # Acceptance Report: FEAT-022 — Grounded, verified answer from a hand-entered fact
 
-> Current verdict: **Rework** (re-verification 5, at `4cf98f1`; see the last section) · Date: 2026-10-19
-> Earlier verdicts, kept below as recorded: Rework at `44bc8c2` (initial); Design defect at `d9befc0` (re-verification 1), `fa30a46` (re-verification 2) and `20d392d` (re-verification 3); Rework at `0dfd1d3` (re-verification 4)
+> Current verdict: **Accepted — real-model check pending** (re-verification 6, at `46a4eec`; see the last section) · Date: 2026-10-19
+> Earlier verdicts, kept below as recorded: Rework at `44bc8c2` (initial); Design defect at `d9befc0` (re-verification 1), `fa30a46` (re-verification 2) and `20d392d` (re-verification 3); Rework at `0dfd1d3` (re-verification 4) and `4cf98f1` (re-verification 5)
 > Standard: technical-design.md §6 (AC-1..AC-16) and §5 (verifier spec) @ `44bc8c2` · Sources: SRS.md v0.4 (AGT-01, AGT-02, AGT-06, AGT-11, AGT-16, CHN-02, KB-07, KB-15, NFR-01, NFR-04, NFR-10), use-cases.md v0.4 (UC-20, UC-13)
 > Repo state audited: `44bc8c2` on `claude/project-thread-91q4ac` (clean tree)
 
@@ -625,3 +625,108 @@ D14 makes any currency word a violation, and its English counterpart "a few buck
 ### RTM
 
 Not written. Verdict: rework. When a later re-verification is accepted, Test ref `features/FEAT-022-grounded-verified-answer/acceptance-report.md (partial)` goes on AGT-01, AGT-02, AGT-06, AGT-11, AGT-16, CHN-02, KB-07, KB-15, NFR-01, NFR-04 and NFR-10.
+
+---
+
+## Re-verification 6 — 2026-10-19 · Verdict: **Accepted — real-model check pending**
+
+> Repo state audited: `46a4eec` (R10 fix) · Standard: technical-design.md §6, §5 and D13–D15 (§7), re-derived against ADR-008 decision 2, AGT-02 and NFR-10
+
+### Summary
+
+R10 is fixed. I re-ran all 325 cases from earlier probes, and every value form found in the six runs (R1–R10, DD1–DD4) now blocks, in English and Chinese. Every suite is green. The fresh hunt below turned up no model-typed value in natural wording that reaches the visitor.
+
+What still passes falls into four groups:
+- known limits that D14 and D15 declare (slang, Roman numerals, claims built from real slot values, claims with no typed value);
+- spelled-out obfuscation, which belongs to the red-team suite;
+- three rare or archaic Chinese colloquialisms;
+- vague "not much money" idioms that carry no amount.
+
+All of these are recorded as minor findings for M1.5 and red-team. The AC table from the initial audit holds at this commit, with three caveats:
+- AC-1, AC-4 and AC-15 are verified on recorded fixtures only, as design §6 plans; the real-model run is pending at M1.5.
+- AC-12 latency was observed on the fake provider only; real latency is pending at MD.
+- AC-3 now holds against AGT-02 as well as against its own listed values.
+
+The feature is **verified**. I appended the RTM Test refs with `(partial)`.
+
+### Test diff
+
+`4cf98f1..46a4eec` only adds:
+- 9 blocked unit cases;
+- passing rows for "几块巧克力" and "这把刀";
+- 2 eval recordings (50 → 52 fast cases).
+
+No line was removed.
+
+Across the whole feature (`c8be4cc..46a4eec`), two test changes were replacements rather than additions. I judged both legitimate (re-verifications 2 and 4): each moved a test toward an amended design decision (D13, D15) that the test now asserts. The other two changes to pre-existing tests (the FEAT-001 failure test, per D6, and the skeleton E2E) were accepted in the initial audit. No coverage configuration changed.
+
+### Independent execution (at `46a4eec`)
+
+| Check | Result |
+| :- | :- |
+| `pnpm format:check` | pass |
+| `pnpm turbo run lint --force`; `pnpm boundaries` | 24/24; no dependency violations (183 modules) |
+| `pnpm turbo run typecheck --force` | 26/26 |
+| `pnpm turbo run test --force` | 21/21 (agent 131, llm-gateway 12, platform 7, widget 6, realtime 2, identity 2, channels 2) |
+| `pnpm turbo run test:integration --force --concurrency=1` (`KAKI_TEST_DATABASE_URL`) | 14/14: db 23, agent 10, api 11, kb 9, inbox 5, platform 4, governance 1 |
+| `pnpm turbo run test:coverage --force --concurrency=1` | 15/15; thresholds met (agent 98.56%, kb 98.48%, inbox 78.94% lines) |
+| `pnpm turbo run build --force`; `pnpm size` | 9/9; loader 1.75 kB gz (≤ 14 kB), panel 9.34 kB, initial 1.75 kB (≤ 30 kB) |
+| `pnpm eval --fast` | 52 cases; prices 44/44 (threshold 1.0), groundedness 8/8 (threshold 0.95) |
+| E2E (Chromium, `E2E_REUSE_SERVERS=true`) | 4/4 (AC-16 journey plus the skeleton specs) |
+
+Fresh databases from migrations 0000–0003 come up in every integration suite. No flakiness was observed. The environment caveats are as in the initial audit: local Postgres instead of Testcontainers, and reused `pnpm dev` servers with ElasticMQ.
+
+### Direct verification
+
+**Regression.** All 325 cases from earlier probes were re-run. Every value form from R1–R10 blocks, including:
+- **English:** "goes for 50", "Price: 50", "50 Singapore dollars", "S$  50", "USD 50", "Prices start from 50", "55 each", "S$55.000", "50$", "Only three", "It is nine", "Five% off", "a dollar", "a fiver";
+- **Chinese:** "价格是五十", "只要三", "价格是伍拾", "仨", "价格是零", "就几块钱", "就几块而已", "几块左右", "才几块嘛", "几毛而已", "就几新币", "几刀而已";
+- **Splits and slot adjacency:** "S$\n50" and "It is S$55.00, or three for members".
+
+**New hunt at `46a4eec`.**
+- **Blocked:** "就几块，蛋糕很便宜", "几块 而已", "就几块的事", "几块的", "几块一份", "几块而已啦", "几坡币", "几新加坡元", "几刀", "几毛", "几角", "几块", "naught".
+- **Correctly allowed:** "几块巧克力", "这把刀很锋利", "几块蛋糕都可以", "我们有几块布朗尼", "几块曲奇", "几块披萨", "这块蛋糕很好吃", "块状巧克力", "几位客人？", "我们有几种口味", "几点开门要问一下团队", "几天前订就可以", "几块糖", "几块地", "就几块芝士".
+- **Still passing, non-blocking** (no specific amount, or rare and regional):
+  - "块把钱" (northern colloquial for "about a kuai");
+  - "几文钱" and "几个大洋" (archaic);
+  - "没几个钱" and "不值几个钱" ("not much money", an idiom with no amount);
+  - "几块蛋糕钱" and "几块面包钱而已" ("the price of a few cakes", a relative claim with no amount).
+  
+  These sit in the same class as D15's declared slang and no-value limits ("a grand", "half price").
+
+**Requirements observed directly.**
+- **AGT-01 and AGT-11 effects in the live dev database:** recent agent messages carry `fact_ids` that are a subset of the tenant's approved facts, and the first replies carry the disclosure.
+- **AC-3's D3 case:** "Sure, we can do 200 cupcakes." passes when the visitor typed "200 cupcakes".
+- **NFR-01 (indicative only; fake provider, local):** firstSegmentMs 3–4 ms, totalMs 6–7 ms on this run.
+
+**Pending environment:**
+- AC-1, AC-4 and AC-15 on the real model (M1.5);
+- NFR-01 real latency (MD);
+- retrieval tuning on Cohere (MD);
+- M1.5 measurement of D13/D15 regeneration and escalation rates and of the false positives below.
+
+### Findings
+
+- **Rework:** none.
+- **Design defect:** none.
+- **Minor, carried to M1.5 and the red-team suite:**
+  - **M1–M4 from the initial audit:**
+    - M1: AC-2's "stored outcome" wording.
+    - M2: AC-3 lists only part of the pattern catalogue; superseded in practice by the expanded tests.
+    - M3: the API status-filter assertion would also pass on an empty list.
+    - M4: E2E fact data accumulates across runs.
+  - **M5:** "Maybe 3" is still flagged as a date because the month pattern matches "may". It fails safe.
+  - **M14 false positives:** "one moment", "one-of-a-kind", "bake one together", "一块蛋糕" (blocked by D15 by design).
+  - **D14/D15 known limits:** slang, Roman numerals, claims built from real slot values ("Two for S$55.00", "S$55.00k"), claims with no typed value.
+  - **Obfuscation** ("f-i-f-t-y", "fiddy", "lima puluh"): red-team (AGT-07).
+  - **The rare Chinese colloquialisms above:** "块把钱", "几文钱", "几个大洋".
+
+### RTM
+
+Appended to the Test ref column only (append-only; every cell was `_TBD_`): `features/FEAT-022-grounded-verified-answer/acceptance-report.md (partial)` on AGT-01, AGT-02, AGT-06, AGT-11, AGT-16, CHN-02, KB-07, KB-15, NFR-01, NFR-04 and NFR-10.
+
+Every row carries `(partial)`:
+- AGT-06, AGT-11, AGT-16, CHN-02, KB-07 and KB-15 are partial touchpoints of this feature.
+- AGT-01, AGT-02 and the AC-1/AC-4/AC-15 evals still need the M1.5 real-model run.
+- NFR-01 needs MD latency.
+- NFR-04 and NFR-10 are verified here only for this slice.
