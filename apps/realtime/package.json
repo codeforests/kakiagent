@@ -1,0 +1,31 @@
+{
+  "name": "@kaki/realtime",
+  "private": true,
+  "type": "module",
+  "description": "Runtime role: SSE for the widget and WebSocket for the dashboard, fed by Valkey pub/sub (ADR-017).",
+  "scripts": {
+    "dev": "tsx watch --clear-screen=false src/main.ts",
+    "build": "node ../../scripts/bundle-node.mjs",
+    "start": "node --enable-source-maps dist/main.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "vitest run --project unit --passWithNoTests"
+  },
+  "dependencies": {
+    "@fastify/cookie": "11.1.3",
+    "@fastify/websocket": "11.3.4",
+    "@kaki/contracts": "workspace:*",
+    "@kaki/db": "workspace:*",
+    "@kaki/identity": "workspace:*",
+    "@kaki/inbox": "workspace:*",
+    "@kaki/platform": "workspace:*",
+    "fastify": "5.12.7",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.5",
+    "esbuild": "0.28.2",
+    "tsx": "4.23.15",
+    "vitest": "5.0.5"
+  }
+}

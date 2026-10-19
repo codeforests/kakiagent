@@ -1,0 +1,37 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "helpers:pinGitHubActionDigests",
+    ":pinAllExceptPeerDependencies"
+  ],
+  "timezone": "Asia/Singapore",
+  "schedule": ["before 6am on monday"],
+  "labels": ["dependencies"],
+  "rangeStrategy": "pin",
+  "vulnerabilityAlerts": { "labels": ["security"], "schedule": ["at any time"] },
+  "packageRules": [
+    {
+      "description": "Group the toolchain so lint and typecheck move together",
+      "matchPackageNames": ["typescript", "typescript-eslint", "eslint", "@eslint/js", "prettier"],
+      "groupName": "lint and typecheck toolchain"
+    },
+    {
+      "description": "typescript-eslint supports TypeScript below 6.1 (see docs/scaffold-notes.md)",
+      "matchPackageNames": ["typescript"],
+      "allowedVersions": "<6.1"
+    },
+    {
+      "description": "OpenTelemetry packages release together",
+      "matchPackageNames": ["@opentelemetry/**"],
+      "groupName": "opentelemetry"
+    },
+    { "matchPackageNames": ["@aws-sdk/**"], "groupName": "aws-sdk" },
+    { "matchManagers": ["terraform"], "groupName": "terraform providers" },
+    {
+      "description": "The model SDK is in llm-gateway only; provider changes pass the AGT-14 gate (ADR-007)",
+      "matchPackageNames": ["@anthropic-ai/sdk"],
+      "labels": ["dependencies", "llm-gateway"]
+    }
+  ]
+}

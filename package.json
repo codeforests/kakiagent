@@ -1,0 +1,43 @@
+{
+  "name": "kakiagent",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "dev": "turbo run dev --filter=./apps/*",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint && pnpm boundaries",
+    "boundaries": "depcruise apps packages --config .dependency-cruiser.cjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "turbo run test",
+    "test:integration": "turbo run test:integration",
+    "test:coverage": "turbo run test:coverage",
+    "test:e2e": "pnpm --filter @kaki/e2e e2e",
+    "size": "pnpm --filter @kaki/widget size",
+    "eval": "pnpm --filter @kaki/evals run eval",
+    "stack:up": "docker compose up -d --wait",
+    "stack:down": "docker compose down",
+    "stack:reset": "docker compose down -v && docker compose up -d --wait && pnpm db:setup",
+    "db:setup": "pnpm --filter @kaki/db run setup",
+    "db:generate": "pnpm --filter @kaki/db run generate",
+    "tokens": "pnpm --filter @kaki/design-tokens run build"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@vitest/coverage-v8": "5.0.5",
+    "dependency-cruiser": "18.6.0",
+    "esbuild": "0.28.2",
+    "eslint": "10.13.0",
+    "globals": "17.13.0",
+    "prettier": "3.9.10",
+    "turbo": "2.11.9",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.71.2",
+    "vitest": "5.0.5"
+  }
+}

@@ -1,0 +1,21 @@
+# Deliberate exceptions to Trivy findings, each scoped to the files it covers and
+# with its reason. Review them when the files change (NFR-15).
+misconfigurations:
+  - id: AWS-0104
+    paths:
+      - 'infra/terraform/modules/ecs-cluster/main.tf'
+      - 'infra/terraform/modules/network/nat-instance.tf'
+    statement: >-
+      Unrestricted egress is required. ECS tasks call Bedrock in ap-southeast-2
+      (ADR-006), channel APIs (Telegram, Meta, email) and, in the launch profile,
+      AWS APIs through the NAT because there are no interface endpoints (ADR-023).
+      The NAT instance forwards that traffic. Ingress stays closed: only the ALB
+      can reach tasks, and only the app subnets can reach the NAT.
+  - id: AWS-0053
+    paths:
+      - 'infra/terraform/modules/edge/main.tf'
+    statement: >-
+      The ALB is the CloudFront origin, so it has a public address. Its security
+      group admits only CloudFront's origin-facing prefix list, its listener only
+      forwards requests that carry CloudFront's secret origin header (everything
+      else gets 403), and the hop is HTTPS (ADR-003).

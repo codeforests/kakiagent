@@ -1,0 +1,17 @@
+{
+  "name": "@kaki/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Zod schemas shared by the api, realtime, widget and dashboard: the single source of request, response and event types (ADR-002).",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "zod": "4.6.7"
+  }
+}
