@@ -150,6 +150,8 @@ describe('verifier (AC-3; AGT-02)', () => {
       '我们一起想办法。',
       '这是我们唯一的门店，一般周末比较忙。',
       '我们有很多零食，几块蛋糕也可以。',
+      '几块巧克力和这块面包都很好吃。',
+      '请用这把刀切蛋糕。',
       'Our pound cake is popular.',
       'Let me check with the team and get back to you.',
     ])
@@ -221,6 +223,16 @@ describe('verifier (AC-3; AGT-02)', () => {
     '十分钱。',
     'It is a million.',
     'It is fourty.',
+    // Acceptance re-verification 5: R10.
+    '就几块而已。',
+    '几块左右。',
+    '才几块嘛。',
+    '几毛而已。',
+    '几块多。',
+    '几角而已。',
+    '就几新币。',
+    '几刀而已。',
+    'It is naught.',
   ])('blocks a number the model typed (D13, D14, D15): %j', (text) => {
     expect(verifySegment(text, [], []).ok).toBe(false);
   });

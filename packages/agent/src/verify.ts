@@ -106,7 +106,7 @@ const PATTERNS: [ViolationKind, RegExp][] = [
  */
 const DIGITS = /\p{Nd}+/gu;
 const NUMBER_WORD = new RegExp(
-  String.raw`\b(?:${WORD}|zero|nought|nil|dozens?|millions?|billions?|fourty|ninty)\b`,
+  String.raw`\b(?:${WORD}|zero|nought|naught|nil|dozens?|millions?|billions?|fourty|ninty)\b`,
   'giu',
 );
 /** Simplified, Traditional and formal (大写) numerals, plus 〇, 廿, 卅, 仨 and 俩. */
@@ -128,10 +128,13 @@ const NOT_NUMBERS = new RegExp(
 
 /**
  * FEAT-022 D14: currency in any form, with or without a number ("a dollar", "a
- * fiver", 就几块钱). 块 alone also means "piece", so 块+noun is left alone.
+ * fiver", 就几块钱, 新币). 块 also means "piece", so 几块 is money unless a listed noun
+ * follows (几块蛋糕).
  */
+/** What 块 ("piece") may count after 几 without meaning dollars: 几块蛋糕. */
+const PIECE_NOUNS = '(?:蛋糕|糕|饼|面包|麵包|巧克力|布朗尼|曲奇|芝士|奶酪|披萨|肉|板|石|布|地|糖)';
 const CURRENCY_ANY = new RegExp(
-  String.raw`S\$|US\$|[$€£¥₹]|\b(?:sgd|usd|myr|eur|gbp|aud|rmb|cny)\b|\b(?:dollars?|bucks?|cents?|ringgit|euros?|fivers?|tenners?|quid|dimes?|nickels?|penny|pennies)\b|元(?!旦)|蚊|[块毛角]钱|几\s*[块毛角](?!\p{Script=Han})`,
+  String.raw`S\$|US\$|[$€£¥₹]|\b(?:sgd|usd|myr|eur|gbp|aud|rmb|cny)\b|\b(?:dollars?|bucks?|cents?|ringgit|euros?|fivers?|tenners?|quid|dimes?|nickels?|penny|pennies)\b|元(?!旦)|蚊|新币|坡币|[块毛角]钱|几\s*(?:块(?!${PIECE_NOUNS})|[毛角刀])`,
   'giu',
 );
 
