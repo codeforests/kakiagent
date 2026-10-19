@@ -3,7 +3,7 @@
 > Executes: [technical-design.md](technical-design.md) (no screens: [ui-design.md](ui-design.md))
 > Status: pending | in-progress | done per task · Last updated: 2026-10-19
 
-- [ ] T1 — Migration: drop `audit_events`; add `audit_entries`, `audit_heads`, `audit_pii` (0004, drizzle-kit); roles `kaki_audit_chain` and `kaki_audit_anchor`, `audit_head_lock()`, the link and immutability triggers, the anchor functions, RLS and grants (0005, hand-written); `TENANT_SCOPED_TABLES` (design §4)
+- [x] T1 — Migration: drop `audit_events`; add `audit_entries`, `audit_heads`, `audit_pii` (0004, drizzle-kit); roles `kaki_audit_chain` and `kaki_audit_anchor`, `audit_head_lock()`, the link and immutability triggers, the anchor functions, RLS and grants (0005, hand-written); `TENANT_SCOPED_TABLES` (design §4)
       Done when: `setupDatabase` applies 0000–0005 cleanly on a fresh database and the RLS suite passes with the new tables listed.
 - [ ] T2 — RLS, grant and trigger tests for the new tables and functions (design §4; AC-3, AC-9; GOV-03)
       Done when: `rls.int.test.ts` covers cross-tenant reads and writes on all three tables, the visitor role's denied reads, no direct access to `audit_heads`, UPDATE/DELETE/TRUNCATE rejected for the owner and app roles, and hand-written inserts with a wrong `seq` or `prev_hash` rejected; it passes.
