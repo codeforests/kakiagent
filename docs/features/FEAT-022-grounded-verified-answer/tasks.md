@@ -23,7 +23,7 @@
       Done when: a realtime unit/integration check shows `segment` frames without `id:` and `message` frames with it, and the roles start with `pnpm dev`.
 - [x] T10 — Dev data: `kb` seed script for the demonstration facts, run by `pnpm db:setup` (design §5)
       Done when: `pnpm db:setup` twice in a row is idempotent and leaves one `needs_review` bakery fact and one approved second-tenant fact.
-- [ ] T11 — Widget integration: segments per turn, typing indicator, disclosure row, replace on stored message, error notice (ui-design SCR-WGT-002)
+- [x] T11 — Widget integration: segments per turn, typing indicator, disclosure row, replace on stored message, error notice (ui-design SCR-WGT-002)
       Done when: widget unit tests for segment merging pass, the panel renders the states in ui-design.md, and `pnpm size` stays within budget.
 - [ ] T12 — Dashboard integration: Knowledge → Facts list and the Fact create/edit page, consuming §3.2 (ui-design SCR-APP-027, SCR-APP-028)
       Done when: the pages render every state in ui-design.md against the running API, with typecheck and lint clean.
