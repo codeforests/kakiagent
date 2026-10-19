@@ -105,8 +105,13 @@ const PATTERNS: [ViolationKind, RegExp][] = [
  * quantity noun is the only exception (D3).
  */
 const DIGITS = /\p{Nd}+/gu;
-const NUMBER_WORD = new RegExp(String.raw`\b(?:${WORD}|zero|dozens?)\b`, 'giu');
-const ZH_NUMERAL = /[一二两三四五六七八九十百千万]+/gu;
+const NUMBER_WORD = new RegExp(
+  String.raw`\b(?:${WORD}|zero|nought|nil|dozens?|millions?|billions?|fourty|ninty)\b`,
+  'giu',
+);
+/** Simplified, Traditional and formal (大写) numerals, plus 〇, 廿, 卅, 仨 and 俩. */
+const ZH_NUMERAL =
+  /[〇零一二两兩三四五六七八九十百千万萬亿億壹贰貳叁參弎肆伍陆陸柒捌玖拾佰仟廿卅仨俩倆]+/gu;
 /** Idioms the D15 rule leaves alone: "this one", "one of", 一起, 唯一, 十分 ("very"). */
 const NOT_NUMBERS = new RegExp(
   [
@@ -114,18 +119,19 @@ const NOT_NUMBERS = new RegExp(
     String.raw`\bone\s+(?:of|another)\b`,
     '一(?=[起下样些定直切般旦边致律同向])',
     '(?<=[唯统同第])一',
-    '十分',
+    '十分(?!钱)',
     '万一',
+    '零(?=[食售])',
   ].join('|'),
   'giu',
 );
 
 /**
  * FEAT-022 D14: currency in any form, with or without a number ("a dollar", "a
- * fiver").
+ * fiver", 就几块钱). 块 alone also means "piece", so 块+noun is left alone.
  */
 const CURRENCY_ANY = new RegExp(
-  String.raw`S\$|US\$|[$€£¥₹]|\b(?:sgd|usd|myr|eur|gbp|aud|rmb|cny)\b|\b(?:dollars?|bucks?|cents?|ringgit|euros?|fivers?|tenners?|quid|dimes?|nickels?|penny|pennies)\b|元(?!旦)|蚊`,
+  String.raw`S\$|US\$|[$€£¥₹]|\b(?:sgd|usd|myr|eur|gbp|aud|rmb|cny)\b|\b(?:dollars?|bucks?|cents?|ringgit|euros?|fivers?|tenners?|quid|dimes?|nickels?|penny|pennies)\b|元(?!旦)|蚊|[块毛角]钱|几\s*[块毛角](?!\p{Script=Han})`,
   'giu',
 );
 

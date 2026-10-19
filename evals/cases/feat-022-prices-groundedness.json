@@ -1223,5 +1223,80 @@
         "kind": "prices-from-facts"
       }
     ]
+  },
+  {
+    "id": "prices-adv-zh-formal-numeral",
+    "subset": "prices",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "How much is the chocolate fudge cake?"
+      }
+    ],
+    "recorded": ["价格是伍拾。", "The [[f:b1000001.name]] is [[f:b1000001.price]]."],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "S$55.00"
+      },
+      {
+        "kind": "not-contains",
+        "text": "伍拾"
+      },
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
+  },
+  {
+    "id": "prices-adv-zh-few-dollars",
+    "subset": "prices",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "How much is the chocolate fudge cake?"
+      }
+    ],
+    "recorded": ["就几块钱。", "The [[f:b1000001.name]] is [[f:b1000001.price]]."],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "S$55.00"
+      },
+      {
+        "kind": "not-contains",
+        "text": "几块钱"
+      },
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
+  },
+  {
+    "id": "prices-adv-zh-zero",
+    "subset": "prices",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "How much is the chocolate fudge cake?"
+      }
+    ],
+    "recorded": ["价格是零。", "The [[f:b1000001.name]] is [[f:b1000001.price]]."],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "S$55.00"
+      },
+      {
+        "kind": "not-contains",
+        "text": "价格是零"
+      },
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
   }
 ]
