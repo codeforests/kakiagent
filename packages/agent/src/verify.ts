@@ -103,11 +103,28 @@ const PATTERNS: [ViolationKind, RegExp][] = [
  * violation. Values come from slots; plain counts the visitor typed are the only
  * exception (D3).
  */
-const DIGITS = /\d+/gu;
+const DIGITS = /\p{Nd}+/gu;
 const BIG_WORDS = new RegExp(
   String.raw`\b(?:(?:ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)(?:[\s-]+(?:and\s+)?${WORD})*)\b`,
   'giu',
 );
+
+/**
+ * FEAT-022 D14: currency in any form, with or without a number ("a dollar", "a
+ * fiver"); any number word in a segment that talks about price ("three each"); number
+ * words strung together ("nine point nine"); Chinese numerals of more than one
+ * character or of ten and above (十分, "very", excepted).
+ */
+const CURRENCY_ANY = new RegExp(
+  String.raw`S\$|US\$|[$€£¥₹]|\b(?:sgd|usd|myr|eur|gbp|aud|rmb|cny)\b|\b(?:dollars?|bucks?|cents?|ringgit|euros?|fivers?|tenners?|quid)\b|元(?!旦)|蚊`,
+  'giu',
+);
+const PRICE_CONTEXT =
+  /\b(?:prices?|priced|pricing|costs?|charges?|fees?|each|per|pays?|paid|worth|discount\w*)\b|价|钱|费|每/iu;
+const ANY_NUMBER_WORD = new RegExp(String.raw`\b${WORD}\b`, 'giu');
+const STRUNG_WORDS = new RegExp(String.raw`\b${WORD}(?:\s+(?:point\s+)?${WORD})+\b`, 'giu');
+const ZH_NUMERALS = /[一二两三四五六七八九十百千万]{2,}|[十百千万](?!分)/gu;
+const ZH_ANY_NUMERAL = /[一二两三四五六七八九十百千万]+/gu;
 
 /**
  * Kinds a visitor's own literal number may justify: plain quantities only (FEAT-022
@@ -153,12 +170,23 @@ export function verifySegment(
       violations.push({ kind, text: hit });
     }
   }
-  for (const re of [DIGITS, BIG_WORDS])
+  const uncovered = (re: RegExp, kind: ViolationKind) => {
     for (const m of masked.matchAll(re)) {
       const [s, e] = [m.index, m.index + m[0].length];
-      if (!covered.some(([cs, ce]) => s < ce && e > cs))
-        violations.push({ kind: 'number', text: m[0] });
+      if (covered.some(([cs, ce]) => s < ce && e > cs)) continue;
+      covered.push([s, e]);
+      violations.push({ kind, text: m[0] });
     }
+  };
+  uncovered(DIGITS, 'number');
+  uncovered(BIG_WORDS, 'number');
+  uncovered(STRUNG_WORDS, 'number');
+  uncovered(ZH_NUMERALS, 'number');
+  uncovered(CURRENCY_ANY, 'currency');
+  if (PRICE_CONTEXT.test(masked)) {
+    uncovered(ANY_NUMBER_WORD, 'price_number');
+    uncovered(ZH_ANY_NUMERAL, 'price_number');
+  }
   return violations.length ? { ok: false, violations } : { ok: true };
 }
 

@@ -143,6 +143,9 @@ describe('verifier (AC-3; AGT-02)', () => {
     for (const t of [
       'Hi! How can I help you today?',
       'We have three flavours to choose from.',
+      '十分感谢您的耐心。',
+      '我们一起想办法。',
+      'Our pound cake is popular.',
       'Let me check with the team and get back to you.',
     ])
       expect(verifySegment(t, [], []), t).toEqual({ ok: true });
@@ -164,7 +167,21 @@ describe('verifier (AC-3; AGT-02)', () => {
     'Members pay fifty.',
     'It is sixty-five.',
     'We have 3 flavours.',
-  ])('blocks a number the model typed (D13): %j', (text) => {
+    // Acceptance re-verification 2: R7 and DD3 (design D14).
+    '价格是五十。',
+    '只要五十蚊。',
+    '它是十。',
+    'They are three each.',
+    'Each cupcake is nine.',
+    'It is five per piece.',
+    'It is five five.',
+    'It is nine point nine.',
+    'It costs a dollar.',
+    'Just a few bucks.',
+    'A couple of dollars.',
+    'About a fiver.',
+    'It is ٥٠.',
+  ])('blocks a number the model typed (D13, D14): %j', (text) => {
     expect(verifySegment(text, [], []).ok).toBe(false);
   });
 

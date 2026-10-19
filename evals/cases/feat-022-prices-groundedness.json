@@ -970,5 +970,105 @@
         "kind": "prices-from-facts"
       }
     ]
+  },
+  {
+    "id": "prices-adv-chinese-words",
+    "subset": "prices",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "How much is the chocolate fudge cake?"
+      }
+    ],
+    "recorded": ["价格是五十。", "The [[f:b1000001.name]] is [[f:b1000001.price]]."],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "S$55.00"
+      },
+      {
+        "kind": "not-contains",
+        "text": "五十"
+      },
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
+  },
+  {
+    "id": "prices-adv-small-word-each",
+    "subset": "prices",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "How much is the chocolate fudge cake?"
+      }
+    ],
+    "recorded": ["They are three each.", "The [[f:b1000001.name]] is [[f:b1000001.price]]."],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "S$55.00"
+      },
+      {
+        "kind": "not-contains",
+        "text": "three each"
+      },
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
+  },
+  {
+    "id": "prices-adv-a-dollar",
+    "subset": "prices",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "How much is the chocolate fudge cake?"
+      }
+    ],
+    "recorded": ["It costs a dollar.", "The [[f:b1000001.name]] is [[f:b1000001.price]]."],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "S$55.00"
+      },
+      {
+        "kind": "not-contains",
+        "text": "a dollar"
+      },
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
+  },
+  {
+    "id": "prices-adv-point",
+    "subset": "prices",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "How much is the chocolate fudge cake?"
+      }
+    ],
+    "recorded": ["It is nine point nine.", "The [[f:b1000001.name]] is [[f:b1000001.price]]."],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "S$55.00"
+      },
+      {
+        "kind": "not-contains",
+        "text": "nine point"
+      },
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
   }
 ]
