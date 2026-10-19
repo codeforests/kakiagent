@@ -12,3 +12,8 @@ output "log_group_name" {
   description = "CloudWatch log group."
   value       = aws_cloudwatch_log_group.this.name
 }
+
+output "task_count_range" {
+  description = "Auto-scaling minimum and maximum tasks."
+  value       = { min = aws_appautoscaling_target.this.min_capacity, max = aws_appautoscaling_target.this.max_capacity }
+}

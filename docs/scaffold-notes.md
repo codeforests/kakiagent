@@ -12,7 +12,7 @@ This is the project's record of how the skeleton was built: generators and versi
 | 1 | `pnpm dev` starts every role; `skeleton.e2e.ts` sends a widget message and sees the reply in the widget (SSE) and in the dashboard (WebSocket) | **Passed locally** (Chromium) | `e2e/tests/skeleton.e2e.ts`: the reply `Echo: …` appears in the widget, and the inbox row updates on the already-open dashboard page with no reload. The message crosses api → outbox → scheduler-worker → SQS (LocalStack) → agent-worker → Valkey → realtime. Firefox and WebKit run in CI only, because only Chromium is installed in the scaffolding environment. |
 | 2 | Cross-tenant RLS test passes, including hand-written queries | **Passed** | `packages/db/test/rls.int.test.ts`, 11 tests on Testcontainers Postgres 16 + pgvector |
 | 3 | CI green on the PR; widget loader within budget | Budget **passed**; CI **pending the first push** | `pnpm size`: loader 1.75 KB gz (limit 14), panel 8.43 KB gz (35), initial load 1.75 KB gz (30) |
-| 4 | The same E2E passes against the deployed dev environment | **Pending MD** | Terraform for dev is written and validated, never applied |
+| 4 | The same E2E passes against the deployed launch environment (ADR-023) | **Pending MD** | Terraform for the launch environment is written, validated and tested, never applied |
 
 Also verified by running: typecheck, lint and boundaries clean; 17 unit tests, 24 integration tests, 5 design-token tests and 3 E2E tests pass; coverage thresholds met; the API image builds and runs as `node` with the dev sign-in returning 404; `terraform validate`, `tflint` (with the AWS ruleset) and `actionlint` are clean; `pnpm audit --prod` reports no known vulnerabilities.
 
@@ -20,6 +20,7 @@ Each enforcement was shown to catch a planted violation, which was then removed:
 - **Boundaries:** dependency-cruiser rejected all six of these: a deep import blocked by `exports`, a relative import of another module's internals, a provider SDK outside `llm-gateway`, a package importing an app, and two undeclared or unresolvable packages.
 - **Tokens:** deleting the token CSS import made the shell lose its accent colour, and the token E2E failed.
 - **tflint:** it flagged an untyped variable and an invalid node type.
+- **terraform test:** setting the launch profile to 3 AZs failed its assertion.
 - **actionlint:** it flagged an undefined expression property.
 
 ## 2. Units and where they come from
@@ -57,7 +58,7 @@ Monorepo tooling: pnpm 10.28.0 (`packageManager`), Turborepo 2.11.9, Node 22. Ve
 | **Eval job runs on every PR** | Plan §3 requires the fast subset only when `agent`, `kb`, prompts or model config change. On the fake provider it takes seconds, so path filtering is deferred until the set runs on a real model (M1.5). |
 | **Queue named `conversation-turns.fifo`** (plan §2 says `turns.fifo`) | The name matches the outbox topic enum, so each queue maps one-to-one to a topic. |
 | **Health endpoints are `/healthz` and `/readyz`** (plan §2 says `/health`) | Liveness and readiness are separate: ECS uses `/healthz` and the ALB target groups use `/readyz`. |
-| Dev Terraform trims cost: 1 NAT, 1 Aurora instance (0.5–4 ACU), no Valkey replica, 1–2 tasks per role | Staging and prod use the same modules with the module defaults, which are the architecture §7 minimums. |
+| **One `envs/prod` root with two profiles** | ADR-023 runs the future prod account lean until the prod trigger: 2 AZs, a fck-nat NAT instance, no interface endpoints, RDS PostgreSQL `db.t4g.small` single AZ (ADR-024), one `cache.t4g.micro` Valkey node, and one task per role, with ingest-worker at zero. `profile = "full"` restores ADR-003/ADR-004. `terraform test` plans both profiles on mocked providers, and it caught a task-policy `count` that would have failed the first apply. The 15-minute canary run by scheduler-worker (ADR-023 C3) is application code, so it is not in Terraform. |
 
 ## 4. What is stubbed, and which feature replaces it
 
@@ -78,17 +79,18 @@ Monorepo tooling: pnpm 10.28.0 (`packageManager`), Turborepo 2.11.9, Node 22. Ve
 
 ## 5. Pending first deployment (milestone MD)
 
-- Account bootstrap: AWS Organizations, the SCP region lock, and the state bucket for `backend "s3"` (`envs/dev/dev.s3.tfbackend.example`).
-- `terraform apply` of `infra/terraform/envs/dev`; setting the five Secrets Manager values (database URLs per trust zone, token secrets); running `pnpm db:setup`-equivalent migrations against Aurora with the owner secret.
-- A CD workflow: OIDC role `kaki-dev-github-deploy` (module `ci-oidc`), image push by digest, an ECS rolling deploy, a static upload to the `static` bucket, and a CloudFront invalidation.
+- Account bootstrap: AWS Organizations, the SCP region lock, and the state bucket for `backend "s3"` (`envs/prod/prod.s3.tfbackend.example`).
+- `terraform apply` of `infra/terraform/envs/prod` with the launch profile; setting the five Secrets Manager values (database URLs per trust zone, token secrets); running `pnpm db:setup`-equivalent migrations against Aurora with the owner secret.
+- A CD workflow: OIDC role `kaki-prod-github-deploy` (module `ci-oidc`), image push by digest, an ECS rolling deploy, a static upload to the `static` bucket, and a CloudFront invalidation.
 - `terraform providers lock -platform=linux_arm64 -platform=darwin_arm64` if other platforms run Terraform. The committed lock file was produced on linux_amd64.
 - Then done-when 4: run `skeleton.e2e.ts` against the CloudFront URL.
+- At the prod trigger: `profile = "full"`, the ADR-024 read-replica move to Aurora, and a staging root from the same modules.
 
 ## 6. Open issues for upstream documents
 
 Recorded here rather than edited into signed-off documents (AGENTS.md, Document rules).
 
-1. **architecture.md §7 / ADR-003, the WAF and certificate region.** A CloudFront-scoped WAF web ACL, and an ACM certificate for custom domains on CloudFront, can only be created in **us-east-1**. They hold rules and certificates, not tenant data, so NFR-07 holds. But the SCP region lock at account bootstrap must allow `wafv2` and `acm` in us-east-1, or the dev apply fails. The deployment diagram shows WAF inside the ap-southeast-1 box. *Suggested:* an ADR-003 note, or a superseding ADR, that names this exception next to the ADR-006 inference exception.
+1. **architecture.md §7 / ADR-003, the WAF and certificate region.** A CloudFront-scoped WAF web ACL, and an ACM certificate for custom domains on CloudFront, can only be created in **us-east-1**. They hold rules and certificates, not tenant data, so NFR-07 holds. But the SCP region lock at account bootstrap must allow `wafv2` and `acm` in us-east-1, or the first apply fails. The deployment diagram shows WAF inside the ap-southeast-1 box. *Suggested:* an ADR-003 note, or a superseding ADR, that names this exception next to the ADR-006 inference exception.
 2. **ADR-002, OpenAPI from Zod.** This is deferred (§3). There is no conflict with the decision, but the first external API consumer should trigger it.
 3. **Plan §2 naming:** `turns.fifo` and `/health` versus what was built (§3). These are cosmetic; the plan can adopt the built names at its next revision.
 

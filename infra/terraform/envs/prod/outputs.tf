@@ -9,11 +9,11 @@ output "ecr_repositories" {
 }
 
 output "deploy_role_arn" {
-  description = "Role GitHub Actions assumes to deploy to dev."
+  description = "Role GitHub Actions assumes to deploy."
   value       = module.ci.deploy_role_arn
 }
 
-output "aurora_endpoint" {
-  description = "Aurora writer endpoint."
-  value       = module.data.aurora_endpoint
+output "database_endpoint" {
+  description = "PostgreSQL writer endpoint (RDS in the launch profile, Aurora in full)."
+  value       = module.data.database_endpoint
 }

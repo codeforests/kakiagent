@@ -47,10 +47,10 @@ variable "secrets" {
   default     = {}
 }
 
-variable "task_policy_json" {
-  description = "IAM policy for the task role, or null."
-  type        = string
-  default     = null
+variable "task_policies" {
+  description = "Inline IAM policies for the task role (name => policy JSON)."
+  type        = map(string)
+  default     = {}
 }
 
 variable "subnet_ids" {

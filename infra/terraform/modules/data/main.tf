@@ -1,5 +1,6 @@
-# Aurora PostgreSQL (pgvector) and ElastiCache Valkey in the isolated data subnets
-# (ADR-004, ADR-005, architecture §7). Maintenance and backups fall inside
+# The PostgreSQL system of record and ElastiCache Valkey in the isolated data subnets.
+# The launch profile runs RDS PostgreSQL single AZ (ADR-024); the ADR-004 profile runs
+# Aurora (writer + reader). Same engine, extensions, roles and migrations either way. Maintenance and backups fall inside
 # 02:00–06:00 SGT, which is 18:00–22:00 UTC (NFR-04). Backups stay in-region (NFR-07).
 
 resource "aws_kms_key" "data" {
@@ -12,9 +13,14 @@ resource "aws_kms_alias" "data" {
   target_key_id = aws_kms_key.data.key_id
 }
 
+locals {
+  aurora = var.database_engine == "aurora" ? 1 : 0
+  rds    = var.database_engine == "rds" ? 1 : 0
+}
+
 resource "aws_security_group" "aurora" {
-  name        = "${var.name}-aurora"
-  description = "Aurora PostgreSQL, reachable from the ECS tasks only"
+  name        = "${var.name}-postgres"
+  description = "PostgreSQL, reachable from the ECS tasks only"
   vpc_id      = var.vpc_id
   ingress {
     description     = "PostgreSQL from the app tasks"
@@ -44,6 +50,7 @@ resource "aws_db_subnet_group" "this" {
 }
 
 resource "aws_rds_cluster" "this" {
+  count                               = local.aurora
   cluster_identifier                  = var.name
   engine                              = "aurora-postgresql"
   engine_mode                         = "provisioned"
@@ -73,14 +80,58 @@ resource "aws_rds_cluster" "this" {
 }
 
 resource "aws_rds_cluster_instance" "this" {
-  count                           = var.aurora_instance_count
+  count                           = local.aurora * var.aurora_instance_count
   identifier                      = "${var.name}-${count.index}"
-  cluster_identifier              = aws_rds_cluster.this.id
-  engine                          = aws_rds_cluster.this.engine
-  engine_version                  = aws_rds_cluster.this.engine_version
+  cluster_identifier              = aws_rds_cluster.this[0].id
+  engine                          = aws_rds_cluster.this[0].engine
+  engine_version                  = aws_rds_cluster.this[0].engine_version
   instance_class                  = "db.serverless"
   performance_insights_enabled    = true
   performance_insights_kms_key_id = aws_kms_key.data.arn
+}
+
+resource "aws_db_parameter_group" "rds" {
+  count  = local.rds
+  name   = "${var.name}-pg16"
+  family = "postgres16"
+  parameter {
+    name  = "rds.force_ssl"
+    value = "1"
+  }
+}
+
+resource "aws_db_instance" "this" {
+  count                               = local.rds
+  identifier                          = var.name
+  engine                              = "postgres"
+  engine_version                      = var.rds_engine_version
+  instance_class                      = var.rds_instance_class
+  allocated_storage                   = var.rds_allocated_storage_gb
+  max_allocated_storage               = var.rds_max_allocated_storage_gb
+  storage_type                        = "gp3"
+  storage_encrypted                   = true
+  kms_key_id                          = aws_kms_key.data.arn
+  db_name                             = "kakiagent"
+  username                            = "kaki_owner"
+  manage_master_user_password         = true
+  master_user_secret_kms_key_id       = aws_kms_key.data.arn
+  db_subnet_group_name                = aws_db_subnet_group.this.name
+  vpc_security_group_ids              = [aws_security_group.aurora.id]
+  parameter_group_name                = aws_db_parameter_group.rds[0].name
+  multi_az                            = false
+  publicly_accessible                 = false
+  backup_retention_period             = 35
+  backup_window                       = "18:00-18:30"
+  maintenance_window                  = "sat:19:00-sat:21:00"
+  auto_minor_version_upgrade          = true
+  copy_tags_to_snapshot               = true
+  deletion_protection                 = var.deletion_protection
+  skip_final_snapshot                 = !var.deletion_protection
+  final_snapshot_identifier           = var.deletion_protection ? "${var.name}-final" : null
+  iam_database_authentication_enabled = true
+  performance_insights_enabled        = true
+  performance_insights_kms_key_id     = aws_kms_key.data.arn
+  enabled_cloudwatch_logs_exports     = ["postgresql"]
 }
 
 resource "aws_elasticache_subnet_group" "this" {

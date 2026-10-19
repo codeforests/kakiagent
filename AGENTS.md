@@ -20,7 +20,7 @@ The repo holds the signed-off SDLC documents (`docs/`) and the **walking skeleto
 | `e2e/` | Playwright tests against the running local stack. |
 | `evals/` | The AI evaluation runner, cases and `thresholds.json` (AGT-14, ADR-022). |
 | `infra/local/`, `docker-compose.yml` | Local stack: Postgres 16 + pgvector, Valkey, LocalStack (SQS, S3), Mailpit, ClamAV (profile `ingest`). |
-| `infra/terraform/` | AWS modules and the `dev` root (ADR-003). Written and validated, **never applied** until milestone MD. |
+| `infra/terraform/` | AWS modules and the `envs/prod` root, which runs the lean launch profile until the prod trigger and the ADR-003 design after it (`profile = "launch" | "full"`, ADR-023, ADR-024). Written, validated and tested with `terraform test`; **never applied** until milestone MD. |
 
 ## Commands
 

@@ -50,11 +50,13 @@ resource "aws_iam_role" "task" {
   assume_role_policy = data.aws_iam_policy_document.assume.json
 }
 
+# Keyed by a static name so the plan knows the count before the policy JSON (which
+# often holds ARNs created in the same apply) is known.
 resource "aws_iam_role_policy" "task" {
-  count  = var.task_policy_json == null ? 0 : 1
-  name   = "app"
-  role   = aws_iam_role.task.id
-  policy = var.task_policy_json
+  for_each = var.task_policies
+  name     = each.key
+  role     = aws_iam_role.task.id
+  policy   = each.value
 }
 
 resource "aws_ecs_task_definition" "this" {

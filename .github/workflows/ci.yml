@@ -1,5 +1,6 @@
 # CI for every PR and for main (plan §7 engineering foundations, ADR-022).
-# Required checks on main: every job below. CD to dev and staging is added at MD.
+# Required checks on main: every job below. CD to the launch environment is added at
+# MD (ADR-023); the dev → staging → prod promotion returns at the prod trigger.
 name: CI
 
 on:
@@ -127,7 +128,7 @@ jobs:
           exit-code: '1'
 
   terraform:
-    name: Terraform validate and tflint
+    name: Terraform validate, test and tflint
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -142,9 +143,12 @@ jobs:
           tflint_version: v0.64.0
       - run: terraform fmt -recursive -check
       - run: terraform init -backend=false -input=false
-        working-directory: infra/terraform/envs/dev
+        working-directory: infra/terraform/envs/prod
       - run: terraform validate
-        working-directory: infra/terraform/envs/dev
+        working-directory: infra/terraform/envs/prod
+      # Plans the launch and full profiles on mocked providers (ADR-023, ADR-024).
+      - run: terraform test
+        working-directory: infra/terraform/envs/prod
       - run: tflint --init
         env:
           GITHUB_TOKEN: ${{ github.token }}

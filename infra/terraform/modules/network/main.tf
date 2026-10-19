@@ -1,13 +1,16 @@
-# VPC across three AZs with public, private-app and isolated-data subnets
-# (architecture §7, ADR-003). Interface endpoints keep AWS traffic off the NAT.
+# VPC with public, private-app and isolated-data subnets (architecture §7).
+# The launch profile (ADR-023) uses 2 AZs, one NAT instance and only the S3 gateway
+# endpoint; the ADR-003 profile uses 3 AZs, a NAT gateway per AZ and interface
+# endpoints. Both are variables, so the upgrade is a configuration change.
 
 data "aws_availability_zones" "available" {
   state = "available"
 }
 
 locals {
-  azs                 = slice(data.aws_availability_zones.available.names, 0, 3)
-  interface_endpoints = toset(["sqs", "kms", "secretsmanager", "logs", "monitoring", "ecr.api", "ecr.dkr", "bedrock-runtime"])
+  azs                 = slice(data.aws_availability_zones.available.names, 0, var.az_count)
+  nat_gateway_count   = var.nat_mode == "gateway" ? var.az_count : 0
+  interface_endpoints = var.interface_endpoints ? toset(["sqs", "kms", "secretsmanager", "logs", "monitoring", "ecr.api", "ecr.dkr", "bedrock-runtime"]) : toset([])
 }
 
 resource "aws_vpc" "this" {
@@ -23,7 +26,7 @@ resource "aws_internet_gateway" "this" {
 }
 
 resource "aws_subnet" "public" {
-  count             = 3
+  count             = var.az_count
   vpc_id            = aws_vpc.this.id
   availability_zone = local.azs[count.index]
   cidr_block        = cidrsubnet(var.cidr, 4, count.index)
@@ -31,7 +34,7 @@ resource "aws_subnet" "public" {
 }
 
 resource "aws_subnet" "app" {
-  count             = 3
+  count             = var.az_count
   vpc_id            = aws_vpc.this.id
   availability_zone = local.azs[count.index]
   cidr_block        = cidrsubnet(var.cidr, 4, count.index + 4)
@@ -39,7 +42,7 @@ resource "aws_subnet" "app" {
 }
 
 resource "aws_subnet" "data" {
-  count             = 3
+  count             = var.az_count
   vpc_id            = aws_vpc.this.id
   availability_zone = local.azs[count.index]
   cidr_block        = cidrsubnet(var.cidr, 4, count.index + 8)
@@ -47,13 +50,13 @@ resource "aws_subnet" "data" {
 }
 
 resource "aws_eip" "nat" {
-  count  = var.nat_gateway_count
+  count  = local.nat_gateway_count
   domain = "vpc"
   tags   = { Name = "${var.name}-nat-${count.index}" }
 }
 
 resource "aws_nat_gateway" "this" {
-  count         = var.nat_gateway_count
+  count         = local.nat_gateway_count
   allocation_id = aws_eip.nat[count.index].id
   subnet_id     = aws_subnet.public[count.index].id
   tags          = { Name = "${var.name}-${count.index}" }
@@ -69,24 +72,25 @@ resource "aws_route_table" "public" {
 }
 
 resource "aws_route_table_association" "public" {
-  count          = 3
+  count          = var.az_count
   subnet_id      = aws_subnet.public[count.index].id
   route_table_id = aws_route_table.public.id
 }
 
-# One route table per AZ; with fewer NAT gateways than AZs (dev) they share one.
+# One route table per AZ, through that AZ's NAT gateway or the shared NAT instance.
 resource "aws_route_table" "app" {
-  count  = 3
+  count  = var.az_count
   vpc_id = aws_vpc.this.id
   route {
-    cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.this[count.index % var.nat_gateway_count].id
+    cidr_block           = "0.0.0.0/0"
+    nat_gateway_id       = var.nat_mode == "gateway" ? aws_nat_gateway.this[count.index].id : null
+    network_interface_id = var.nat_mode == "instance" ? aws_network_interface.nat[0].id : null
   }
   tags = { Name = "${var.name}-app-${count.index}" }
 }
 
 resource "aws_route_table_association" "app" {
-  count          = 3
+  count          = var.az_count
   subnet_id      = aws_subnet.app[count.index].id
   route_table_id = aws_route_table.app[count.index].id
 }
@@ -98,7 +102,7 @@ resource "aws_route_table" "data" {
 }
 
 resource "aws_route_table_association" "data" {
-  count          = 3
+  count          = var.az_count
   subnet_id      = aws_subnet.data[count.index].id
   route_table_id = aws_route_table.data.id
 }

@@ -1,11 +1,34 @@
-# The dev environment (ADR-003, architecture §7), written and validated in FEAT-001 and
-# applied at milestone MD. Dev trims cost: one NAT gateway, one Aurora instance, no
-# Valkey replica, one task per role. Staging and prod reuse these modules with the
-# architecture's minimums.
+# The prod account (ADR-023): until the prod trigger (10 paying tenants) it runs the
+# lean launch profile; at the trigger, `profile = "full"` restores the ADR-003/ADR-004
+# design and the database moves to Aurora (ADR-024's read-replica cut-over). Written
+# and validated in FEAT-001, applied at milestone MD. Staging returns at the trigger
+# as another root built from the same modules.
 
 data "aws_caller_identity" "current" {}
 
 locals {
+  profiles = {
+    launch = {
+      az_count            = 2
+      nat_mode            = "instance"
+      interface_endpoints = false
+      database_engine     = "rds"
+      valkey_node_type    = "cache.t4g.micro"
+      valkey_replicas     = 0
+      min_tasks           = { api = 1, realtime = 1, agent-worker = 1, ingest-worker = 0, scheduler-worker = 1 }
+    }
+    full = {
+      az_count            = 3
+      nat_mode            = "gateway"
+      interface_endpoints = true
+      database_engine     = "aurora"
+      valkey_node_type    = "cache.t4g.small"
+      valkey_replicas     = 1
+      min_tasks           = { api = 2, realtime = 2, agent-worker = 2, ingest-worker = 1, scheduler-worker = 2 }
+    }
+  }
+  p = local.profiles[var.profile]
+
   region     = "ap-southeast-1"
   bucket_pfx = "${var.name}-${data.aws_caller_identity.current.account_id}"
   roles = {
@@ -24,10 +47,12 @@ locals {
 }
 
 module "network" {
-  source            = "../../modules/network"
-  name              = var.name
-  region            = local.region
-  nat_gateway_count = 1
+  source              = "../../modules/network"
+  name                = var.name
+  region              = local.region
+  az_count            = local.p.az_count
+  nat_mode            = local.p.nat_mode
+  interface_endpoints = local.p.interface_endpoints
 }
 
 module "cluster" {
@@ -42,10 +67,10 @@ module "data" {
   vpc_id                = module.network.vpc_id
   data_subnet_ids       = module.network.data_subnet_ids
   app_security_group_id = module.cluster.tasks_security_group_id
-  aurora_instance_count = 1
-  aurora_max_acu        = 4
-  valkey_replicas       = 0
-  deletion_protection   = false
+  database_engine       = local.p.database_engine
+  valkey_node_type      = local.p.valkey_node_type
+  valkey_replicas       = local.p.valkey_replicas
+  deletion_protection   = true
 }
 
 module "queues" {
@@ -54,10 +79,9 @@ module "queues" {
 }
 
 module "storage" {
-  source        = "../../modules/storage"
-  name          = local.bucket_pfx
-  kms_key_arn   = module.data.kms_key_arn
-  force_destroy = true
+  source      = "../../modules/storage"
+  name        = local.bucket_pfx
+  kms_key_arn = module.data.kms_key_arn
 }
 
 module "edge" {
@@ -71,11 +95,11 @@ module "edge" {
   static_bucket_name                 = module.storage.bucket_names["static"]
   static_bucket_arn                  = module.storage.bucket_arns["static"]
   static_bucket_regional_domain_name = module.storage.static_bucket_regional_domain_name
-  deletion_protection                = false
 }
 
 # Application secrets: the per-trust-zone database URLs (ADR-005) and token keys. Values
 # are set out of band at MD (`pnpm db:setup` creates the roles), never in Terraform state.
+# Each role's URL points at the database endpoint output.
 resource "aws_secretsmanager_secret" "app" {
   for_each   = toset(["dashboard-database-url", "visitor-database-url", "outbox-database-url", "visitor-token-secret", "session-secret"])
   name       = "${var.name}/${each.key}"
@@ -113,14 +137,15 @@ module "service" {
   subnet_ids        = module.network.app_subnet_ids
   security_group_id = module.cluster.tasks_security_group_id
   target_group_arn  = each.value.http ? module.edge.target_group_arns[each.key] : null
-  min_count         = 1
-  max_count         = 2
+  # Minimums follow the profile; the maximums stay as ADR-003 (ADR-023).
+  min_count = local.p.min_tasks[each.key]
+  max_count = 6
 
   scale_on_queue_name = each.key == "agent-worker" ? "${var.name}-conversation-turns.fifo" : null
-  task_policy_json = (
-    each.key == "agent-worker" ? data.aws_iam_policy_document.turns_consumer.json :
-    each.key == "scheduler-worker" ? data.aws_iam_policy_document.turns_producer.json : null
-  )
+  task_policies = lookup({
+    agent-worker     = { sqs = data.aws_iam_policy_document.turns_consumer.json }
+    scheduler-worker = { sqs = data.aws_iam_policy_document.turns_producer.json }
+  }, each.key, {})
 
   environment = merge(
     local.common_env,
@@ -172,7 +197,7 @@ module "ci" {
   source                      = "../../modules/ci-oidc"
   name                        = var.name
   github_repository           = var.github_repository
-  github_environment          = "dev"
+  github_environment          = "prod"
   ecr_repository_arns         = module.cluster.repository_arns
   static_bucket_arn           = module.storage.bucket_arns["static"]
   cloudfront_distribution_arn = module.edge.distribution_arn

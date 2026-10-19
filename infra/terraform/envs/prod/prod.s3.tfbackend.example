@@ -1,0 +1,6 @@
+# Copy to prod.s3.tfbackend at MD, once the account bootstrap has created these.
+bucket       = "kaki-prod-tfstate-<account-id>"
+key          = "prod/terraform.tfstate"
+region       = "ap-southeast-1"
+use_lockfile = true
+encrypt      = true
