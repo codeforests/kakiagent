@@ -1,7 +1,7 @@
 # Acceptance Report: FEAT-022 — Grounded, verified answer from a hand-entered fact
 
-> Current verdict: **Design defect, with one rework finding** (re-verification 3, at `20d392d`; see the last section) · Date: 2026-10-19
-> Earlier verdicts, kept below as recorded: Rework at `44bc8c2` (initial); Design defect at `d9befc0` (re-verification 1); Design defect at `fa30a46` (re-verification 2)
+> Current verdict: **Rework** (re-verification 4, at `0dfd1d3`; see the last section) · Date: 2026-10-19
+> Earlier verdicts, kept below as recorded: Rework at `44bc8c2` (initial); Design defect at `d9befc0` (re-verification 1), `fa30a46` (re-verification 2) and `20d392d` (re-verification 3)
 > Standard: technical-design.md §6 (AC-1..AC-16) and §5 (verifier spec) @ `44bc8c2` · Sources: SRS.md v0.4 (AGT-01, AGT-02, AGT-06, AGT-11, AGT-16, CHN-02, KB-07, KB-15, NFR-01, NFR-04, NFR-10), use-cases.md v0.4 (UC-20, UC-13)
 > Repo state audited: `44bc8c2` on `claude/project-thread-91q4ac` (clean tree)
 
@@ -431,3 +431,111 @@ Slang currency also passes ("Five bob.", "A grand.", "Two grand.", "A dime.", "A
 ### RTM
 
 Not written. Verdict: design defect. When a later re-verification is accepted, Test ref `features/FEAT-022-grounded-verified-answer/acceptance-report.md (partial)` goes on AGT-01, AGT-02, AGT-06, AGT-11, AGT-16, CHN-02, KB-07, KB-15, NFR-01, NFR-04 and NFR-10.
+
+---
+
+## Re-verification 4 — 2026-10-19 · Verdict: **Rework**
+
+> Repo state audited: `0dfd1d3` (design D15) · Standard: technical-design.md §6, §5 and D13–D15 (§7), re-derived against ADR-008 decision 2, AGT-02 and NFR-10
+
+### Summary
+
+D15 resolves the design findings. Treating every number word and numeral as a violation, with only D3's visitor-count exception and a short idiom list, closes R8 and DD4, and I found no new class that would need the design to change again.
+
+What remains is a code gap in the Chinese half of the rules that D14 and D15 already state. As a result, some Chinese replies with a model-typed price are released as `answered`:
+- "就几块钱。" ("just a few dollars");
+- "价格是伍拾。" ("the price is fifty", in formal numerals);
+- "只要叁。" ("only three");
+- "仨。" ("three", colloquial).
+
+The verdict is therefore **rework**: R9 goes to feature-implementation, with no design change needed. The RTM is not written.
+
+### The moved unit-test row: legitimate
+
+"We have three flavours to choose from." moved from the must-pass list to the blocked list. D15 explicitly makes every model-typed number word a violation, so the row now asserts the amended criterion. The must-pass intent is kept with "We have a few flavours to choose from." and new idiom cases ("this one", "one of", "No one has asked", "唯一", "一般").
+
+The change is declared in tasks.md and follows the same reasoning as the D13 replacement I accepted in re-verification 2. Otherwise the diff `c5c46ab..0dfd1d3` only adds: 22 blocked cases, a words-form D3 test, a slot-plus-number-word test, and 6 eval recordings (41 → 47 fast cases). No eval line was removed. Nothing was weakened.
+
+### Independent execution (at `0dfd1d3`)
+
+| Check | Result |
+| :- | :- |
+| `pnpm format:check` | pass |
+| `pnpm turbo run lint --force`; `pnpm boundaries` | 24/24; no dependency violations |
+| `pnpm turbo run typecheck --force` | 26/26 |
+| `pnpm turbo run test --force` | 21/21 (agent 111 unit tests) |
+| `pnpm turbo run test:coverage --force --concurrency=1` (unit + integration) | 15/15; agent 121 tests, 98.56% lines |
+| `pnpm turbo run build --force`; `pnpm size` | 9/9; loader 1.75 kB, panel 9.34 kB gz |
+| `pnpm eval --fast` | 47 cases; prices 39/39, groundedness 8/8 |
+| E2E (Chromium, `E2E_REUSE_SERVERS=true`) | 4/4 |
+
+### Direct verification
+
+**Earlier findings.** I re-ran all 206 cases that earlier probes expected to block, from R1–R8, DD1–DD4 and the re-verification 3 hunt. 195 now block, including every R8 and DD4 case:
+- "Only three", "Just nine", "for nine", "Five% off", "five-five", "five-oh";
+- "Three only", "It is nine", "只要三", "Save five", "Three apiece", "At three", "Nine plus GST";
+- "九而已", "三。", "Five off", "cheaper by five", "five pct off", "nine-tenths";
+- "It is S$55.00, or three for members".
+
+The 11 that still pass are D15's declared known limits: "A grand", "A k" and "a quarter" (slang), and "Ⅴ" (Roman numeral). The rest are claims with no typed value: "free", "no charge", "half price", "twice the price", "hundreds".
+
+**Idiom exceptions** cannot be used to carry a price. "This one is nine.", "One of them is nine.", "Each one is nine.", "这一个五十。", "第一个五十。", "唯一五十。", "一起五十。", "十分五十。" and "万一五十。" all block.
+
+**Still released.** Each was run through `composeReply` with the fake provider scripted to return the same output on both attempts. All were published with outcome `answered`:
+
+| Model output | Why it passes | Class |
+| :- | :- | :- |
+| `就几块钱。` ("just a few dollars") | 块 and 钱 with no numeral; `CURRENCY_ANY` has 元 and 蚊 only | R9 (b) |
+| `几毛钱而已。` ("only a few dimes") | 毛 and 钱, same reason | R9 (b) |
+| `价格是伍拾。` ("the price is fifty") | Formal numerals 壹贰叁肆伍陆柒捌玖拾佰仟 are not in `ZH_NUMERAL` | R9 (a) |
+| `只要叁。` ("only three") | Same | R9 (a) |
+| `仨。` ("three", colloquial) | 仨 and 俩 are not in `ZH_NUMERAL` | R9 (a) |
+| `价格是零。` ("the price is zero") | 零 and 〇 are not in `ZH_NUMERAL`, although D15 adds English "zero" | R9 (a) |
+
+`verifySegment` alone also passes these Chinese forms:
+- "几块。", "壹佰。", "廿。" (twenty);
+- "亿。" (亿, a hundred million, is missing, although 万 is in the class);
+- "萬。" (traditional form).
+
+Also passing: "它十分钱。" ("ten fen"). The 十分 idiom exception swallows a real amount here, which is rare.
+
+English residue, recorded as minor:
+- "a million", "nought", "nil", "naught";
+- misspellings ("fourty", "ninty", "fivety");
+- obfuscation ("f-i-f-t-y", "F I F T Y", "fiddy") and Malay ("lima puluh").
+
+Obfuscation belongs to the red-team suite (AGT-07), not a lexical verifier. Digits in any form (½, ¼, ㊿, full-width, other scripts) are now blocked through `\p{Nd}` after NFKC.
+
+**False positives** (for M1.5, not blocking):
+- "Sure, one moment please.", "It is a one-of-a-kind cake." and "Let us bake one together." are blocked. These are common phrasings, and good candidates for the idiom list.
+- "一块蛋糕。" ("one piece of cake") is blocked as `currency`, because the old ZH-numeral + 块 pattern reads 块 as "dollar". This has been present since the first build, and it is a frequent Chinese phrase. M1.5 should measure it in the Chinese subset.
+- Passing as expected: "这块蛋糕很好吃。", "我们的价钱很公道。", "我们有好几种口味。", "Someone", "Anyone", "Everyone", "I am the one who can help", and the D3 words form ("enough for three people" when the visitor wrote it).
+
+### Findings
+
+**Rework (code, within D14 and D15 as written):**
+- **R9 — the Chinese half of D14 and D15 is incomplete.**
+  - **(a) Numerals.** D15 says "every Chinese numeral the model types", but `ZH_NUMERAL` covers only 一二两三四五六七八九十百千万. It misses:
+    - the formal (financial) numerals 壹贰叁肆伍陆柒捌玖拾佰仟;
+    - 零 and 〇;
+    - 亿;
+    - 廿 and 卅;
+    - colloquial 俩 and 仨;
+    - (if Traditional input matters) 兩 and 萬.
+  - **(b) Currency words.** D14 says "any currency sign, code or word", which English now meets ("a few bucks"). Chinese money words without a numeral still pass: 块钱, 毛钱, 角, and 几块 used as money. Because 块 also means "piece" and 钱 also means "money" (价钱), the fix needs care. A suggestion:
+    - block 块钱, 毛钱 and 角钱 outright;
+    - block 几 + 块/毛/角 when no measure noun follows;
+    - leave 块 + noun (一块蛋糕, 这块蛋糕) alone, which would also fix the "一块蛋糕" false positive.
+  - Failing unit tests and eval recordings should come first, as in earlier rounds.
+
+**Design defect:** none. D15 is sound and closes the DD1–DD4 class.
+
+**Minor:**
+- **M12.** English residue as listed above: million, nought, nil, misspellings; plus obfuscation, which goes to the red-team suite.
+- **M13.** The 十分 exception also exempts "十分钱". It is rare, but 十分 followed by 钱 could be excluded from the exception.
+- **M14.** M1.5 false positives: "one moment", "one-of-a-kind", "bake one together", "一块蛋糕".
+- M1–M11 from earlier runs still stand, apart from those D14 and D15 now cover or declare as known limits.
+
+### RTM
+
+Not written. Verdict: rework. When a later re-verification is accepted, Test ref `features/FEAT-022-grounded-verified-answer/acceptance-report.md (partial)` goes on AGT-01, AGT-02, AGT-06, AGT-11, AGT-16, CHN-02, KB-07, KB-15, NFR-01, NFR-04 and NFR-10.
