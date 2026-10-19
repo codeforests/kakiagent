@@ -9,7 +9,7 @@
       Done when: `rls.int.test.ts` covers cross-tenant reads and writes on all three tables, the visitor role's denied reads, no direct access to `audit_heads`, UPDATE/DELETE/TRUNCATE rejected for the owner and app roles, and hand-written inserts with a wrong `seq` or `prev_hash` rejected; it passes.
 - [x] T3 — Domain, pure: `canonical.ts` (RFC 8785), `payload.ts` (branded constructors and `assertAuditEntry`), `chain.ts` (hash input, entry hash, PII commitment) (design §5; AC-1, AC-7)
       Done when: unit tests pass for JCS key order, numbers and escapes (RFC 8785 examples), rejected values, every AC-7 rejection plus a `@ts-expect-error` for a plain string, and hash determinism.
-- [ ] T4 — Domain, database: `audit.append` (head lock, PII row, hash, insert) and `audit.erasePii`, replacing the skeleton body (design §3.1, §5; AC-1, AC-2, AC-6, AC-9)
+- [x] T4 — Domain, database: `audit.append` (head lock, PII row, hash, insert) and `audit.erasePii`, replacing the skeleton body (design §3.1, §5; AC-1, AC-2, AC-6, AC-9)
       Done when: `audit.int.test.ts` covers an interleaved two-tenant chain recomputed independently, 20 concurrent appends with no gap, rollback leaving no gap, cross-tenant append rejected, a PII entry whose data is only in `audit_pii`, and erasure; all pass.
 - [ ] T5 — Domain: `verifyChain` with its pure core (design §3.2; AC-4, AC-6)
       Done when: unit tests over fixture chains and integration tests on the database report the first broken `seq` for each AC-4 tamper and for an altered PII row, and `ok: true` for an intact chain and after erasure.
