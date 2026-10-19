@@ -1,0 +1,26 @@
+{
+  "name": "@kaki/widget",
+  "private": true,
+  "type": "module",
+  "description": "The embeddable widget: a small loader plus a lazy Preact chat panel in a closed Shadow DOM (ADR-016).",
+  "scripts": {
+    "dev": "node build.mjs --serve",
+    "build": "node build.mjs",
+    "size": "size-limit",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "vitest run --project unit --passWithNoTests"
+  },
+  "dependencies": {
+    "@kaki/contracts": "workspace:*",
+    "@kaki/design-tokens": "workspace:*",
+    "preact": "11.0.1"
+  },
+  "devDependencies": {
+    "@size-limit/file": "14.2.0",
+    "esbuild": "0.28.2",
+    "size-limit": "14.2.0",
+    "typescript": "6.0.3",
+    "vitest": "5.0.5"
+  }
+}

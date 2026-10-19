@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Widget host page (dev)</title>
+    <!-- Hostile host CSS: the widget's closed Shadow DOM must not be affected (ADR-016). -->
+    <link rel="stylesheet" href="/hostile.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Kaki Bakery (dev host page)</h1>
+      <p>
+        A plain HTML page with the widget snippet, used for local development and the skeleton E2E
+        test.
+      </p>
+    </main>
+    <script
+      async
+      src="/w/v1/loader.js"
+      data-key="%WIDGET_KEY%"
+      data-api="%WIDGET_API_URL%"
+    ></script>
+  </body>
+</html>

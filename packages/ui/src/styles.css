@@ -1,0 +1,83 @@
+/* Component styles: token variables only, never literal colours, spacing or radii (design.md §7). */
+
+.kaki-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  min-height: var(--size-control-md);
+  padding: 0 var(--space-5);
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  font: inherit;
+  font-size: var(--type-body-size);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  text-decoration: none;
+  transition: background-color var(--duration-fast) var(--easing-standard);
+}
+@media (pointer: coarse) {
+  .kaki-btn {
+    min-height: var(--size-control-lg);
+  }
+}
+.kaki-btn:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+.kaki-btn--primary {
+  background: var(--color-accent-default);
+  color: var(--color-text-on-accent);
+}
+.kaki-btn--primary:hover {
+  background: var(--color-accent-hover);
+}
+.kaki-btn--secondary {
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
+  border-color: var(--color-border-strong);
+}
+.kaki-btn--secondary:hover {
+  background: var(--color-bg-subtle);
+}
+.kaki-btn--ghost {
+  background: transparent;
+  color: var(--color-accent-default);
+}
+.kaki-btn--ghost:hover {
+  background: var(--color-accent-soft);
+}
+
+.kaki-state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-4);
+  max-width: var(--size-reading-max);
+  padding: var(--space-8) 0;
+}
+.kaki-state__title {
+  margin: 0;
+  font-size: var(--type-title-size);
+  line-height: var(--type-title-line);
+  font-weight: var(--type-title-weight);
+}
+.kaki-state__body {
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+
+.kaki-skip-link {
+  position: absolute;
+  left: var(--space-3);
+  top: calc(-1 * var(--space-11));
+  padding: var(--space-3) var(--space-5);
+  background: var(--color-bg-surface);
+  color: var(--color-accent-default);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  z-index: var(--z-toast);
+}
+.kaki-skip-link:focus {
+  top: var(--space-3);
+}

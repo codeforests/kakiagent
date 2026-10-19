@@ -1,0 +1,20 @@
+[
+  {
+    "name": "loader (ADR-016: ≤ 14 KB gz)",
+    "path": "dist/w/v1/loader.js",
+    "limit": "14 KB",
+    "gzip": true
+  },
+  {
+    "name": "panel, lazy (ADR-016: ≤ 35 KB gz)",
+    "path": "dist/w/v1/panel.js",
+    "limit": "35 KB",
+    "gzip": true
+  },
+  {
+    "name": "initial load (NFR-02: ≤ 30 KB gz)",
+    "path": "dist/w/v1/loader.js",
+    "limit": "30 KB",
+    "gzip": true
+  }
+]

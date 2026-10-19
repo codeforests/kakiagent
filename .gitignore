@@ -1,3 +1,27 @@
 .claude/settings.local.json
 ~$*
 *.docx
+
+# dependencies and build output
+node_modules/
+dist/
+coverage/
+.turbo/
+*.tsbuildinfo
+
+# local config (generated from each unit's .env.example; never committed)
+.env
+.env.local
+**/.env
+!**/.env.example
+
+# test output
+e2e/test-results/
+e2e/playwright-report/
+evals/results/
+
+# terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl.bak

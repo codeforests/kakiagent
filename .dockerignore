@@ -1,0 +1,13 @@
+**/node_modules
+**/dist
+**/coverage
+**/.turbo
+**/.env
+!**/.env.example
+.git
+docs/**
+!docs/02-design/tokens.json
+infra
+e2e/test-results
+e2e/playwright-report
+*.docx

@@ -1,0 +1,58 @@
+/* Operator console chrome (design.md §4.9 OPS). Token variables only. */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--color-bg-canvas);
+  color: var(--color-text-primary);
+  font-family: var(--font-family-sans);
+  font-size: var(--type-body-size);
+}
+.ops {
+  min-height: 100dvh;
+  display: grid;
+  grid-template-columns: var(--size-sidebar) 1fr;
+  grid-template-rows: var(--size-topbar) 1fr;
+  grid-template-areas: 'side top' 'side main';
+}
+.ops__sidebar {
+  grid-area: side;
+  background: var(--color-text-primary);
+  color: var(--color-bg-surface);
+  padding: var(--space-5) var(--space-4);
+}
+.ops__sidebar ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.ops__brand {
+  font-weight: var(--font-weight-semibold);
+  margin-bottom: var(--space-5);
+}
+.ops__topbar {
+  grid-area: top;
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-5);
+  background: var(--color-bg-surface);
+  border-bottom: 1px solid var(--color-border-default);
+}
+.ops__label {
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-full);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-secondary);
+  font-size: var(--type-body-sm-size);
+  font-weight: var(--font-weight-medium);
+}
+.ops__main {
+  grid-area: main;
+  padding: var(--space-5);
+}

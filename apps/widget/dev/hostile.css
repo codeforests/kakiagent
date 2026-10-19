@@ -1,0 +1,13 @@
+/* Deliberately aggressive host styles: the widget must look the same despite them. */
+* {
+  box-sizing: content-box;
+  font-family: 'Comic Sans MS', cursive;
+  letter-spacing: 2px;
+}
+button {
+  background: red !important;
+  border-radius: 0;
+}
+div {
+  padding: 3px;
+}

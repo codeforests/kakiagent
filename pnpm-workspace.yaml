@@ -1,0 +1,13 @@
+packages:
+  - apps/*
+  - packages/*
+  - e2e
+  - evals
+# Dependency build scripts. esbuild needs its binary. The rest are skipped on purpose:
+# optional native add-ons pulled in by testcontainers (ssh2, cpu-features) and
+# protobufjs' version-check script.
+allowBuilds:
+  esbuild: true
+  cpu-features: false
+  protobufjs: false
+  ssh2: false

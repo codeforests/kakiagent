@@ -1,0 +1,9 @@
+docs/
+pnpm-lock.yaml
+**/dist/
+**/coverage/
+**/drizzle/meta/
+e2e/test-results/
+e2e/playwright-report/
+infra/
+**/*.md
