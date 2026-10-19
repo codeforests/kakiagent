@@ -17,3 +17,11 @@ export {
   type AuditValue,
   type Masked,
 } from './payload.js';
+export {
+  ChainVerifier,
+  verifyChain,
+  type Anchor,
+  type AnchorSource,
+  type BreakReason,
+  type VerifyResult,
+} from './verify.js';

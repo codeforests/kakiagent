@@ -11,7 +11,7 @@
       Done when: unit tests pass for JCS key order, numbers and escapes (RFC 8785 examples), rejected values, every AC-7 rejection plus a `@ts-expect-error` for a plain string, and hash determinism.
 - [x] T4 — Domain, database: `audit.append` (head lock, PII row, hash, insert) and `audit.erasePii`, replacing the skeleton body (design §3.1, §5; AC-1, AC-2, AC-6, AC-9)
       Done when: `audit.int.test.ts` covers an interleaved two-tenant chain recomputed independently, 20 concurrent appends with no gap, rollback leaving no gap, cross-tenant append rejected, a PII entry whose data is only in `audit_pii`, and erasure; all pass.
-- [ ] T5 — Domain: `verifyChain` with its pure core (design §3.2; AC-4, AC-6)
+- [x] T5 — Domain: `verifyChain` with its pure core (design §3.2; AC-4, AC-6)
       Done when: unit tests over fixture chains and integration tests on the database report the first broken `seq` for each AC-4 tamper and for an altered PII row, and `ok: true` for an intact chain and after erasure.
 - [ ] T6 — Anchors: `AnchorStore`, `createS3AnchorStore`, `anchorHeads`, the `startTestS3()` helper (design §3.3; D9, D10; AC-5, AC-11)
       Done when: integration tests against LocalStack (or `KAKI_TEST_S3_ENDPOINT`) show one object per moved head, nothing on a quiet second run, Object Lock retention on the objects, and `anchor_mismatch` after a consistent rewrite of an anchored chain.
