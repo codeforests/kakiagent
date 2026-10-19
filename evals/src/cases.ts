@@ -18,6 +18,17 @@ export const Expectation = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('contains'), text: z.string() }),
   z.object({ kind: z.literal('not-contains'), text: z.string() }),
   z.object({ kind: z.literal('matches'), pattern: z.string() }),
+  /** Every `S$` amount in the reply is a rendered price of the tenant's facts (AGT-02). */
+  z.object({ kind: z.literal('prices-from-facts') }),
+  /**
+   * The reply's fact IDs include `ids` (all of them, with `exact`) and none outside the
+   * tenant's fixture set (AGT-01).
+   */
+  z.object({
+    kind: z.literal('cites'),
+    ids: z.array(z.string()),
+    exact: z.boolean().default(false),
+  }),
 ]);
 export type Expectation = z.infer<typeof Expectation>;
 
@@ -28,6 +39,12 @@ export const Case = z.object({
   /** A fixture tenant: `bakery` or `second` (plan §4 FEAT-022 test data). */
   tenant: z.enum(['bakery', 'second']).default('bakery'),
   messages: z.array(z.object({ role: z.enum(['user', 'assistant']), content: z.string() })).min(1),
+  /**
+   * The fake model's output per attempt, slots included (FEAT-022 §5). Adversarial
+   * cases record literal or wrong prices. Ignored with a real model (M1.5); without
+   * it the fake answers from the facts in its prompt.
+   */
+  recorded: z.array(z.string()).min(1).optional(),
   expect: z.array(Expectation).min(1),
 });
 export type Case = z.infer<typeof Case>;
@@ -38,10 +55,69 @@ export function loadCases(dir: string): Case[] {
     .flatMap((f) => z.array(Case).parse(JSON.parse(readFileSync(join(dir, f), 'utf8'))));
 }
 
-export function score(text: string, expectations: Expectation[]): boolean {
+export const ProductFact = z.object({
+  id: z.uuid(),
+  type: z.literal('product'),
+  version: z.int(),
+  value: z.object({
+    name: z.string(),
+    priceCents: z.int(),
+    currency: z.literal('SGD'),
+    unit: z.string().optional(),
+  }),
+  gstTreatment: z.enum(['inclusive', 'exclusive', 'unknown']),
+});
+export const Fixture = z.object({
+  tenantId: z.uuid(),
+  businessName: z.string(),
+  gstRegistered: z.boolean(),
+  facts: z.array(
+    z.discriminatedUnion('type', [
+      ProductFact,
+      z.object({
+        id: z.uuid(),
+        type: z.literal('faq'),
+        version: z.int(),
+        value: z.object({ question: z.string(), answer: z.string() }),
+        gstTreatment: z.null(),
+      }),
+    ]),
+  ),
+});
+export type Fixture = z.infer<typeof Fixture>;
+
+/** What a case is scored on: the released reply and the facts it used. */
+export interface Reply {
+  text: string;
+  factIds: string[];
+}
+
+export interface ScoreContext {
+  fixture: Fixture;
+  /** The tenant's prices as a visitor sees them, e.g. `S$55.00`. */
+  renderedPrices: Set<string>;
+}
+
+const AMOUNT_RE = /S\$\d[\d,]*(?:\.\d+)?/gu;
+
+export function score(reply: Reply, expectations: Expectation[], ctx: ScoreContext): boolean {
+  const own = new Set(ctx.fixture.facts.map((f) => f.id));
   return expectations.every((e) => {
-    if (e.kind === 'contains') return text.includes(e.text);
-    if (e.kind === 'not-contains') return !text.includes(e.text);
-    return new RegExp(e.pattern, 'u').test(text);
+    switch (e.kind) {
+      case 'contains':
+        return reply.text.includes(e.text);
+      case 'not-contains':
+        return !reply.text.includes(e.text);
+      case 'matches':
+        return new RegExp(e.pattern, 'u').test(reply.text);
+      case 'prices-from-facts':
+        return [...reply.text.matchAll(AMOUNT_RE)].every((m) => ctx.renderedPrices.has(m[0]));
+      case 'cites':
+        return (
+          reply.factIds.every((id) => own.has(id)) &&
+          e.ids.every((id) => reply.factIds.includes(id)) &&
+          (!e.exact || reply.factIds.length === e.ids.length)
+        );
+    }
   });
 }

@@ -388,6 +388,12 @@ importers:
 
   evals:
     dependencies:
+      '@kaki/agent':
+        specifier: workspace:*
+        version: link:../packages/agent
+      '@kaki/kb':
+        specifier: workspace:*
+        version: link:../packages/kb
       '@kaki/llm-gateway':
         specifier: workspace:*
         version: link:../packages/llm-gateway

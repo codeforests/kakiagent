@@ -2,12 +2,14 @@
   "name": "@kaki/evals",
   "private": true,
   "type": "module",
-  "description": "The AI evaluation harness (AGT-14, ADR-007). The case set starts empty; FEAT-020 onwards add cases.",
+  "description": "The AI evaluation harness (AGT-14, ADR-007): cases run through the agent's verified-reply pipeline on fixture tenants (FEAT-022).",
   "scripts": {
     "eval": "tsx src/run.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@kaki/agent": "workspace:*",
+    "@kaki/kb": "workspace:*",
     "@kaki/llm-gateway": "workspace:*",
     "zod": "4.6.7"
   },

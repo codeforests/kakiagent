@@ -231,6 +231,7 @@ Verifiable fully in M1: AC-2, AC-3, AC-5 to AC-11, AC-13, AC-14, AC-16. AC-1, AC
 - **Kill-switch cache** (ADR-013: Valkey-published flag, ≤ 2 s worker cache) is not built; the gate reads Postgres on every check, which is correct and cheap at this volume. The toggle UI is UC-31's feature.
 - **HNSW index** on `kb_chunks.embedding` deferred (ADR-005 threshold, §5).
 - **Plan §6 `fact_ids` on `segment`** is replaced by D9; the plan can drop the field at its next revision.
+- **Fake-embedder noise.** The fake embedder's signed feature hashing can put an unrelated fact within the 0.85 distance limit (measured: "Can I bring my dog along?" lands at 0.80 from "Pandan chiffon cake, whole", while relevant pairs range 0.13–0.78). Local and eval retrieval can therefore pass an irrelevant fact to the model; the verifier still keeps every price correct. The limit is to be tuned on Cohere at MD (D5); the eval's no-fact case uses a query clear of such collisions.
 - **Real-model checks** (AC-1, AC-4, AC-15 on the real model, and real latency for AC-12) are pending M1.5 / MD.
 
 ## 9. Self-check
