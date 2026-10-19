@@ -1,8 +1,8 @@
 # Launch Cost Analysis: one staging-spec environment before prod
 
-> Status: **Draft analysis for the product owner, not a decision** · Prices retrieved 2026-10-19
+> Status: **Decided by the product owner, 2026-10-19:** launch environment with cuts C1–C4 (C5 not adopted), prod trigger at 10 paying tenants. Recorded in [ADR-023](../02-design/adr/ADR-023-launch-environment-before-prod.md) and [ADR-024](../02-design/adr/ADR-024-rds-postgres-for-launch.md). · Prices retrieved 2026-10-19
 > Inputs: [architecture.md](../02-design/architecture.md) §7, §8.5, §11 · [ADR-003](../02-design/adr/ADR-003-aws-singapore-ecs-fargate-terraform.md) · [ADR-004](../02-design/adr/ADR-004-aurora-postgres-pgvector-system-of-record.md) · [ADR-007](../02-design/adr/ADR-007-model-routing-prompt-caching-and-cost.md) · [ADR-021](../02-design/adr/ADR-021-observability-and-usage-metering.md) · [implementation-plan.md](implementation-plan.md) (MD Deploy, M6)
-> This document changes nothing that is signed off. If the owner adopts any option here, it goes in a new ADR that supersedes the affected parts of ADR-003, ADR-004 or ADR-021 (§8).
+> This document is the cost evidence for those ADRs. Its numbers are estimates; the usage ledger and the AWS bill replace them once the environment runs.
 
 ## 1. Summary
 
@@ -110,7 +110,7 @@ Each cut departs from a signed-off ADR or plan item, so each needs an owner deci
 | C4 | Defer WAF Bot Control until abuse shows up | about 10 | Still have the WAF rate rules and the per-visitor and per-tenant limits in Valkey (GOV-13) | Architecture §8.1 |
 | C5 | Valkey Serverless (100 MB minimum) instead of a node | about 7 | Survives an AZ failure. **Unverified:** whether it supports the pub/sub that realtime relies on (ADR-017). Check before adopting. | ADR-004, ADR-017 |
 
-All five together: about US$167 (quiet) to US$191 (typical), plus about US$6 less Bedrock from C3.
+All five together: about US$167 (quiet) to US$191 (typical), plus about US$6 less Bedrock from C3. **Adopted: C1–C4.** Without C5 (about US$7), the adopted launch environment is about **US$174–198 a month**.
 
 ## 7. What the launch environment gives up
 
