@@ -94,37 +94,40 @@ const PATTERNS: [ViolationKind, RegExp][] = [
     /\b(?:refunds?|refundable|deliver(?:y|ed)?\s+by|guarantee[sd]?|warrant(?:y|ies)|money[\s-]back)\b|退款|退货|保证|保修/giu,
   ],
   ['quantity', new RegExp(String.raw`\b${NUM}(?=${QUANTITY})`, 'giu')],
+  ['quantity', new RegExp(String.raw`\b${WORDS}(?=${QUANTITY})`, 'giu')],
   ['slot_syntax', /\[\[|\]\]/gu],
 ];
 
 /**
- * FEAT-022 D13: the model types no numbers at all. A digit, or a number word of ten
- * or more, that no pattern above explains and no slot rendered is a `number`
- * violation. Values come from slots; plain counts the visitor typed are the only
- * exception (D3).
+ * FEAT-022 D13 and D15: the model types no numbers at all. A digit (any script), a
+ * number word or a Chinese numeral that no pattern above explains and no slot rendered
+ * is a `number` violation. Values come from slots; a count the visitor typed before a
+ * quantity noun is the only exception (D3).
  */
 const DIGITS = /\p{Nd}+/gu;
-const BIG_WORDS = new RegExp(
-  String.raw`\b(?:(?:ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)(?:[\s-]+(?:and\s+)?${WORD})*)\b`,
+const NUMBER_WORD = new RegExp(String.raw`\b(?:${WORD}|zero|dozens?)\b`, 'giu');
+const ZH_NUMERAL = /[一二两三四五六七八九十百千万]+/gu;
+/** Idioms the D15 rule leaves alone: "this one", "one of", 一起, 唯一, 十分 ("very"). */
+const NOT_NUMBERS = new RegExp(
+  [
+    String.raw`\b(?:no|this|that|the|which|any|every|each|some)\s+one\b`,
+    String.raw`\bone\s+(?:of|another)\b`,
+    '一(?=[起下样些定直切般旦边致律同向])',
+    '(?<=[唯统同第])一',
+    '十分',
+    '万一',
+  ].join('|'),
   'giu',
 );
 
 /**
  * FEAT-022 D14: currency in any form, with or without a number ("a dollar", "a
- * fiver"); any number word in a segment that talks about price ("three each"); number
- * words strung together ("nine point nine"); Chinese numerals of more than one
- * character or of ten and above (十分, "very", excepted).
+ * fiver").
  */
 const CURRENCY_ANY = new RegExp(
-  String.raw`S\$|US\$|[$€£¥₹]|\b(?:sgd|usd|myr|eur|gbp|aud|rmb|cny)\b|\b(?:dollars?|bucks?|cents?|ringgit|euros?|fivers?|tenners?|quid)\b|元(?!旦)|蚊`,
+  String.raw`S\$|US\$|[$€£¥₹]|\b(?:sgd|usd|myr|eur|gbp|aud|rmb|cny)\b|\b(?:dollars?|bucks?|cents?|ringgit|euros?|fivers?|tenners?|quid|dimes?|nickels?|penny|pennies)\b|元(?!旦)|蚊`,
   'giu',
 );
-const PRICE_CONTEXT =
-  /\b(?:prices?|priced|pricing|costs?|charges?|fees?|each|per|pays?|paid|worth|discount\w*)\b|价|钱|费|每/iu;
-const ANY_NUMBER_WORD = new RegExp(String.raw`\b${WORD}\b`, 'giu');
-const STRUNG_WORDS = new RegExp(String.raw`\b${WORD}(?:\s+(?:point\s+)?${WORD})+\b`, 'giu');
-const ZH_NUMERALS = /[一二两三四五六七八九十百千万]{2,}|[十百千万](?!分)/gu;
-const ZH_ANY_NUMERAL = /[一二两三四五六七八九十百千万]+/gu;
 
 /**
  * Kinds a visitor's own literal number may justify: plain quantities only (FEAT-022
@@ -166,27 +169,29 @@ export function verifySegment(
           nums.every((n) => new RegExp(`(?<![\\d.])${escape(n)}(?![\\d])`).test(visitor))
         )
           continue;
+        // A count the visitor wrote in words, repeated as written (D15).
+        if (!nums.length && new RegExp(`\\b${escape(hit)}\\b`, 'iu').test(visitor)) continue;
       }
       violations.push({ kind, text: hit });
     }
   }
+  const allowed = [...masked.matchAll(NOT_NUMBERS)].map((m): [number, number] => [
+    m.index,
+    m.index + m[0].length,
+  ]);
   const uncovered = (re: RegExp, kind: ViolationKind) => {
     for (const m of masked.matchAll(re)) {
       const [s, e] = [m.index, m.index + m[0].length];
       if (covered.some(([cs, ce]) => s < ce && e > cs)) continue;
+      if (allowed.some(([as, ae]) => s >= as && e <= ae)) continue;
       covered.push([s, e]);
       violations.push({ kind, text: m[0] });
     }
   };
   uncovered(DIGITS, 'number');
-  uncovered(BIG_WORDS, 'number');
-  uncovered(STRUNG_WORDS, 'number');
-  uncovered(ZH_NUMERALS, 'number');
   uncovered(CURRENCY_ANY, 'currency');
-  if (PRICE_CONTEXT.test(masked)) {
-    uncovered(ANY_NUMBER_WORD, 'price_number');
-    uncovered(ZH_ANY_NUMERAL, 'price_number');
-  }
+  uncovered(NUMBER_WORD, 'number');
+  uncovered(ZH_NUMERAL, 'number');
   return violations.length ? { ok: false, violations } : { ok: true };
 }
 

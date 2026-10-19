@@ -139,12 +139,16 @@ describe('verifier (AC-3; AGT-02)', () => {
 
   // D13 replaced "harmless numbers pass": the model types no numbers at all, so a
   // count the model typed is blocked; counts the visitor typed and slot values pass.
+  // D15 moved "We have three flavours" to the blocked list: no number words either.
   it('passes ordinary sentences without typed numbers', () => {
     for (const t of [
       'Hi! How can I help you today?',
-      'We have three flavours to choose from.',
+      'We have a few flavours to choose from.',
+      'This one is our bestseller, and it is one of the most popular.',
+      'No one has asked that before.',
       '十分感谢您的耐心。',
       '我们一起想办法。',
+      '这是我们唯一的门店，一般周末比较忙。',
       'Our pound cake is popular.',
       'Let me check with the team and get back to you.',
     ])
@@ -181,7 +185,30 @@ describe('verifier (AC-3; AGT-02)', () => {
     'A couple of dollars.',
     'About a fiver.',
     'It is ٥٠.',
-  ])('blocks a number the model typed (D13, D14): %j', (text) => {
+    // Acceptance re-verification 3: R8 and DD4 (design D15).
+    'Only three.',
+    'Just nine.',
+    'It goes for nine.',
+    'Five% off today.',
+    'It is five-five.',
+    'It is five-oh.',
+    'Three only.',
+    'It is nine.',
+    '只要三。',
+    'Save five today.',
+    'Three apiece.',
+    'At three, it is a steal.',
+    'Nine plus GST.',
+    '九而已。',
+    '三。',
+    'Five off.',
+    'It is cheaper by five.',
+    'Only one.',
+    'It is a dozen.',
+    'We have three flavours.',
+    '一个五十。',
+    'A dime each.',
+  ])('blocks a number the model typed (D13, D14, D15): %j', (text) => {
     expect(verifySegment(text, [], []).ok).toBe(false);
   });
 
@@ -195,6 +222,18 @@ describe('verifier (AC-3; AGT-02)', () => {
       verifySegment('Yes, it is enough for 8 people.', [], ['is it enough for 8 people?']),
     ).toEqual({ ok: true });
     expect(verifySegment('Yes, 8 is fine.', [], ['is 8 ok?']).ok).toBe(false);
+    // D15: the same holds for a count the visitor wrote in words.
+    expect(
+      verifySegment('Yes, it is enough for three people.', [], ['enough for three people?']),
+    ).toEqual({ ok: true });
+    expect(verifySegment('Yes, it is enough for three people.', [], ['enough for us?']).ok).toBe(
+      false,
+    );
+  });
+
+  it('blocks a slot price followed by a number word (DD4)', () => {
+    const { verify } = renderAndVerify(`It is [[f:${ref(FUDGE.id)}.price]], or three for members.`);
+    expect(verify.ok).toBe(false);
   });
 
   it('allows a plain quantity the visitor typed, never a currency amount (D3)', () => {
