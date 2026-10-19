@@ -20,11 +20,18 @@ import {
   toMessage,
   toSummary,
 } from '@kaki/inbox';
+import {
+  EmbeddingUnavailableError,
+  FactNotFoundError,
+  InvalidStateError,
+  VersionConflictError,
+} from '@kaki/kb';
 import { channels, signToken, TokenError, verifyToken } from '@kaki/platform';
 import { resolveWidgetKey } from '@kaki/tenancy';
 import { randomUUID } from 'node:crypto';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { ZodError } from 'zod';
+import { FactNotFound, ForbiddenError, registerFactRoutes } from './facts.js';
 import { createServer, type Deps } from './server.js';
 
 export type { App, Deps } from './server.js';
@@ -47,10 +54,26 @@ export async function buildApp(deps: Deps) {
   app.setErrorHandler((err, req, reply) => {
     if (err instanceof ZodError)
       return reply.code(400).send({ error: 'bad_request', message: 'Invalid request' });
-    if (err instanceof NotFoundError)
+    if (
+      err instanceof NotFoundError ||
+      err instanceof FactNotFoundError ||
+      err instanceof FactNotFound
+    )
       return reply.code(404).send({ error: 'not_found', message: 'Not found' });
     if (err instanceof TokenError)
       return reply.code(401).send({ error: 'unauthorized', message: 'Sign in again' });
+    if (err instanceof ForbiddenError)
+      return reply.code(403).send({ error: 'forbidden', message: 'Not allowed' });
+    if (err instanceof VersionConflictError)
+      return reply
+        .code(409)
+        .send({ error: 'version_conflict', message: 'This fact was changed by someone else' });
+    if (err instanceof InvalidStateError)
+      return reply.code(409).send({ error: 'invalid_state', message: err.message });
+    if (err instanceof EmbeddingUnavailableError)
+      return reply
+        .code(503)
+        .send({ error: 'unavailable', message: 'Saving is unavailable; try again shortly' });
     req.log.error({ err }, 'unhandled error');
     return reply.code(500).send({ error: 'internal', message: 'Something went wrong' });
   });
@@ -207,6 +230,8 @@ export async function buildApp(deps: Deps) {
     );
     return ConversationList.parse({ conversations });
   });
+
+  registerFactRoutes(app, deps, sessionFrom);
 
   // Dev-only sign-in. `process.env.KAKI_BUILD` is replaced with "production" by the
   // bundler, which makes this branch dead code and drops the module (plan §2).

@@ -1,4 +1,5 @@
 import { createZoneDb } from '@kaki/db';
+import { gatewayFromConfig } from '@kaki/llm-gateway';
 import { createLogger, createPublisher, startTelemetry } from '@kaki/platform';
 import { buildApp } from './app.js';
 import { loadApiConfig } from './config.js';
@@ -13,6 +14,10 @@ const deps = {
   dashboardDb: createZoneDb('dashboard', config.DASHBOARD_DATABASE_URL),
   visitorDb: createZoneDb('visitor', config.VISITOR_DATABASE_URL),
   publisher: createPublisher(config.VALKEY_URL),
+  llm: gatewayFromConfig({
+    provider: config.LLM_PROVIDER,
+    anthropicApiKey: config.ANTHROPIC_API_KEY,
+  }),
 };
 const app = await buildApp(deps);
 await app.listen({ port: config.PORT, host: config.HOST });

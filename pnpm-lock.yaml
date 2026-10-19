@@ -99,6 +99,12 @@ importers:
       '@kaki/inbox':
         specifier: workspace:*
         version: link:../../packages/inbox
+      '@kaki/kb':
+        specifier: workspace:*
+        version: link:../../packages/kb
+      '@kaki/llm-gateway':
+        specifier: workspace:*
+        version: link:../../packages/llm-gateway
       '@kaki/platform':
         specifier: workspace:*
         version: link:../../packages/platform
@@ -115,9 +121,15 @@ importers:
       '@types/node':
         specifier: 22.20.5
         version: 22.20.5
+      '@types/pg':
+        specifier: 8.23.1
+        version: 8.23.1
       esbuild:
         specifier: 0.28.2
         version: 0.28.2
+      pg:
+        specifier: 8.23.1
+        version: 8.23.1
       tsx:
         specifier: 4.23.15
         version: 4.23.15
