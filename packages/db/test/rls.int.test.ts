@@ -166,3 +166,192 @@ describe('cross-tenant writes', () => {
     expect(none).toEqual([]);
   });
 });
+
+// ---- FEAT-022: facts, chunks and the visitor views (ADR-009, ADR-010; AC-6) ----------
+
+const VEC = `[${Array.from({ length: 1024 }, (_, i) => (i === 0 ? 1 : 0)).join(',')}]`;
+
+/** One fact per lifecycle case for each tenant, with a chunk each. Returns name → id. */
+async function seedFacts(tenantId: string) {
+  const cases: [string, string, string | null, string | null][] = [
+    // name, status, gst_treatment, valid_until
+    ['approved', 'approved', 'inclusive', null],
+    ['needs_review', 'needs_review', 'inclusive', null],
+    ['rejected', 'rejected', 'inclusive', null],
+    ['conflicted', 'conflicted', 'inclusive', null],
+    ['disabled', 'disabled', 'inclusive', null],
+    ['expired', 'approved', 'inclusive', '2020-01-01T00:00:00Z'],
+    ['gst_unknown', 'approved', 'unknown', null],
+  ];
+  const ids: Record<string, string> = {};
+  for (const [name, status, gst, validUntil] of cases) {
+    const { rows } = await owner.query(
+      `insert into facts (tenant_id, type, status, value, gst_treatment, valid_until)
+       values ($1, 'product', $2, $3, $4, $5) returning id`,
+      [
+        tenantId,
+        status,
+        { name: `${name} of ${tenantId}`, priceCents: 5500, currency: 'SGD' },
+        gst,
+        validUntil,
+      ],
+    );
+    ids[name] = rows[0].id;
+    await owner.query(
+      `insert into fact_versions (tenant_id, fact_id, version, status, value, gst_treatment)
+       select tenant_id, id, version, status, value, gst_treatment from facts where tenant_id = $1 and id = $2`,
+      [tenantId, rows[0].id],
+    );
+    await owner.query(
+      `insert into kb_chunks (tenant_id, fact_id, fact_version, content, embedding) values ($1, $2, 1, $3, $4)`,
+      [tenantId, rows[0].id, name, VEC],
+    );
+  }
+  return ids;
+}
+
+describe('facts and the visitor views', () => {
+  let factsA: Record<string, string>;
+  let factsB: Record<string, string>;
+  beforeAll(async () => {
+    factsA = await seedFacts(TENANT_A);
+    factsB = await seedFacts(TENANT_B);
+  });
+
+  it.each(['facts', 'fact_versions', 'kb_chunks', 'business_profiles'])(
+    'the visitor role cannot read the base table %s',
+    async (table) => {
+      await expect(
+        asRole('app_agent_visitor', TENANT_A, (c) => c.query(`select * from ${table}`)),
+      ).rejects.toThrow(/permission denied/);
+    },
+  );
+
+  it('visitor_facts holds only approved, enabled, unexpired, quotable facts of the tenant', async () => {
+    const rows = await asRole(
+      'app_agent_visitor',
+      TENANT_A,
+      async (c) => (await c.query(`select tenant_id, id from visitor_facts`)).rows,
+    );
+    expect(rows).toEqual([{ tenant_id: TENANT_A, id: factsA.approved }]);
+  });
+
+  it('GST-unknown prices are hidden only at a GST-registered tenant (KB-15)', async () => {
+    // Tenant B (second tenant) is not GST-registered, so its GST-unknown price is usable.
+    const rows = await asRole(
+      'app_agent_visitor',
+      TENANT_B,
+      async (c) => (await c.query(`select id from visitor_facts order by id`)).rows,
+    );
+    expect(rows.map((r) => r.id).sort()).toEqual([factsB.approved, factsB.gst_unknown].sort());
+  });
+
+  it("tenant B's context never sees tenant A's facts or chunks, even when asked by ID", async () => {
+    const facts = await asRole(
+      'app_agent_visitor',
+      TENANT_B,
+      async (c) =>
+        (
+          await c.query(`select id from visitor_facts where tenant_id = $1 or id = $2`, [
+            TENANT_A,
+            factsA.approved,
+          ])
+        ).rows,
+    );
+    expect(facts).toEqual([]);
+    const chunks = await asRole(
+      'app_agent_visitor',
+      TENANT_B,
+      async (c) =>
+        (await c.query(`select fact_id from visitor_chunks where tenant_id = $1`, [TENANT_A])).rows,
+    );
+    expect(chunks).toEqual([]);
+  });
+
+  it('visitor_chunks returns chunks of visible facts only, and only at their current version', async () => {
+    const rows = await asRole(
+      'app_agent_visitor',
+      TENANT_A,
+      async (c) =>
+        (
+          await c.query(`select fact_id from visitor_chunks order by embedding <=> $1 limit 10`, [
+            VEC,
+          ])
+        ).rows,
+    );
+    expect(rows).toEqual([{ fact_id: factsA.approved }]);
+    // A newer fact version makes the old chunk unsearchable until it is re-embedded.
+    await owner.query(`update facts set version = 2 where tenant_id = $1 and id = $2`, [
+      TENANT_A,
+      factsA.approved,
+    ]);
+    const stale = await asRole(
+      'app_agent_visitor',
+      TENANT_A,
+      async (c) => (await c.query(`select fact_id from visitor_chunks`)).rows,
+    );
+    expect(stale).toEqual([]);
+    await owner.query(`update facts set version = 1 where tenant_id = $1 and id = $2`, [
+      TENANT_A,
+      factsA.approved,
+    ]);
+  });
+
+  it('the views return nothing without a tenant context (fail closed)', async () => {
+    const rows = await asRole(
+      'app_agent_visitor',
+      null,
+      async (c) =>
+        (await c.query(`select id from visitor_facts union all select id from visitor_chunks`))
+          .rows,
+    );
+    expect(rows).toEqual([]);
+  });
+
+  it('the dashboard role reads and writes only its own tenant facts', async () => {
+    const rows = await asRole(
+      'app_dashboard',
+      TENANT_B,
+      async (c) => (await c.query(`select id from facts where tenant_id = $1`, [TENANT_A])).rows,
+    );
+    expect(rows).toEqual([]);
+    await expect(
+      asRole('app_dashboard', TENANT_B, (c) =>
+        c.query(
+          `insert into facts (tenant_id, type, status, value) values ($1, 'faq', 'approved', '{}')`,
+          [TENANT_A],
+        ),
+      ),
+    ).rejects.toThrow(/row-level security/);
+    const updated = await asRole('app_dashboard', TENANT_B, async (c) => {
+      const r = await c.query(`update facts set status = 'disabled' where tenant_id = $1`, [
+        TENANT_A,
+      ]);
+      return r.rowCount;
+    });
+    expect(updated).toBe(0);
+  });
+
+  it('fact versions are append-only for the dashboard role', async () => {
+    await expect(
+      asRole('app_dashboard', TENANT_A, (c) =>
+        c.query(`update fact_versions set status = 'approved'`),
+      ),
+    ).rejects.toThrow(/permission denied/);
+  });
+
+  it('visitor_tenant_state returns the current tenant only, and nothing without context', async () => {
+    const a = await asRole(
+      'app_agent_visitor',
+      TENANT_A,
+      async (c) => (await c.query(`select * from visitor_tenant_state()`)).rows,
+    );
+    expect(a).toEqual([{ ai_paused: false, business_name: 'Kaki Bakery', gst_registered: true }]);
+    const none = await asRole(
+      'app_agent_visitor',
+      null,
+      async (c) => (await c.query(`select * from visitor_tenant_state()`)).rows,
+    );
+    expect(none).toEqual([]);
+  });
+});
