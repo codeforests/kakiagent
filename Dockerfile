@@ -23,6 +23,15 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
 FROM ${NODE_IMAGE} AS runtime
 ARG ROLE
 ENV NODE_ENV=production
+# Take Debian security fixes newer than the base image, and drop the package
+# managers bundled with Node: the runtime never installs anything, and their
+# own dependencies carry CVEs the image scan would report.
+RUN apt-get update --error-on=any \
+    && apt-get upgrade -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+       /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
+       /opt/yarn-* /usr/local/bin/yarn /usr/local/bin/yarnpkg
 WORKDIR /app
 COPY --from=build --chown=node:node /out/package.json ./package.json
 COPY --from=build --chown=node:node /out/node_modules ./node_modules
