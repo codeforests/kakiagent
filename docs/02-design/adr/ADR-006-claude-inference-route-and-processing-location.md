@@ -1,6 +1,6 @@
 # ADR-006: Claude inference route and processing location (settles D5)
 
-**Status:** Proposed (awaiting product-owner sign-off; see sign-off question Q1)
+**Status:** Accepted — Q1 decided by the product owner on 2026-10-19 (Bedrock Australia, no automatic Global failover)
 **Date:** 2026-10-19
 **Requirements addressed:** D5, C2, C4, NFR-07, GOV-07, GOV-11, NFR-04, NFR-01, NFR-17, AGT-01, AGT-02
 
@@ -21,9 +21,10 @@ No route processes Claude Sonnet 5.5 or Haiku 5.5 in Singapore. The only route t
 2. **Bedrock data retention mode is set to `none`** for our accounts in every Region the profile can route to, and **Bedrock model-invocation logging stays off**. Our own logs of prompts and replies live only in ap-southeast-1 (and are PII-masked, ADR-015).
 3. **Nothing else leaves Singapore.** Embeddings (ADR-019) run in-region in ap-southeast-1. Uploaded files and transcripts are never sent to Bedrock as stored objects; only the text needed for one call is sent in the request.
 4. **Model IDs and the endpoint are configuration**, so moving to an in-region Singapore endpoint, if AWS adds one, is a configuration change with no code change. A quarterly check of the Bedrock model cards is added to the operations runbook.
+4a. **Development** may use an Anthropic API key (pay-as-you-go, not a consumer subscription) through the same `llm-gateway` interface, with test data only. Real visitor or tenant data goes only through the production route above.
 5. **Failure handling:** calls have a 2 s connect / 20 s total timeout with one retry on a fresh request. If AU inference is unavailable, the visitor gets the NFR-04 fallback ("the team will get back to you" plus lead capture) and the turn is queued for a retry (NFR-17). **By default there is no automatic failover to the Global profile**, because that would send data to Regions outside APAC. The owner may approve a Global failover as a declared, disabled-by-default switch (sign-off Q1).
 6. **GOV-07/GOV-11 declaration:** the data-flow PDF lists "Model inference: Amazon Web Services (Amazon Bedrock), Sydney and Melbourne, Australia; transient processing, no retention; purpose: generate replies and extract facts; safeguard: AWS DPA / service terms." The model provider (Anthropic) does not receive the data on this route.
-7. Use the Bedrock **runtime** endpoint with the Anthropic Messages request body, through the official Anthropic TypeScript Bedrock client (the exact client class is chosen against the SDK docs in detailed design, since AWS's model cards show the Mantle endpoint is not offered for these models outside GovCloud).
+7. Use the Bedrock **runtime** endpoint with the Anthropic Messages request body, implemented as the Bedrock Claude provider of the `llm-gateway` component (ADR-007 decision 5), using the official Anthropic TypeScript Bedrock client (the exact client class is chosen against the SDK docs in detailed design, since AWS's model cards show the Mantle endpoint is not offered for these models outside GovCloud).
 
 **Options considered**
 - **Bedrock `au.` profile (chosen)** — meets D5's "APAC if available"; one cloud vendor and one DPA; AWS's zero-operator-access model; retention configurable to `none`. Cons: about 10% more per token than Global; Bedrock can lag the first-party API for beta features (some are "unconfirmed" on Bedrock); requests cross from Singapore to Sydney (roughly 90–100 ms extra round trip, acceptable within NFR-01's 3 s).

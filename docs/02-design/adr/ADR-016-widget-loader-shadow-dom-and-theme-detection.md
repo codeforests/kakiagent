@@ -1,6 +1,6 @@
 # ADR-016: Widget — small loader, closed Shadow DOM, runtime theme detection
 
-**Status:** Proposed (awaiting product-owner sign-off; see sign-off question Q4)
+**Status:** Accepted — Q4 (Shadow DOM) decided by the product owner on 2026-10-19
 **Date:** 2026-10-19
 **Requirements addressed:** CHN-14, CHN-02, CHN-03, CHN-11, CHN-13, NFR-02, NFR-09, NFR-14, ONB-07, ONB-10, AGT-05, AGT-10, GOV-13, GOV-14, UC-05
 

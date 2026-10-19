@@ -1,6 +1,6 @@
 # ADR-014: Hash-chained, PII-free audit log with a separate deletable PII store
 
-**Status:** Proposed (awaiting product-owner sign-off; see open issue OI-5 on retention after tenant deletion)
+**Status:** Accepted — Q5 (PII-free chain kept 12 months after tenant deletion) decided by the product owner on 2026-10-19
 **Date:** 2026-10-19
 **Requirements addressed:** GOV-01, GOV-02, GOV-05, GOV-06, D7, AUTH-07, AGT-05, AGT-06, KB-16, APR-02, DSH-06, NFR-06, UC-32, UC-30, J6
 

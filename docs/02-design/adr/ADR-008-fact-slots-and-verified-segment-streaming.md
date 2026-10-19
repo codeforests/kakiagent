@@ -1,6 +1,6 @@
 # ADR-008: Fact slots and verified-segment streaming (AGT-02 with streaming)
 
-**Status:** Proposed (awaiting product-owner sign-off)
+**Status:** Accepted — Q6 and Q7 decided by the product owner on 2026-10-19
 **Date:** 2026-10-19
 **Requirements addressed:** AGT-02, AGT-01, AGT-11, CHN-02, KB-06, KB-15, KB-16, INB-03, APR-01, APR-02, NFR-01, NFR-10, GOV-01, UC-20 (flows 6, 6a, 6b)
 

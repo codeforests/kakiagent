@@ -1,13 +1,25 @@
 # Architecture: KakiAgent MVP
 
-> Status: **Draft for product-owner sign-off** · Last updated: 2026-10-19 · Author: Claude (for the product owner)
+> Status: **Sign-off questions answered (2026-10-19); awaiting PR approval** · Last updated: 2026-10-19 · Author: Claude (for the product owner)
 > Inputs (signed off, read-only): [SRS v0.4](../01-requirements/SRS.md), [use cases](../01-requirements/use-cases.md), [RTM](../01-requirements/rtm.md) · Decisions: [ADR-001 … ADR-022](adr/)
 
 ---
 
 ## Questions for product-owner sign-off
 
-These are the choices that need your decision. Each has a recommendation; the rest of the document assumes the recommendation unless you say otherwise.
+**Answered by the product owner on 2026-10-19.** The document below reflects these decisions.
+
+| # | Decision |
+|---|---|
+| Q1 | **Bedrock Australia (`au.` profile)**, retention "none", no automatic failover to Global. Development may use an Anthropic API key with test data only; real visitor data goes only through the production route. |
+| Q2 | **Haiku 5.5 by default, Sonnet 5.5 for complex turns**, with the cost governor. Added design consideration: **the model router is a separate component, so another provider can be added later without redesign** (ADR-007 decision 5, §5.2 `llm-gateway`). |
+| Q3 | AWS-only sub-processor list with self-hosted Tesseract OCR. Chinese OCR is best-effort (most SME documents are English); KB-02 is unchanged. |
+| Q4 | Shadow DOM in the host page. |
+| Q5 | Keep the PII-free audit chain for 12 months after tenant deletion, then delete it. |
+| Q6 | No stock counts unless the owner turns on "quote stock" (shown "as of <date>"). |
+| Q7 | Sentence-at-a-time verified streaming; NFR-01 "first token" = first verified sentence. |
+
+The original questions, with the alternatives that were weighed, follow for the record.
 
 | # | Question | Recommendation | Alternatives and trade-off | ADR |
 |---|---|---|---|---|
@@ -105,7 +117,7 @@ graph TB
 | 3 | Aurora PostgreSQL + pgvector as the only system of record; Valkey for ephemeral data only | [ADR-004](adr/ADR-004-aurora-postgres-pgvector-system-of-record.md) |
 | 4 | Tenant isolation by forced RLS, per-trust-zone DB roles, tenant-filtered vector search | [ADR-005](adr/ADR-005-tenant-isolation-rls-and-filtered-vector-search.md) |
 | 5 | Claude via Bedrock's Australia profile; nothing stored outside Singapore | [ADR-006](adr/ADR-006-claude-inference-route-and-processing-location.md) |
-| 6 | Haiku triage → Haiku/Sonnet reply, cache-friendly prompts, per-tenant cost governor | [ADR-007](adr/ADR-007-model-routing-prompt-caching-and-cost.md) |
+| 6 | Haiku triage → Haiku/Sonnet reply, cache-friendly prompts, per-tenant cost governor; the router is a separate, provider-neutral `llm-gateway` component | [ADR-007](adr/ADR-007-model-routing-prompt-caching-and-cost.md) |
 | 7 | Protected values rendered from KB slots; deterministic verifier; release a sentence at a time | [ADR-008](adr/ADR-008-fact-slots-and-verified-segment-streaming.md) |
 | 8 | Visitor scope vs coaching scope fixed by entry point and enforced by types and DB grants | [ADR-009](adr/ADR-009-agent-scopes-visitor-vs-coaching.md) |
 | 9 | Fact status machine + separate correction queue; one view decides visitor visibility | [ADR-010](adr/ADR-010-fact-lifecycle-review-gate-and-correction-queue.md) |
@@ -216,13 +228,14 @@ graph TB
 | `identity` | users, memberships, sessions, MFA, invites, terms acceptance, operators, support grants | `authenticate`, `requireReauth`, `can(role, capability)` |
 | `tenancy` | tenants, business profile, plans/limits (stub), go-live readiness | `readiness(tenant)`, `limits(tenant)` |
 | `kb` | sources, facts, versions, chunks, conflicts, corrections, replay | `visitorFacts.search`, `approve`, `approveAll(previewHash)`, `proposeCorrection` |
-| `agent` | prompts, router, retrieval orchestration, slot renderer, verifier, tools, scopes | `runVisitorTurn`, `runCoachingTurn`, `suggestReply` |
+| `agent` | prompts, retrieval orchestration, slot renderer, verifier, tools, scopes (calls models only through `llm-gateway`) | `runVisitorTurn`, `runCoachingTurn`, `suggestReply` |
 | `channels` | adapters, connections, credentials, health, contact identity | `ChannelAdapter`, `resolveContact` |
 | `inbox` | conversations, messages, state machine, takeover, notes, tags, search | `transition`, `takeOver`, `search` |
 | `leads` | leads, consents, scoring, exports, webhooks | `captureLead`, `withdrawConsent` |
 | `approvals` | boundary rules, approvals, links, SLA | `draft`, `decide`, `expire` |
 | `governance` | audit chain, PII store, DSR, retention, kill switch, incidents | `audit.append`, `dsr.*`, `killSwitch` |
 | `analytics` | dashboards, usage ledger, EIS report | `usage.record`, `metrics.*` |
+| `llm-gateway` | `ModelRouter` (logical model per request, tenant thresholds, cost governor), `ModelProvider` interface + Bedrock Claude provider, model registry, usage capture. A new provider = one provider module + registry entries; no other module changes (ADR-007 decision 5) | `route(purpose, ctx)`, `generate`, `stream` |
 | `platform` (shared) | outbox, queues, timers, pii-mask, telemetry, config | — |
 
 ### 5.3 Logical domain model
@@ -601,7 +614,7 @@ Every NFR in the SRS is Must priority (RTM). Each maps to the design element tha
 | # | Risk / debt | Mitigation | Revisit when |
 |---|---|---|---|
 | R1 | **Bedrock prices for the `au.` profile not confirmed** (the pricing page did not render); the cost model assumes list + 10% | Confirm in the AWS Pricing Calculator during planning; the usage ledger reports real cost from day one | Before pilot |
-| R2 | **Bedrock feature lag** vs the first-party API (some beta features are "unconfirmed" on Bedrock) | The design relies only on GA features (Messages API, streaming, tools, prompt caching, structured outputs); the Anthropic API stays a documented fallback | Any feature we need is missing |
+| R2 | **Bedrock feature lag** vs the first-party API (some beta features are "unconfirmed" on Bedrock) | The design relies only on GA features (Messages API, streaming, tools, prompt caching, structured outputs); the Anthropic API stays a documented fallback, swappable as another `llm-gateway` provider | Any feature we need is missing |
 | R3 | **Cost depends on conversation length and Sonnet share**; long catering conversations exceed the target | Cost governor, per-tenant routing thresholds, pilot measurement | First 4 weeks of pilot |
 | R4 | **Slot discipline**: the model may still write literal prices | The verifier blocks them; ≥ 50 price eval cases; regeneration then escalation | Eval shows > 5% regeneration rate |
 | R5 | **Chinese retrieval with Cohere Embed Multilingual v3** not proven for Singlish/ZH mixes | A dedicated retrieval eval subset; fallback to Cohere v4 via Global (declared) if needed | Eval before pilot |
@@ -627,6 +640,8 @@ These are places where a requirement looks ambiguous, conflicting or hard to mee
 | OI-6 | D6 (§7.2), NFR-13 | The D6 decision says ≤ S$0.03, but its "why" column still discusses an S$0.02 target. Editorial only. | S$0.03 is the target. |
 | OI-7 | D5, C4, GOV-11 | D5's preferred "Singapore or APAC" processing is available only as Australia for the chosen models. C4 and GOV-11 already allow this, but the DPA wording and sales material should say "Australia" explicitly. | ADR-006 declares Sydney/Melbourne. |
 | OI-8 | GOV-01 | "Summary of reasoning" could be read as the model's internal reasoning, which is not returned by current Claude models and could contain personal data. | The audit stores a structured, PII-masked rationale produced with the reply (intent, fact IDs, rule applied). |
+
+**Status after sign-off (2026-10-19):** OI-1, OI-2 and OI-5 are settled for the design by the product owner's answers to Q7, Q6 and Q5. The SRS wording is unchanged; aligning it is for the requirements phase if wanted. The other open issues remain open.
 
 ## 13. Glossary
 
