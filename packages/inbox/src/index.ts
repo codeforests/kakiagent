@@ -1,5 +1,5 @@
 import type { ConversationSummary, Message } from '@kaki/contracts';
-import { and, asc, desc, eq, gt, schema, sql, type Tx } from '@kaki/db';
+import { and, asc, desc, eq, gt, lte, schema, sql, type Tx } from '@kaki/db';
 import { audit } from '@kaki/governance';
 import { piiMask } from '@kaki/platform';
 import { enqueue } from '@kaki/platform/outbox';
@@ -23,6 +23,8 @@ export function toMessage(row: MessageRow): Message {
     seq: row.seq,
     author: row.author,
     body: row.body,
+    inReplyTo: row.inReplyTo,
+    disclosure: row.disclosure,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -165,22 +167,35 @@ export async function getMessage(
 }
 
 /**
- * Stores the agent's reply to a visitor message. Returns null when a reply already
- * exists (the unique `in_reply_to` index makes turn processing idempotent under
- * SQS at-least-once delivery).
+ * Stores the reply to a visitor message: the agent's answer, or a system text such as
+ * the fallback (NFR-04). Returns null when a reply already exists (the unique
+ * `in_reply_to` index makes turn processing idempotent under SQS at-least-once
+ * delivery).
  */
 export async function appendAgentReply(
   tx: Tx,
-  input: { tenantId: string; conversationId: string; inReplyTo: string; text: string },
+  input: {
+    tenantId: string;
+    conversationId: string;
+    inReplyTo: string;
+    text: string;
+    author?: 'agent' | 'system';
+    /** The facts the reply's slots rendered (AGT-01). */
+    factIds?: string[];
+    /** Set on the first agent or system message of the conversation (AGT-11). */
+    disclosure?: string | null;
+  },
 ): Promise<{ message: MessageRow; conversation: ConversationRow } | null> {
   const [inserted] = await tx
     .insert(schema.messages)
     .values({
       tenantId: input.tenantId,
       conversationId: input.conversationId,
-      author: 'agent',
+      author: input.author ?? 'agent',
       body: input.text,
       inReplyTo: input.inReplyTo,
+      factIds: input.factIds ?? [],
+      disclosure: input.disclosure ?? null,
     })
     .onConflictDoNothing()
     .returning();
@@ -202,6 +217,69 @@ export async function appendAgentReply(
     subjectId: inserted.id,
   });
   return { message: inserted, conversation: conversation! };
+}
+
+export async function getConversation(
+  tx: Tx,
+  tenantId: string,
+  conversationId: string,
+): Promise<ConversationRow | null> {
+  const [row] = await tx
+    .select()
+    .from(schema.conversations)
+    .where(
+      and(eq(schema.conversations.tenantId, tenantId), eq(schema.conversations.id, conversationId)),
+    );
+  return row ?? null;
+}
+
+/** True when the visitor message already has its reply (the turn is done). */
+export async function replyExists(tx: Tx, tenantId: string, messageId: string): Promise<boolean> {
+  const [row] = await tx
+    .select({ id: schema.messages.id })
+    .from(schema.messages)
+    .where(and(eq(schema.messages.tenantId, tenantId), eq(schema.messages.inReplyTo, messageId)));
+  return Boolean(row);
+}
+
+/** True when the conversation already has an agent or system message (so it was disclosed). */
+export async function hasAssistantMessage(
+  tx: Tx,
+  tenantId: string,
+  conversationId: string,
+): Promise<boolean> {
+  const [row] = await tx
+    .select({ id: schema.messages.id })
+    .from(schema.messages)
+    .where(
+      and(
+        eq(schema.messages.tenantId, tenantId),
+        eq(schema.messages.conversationId, conversationId),
+        sql`${schema.messages.author} in ('agent', 'system')`,
+      ),
+    )
+    .limit(1);
+  return Boolean(row);
+}
+
+/** The last `limit` messages up to and including `upToSeq`, oldest first (the prompt history). */
+export async function recentMessages(
+  tx: Tx,
+  input: { tenantId: string; conversationId: string; upToSeq: number; limit: number },
+): Promise<MessageRow[]> {
+  const rows = await tx
+    .select()
+    .from(schema.messages)
+    .where(
+      and(
+        eq(schema.messages.tenantId, input.tenantId),
+        eq(schema.messages.conversationId, input.conversationId),
+        lte(schema.messages.seq, input.upToSeq),
+      ),
+    )
+    .orderBy(desc(schema.messages.seq))
+    .limit(input.limit);
+  return rows.reverse();
 }
 
 /** Messages after `afterSeq`, oldest first: the resume path for SSE and WebSocket (ADR-017). */

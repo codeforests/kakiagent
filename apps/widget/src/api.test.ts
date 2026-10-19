@@ -8,6 +8,8 @@ const m = (id: string, seq: number) => ({
   conversationId: '00000000-0000-4000-8000-000000000000',
   author: 'agent' as const,
   body: id,
+  inReplyTo: null,
+  disclosure: null,
   createdAt: new Date().toISOString(),
 });
 

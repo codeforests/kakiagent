@@ -1,4 +1,6 @@
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
+import { randomUUID } from 'node:crypto';
+import pg from 'pg';
 import { createZoneDb, type TrustZone, type ZoneDb } from './client.js';
 import { devTenants, LOGIN_ROLES, setupDatabase, type LoginRole } from './setup.js';
 
@@ -9,7 +11,8 @@ export const TENANT_A = devTenants([])[0]!.id;
 export const TENANT_B = devTenants([])[1]!.id;
 
 export interface TestDatabase {
-  container: StartedPostgreSqlContainer;
+  /** Null when `KAKI_TEST_DATABASE_URL` points the suite at an existing server. */
+  container: StartedPostgreSqlContainer | null;
   ownerUrl: string;
   zone(zone: TrustZone): ZoneDb;
   urlFor(role: LoginRole): string;
@@ -22,14 +25,42 @@ const ZONE_ROLE: Record<TrustZone, LoginRole> = {
   outbox: 'app_outbox',
 };
 
+/**
+ * Without Docker, `KAKI_TEST_DATABASE_URL` (a superuser URL on a Postgres 16 server with
+ * pgvector) runs each suite in a fresh database on that server instead of a container.
+ * Login roles are cluster-wide, so run packages one at a time (`--concurrency=1`).
+ */
+async function startExternal(serverUrl: string) {
+  const name = `kaki_test_${randomUUID().replaceAll('-', '').slice(0, 12)}`;
+  const admin = new pg.Client({ connectionString: serverUrl });
+  await admin.connect();
+  await admin.query(`create database ${name}`);
+  await admin.end();
+  const u = new URL(serverUrl);
+  u.pathname = `/${name}`;
+  return {
+    ownerUrl: u.toString(),
+    async stop() {
+      const c = new pg.Client({ connectionString: serverUrl });
+      await c.connect();
+      await c.query(`drop database if exists ${name} with (force)`);
+      await c.end();
+    },
+  };
+}
+
 /** Starts Postgres in a container and runs the real setup: roles, migrations, two seeded tenants. */
 export async function startTestDatabase(): Promise<TestDatabase> {
-  const container = await new PostgreSqlContainer(POSTGRES_IMAGE)
-    .withDatabase('kakiagent')
-    .withUsername('kaki_owner')
-    .withPassword('owner-test-password')
-    .start();
-  const ownerUrl = container.getConnectionUri();
+  const external = process.env.KAKI_TEST_DATABASE_URL;
+  const container = external
+    ? null
+    : await new PostgreSqlContainer(POSTGRES_IMAGE)
+        .withDatabase('kakiagent')
+        .withUsername('kaki_owner')
+        .withPassword('owner-test-password')
+        .start();
+  const ext = external ? await startExternal(external) : null;
+  const ownerUrl = container ? container.getConnectionUri() : ext!.ownerUrl;
   const passwords = Object.fromEntries(LOGIN_ROLES.map((r) => [r, `${r}-test-password`])) as Record<
     LoginRole,
     string
@@ -57,7 +88,8 @@ export async function startTestDatabase(): Promise<TestDatabase> {
     },
     async stop() {
       await Promise.all([...zones.values()].map((z) => z.pool.end()));
-      await container.stop();
+      if (container) await container.stop();
+      else await ext!.stop();
     },
   };
 }

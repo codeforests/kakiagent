@@ -4,11 +4,29 @@
  * per-user grants (D3 approval rights).
  */
 export type Role = 'owner' | 'admin' | 'agent';
-export type Capability = 'inbox.read' | 'inbox.reply' | 'settings.manage' | 'killswitch.toggle';
+export type Capability =
+  | 'inbox.read'
+  | 'inbox.reply'
+  | 'settings.manage'
+  | 'killswitch.toggle'
+  /** Create and edit facts by hand (KB-07; FEAT-022). */
+  | 'kb.manage';
 
 const POLICY: Record<Role, ReadonlySet<Capability>> = {
-  owner: new Set(['inbox.read', 'inbox.reply', 'settings.manage', 'killswitch.toggle']),
-  admin: new Set(['inbox.read', 'inbox.reply', 'settings.manage', 'killswitch.toggle']),
+  owner: new Set([
+    'inbox.read',
+    'inbox.reply',
+    'settings.manage',
+    'killswitch.toggle',
+    'kb.manage',
+  ]),
+  admin: new Set([
+    'inbox.read',
+    'inbox.reply',
+    'settings.manage',
+    'killswitch.toggle',
+    'kb.manage',
+  ]),
   agent: new Set(['inbox.read', 'inbox.reply']),
 };
 

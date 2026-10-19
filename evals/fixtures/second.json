@@ -1,0 +1,30 @@
+{
+  "$comment": "The second fixture tenant (not GST-registered). Its facts must never appear in a bakery answer.",
+  "tenantId": "22222222-2222-4222-8222-222222222222",
+  "businessName": "Second Tenant Pte Ltd",
+  "gstRegistered": false,
+  "facts": [
+    {
+      "id": "c2000001-0000-4000-8000-000000000001",
+      "type": "product",
+      "version": 1,
+      "value": {
+        "name": "Chocolate fudge cake",
+        "priceCents": 9900,
+        "currency": "SGD",
+        "unit": "1 kg"
+      },
+      "gstTreatment": "inclusive"
+    },
+    {
+      "id": "c2000002-0000-4000-8000-000000000002",
+      "type": "faq",
+      "version": 1,
+      "value": {
+        "question": "Do you deliver?",
+        "answer": "We only do self-collection from our shop."
+      },
+      "gstTreatment": null
+    }
+  ]
+}

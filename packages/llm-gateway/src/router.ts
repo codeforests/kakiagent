@@ -1,10 +1,13 @@
 import type {
+  EmbedRequest,
+  EmbedResult,
   GenerateRequest,
   GenerateResult,
   LogicalModel,
   ModelProvider,
   ModelRegistry,
   ProviderId,
+  StreamChunk,
 } from './types.js';
 
 export type Purpose = 'triage' | 'reply' | 'extract' | 'summarise' | 'judge';
@@ -30,17 +33,39 @@ export function route(purpose: Purpose, _ctx: RouteContext = {}): LogicalModel {
 
 export interface LlmGateway {
   generate(req: GenerateRequest): Promise<GenerateResult>;
+  /** Streams text deltas, then `done` (CHN-02). Callers hold text back until verified (ADR-008). */
+  stream(req: GenerateRequest): AsyncIterable<StreamChunk>;
+  embed(req: EmbedRequest): Promise<EmbedResult>;
 }
 
 /** The single entry point other modules use. No module outside llm-gateway imports a provider SDK. */
 export function createGateway(registry: ModelRegistry, providers: ModelProvider[]): LlmGateway {
   const byId = new Map<ProviderId, ModelProvider>(providers.map((p) => [p.id, p]));
+  function resolve(model: LogicalModel) {
+    const entry = registry[model];
+    const provider = byId.get(entry.provider);
+    if (!provider) throw new Error(`llm-gateway: provider ${entry.provider} is not configured`);
+    return { provider, modelId: entry.modelId };
+  }
   return {
     async generate(req) {
-      const entry = registry[req.model];
-      const provider = byId.get(entry.provider);
-      if (!provider) throw new Error(`llm-gateway: provider ${entry.provider} is not configured`);
-      return provider.generate(req, entry.modelId);
+      const { provider, modelId } = resolve(req.model);
+      return provider.generate(req, modelId);
+    },
+    async *stream(req) {
+      const { provider, modelId } = resolve(req.model);
+      if (provider.stream) {
+        yield* provider.stream(req, modelId);
+        return;
+      }
+      const result = await provider.generate(req, modelId);
+      yield { type: 'text', text: result.text };
+      yield { type: 'done', result };
+    },
+    async embed(req) {
+      const { provider, modelId } = resolve('embed');
+      if (!provider.embed) throw new Error(`llm-gateway: provider ${provider.id} cannot embed`);
+      return provider.embed(req, modelId);
     },
   };
 }

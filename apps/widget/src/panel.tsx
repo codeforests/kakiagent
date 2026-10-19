@@ -1,13 +1,22 @@
 /**
- * The lazy chat panel (ADR-016 `panel.js`, ≤ 35 KB gz): SCR-WGT-002 in its simplest
- * form. Replies arrive over SSE (ADR-017). Verified sentence-by-sentence release
- * (ADR-008), disclosure, consent and the other widget components arrive with their
+ * The lazy chat panel (ADR-016 `panel.js`, ≤ 35 KB gz): SCR-WGT-002. Replies arrive
+ * over SSE (ADR-017) one verified sentence at a time (ADR-008), then as the stored
+ * message. Consent, feedback and the other widget components arrive with their
  * features.
  */
 import type { Message } from '@kaki/contracts';
 import { render } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { createApi, mergeMessages } from './api.js';
+import { createApi } from './api.js';
+import {
+  awaitingTurn,
+  emptyChat,
+  pendingText,
+  withMessage,
+  withSegment,
+  type Chat,
+  type Segment,
+} from './chat.js';
 import { PANEL_CSS } from './panel.css.js';
 import { pickLocale, strings, type Strings } from './strings.js';
 import type { PanelContext } from './types.js';
@@ -26,6 +35,24 @@ const CLOSE_ICON = (
   </svg>
 );
 
+const INFO_ICON = (
+  <svg
+    viewBox="0 0 24 24"
+    width="12"
+    height="12"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    aria-hidden="true"
+  >
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 11v5M12 8h.01" />
+  </svg>
+);
+
+/** No reply within this long after sending: say so (ui-design SCR-WGT-002 error). */
+const SLOW_REPLY_MS = 30_000;
+
 function newId(): string {
   return typeof crypto !== 'undefined' && 'randomUUID' in crypto
     ? crypto.randomUUID()
@@ -43,7 +70,8 @@ function Panel({
 }) {
   const api = useRef(createApi(ctx.apiUrl, ctx.config.token)).current;
   const [conversationId, setConversationId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [chat, setChat] = useState<Chat>(emptyChat);
+  const [slow, setSlow] = useState(false);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState(false);
@@ -53,23 +81,38 @@ function Panel({
     if (!conversationId) return;
     const url = `${ctx.config.realtimeUrl}/widget/v1/conversations/${conversationId}/stream?token=${encodeURIComponent(ctx.config.token)}`;
     const source = new EventSource(url);
-    source.addEventListener('message', (e) => {
+    const parse = (e: Event) => {
       try {
-        const data = JSON.parse((e as MessageEvent<string>).data) as {
-          type: string;
-          message: Message;
-        };
-        if (data.type === 'message') setMessages((list) => mergeMessages(list, data.message));
+        return JSON.parse((e as MessageEvent<string>).data) as { type: string };
       } catch {
-        /* ignore malformed frames */
+        return null; // ignore malformed frames
       }
+    };
+    source.addEventListener('message', (e) => {
+      const data = parse(e) as { type: string; message: Message } | null;
+      if (data?.type === 'message') setChat((c) => withMessage(c, data.message));
+    });
+    source.addEventListener('segment', (e) => {
+      const data = parse(e) as ({ type: string } & Segment) | null;
+      if (data?.type === 'segment') setChat((c) => withSegment(c, data));
     });
     return () => source.close();
   }, [conversationId]);
 
+  const waitingFor = awaitingTurn(chat);
+  const growing = waitingFor ? pendingText(chat, waitingFor) : null;
+
+  // Typing until the first segment; the slow notice if nothing came within 30 s.
+  useEffect(() => {
+    setSlow(false);
+    if (!waitingFor || growing) return;
+    const timer = setTimeout(() => setSlow(true), SLOW_REPLY_MS);
+    return () => clearTimeout(timer);
+  }, [waitingFor, growing !== null]);
+
   useEffect(() => {
     logRef.current?.lastElementChild?.scrollIntoView({ block: 'end' });
-  }, [messages.length]);
+  }, [chat, slow]);
 
   async function submit(e: Event) {
     e.preventDefault();
@@ -81,7 +124,7 @@ function Panel({
       const id = conversationId ?? (await api.createConversation());
       if (!conversationId) setConversationId(id);
       const sent = await api.send(id, body, newId());
-      setMessages((list) => mergeMessages(list, sent));
+      setChat((c) => withMessage(c, sent));
       setText('');
     } catch {
       setError(true);
@@ -101,13 +144,35 @@ function Panel({
         </button>
       </header>
       <ol class="log" ref={logRef} aria-live="polite" aria-relevant="additions">
-        {messages.length === 0 && <li class="empty">{t.empty}</li>}
-        {messages.map((m) => (
+        {chat.messages.length === 0 && <li class="empty">{t.empty}</li>}
+        {chat.messages.map((m) => [
+          m.disclosure && (
+            <li key={`${m.id}-disclosure`} class="disc">
+              {INFO_ICON} {m.disclosure}
+            </li>
+          ),
           <li key={m.id} class={`msg ${m.author}`} data-author={m.author}>
             {m.author === 'visitor' && <span class="sr-only">{t.you}: </span>}
             {m.body}
+          </li>,
+          m.id === waitingFor && growing && (
+            <li key={`${m.id}-reply`} class="msg agent" data-author="agent" data-pending="true">
+              {growing}
+            </li>
+          ),
+        ])}
+        {waitingFor && !slow && (
+          <li class="typing" role="status" aria-label={t.typing(ctx.config.botName)}>
+            <i />
+            <i />
+            <i />
           </li>
-        ))}
+        )}
+        {waitingFor && slow && (
+          <li class="notice" role="status">
+            {t.slow}
+          </li>
+        )}
       </ol>
       {error && (
         <p class="error" role="alert">

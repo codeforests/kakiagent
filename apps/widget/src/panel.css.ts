@@ -18,6 +18,14 @@ export const PANEL_CSS = `
 .msg.visitor{align-self:flex-end;background:var(--kaki-accent);color:var(--kaki-on-accent)}
 .msg.agent,.msg.system{align-self:flex-start;background:var(--kaki-subtle);color:var(--kaki-text)}
 .msg.staff{align-self:flex-start;background:var(--kaki-info-bg);color:var(--kaki-text)}
+.disc{align-self:center;display:flex;align-items:center;gap:4px;font-size:12px;line-height:16px;color:var(--kaki-muted);text-align:center;padding:0 12px 4px}
+.disc svg{flex:none}
+.typing{align-self:flex-start;display:inline-flex;gap:4px;padding:14px 12px;background:var(--kaki-subtle);border-radius:12px}
+.typing i{width:6px;height:6px;border-radius:9999px;background:var(--kaki-muted);animation:k-pulse 1s infinite}
+.typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}
+@keyframes k-pulse{50%{opacity:.35}}
+.notice{align-self:center;font-size:12px;line-height:16px;color:var(--kaki-muted);background:var(--kaki-subtle);padding:4px 10px;border-radius:9999px;text-align:center}
+@media (prefers-reduced-motion:reduce){.typing i{animation:none}}
 .error{color:var(--kaki-text);background:var(--kaki-subtle);border-left:3px solid var(--kaki-border-strong);padding:8px 12px;font-size:14px;margin:0 16px}
 .composer{display:flex;gap:8px;padding:12px;border-top:1px solid var(--kaki-border)}
 .composer textarea{flex:1;resize:none;min-height:44px;max-height:120px;padding:10px 12px;border:1px solid var(--kaki-border-strong);

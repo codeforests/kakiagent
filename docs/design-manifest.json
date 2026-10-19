@@ -15,14 +15,26 @@
         "prototype": "02-design/anchors/scr-app-015-conversation.html"
       },
       "states": {
-        "covered": ["ai-handling", "human-mine", "human-other", "context-sheet"],
-        "gaps": ["waiting-for-approval", "closed", "flagged", "desktop two-pane and three-pane layouts"],
+        "covered": [
+          "ai-handling",
+          "human-mine",
+          "human-other",
+          "context-sheet"
+        ],
+        "gaps": [
+          "waiting-for-approval",
+          "closed",
+          "flagged",
+          "desktop two-pane and three-pane layouts"
+        ],
         "supplements": []
       },
       "contract_bindings": [],
       "conformance": {
         "result": "pass",
-        "corrections": ["composer height while holding a suggestion (amendment A2, applied to design.md §4.6)"],
+        "corrections": [
+          "composer height while holding a suggestion (amendment A2, applied to design.md §4.6)"
+        ],
         "escalations": []
       },
       "status": "designed",
@@ -38,14 +50,97 @@
         "prototype": "02-design/anchors/scr-app-019-review-facts.html"
       },
       "states": {
-        "covered": ["default", "loading", "empty", "error", "approve-all", "bulk-selection"],
+        "covered": [
+          "default",
+          "loading",
+          "empty",
+          "error",
+          "approve-all",
+          "bulk-selection"
+        ],
         "gaps": [],
         "supplements": []
       },
       "contract_bindings": [],
       "conformance": {
         "result": "pass",
-        "corrections": ["single-column queue instead of list + detail (amendment A1, applied to design.md §3)"],
+        "corrections": [
+          "single-column queue instead of list + detail (amendment A1, applied to design.md §3)"
+        ],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-10-19"
+    },
+    "SCR-APP-027": {
+      "name": "Facts",
+      "surface": "APP",
+      "feature": "FEAT-022",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-022-grounded-verified-answer/ui-design.md#scr-app-027--facts"
+      },
+      "states": {
+        "covered": [
+          "default",
+          "loading",
+          "empty",
+          "filtered-empty",
+          "error",
+          "permission"
+        ],
+        "gaps": [
+          "disable or delete from the list (FEAT-011)"
+        ],
+        "supplements": []
+      },
+      "contract_bindings": [
+        "GET /api/v1/kb/facts"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-10-19"
+    },
+    "SCR-APP-028": {
+      "name": "Fact",
+      "surface": "APP",
+      "feature": "FEAT-022",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-022-grounded-verified-answer/ui-design.md#scr-app-028--fact"
+      },
+      "states": {
+        "covered": [
+          "default",
+          "saving",
+          "saved",
+          "validation",
+          "conflict",
+          "not-editable",
+          "loading",
+          "error",
+          "not-found",
+          "unavailable"
+        ],
+        "gaps": [
+          "sources, review interval, version history with restore (FEAT-011, FEAT-017)"
+        ],
+        "supplements": []
+      },
+      "contract_bindings": [
+        "GET /api/v1/kb/facts/:id",
+        "POST /api/v1/kb/facts",
+        "PATCH /api/v1/kb/facts/:id"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [
+          "GST choice drafted as a select, changed to a radio group with help text"
+        ],
         "escalations": []
       },
       "status": "designed",
@@ -61,14 +156,57 @@
         "prototype": "02-design/anchors/scr-wgt-002-chat-panel.html"
       },
       "states": {
-        "covered": ["greeting", "replying", "consent", "human", "fallback", "host-light", "host-dark", "host-pale-brand-clamped"],
-        "gaps": ["error", "rate-limited", "after-hours", "waiting-for-approval", "attachment"],
-        "supplements": []
+        "covered": [
+          "greeting",
+          "replying",
+          "consent",
+          "human",
+          "fallback",
+          "host-light",
+          "host-dark",
+          "host-pale-brand-clamped",
+          "typing",
+          "error"
+        ],
+        "gaps": [
+          "rate-limited",
+          "after-hours",
+          "waiting-for-approval",
+          "attachment"
+        ],
+        "supplements": [
+          {
+            "state": "typing",
+            "strategy": "code-native",
+            "source": "features/FEAT-022-grounded-verified-answer/ui-design.md#typing"
+          },
+          {
+            "state": "replying",
+            "strategy": "code-native",
+            "source": "features/FEAT-022-grounded-verified-answer/ui-design.md#replying"
+          },
+          {
+            "state": "fallback",
+            "strategy": "code-native",
+            "source": "features/FEAT-022-grounded-verified-answer/ui-design.md#fallback"
+          },
+          {
+            "state": "error",
+            "strategy": "code-native",
+            "source": "features/FEAT-022-grounded-verified-answer/ui-design.md#error"
+          }
+        ]
       },
-      "contract_bindings": [],
+      "contract_bindings": [
+        "POST /widget/v1/conversations/:id/messages",
+        "SSE event: message",
+        "SSE event: segment"
+      ],
       "conformance": {
         "result": "pass",
-        "corrections": ["full --kaki-* variable set added to tokens.json widget.* (amendment A3)"],
+        "corrections": [
+          "full --kaki-* variable set added to tokens.json widget.* (amendment A3)"
+        ],
         "escalations": []
       },
       "status": "designed",
