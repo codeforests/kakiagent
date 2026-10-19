@@ -1,6 +1,7 @@
 # Acceptance Report: FEAT-022 — Grounded, verified answer from a hand-entered fact
 
-> Verdict: **Rework** · Date: 2026-10-19
+> Current verdict: **Design defect** (re-verification 1, at `d9befc0`; see the last section) · Date: 2026-10-19
+> Initial verdict: Rework, at `44bc8c2` (kept below as recorded)
 > Standard: technical-design.md §6 (AC-1..AC-16) and §5 (verifier spec) @ `44bc8c2` · Sources: SRS.md v0.4 (AGT-01, AGT-02, AGT-06, AGT-11, AGT-16, CHN-02, KB-07, KB-15, NFR-01, NFR-04, NFR-10), use-cases.md v0.4 (UC-20, UC-13)
 > Repo state audited: `44bc8c2` on `claude/project-thread-91q4ac` (clean tree)
 
@@ -113,3 +114,108 @@ The visitor is in Singapore, and a mixed-script model reply is plausible.
 ## RTM
 
 Not written. Verdict: rework. The Test ref append for AGT-01, AGT-02, AGT-06, AGT-11, AGT-16, CHN-02, KB-07, KB-15, NFR-01, NFR-04 and NFR-10 waits for an accepted re-verification. That append will carry `(partial)` on every row, because each is a partial touchpoint or still has real-model or environment checks pending.
+
+---
+
+## Re-verification 1 — 2026-10-19 · Verdict: **Design defect** (with two rework findings)
+
+> Repo state audited: `d9befc0` (rework for R1–R4) · Standard: technical-design.md §6, and §5 as amended in `d9befc0`, re-derived against ADR-008 decision 2 and AGT-02
+
+### Summary
+
+R1–R4 are fixed, and so are the earlier gaps (other currencies, full-width forms, price-word number words). Every suite is green again.
+
+Probing further turned up model-typed prices that still reach the visitor as `answered`. They fall into two classes:
+- **The standard itself is too narrow.** Amended §5 lists the exact gap words allowed between a price word and its number, and it only looks *after* price words. ADR-008 decision 2 says "bare numbers next to price or stock words", and AGT-02 says "zero invented prices".
+- **The pipeline verifies one segment at a time, while the segmenter can cut a protected value across two segments.** The clearest case is "S$\n50", which goes out as `["S$", "50"]`.
+
+A code patch against today's §5 cannot close either class, so the verdict is **design defect**. It routes to detailed-design's amendment path for the §5 verifier and segmenter rules. Two smaller code findings (R5, R6) go back to implementation alongside it. The RTM is not written.
+
+### What changed, and the test diff
+
+- `verify.ts` gained:
+  - currency codes and signs, with any spacing;
+  - an optional "Singapore" before the currency word;
+  - NFKC normalisation;
+  - `for` and a `PRICE_GAP` (`:`, `-`, `=`, dashes, and the words is/are/of/about/around/roughly/approximately/only/just) after price words, with a `QUANTITY` exception ("for 2 to 3 people");
+  - price-word number words.
+  
+  A number after a price word no longer counts as a visitor quantity.
+- `render-verify.test.ts` gained 11 blocked forms, 1 pass form and 1 D3 case. Nothing was removed or loosened.
+- The eval set gained 6 recordings (25 → 31 fast cases). No case was removed (the JSON diff has no `-` lines).
+- The eval scorer's `AMOUNT_RE` now matches any currency, and the text is NFKC-normalised first. This is stricter.
+- §5 of technical-design.md was amended in place. The change is declared in tasks.md "Implementation notes", and it is the standard this run audits against.
+
+### Independent execution (at `d9befc0`)
+
+| Check | Result |
+| :- | :- |
+| `pnpm format:check` | pass |
+| `pnpm turbo run lint --force` + `pnpm boundaries` | 24/24; no dependency violations |
+| `pnpm turbo run typecheck --force` | 26/26 |
+| `pnpm turbo run test --force` | 21/21 (agent 57 unit tests) |
+| `pnpm turbo run test:coverage --force --concurrency=1` (unit + integration, `KAKI_TEST_DATABASE_URL`) | 15/15; agent 98.43% lines, kb 98.48% |
+| `pnpm eval --fast` | 31 cases; prices 23/23, groundedness 8/8; exit 0 |
+| E2E (Chromium, `E2E_REUSE_SERVERS=true`) | 4/4 |
+
+### Direct verification of the verifier
+
+**R1–R4 and the earlier gaps are now blocked.** That covers:
+- "goes for 50", "for 50", "Price: 50", "Price - 55", "Price — 50", "Price=50", "Price: fifty";
+- "50 Singapore dollars", "50 sing dollars", "S$  50", "$   50";
+- "USD 50", "€50", "£50", "RM50", "RM 50", "50 ringgit", "５０元", "S＄50";
+- "costs fifty-five", "price is fifty five", "costs only 50", "costs roughly 50".
+
+**Still released to the visitor.** Each row below was run through `composeReply` with the fake provider scripted to return the same output on both attempts. The outcome was `answered` every time:
+
+| Model output | Published segments | Class |
+| :- | :- | :- |
+| `S$\n50` | `["S$", "50"]` (the widget shows "S$ 50") | DD2 |
+| `Price (S$):\n50` | `["Price (S$):", "50"]` | DD2 |
+| `Chocolate fudge cake\nPrice: \n50` | `["Chocolate fudge cake", "Price:", "50"]` | DD2 |
+| `It costs approx. 50.` | `["It costs approx.", "50."]` (the abbreviation's full stop ends the segment) | DD2 / DD1 |
+| `Prices start from 50.` | `["Prices start from 50."]` | DD1 |
+| `The price would be about 50.` | released whole | DD1 |
+| `It is 55 each.` | released whole | DD1 |
+| `It is [[f:…price]]0.` | `["It is S$55.000."]` | R5 |
+| `It is 50$.` | released whole | R6 |
+| `It is [[f:…price]], or 50 for members.` | `["It is S$55.00, or 50 for members."]` | DD1 |
+
+`verifySegment` alone also passes these:
+- **After a price word:** "costs ~50", "costs approx 50", "costs abt 50", "costs ard 50", "costs like 50", "costs below 50", "costs up to 50", "costs from 50", "Priced from 50", "costs < 50", "Price range 50 to 60", "Price range: 50 to 60", "costs between 50 and 60", "costs, um, 50", "The cost would be 50", "The price will be 50", "The fee would be 50", "Pricing: 50", "Price list: cake 50", "Prices are from 50 onwards".
+- **Price word after the number:** "55 each", "55 per kg".
+- **Currency sign after the amount:** "50 S$", "50$".
+- **Bare amounts with no price word:** "The cake is 55.", "That will be 55.", "Members pay 50.", "It is 55.00.", "Usually 60.", "Around 50 lah.", "Was 60, now S$55.00".
+
+**False positives.** These block a harmless reply, which leads to a regeneration or escalation; it fails safe. Probed:
+- "Thanks for 2 orders!", "A table for 4." (`for N` not followed by a listed quantity noun);
+- "Only 2 flavours left." (`only N`);
+- "It costs maybe 50." is reported as a `date` because the month pattern matches "may" in "maybe". It is blocked for the wrong reason, and the same pattern will also block e.g. "maybe 3 of them".
+
+The other 26 ordinary sentences probed passed, including "good for 2 to 3 people", "for 10 guests", "for 8 pax" and "for 1 kg or 2 kg".
+
+### Findings
+
+**Design defect (blocking), routed to detailed-design's amendment path for technical-design §5:**
+- **DD1 — The price-word rule is an enumerated list, narrower than its sources.** ADR-008 decision 2 requires catching "bare numbers next to price or stock words" (either side) and "currency amounts in any form". AGT-02 requires "zero invented prices". Amended §5 encodes only "after price words … after `:`, `-` or is/about/around", so every gap word not on the list gets through:
+  - approx, ~, abt, ard, like, from, below, up to, between, "would be", "will be", "start from";
+  - a price word *after* the number ("each", "per kg");
+  - currency-adjacent bare amounts.
+  
+  The amendment should replace the gap list with a proximity rule. One option: any number in the same clause within a few tokens after price, cost, fee, charge, priced, pricing, "for", or before each, per <unit>, or "/-", unless it is followed by a quantity noun. It should also decide explicitly how far bare amounts with no price word ("It is 55.00.", "Members pay 50.") are in scope. Two decimals is a cheap, strong signal.
+- **DD2 — Verification is per segment, but a protected value can be split across segments.** The segmenter cuts at line breaks, at `.` + whitespace (abbreviations such as "approx.") and at 160 characters. The verifier sees each part alone, so "S$" | "50" and "Price:" | "50" both pass. ADR-008 decision 4's segmenter and decision 2's verifier have to be specified together. Options:
+  - verify each segment with the released prefix's tail as context;
+  - or never end a segment directly after a currency sign, a price word or a trailing `:`.
+
+**Rework (code, within the design as written):**
+- **R5 — A digit glued to a slot rendering forms a new price.** `[[f:…price]]0` renders "S$55.000" and passes. Masking spans with the empty string makes the trailing "0" look like a lone digit. A digit or decimal point touching a protected span should fail (or the mask should be a non-digit sentinel that the patterns treat as part of the amount).
+- **R6 — Currency sign after the amount.** "50$" and "50 S$" pass. §5 now says "currency (`S$`, `$`, … any spacing)", but only the sign-first order is matched.
+
+**Minor:**
+- **M5.** The month pattern matches "maybe" → false `date` violation (`MONTH` = `may[a-z]*`). Constrain it to month spellings.
+- **M6.** "Thanks for 2 orders", "A table for 4" and "Only 2 flavours left" are blocked. These are tolerable while the verifier fails safe, but the eval should track naturalness at M1.5.
+- M1–M4 from the first run still stand.
+
+### RTM
+
+Not written. Verdict: design defect. When a later re-verification is accepted, Test ref `features/FEAT-022-grounded-verified-answer/acceptance-report.md (partial)` goes on AGT-01, AGT-02, AGT-06, AGT-11, AGT-16, CHN-02, KB-07, KB-15, NFR-01, NFR-04 and NFR-10. All are partial: they are partial touchpoints, and the real-model checks for AC-1, AC-4, AC-15 and AC-12 latency are still pending.
