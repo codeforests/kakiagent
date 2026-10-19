@@ -1,6 +1,6 @@
 # Implementation Plan: KakiAgent MVP
 
-> Status: **Draft, for product-owner review** · Last updated: 2026-10-19
+> Status: **Draft, for product-owner review** · Last updated: 2026-10-19 (revised after owner review: Team and My account moved to M3, alerts split by channel, NFR ownership added in §7)
 > Inputs (all found, all signed off): [SRS v0.4](../01-requirements/SRS.md) · [use-cases.md](../01-requirements/use-cases.md) · [rtm.md](../01-requirements/rtm.md) · [architecture.md](../02-design/architecture.md) + [ADR-001..022](../02-design/adr/) · [ux-foundations.md](../02-design/ux-foundations.md) · [design.md](../02-design/design.md) · [design-manifest.json](../design-manifest.json)
 > Fidelity: full. Every FR, UC and SCR ID below resolves in those documents.
 
@@ -64,8 +64,8 @@ flowchart LR
 
 | Step | Skill | Output (in `docs/features/FEAT-NNN-<slug>/`) | Gate to move on |
 |---|---|---|---|
-| 1. Detailed design | `detailed-design` | `technical-design.md` (API contracts, migrations, components, **numbered acceptance criteria AC-n**, each traced to an FR acceptance criterion or UC step) and an ordered `tasks.md` | Contracts don't contradict an ADR (if they do, an amendment ADR is needed first); every FR in scope has at least one AC |
-| 2. UI design | `ui-design` | `ui-design.md` and an entry per SCR ID in `design-manifest.json` | Every screen conforms to design.md or files an amendment; all inventory states covered |
+| 1. Detailed design | `detailed-design` | `technical-design.md` (API contracts, migrations, components, **numbered acceptance criteria AC-n**, each traced to an FR acceptance criterion or UC step) and an ordered `tasks.md` | Contracts don't contradict an ADR (if they do, an amendment ADR is needed first); every FR in scope, and every NFR §7 assigns to the feature, has at least one AC |
+| 2. UI design | `ui-design` | `ui-design.md` and an entry per SCR ID in `design-manifest.json` | Every screen conforms to design.md or files an amendment; all inventory states covered, including empty, loading and error with a next action (NFR-19) |
 | 3. Implementation | `feature-implementation` | Code plus tests, **one commit per task** | Each task's "done when" is shown by running it; at most 3 fix attempts, then an honest work-in-progress stop |
 | 4. Acceptance verification | `acceptance-verification` in a **fresh session** | `acceptance-report.md`: per-AC evidence, a fresh full test run, binding NFRs measured, test-diff review (no weakened or skipped tests); verdict | Verdict "accepted"; RTM Test ref appended |
 | 5. PR | — | Branch `feat/FEAT-NNN-<slug>`, PR body with the report summary | CI green on every gate below; owner merges |
@@ -74,7 +74,8 @@ flowchart LR
 - Lint, typecheck, unit and integration tests.
 - The **cross-tenant RLS suite** always runs (GOV-03).
 - Contract tests for any `ChannelAdapter` touched (CHN-01).
-- Playwright E2E for every journey the feature touches.
+- Playwright E2E for every journey the feature touches, on Chromium, Firefox and WebKit (NFR-14).
+- Failure-path tests for any queue, channel or ingestion step touched: a dependency outage is retried and then surfaced as failed, never dropped (NFR-17).
 - axe with no serious or critical issues on touched screens (NFR-09).
 - size-limit on the widget (NFR-02).
 - Coverage ≥ 70% on core packages (NFR-12).
@@ -122,7 +123,7 @@ Feature IDs are in definition order and are permanent: they are never renumbered
 | FEAT-006 | Two-step verification and re-authentication for sensitive actions | M | AUTH-03 | UC-02 | SCR-APP-005 | `identity.requireReauth` | mfa_factors, recovery_codes |
 | FEAT-007 | Team, invitations, roles, approval-rights grants, tenant switcher | M | DSH-03, AUTH-04 | UC-06 | SCR-APP-004, -045 | `/team/*` | invitations, memberships |
 | FEAT-008 | My account: profile, email change, sessions list | M | AUTH-05, AUTH-02 (p) | UC-02 | SCR-APP-055 | `/me/*` | users, sessions |
-| FEAT-009 | Business profile, hours, SG holidays, F&B industry template (D1) | M | ONB-03, ONB-06 (p, F&B only) | UC-03 | SCR-APP-044, SCR-APP-006 (p) | `tenancy` | business_profiles, holidays |
+| FEAT-009 | Business profile, hours, SG holidays, F&B industry template (D1): suggested FAQs only; FEAT-054 adds the template's boundary rules and FEAT-049 its lead fields | M | ONB-03, ONB-06 (p, F&B only) | UC-03 | SCR-APP-044, SCR-APP-006 (p) | `tenancy` | business_profiles, holidays |
 | FEAT-010 | Ownership transfer and tenant deletion with 30-day grace and restore | M | AUTH-06, AUTH-07 | UC-07, UC-08 | SCR-APP-053, -060 | scheduler hard-delete job | tenants (all tables on delete) |
 
 ### E2 — Knowledge base (`kb`, ingest-worker; ADR-010, -018, -019)
@@ -145,10 +146,10 @@ Feature IDs are in definition order and are permanent: they are never renumbered
 
 | ID | Feature | Pri | FRs | UCs | Screens | Blocks / endpoints | Data |
 |---|---|---|---|---|---|---|---|
-| FEAT-022 | **Grounded, verified answer from a hand-entered fact** (first slice, §6) | M | AGT-01, AGT-02, AGT-11 (p), AGT-16 (p), AGT-06 (p: `lookup_kb`), CHN-02 (p), KB-07 (p), KB-15 (p) | UC-20, UC-13 (p) | SCR-WGT-002, SCR-APP-027 (p), SCR-APP-028 (p) | `agent.runVisitorTurn`: triage ∥ retrieval → generate → slot render → verify → release | facts, visitor_facts view, kb_chunks, messages |
+| FEAT-022 | **Grounded, verified answer from a hand-entered fact** (first slice, §6); introduces the AI send-gate check (conditions filled by FEAT-034, -043, -057) and the LLM-unavailable fallback reply (NFR-04) | M | AGT-01, AGT-02, AGT-11 (p), AGT-16 (p), AGT-06 (p: `lookup_kb`), CHN-02 (p), KB-07 (p), KB-15 (p) | UC-20, UC-13 (p) | SCR-WGT-002, SCR-APP-027 (p), SCR-APP-028 (p) | `agent.runVisitorTurn`: triage ∥ retrieval → generate → slot render → verify → release | facts, visitor_facts view, kb_chunks, messages |
 | FEAT-023 | Language and register (EN, Singlish, 中文), out-of-scope handling, after-hours behaviour | M | AGT-03, AGT-04, AGT-09 | UC-20 | SCR-WGT-002 (p) | triage; business-hours maths | business_profiles |
 | FEAT-024 | Assistant persona and disclosure settings | M | AGT-08, AGT-11 | UC-29 | SCR-APP-041 | `/settings/assistant` | assistant_settings |
-| FEAT-025 | Prompt-injection resistance, harmful content, crisis replies, flagged conversations | M | AGT-07, AGT-13, AGT-16 | UC-20 | SCR-WGT-002 (p), SCR-APP-014 (p: flagged filter) | red-team eval suite ≥ 50 | conversations (flag) |
+| FEAT-025 | Prompt-injection resistance, harmful content, crisis replies, flagged conversations | M | AGT-07, AGT-13, AGT-16 | UC-20 | SCR-WGT-002 (p) | red-team eval suite ≥ 50 | conversations (flag; the inbox's flagged filter is built by FEAT-042) |
 | FEAT-026 | Conversation memory and summarisation | M | AGT-12 | UC-20, UC-26 | — (visible in answers) | `agent` summariser | conversation_summaries |
 | FEAT-027 | Coaching mode: explainer, unreviewed toggle, teach-to-correction, quick panel | M | AGT-17, ONB-05 | UC-04 | SCR-APP-030, -010 | `agent.runCoachingTurn` (coaching scope) | coaching_sessions, corrections |
 | FEAT-028 | Replay a past conversation against the current KB | M | AGT-17 (p) | UC-04 | SCR-APP-031 | `agent.replay` | conversations |
@@ -161,11 +162,11 @@ Feature IDs are in definition order and are permanent: they are never renumbered
 | ID | Feature | Pri | FRs | UCs | Screens | Blocks / endpoints | Data |
 |---|---|---|---|---|---|---|---|
 | FEAT-032 | Widget install, theme matching, allowed origins, install check | M | ONB-07, CHN-11, CHN-14, CHN-02 (p) | UC-05 | SCR-APP-011, -037, SCR-WGT-001 | theme detection + clamp; origin check | widget_settings, allowed_origins |
-| FEAT-033 | Widget visitor controls (talk to a person, privacy link, end chat) and EN / 中文 chrome (UX-Q4) | M | CHN-13, CHN-02 (p) | UC-20 | SCR-WGT-002 (p), SCR-WGT-006 | widget string table | — |
+| FEAT-033 | Widget visitor controls (privacy link, end chat; "talk to a person" built but hidden until FEAT-044 enables it) and EN / 中文 chrome (UX-Q4) | M | CHN-13, CHN-02 (p) | UC-20 | SCR-WGT-002 (p), SCR-WGT-006 | widget string table | — |
 | FEAT-034 | Channel framework: adapter contract, go-live and go-offline per channel, health and degraded alerts | M | CHN-01, ONB-10, CHN-12 | UC-25 | SCR-APP-036, SCR-WGT-005 (p: not live) | `ChannelAdapter`; scheduler health checks | channel_connections |
 | FEAT-035 | Onboarding wizard frame and go-live readiness check | M | ONB-02, ONB-09, ONB-08 (p: instrumented) | UC-03 | SCR-APP-012, wizard frames of SCR-APP-006..011 | `tenancy.readiness` | onboarding_progress |
 | FEAT-036 | Email channel: forwarding address, custom domain (SPF/DKIM/DMARC), threading, loop safety | M | CHN-04, CHN-10 | UC-27 | SCR-APP-038 | SES inbound → S3 → SQS; email adapter | channel_connections, messages |
-| FEAT-037 | Telegram channel (1:1), owner alerts via Telegram | M | CHN-05 | UC-25 | SCR-APP-039 | Telegram adapter; webhook | channel_connections |
+| FEAT-037 | Telegram channel (1:1), owner alerts via Telegram (completes LED-04) | M | CHN-05, LED-04 (p: Telegram alerts) | UC-25 | SCR-APP-039 | Telegram adapter; webhook | channel_connections |
 | FEAT-038 | Continue on another channel with the history | M | CHN-07, AGT-06 (p: `handoff_channel`) | UC-26 | SCR-WGT-004 | deep link + linking token | conversations, contacts |
 | FEAT-039 | Contact identity, verified merge and undo | M | CHN-08 | UC-26 | SCR-APP-016 | `channels.resolveContact` | contacts, contact_identities |
 | FEAT-040 | Messenger and Instagram (Meta sandbox) | S | CHN-06 | UC-25 | SCR-APP-040 | Meta adapter; messaging window | channel_connections |
@@ -175,9 +176,9 @@ Feature IDs are in definition order and are permanent: they are never renumbered
 
 | ID | Feature | Pri | FRs | UCs | Screens | Blocks / endpoints | Data |
 |---|---|---|---|---|---|---|---|
-| FEAT-042 | Real-time inbox, conversation view, context sidebar, lifecycle and auto-close | M | INB-01, INB-04, INB-08 | UC-23 | SCR-APP-014, -015 | `inbox.transition`; WS; scheduler auto-close | conversations, messages |
+| FEAT-042 | Real-time inbox, conversation view, context sidebar, lifecycle and auto-close; flagged filter for FEAT-025's flags | M | INB-01, INB-04, INB-08, AGT-13 (p: flagged filter) | UC-23 | SCR-APP-014, -015 | `inbox.transition`; WS; scheduler auto-close | conversations, messages |
 | FEAT-043 | Take over and hand back, single owner | M | INB-02, INB-09 | UC-23 | SCR-APP-015 (p), SCR-WGT-002 (p) | `inbox.takeOver`; send gate | conversation_owners |
-| FEAT-044 | Escalation routing, "talk to a person", reminders | M | INB-05, AGT-06 (p: `escalate_to_human`) | UC-23 | SCR-APP-014 (p), SCR-WGT-002 (p) | routing; scheduler reminders | escalations |
+| FEAT-044 | Escalation routing to team members, enabling the widget's "talk to a person" control, reminders | M | INB-05, AGT-06 (p: `escalate_to_human`) | UC-23 | SCR-APP-014 (p), SCR-WGT-002 (p) | routing; scheduler reminders | escalations |
 | FEAT-045 | AI-suggested replies for staff (verified) | M | INB-03 | UC-23 | SCR-APP-015 (p) | `agent.suggestReply` | suggestions, corrections (staff edits) |
 | FEAT-046 | Conversation search | M | INB-11 | UC-23 | SCR-APP-014 (p) | Postgres FTS + `pg_trgm` | messages |
 | FEAT-047 | Internal notes, tags and saved replies | S | INB-07, INB-10 | UC-23 | SCR-APP-015 (p) | `/inbox/notes`, `/saved-replies` | notes, tags, saved_replies |
@@ -187,10 +188,10 @@ Feature IDs are in definition order and are permanent: they are never renumbered
 
 | ID | Feature | Pri | FRs | UCs | Screens | Blocks / endpoints | Data |
 |---|---|---|---|---|---|---|---|
-| FEAT-049 | Consent and lead capture in conversation; duplicate-lead update; marketing opt-in | M | LED-01, LED-02, LED-09, LED-08, AGT-06 (p: `capture_lead`) | UC-21 | SCR-WGT-003, SCR-APP-043 | `leads.captureLead` | leads, consents |
+| FEAT-049 | Consent and lead capture in conversation; duplicate-lead update; marketing opt-in | M | LED-01, LED-02, LED-09, LED-08, AGT-06 (p: `capture_lead`) | UC-21 | SCR-WGT-003, SCR-APP-043 | `leads.captureLead` | contacts (created here; ADR-015), leads, consents |
 | FEAT-050 | Leads list, pipeline, scoring and CSV export | M | LED-03, LED-05 | UC-21 | SCR-APP-032, -033 | `/leads/*`; export (re-auth) | leads |
 | FEAT-051 | Consent withdrawal in any channel | M | LED-07 | UC-28 | SCR-WGT-003 (p), SCR-APP-033 (p) | `leads.withdrawConsent` | consents, leads |
-| FEAT-052 | Owner alerts, quiet hours, digest, notification preferences | M | LED-04, DSH-09 | UC-22, UC-23 | SCR-APP-056 | notifications queue; email + Telegram | notification_prefs |
+| FEAT-052 | Owner alerts by email, quiet hours, digest, notification preferences (Telegram alerts arrive with FEAT-037) | M | LED-04 (p: email), DSH-09 | UC-22, UC-23 | SCR-APP-056 | notifications queue; email (SPF/DKIM/DMARC, NFR-18) | notification_prefs |
 | FEAT-053 | Outbound lead webhooks | S | LED-06 | UC-21 | SCR-APP-043 (p) | signed webhooks; retries | webhooks |
 
 ### E7 — Approvals and boundaries (`approvals`; ADR-013)
@@ -253,6 +254,8 @@ Feature IDs are in definition order and are permanent: they are never renumbered
   - Auth before anything owner-facing beyond the dev sign-in.
   - Privacy wording and channels before the readiness check.
   - Inbox before takeover, escalation and approvals.
+  - Team, roles and approval-rights grants (FEAT-007) before escalation routing and approvals; My account (FEAT-008) before takeover, because J4 shows the staff member's display name. Both open M3.
+  - Telegram owner alerts ride with the Telegram channel (FEAT-037), so M3 alerts are email-only.
   - Alerts before escalation reminders.
   - MFA/re-auth before the first sensitive action (boundary rules), and boundary rules before the readiness check that requires them (ONB-09), so both close M2.
   - The operator console before support access.
@@ -262,12 +265,12 @@ Feature IDs are in definition order and are permanent: they are never renumbered
 |---|---|---|
 | **M0 Skeleton** | FEAT-001 | A widget message round trip locally; dashboard sees it live; CI green |
 | **M1 Trustworthy answers** | FEAT-022 → 002 → 003 → 005 → 004 → 011 → 023 → 024 → 025 | J2 and J7 on a seeded bakery: exact prices from approved facts, Singlish and Chinese, out-of-scope refusal, injection refused; audit chain verifies; real sign-in |
-| **MD Deploy** (when AWS is available; any time after M1) | `initial-deployment` skill: Terraform apply to dev, then staging; Bedrock `au.` provider; GuardDuty check (R7); price check (R1) | FEAT-001's deployed done-when passes; eval fast subset on Bedrock |
+| **MD Deploy** (when AWS is available; any time after M1) | `initial-deployment` skill: Terraform apply to dev, then staging; Bedrock `au.` provider; GuardDuty check (R7); price check (R1); Cohere embeddings and the Singlish/Chinese retrieval check (P3); residency and backup configuration (NFR-07, NFR-08); a basic WAF rate rule on dev until FEAT-071 | FEAT-001's deployed done-when passes; eval fast subset on Bedrock |
 | **M2 Owner onboarding** | FEAT-009 → 012 → 013 → 014 → 015 → 016 → 017 → 027 → 028 → 018 → 019 → 032 → 033 → 058 → 034 → 057 → 006 → 054 → 035 | J1 in under 15 minutes, J8 kill switch, J11 coaching correction |
-| **M3 Human in the loop** | FEAT-042 → 043 → 052 → 044 → 045 → 046 → 049 → 055 → 056 → 050 → 051 | J3 quote approved from a phone, J4 takeover, J10 withdrawal |
-| **M4 Channels and context** | FEAT-036 → 037 → 039 → 038 → 026 → 029 | J5 widget → Telegram, J9 after-hours email |
-| **M5 Governance and operations** | FEAT-007 → 008 → 060 → 061 → 059 → 062 → 070 → 063 → 010 → 067 → 065 → 066 → 071 → 072 → 073 | J6 PDPA deletion with chain still verifying; operator support session; downgrade preview |
-| **M6 Pilot readiness** (no new features) | Full eval ≥ 300 + red-team ≥ 50; E2E J1–J11 on staging; k6 load test (NFR-01, -03, -16); restore drill (NFR-08); incident tabletop (GOV-10); manual WCAG audit; ASVS L1 checklist; legal review (SRS §8 item 3); pen test before the first paying tenant (NFR-15) | Pilot go/no-go with the readiness report |
+| **M3 Human in the loop** | FEAT-007 → 008 → 042 → 043 → 052 → 044 → 045 → 046 → 049 → 055 → 056 → 050 → 051 | J3 quote approved from a phone (email alert), J4 takeover, J10 withdrawal; a staff member invited and given approval rights |
+| **M4 Channels and context** | FEAT-036 → 037 → 039 → 038 → 026 → 029 | J5 widget → Telegram, J9 after-hours email; owner alerts on Telegram |
+| **M5 Governance and operations** | FEAT-060 → 061 → 059 → 062 → 070 → 063 → 010 → 067 → 065 → 066 → 071 → 072 → 073 | J6 PDPA deletion with chain still verifying; operator support session; downgrade preview |
+| **M6 Pilot readiness** (no new features) | Full eval ≥ 300 + red-team ≥ 50; E2E J1–J11 on staging; k6 load test (NFR-01, -03, -16); dependency-outage drill (NFR-17, NFR-04 fallback); restore drill (NFR-08); incident tabletop (GOV-10); manual WCAG audit; real-device browser pass (NFR-14); ASVS L1 and Cyber Essentials checklists (NFR-05, NFR-06); residency check of every store and model call (NFR-07); operator on-call rota (NFR-20); legal review (SRS §8 item 3); pen test before the first paying tenant (NFR-15) | Pilot go/no-go with the readiness report |
 | **M7 After pilot** (Shoulds, the Could, fast-follows) | FEAT-074, 040, 041, 031, 030, 020, 021, 047, 048, 053, 064, 068, 069, plus other industry templates (ONB-06 remainder, scheduled as a new feature when it's picked up) | Re-planned with pilot feedback |
 
 ### Dependency graph (main edges)
@@ -310,6 +313,8 @@ graph LR
         F035["FEAT-035 Readiness"]
     end
     subgraph m3["M3 Human in the loop"]
+        F007["FEAT-007 Team"]
+        F008["FEAT-008 My account"]
         F042["FEAT-042 Inbox"]
         F043["FEAT-043 Takeover"]
         F052["FEAT-052 Alerts"]
@@ -331,8 +336,6 @@ graph LR
         F029["FEAT-029 Web context"]
     end
     subgraph m5["M5 Governance and ops"]
-        F007["FEAT-007 Team"]
-        F008["FEAT-008 My account"]
         F060["FEAT-060 Audit viewer"]
         F061["FEAT-061 DSR"]
         F059["FEAT-059 Retention"]
@@ -385,6 +388,10 @@ graph LR
     F042 --> F044
     F052 --> F044
     F043 --> F045
+    F007 --> F044
+    F007 --> F055
+    F008 --> F043
+    F052 --> F037
     F042 --> F046
     F005 --> F006
     F006 --> F054
@@ -463,6 +470,8 @@ It also produces the first real eval cases. If slot discipline doesn't hold with
   - The sentence segmenter.
   - The verifier rules: price, date and policy patterns must match a rendered slot.
   - Regenerate-then-escalate policy (max attempts).
+  - The send-gate check before the turn and before release, with only the kill-switch flag real for now (ADR-013).
+  - The LLM-unavailable fallback reply, "the team will get back to you" (NFR-04).
   - `llm-gateway` `generate`/`stream` with the fake and Anthropic-dev providers.
 - **Data:**
   - `facts` (type, status, value JSON, GST treatment, source).
@@ -512,6 +521,31 @@ Stood up in FEAT-001 and extended by later features. Items marked (FR) are requi
   - The PII-mask module (FEAT-003).
   - Audit `append` interface (FEAT-002).
 - **Infrastructure as code:** Terraform modules per architecture §7, validated in CI from FEAT-001 and applied at MD; the SCP region lock is part of the account bootstrap.
+- **NFR ownership.** Each NFR has an owner that builds it and a gate that checks it. "Every PR" gates are in §3.
+
+  | NFR | Built in | Checked by |
+  |---|---|---|
+  | NFR-01 latency | FEAT-022 (reported), FEAT-004 (routing) | Measured at MD; k6 gate at M6 |
+  | NFR-02 widget size | FEAT-001 | size-limit on every PR |
+  | NFR-03 scale | FEAT-001 (stateless roles, queues), FEAT-004 | k6 at M6 |
+  | NFR-04 availability | FEAT-022 (LLM-unavailable fallback), FEAT-049 (lead capture in the fallback), MD (multi-AZ, alarms) | Outage drill at M6; monitored in pilot |
+  | NFR-05 security baseline | FEAT-001 (TLS, KMS helper), FEAT-006 (MFA), FEAT-034 (encrypted channel tokens), FEAT-070 (operator MFA) | ASVS L1 checklist at M6 |
+  | NFR-06 Cyber Essentials | FEAT-001 (scanning, Renovate), FEAT-015 (malware checks), MD (asset inventory via Terraform, backups) | Checklist at M6 |
+  | NFR-07 residency | MD (SCP region lock, Bedrock `au.` with retention `none`, Cohere in-region) | Residency check at M6 |
+  | NFR-08 backups | MD | Restore drill at M6 |
+  | NFR-09 accessibility | Every UI feature | axe on every PR; manual audit at M6 |
+  | NFR-10 localisation | FEAT-022 (S$), FEAT-009 (SG time zone, holidays, phone and UEN formats), FEAT-023 (languages) | Feature ACs; eval subsets |
+  | NFR-11 observability | FEAT-001, FEAT-004, FEAT-034 (channel health) | Alarms applied at MD |
+  | NFR-12 maintainability | FEAT-001 | CI on every PR |
+  | NFR-13 cost | FEAT-004 | Cost per conversation in every eval run; M6 report |
+  | NFR-14 browsers | FEAT-001 (Playwright matrix; widget fails silently on old browsers) | Three engines on every PR; real-device pass at M6 |
+  | NFR-15 vulnerabilities | FEAT-001 | Trivy and `pnpm audit` on every PR; pen test at M6 |
+  | NFR-16 ingestion throughput | FEAT-012 (crawl), FEAT-015 (files), FEAT-016 (spreadsheets) | Feature ACs locally; re-measured at MD and M6 |
+  | NFR-17 no message lost | FEAT-001 (outbox, DLQ, retry), every channel and ingestion feature | Failure-path tests on every PR; outage drill at M6 |
+  | NFR-18 email authentication | FEAT-052 (alert email), FEAT-036 (email channel) | Feature ACs; bounce alarm at MD |
+  | NFR-19 UI states | Every UI feature | UI-design gate (§3); Playwright |
+  | NFR-20 operability | FEAT-071 (operator alerts), FEAT-069 (support requests, post-pilot; email until then) | On-call rota at M6 |
+
 - **Documentation:** per-feature folders under `docs/features/`; the RTM Plan ref (now) and Test ref (per feature); CLAUDE.md commands section updated by FEAT-001.
 
 ---
@@ -520,9 +554,9 @@ Stood up in FEAT-001 and extended by later features. Items marked (FR) are requi
 
 | # | Risk or assumption | Effect on the plan | Mitigation |
 |---|---|---|---|
-| P1 | **No AWS accounts yet** (SRS §8 item 2) | NFRs measured against real infrastructure (latency, residency, backups) can't be verified until MD | The local-first skeleton; MD can run at any point after M1; acceptance reports mark these NFRs as "pending environment" |
+| P1 | **No AWS accounts yet** (SRS §8 item 2) | NFRs measured against real infrastructure (latency, residency, backups) can't be verified until MD. MD before M5 exposes a dev widget before FEAT-071's rate limits | The local-first skeleton; MD can run at any point after M1; acceptance reports mark these NFRs as "pending environment"; MD adds a basic WAF rate rule on dev |
 | P2 | **Slot discipline may fail with real models** (R4) | It could force a prompt or verifier redesign | FEAT-022 goes first and measures the regeneration rate; a rate > 5% triggers an ADR-008 review before M2 |
-| P3 | **Singlish and Chinese retrieval quality** (R5) | Could change the embedding provider | FEAT-023 adds a retrieval subset; the decision is due by the M1 demo |
+| P3 | **Singlish and Chinese retrieval quality** (R5) | Could change the embedding provider | FEAT-023 adds a retrieval subset. The real check needs Cohere Embed Multilingual v3, which arrives at MD, so the decision is due at MD (or at the M1 demo if MD has run by then) |
 | P4 | **Dev uses the Anthropic API, prod uses Bedrock `au.`** | Behaviour or prompt-cache differences | `llm-gateway` provider parity tests; the eval reruns on Bedrock at MD |
 | P5 | **Eval-set authoring effort**, especially 100 Singlish and 50 Chinese cases | Could delay M6 | Cases are written per feature, starting at M1; pilot SMEs supply real phrasing |
 | P6 | **The M2 critical path is long** (19 features before the J1 demo) | Owner feedback on onboarding arrives late | Interim demos are offered after FEAT-013 (crawl → review) and FEAT-027 (coaching) without waiting for the milestone close |

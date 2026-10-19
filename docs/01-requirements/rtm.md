@@ -67,7 +67,7 @@
 | AGT-10 | Proactive greeting triggered by intent signals (for example, ≥ 30 seconds on… | Should | Active | Research P2; D2 | UC-20 | ADR-016; SCR-APP-037, SCR-WGT-001 | FEAT-030 | _TBD_ |
 | AGT-11 | Discloses that it is an AI assistant at the start of a conversation | Must | Active | Research P2; IMDA GenAI framework – prompt injection, transparency, harmful content | UC-03, UC-20 | ADR-008; SCR-APP-009, SCR-APP-041, SCR-WGT-002 | FEAT-022, FEAT-024 | _TBD_ |
 | AGT-12 | Conversation memory | Must | Active | Gap review v0.3; Appx A A21 | UC-20, UC-26 | ADR-007 | FEAT-026 | _TBD_ |
-| AGT-13 | Harmful and abusive content | Must | Active | Gap review v0.3; Appx A A21; IMDA GenAI framework – prompt injection, transparency, harmful content | UC-20 | ADR-022; SCR-APP-014 | FEAT-025 | _TBD_ |
+| AGT-13 | Harmful and abusive content | Must | Active | Gap review v0.3; Appx A A21; IMDA GenAI framework – prompt injection, transparency, harmful content | UC-20 | ADR-022; SCR-APP-014 | FEAT-025, FEAT-042 | _TBD_ |
 | AGT-14 | Evaluation suite | Must | Active | Gap review v0.3; Appx A A12, A13; D1; IMDA Agentic AI v1.5 – testing before and after deployment | — (system-level) | ADR-022 | Foundations | _TBD_ |
 | AGT-15 | Visitor feedback | Should | Active | Gap review v0.3; Appx A A21 | UC-16, UC-20, UC-36 | ADR-010; SCR-APP-015, SCR-APP-021, SCR-APP-034, SCR-WGT-002, SCR-WGT-006 | FEAT-031 | _TBD_ |
 | AGT-16 | Visitor scope | Must | Active | Owner request v0.4; IMDA Agentic AI v1.5 – agent identity and access limits | UC-20 | ADR-005, ADR-009, ADR-022 | FEAT-022, FEAT-025 | _TBD_ |
@@ -100,7 +100,7 @@
 | LED-01 | Lead capture | Must | Active | Research P3 | UC-21 | SCR-APP-033, SCR-APP-043, SCR-WGT-003 | FEAT-049 | _TBD_ |
 | LED-02 | PDPA consent | Must | Active | Research P3; PDPA – consent and purpose limitation | UC-03, UC-21 | ADR-015; SCR-APP-009, SCR-APP-033, SCR-APP-043, SCR-WGT-003 | FEAT-049, FEAT-058 | _TBD_ |
 | LED-03 | Lead qualification | Must | Active | Research P3 | UC-21 | SCR-APP-032, SCR-APP-033, SCR-APP-043 | FEAT-050 | _TBD_ |
-| LED-04 | Owner alerts for new hot leads, escalations and pending approvals, by email and… | Must | Active | Research P3; Appx A A12 | UC-21, UC-22, UC-25 | ADR-011, ADR-012, ADR-017, ADR-019; SCR-APP-056 | FEAT-048, FEAT-052 | _TBD_ |
+| LED-04 | Owner alerts for new hot leads, escalations and pending approvals, by email and… | Must | Active | Research P3; Appx A A12 | UC-21, UC-22, UC-25 | ADR-011, ADR-012, ADR-017, ADR-019; SCR-APP-056 | FEAT-048, FEAT-052, FEAT-037 | _TBD_ |
 | LED-05 | Leads list with status pipeline (New → Contacted → Won / Lost) and CSV export | Must | Active | Research P3 | UC-24, UC-28 | ADR-015; SCR-APP-032 | FEAT-050 | _TBD_ |
 | LED-06 | Outbound webhook on lead created/updated (for Zapier/Make/CRMs) | Should | Active | Research P3; D2 | UC-28 | ADR-012, ADR-015; SCR-APP-043 | FEAT-053 | _TBD_ |
 | LED-07 | Consent withdrawal | Must | Active | Gap review v0.3; Appx A A8; PDPA – withdrawal of consent | UC-28, UC-30 | ADR-012, ADR-015, ADR-022; SCR-APP-016, SCR-APP-033, SCR-APP-049, SCR-WGT-003 | FEAT-051 | _TBD_ |
@@ -136,26 +136,26 @@
 | DSH-08 | Usage meter | Must | Active | Gap review v0.3; Appx A A18 | UC-34, UC-37 | ADR-007, ADR-021; SCR-APP-013, SCR-APP-046, SCR-OPS-002 | FEAT-067 | _TBD_ |
 | DSH-09 | Notification preferences | Must | Active | Gap review v0.3; Appx A A12, A18 | UC-21, UC-37 | SCR-APP-056 | FEAT-052 | _TBD_ |
 | DSH-10 | Help and support | Should | Active | Gap review v0.3; Appx A A21 | UC-33 | SCR-APP-057, SCR-OPS-005 | FEAT-069 | _TBD_ |
-| NFR-01 | Performance — Agent first token p95 ≤ 3 s | Must | Active | SRS v0.1 (C1, A1); Appx A A20 | UC-20 | ADR-002, ADR-003, ADR-006, ADR-007, ADR-008, ADR-017, ADR-021 | Foundations (§7), M6 verification | _TBD_ |
-| NFR-02 | Performance — Widget ≤ 30 KB gzipped initial load | Must | Active | SRS v0.1 (C1, A1) | — (system-level) | ADR-002, ADR-016 | Foundations (§7), M6 verification | _TBD_ |
-| NFR-03 | Scalability — MVP target | Must | Active | SRS v0.1 (C1, A1) | — (system-level) | ADR-001, ADR-003, ADR-004, ADR-005, ADR-012, ADR-017 | Foundations (§7), M6 verification | _TBD_ |
-| NFR-04 | Availability — 99.5% monthly for the agent and widget API, and for the… | Must | Active | SRS v0.1 (C1, A1) | — (system-level) | ADR-001, ADR-003, ADR-004, ADR-006, ADR-012, ADR-013, ADR-017, ADR-021 | Foundations (§7), M6 verification | _TBD_ |
-| NFR-05 | Security — OWASP ASVS Level 1; TLS 1.2+; encryption at rest (RDS, S3, KMS) | Must | Active | SRS v0.1 (C1, A1); PDPA – protection obligation | — (system-level) | ADR-003, ADR-004, ADR-005, ADR-011, ADR-015, ADR-019, ADR-020 | Foundations (§7), M6 verification | _TBD_ |
-| NFR-06 | Security — Controls aligned with Cyber Essentials (SG) to prepare for IMDA… | Must | Active | SRS v0.1 (C1, A1) | — (system-level) | ADR-003, ADR-014, ADR-019, ADR-020 | Foundations (§7), M6 verification | _TBD_ |
-| NFR-07 | Privacy — All tenant data and backups stored in ap-southeast-1. LLM calls under… | Must | Active | SRS v0.1 (C1, C2); Appx A A3; D5; PDPA – transfer limitation | — (system-level) | ADR-003, ADR-006, ADR-015, ADR-019 | Foundations (§7), M6 verification | _TBD_ |
-| NFR-08 | Reliability — Database point-in-time recovery for 7 days and daily backups kept… | Must | Active | SRS v0.1 (C1, A1) | — (system-level) | ADR-003, ADR-004, ADR-015 | Foundations (§7), M6 verification | _TBD_ |
-| NFR-09 | Accessibility — WCAG 2.1 AA for the widget and dashboard | Must | Active | SRS v0.1 (C1, A1) | — (system-level) | ADR-002, ADR-016 | FEAT-074, Foundations (§7), M6 verification | _TBD_ |
-| NFR-10 | Localisation — UI in English for the MVP (Chinese UI could come later) | Must | Active | SRS v0.1 (C1, A1) | — (system-level) | ADR-007, ADR-008 | Foundations (§7), M6 verification | _TBD_ |
-| NFR-11 | Observability — Structured logs, traces and metrics | Must | Active | SRS v0.1 (C1, A1) | UC-38 | ADR-007, ADR-012, ADR-021 | FEAT-004, Foundations (§7), M6 verification | _TBD_ |
-| NFR-12 | Maintainability — Monorepo with CI (lint, typecheck, unit, integration, AI eval) | Must | Active | SRS v0.1 (C1, A1) | — (system-level) | ADR-001, ADR-002, ADR-003, ADR-022 | Foundations (§7), M6 verification | _TBD_ |
+| NFR-01 | Performance — Agent first token p95 ≤ 3 s | Must | Active | SRS v0.1 (C1, A1); Appx A A20 | UC-20 | ADR-002, ADR-003, ADR-006, ADR-007, ADR-008, ADR-017, ADR-021 | Foundations (§7), M6 verification, FEAT-004, FEAT-022, MD | _TBD_ |
+| NFR-02 | Performance — Widget ≤ 30 KB gzipped initial load | Must | Active | SRS v0.1 (C1, A1) | — (system-level) | ADR-002, ADR-016 | Foundations (§7), M6 verification, FEAT-001 | _TBD_ |
+| NFR-03 | Scalability — MVP target | Must | Active | SRS v0.1 (C1, A1) | — (system-level) | ADR-001, ADR-003, ADR-004, ADR-005, ADR-012, ADR-017 | Foundations (§7), M6 verification, FEAT-001, FEAT-004 | _TBD_ |
+| NFR-04 | Availability — 99.5% monthly for the agent and widget API, and for the… | Must | Active | SRS v0.1 (C1, A1) | — (system-level) | ADR-001, ADR-003, ADR-004, ADR-006, ADR-012, ADR-013, ADR-017, ADR-021 | Foundations (§7), M6 verification, FEAT-022, FEAT-049, MD | _TBD_ |
+| NFR-05 | Security — OWASP ASVS Level 1; TLS 1.2+; encryption at rest (RDS, S3, KMS) | Must | Active | SRS v0.1 (C1, A1); PDPA – protection obligation | — (system-level) | ADR-003, ADR-004, ADR-005, ADR-011, ADR-015, ADR-019, ADR-020 | Foundations (§7), M6 verification, FEAT-001, FEAT-006, FEAT-034, FEAT-070 | _TBD_ |
+| NFR-06 | Security — Controls aligned with Cyber Essentials (SG) to prepare for IMDA… | Must | Active | SRS v0.1 (C1, A1) | — (system-level) | ADR-003, ADR-014, ADR-019, ADR-020 | Foundations (§7), M6 verification, FEAT-001, FEAT-015, MD | _TBD_ |
+| NFR-07 | Privacy — All tenant data and backups stored in ap-southeast-1. LLM calls under… | Must | Active | SRS v0.1 (C1, C2); Appx A A3; D5; PDPA – transfer limitation | — (system-level) | ADR-003, ADR-006, ADR-015, ADR-019 | Foundations (§7), M6 verification, MD | _TBD_ |
+| NFR-08 | Reliability — Database point-in-time recovery for 7 days and daily backups kept… | Must | Active | SRS v0.1 (C1, A1) | — (system-level) | ADR-003, ADR-004, ADR-015 | Foundations (§7), M6 verification, MD | _TBD_ |
+| NFR-09 | Accessibility — WCAG 2.1 AA for the widget and dashboard | Must | Active | SRS v0.1 (C1, A1) | — (system-level) | ADR-002, ADR-016 | FEAT-074, Foundations (§7), M6 verification, every UI feature (§3 gate) | _TBD_ |
+| NFR-10 | Localisation — UI in English for the MVP (Chinese UI could come later) | Must | Active | SRS v0.1 (C1, A1) | — (system-level) | ADR-007, ADR-008 | Foundations (§7), M6 verification, FEAT-009, FEAT-022, FEAT-023 | _TBD_ |
+| NFR-11 | Observability — Structured logs, traces and metrics | Must | Active | SRS v0.1 (C1, A1) | UC-38 | ADR-007, ADR-012, ADR-021 | FEAT-004, Foundations (§7), M6 verification, FEAT-001, FEAT-034 | _TBD_ |
+| NFR-12 | Maintainability — Monorepo with CI (lint, typecheck, unit, integration, AI eval) | Must | Active | SRS v0.1 (C1, A1) | — (system-level) | ADR-001, ADR-002, ADR-003, ADR-022 | Foundations (§7), M6 verification, FEAT-001 | _TBD_ |
 | NFR-13 | Cost — Average LLM cost per conversation tracked | Must | Active | SRS v0.1 (C1, A1); Appx A A5; D6 | — (system-level) | ADR-007, ADR-021, ADR-022 | FEAT-004, Foundations (§7), M6 verification | _TBD_ |
-| NFR-14 | Compatibility — Dashboard and widget support the latest two versions of Chrome,… | Must | Active | Gap review v0.3; Appx A A20 | — (system-level) | ADR-002, ADR-016 | Foundations (§7), M6 verification | _TBD_ |
-| NFR-15 | Security — Dependency and container scanning in CI; critical vulnerabilities… | Must | Active | Gap review v0.3; Appx A A20; PDPA – protection obligation | — (system-level) | ADR-003 | Foundations (§7), M6 verification | _TBD_ |
-| NFR-16 | Performance — Ingestion throughput | Must | Active | Gap review v0.3; Appx A A20 | UC-10 | ADR-012, ADR-018 | Foundations (§7), M6 verification | _TBD_ |
-| NFR-17 | Reliability — No inbound or outbound message is lost | Must | Active | Gap review v0.3; Appx A A19, A20 | UC-27 | ADR-006, ADR-011, ADR-012, ADR-017, ADR-018 | Foundations (§7), M6 verification | _TBD_ |
-| NFR-18 | Interoperability — Platform-sent email (alerts, email channel) uses SPF, DKIM… | Must | Active | Gap review v0.3; Appx A A10, A20 | UC-27 | ADR-011, ADR-019, ADR-021 | Foundations (§7), M6 verification | _TBD_ |
-| NFR-19 | Usability — Every list, form and long-running job shows explicit empty, loading… | Must | Active | Gap review v0.3; Appx A A20 | — (system-level) | ADR-002, ADR-018 | Foundations (§7), M6 verification | _TBD_ |
-| NFR-20 | Operability — During the pilot, operator alerts are acknowledged within 1 hour… | Must | Active | Gap review v0.3; Appx A A20 | UC-38 | ADR-021 | Foundations (§7), M6 verification | _TBD_ |
+| NFR-14 | Compatibility — Dashboard and widget support the latest two versions of Chrome,… | Must | Active | Gap review v0.3; Appx A A20 | — (system-level) | ADR-002, ADR-016 | Foundations (§7), M6 verification, FEAT-001 | _TBD_ |
+| NFR-15 | Security — Dependency and container scanning in CI; critical vulnerabilities… | Must | Active | Gap review v0.3; Appx A A20; PDPA – protection obligation | — (system-level) | ADR-003 | Foundations (§7), M6 verification, FEAT-001 | _TBD_ |
+| NFR-16 | Performance — Ingestion throughput | Must | Active | Gap review v0.3; Appx A A20 | UC-10 | ADR-012, ADR-018 | Foundations (§7), M6 verification, FEAT-012, FEAT-015, FEAT-016 | _TBD_ |
+| NFR-17 | Reliability — No inbound or outbound message is lost | Must | Active | Gap review v0.3; Appx A A19, A20 | UC-27 | ADR-006, ADR-011, ADR-012, ADR-017, ADR-018 | Foundations (§7), M6 verification, FEAT-001, every channel and ingestion feature (§3 gate) | _TBD_ |
+| NFR-18 | Interoperability — Platform-sent email (alerts, email channel) uses SPF, DKIM… | Must | Active | Gap review v0.3; Appx A A10, A20 | UC-27 | ADR-011, ADR-019, ADR-021 | Foundations (§7), M6 verification, FEAT-036, FEAT-052 | _TBD_ |
+| NFR-19 | Usability — Every list, form and long-running job shows explicit empty, loading… | Must | Active | Gap review v0.3; Appx A A20 | — (system-level) | ADR-002, ADR-018 | Foundations (§7), M6 verification, every UI feature (§3 gate) | _TBD_ |
+| NFR-20 | Operability — During the pilot, operator alerts are acknowledged within 1 hour… | Must | Active | Gap review v0.3; Appx A A20 | UC-38 | ADR-021 | Foundations (§7), M6 verification, FEAT-069, FEAT-071 | _TBD_ |
 
 ## Summary
 | Measure | Count |
