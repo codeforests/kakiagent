@@ -9,10 +9,11 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src",
+    "lint": "eslint src scripts",
     "test": "vitest run --project unit --passWithNoTests",
     "test:integration": "vitest run --project integration --passWithNoTests",
-    "test:coverage": "vitest run --coverage --passWithNoTests"
+    "test:coverage": "vitest run --coverage --passWithNoTests",
+    "seed:dev": "tsx scripts/seed-dev.ts"
   },
   "dependencies": {
     "@kaki/db": "workspace:*",
@@ -24,6 +25,7 @@
     "@types/pg": "8.23.1",
     "@vitest/coverage-v8": "5.0.5",
     "pg": "8.23.1",
+    "tsx": "4.23.15",
     "vitest": "5.0.5"
   }
 }
