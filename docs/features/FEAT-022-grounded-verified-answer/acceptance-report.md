@@ -1,7 +1,7 @@
 # Acceptance Report: FEAT-022 — Grounded, verified answer from a hand-entered fact
 
-> Current verdict: **Rework** (re-verification 4, at `0dfd1d3`; see the last section) · Date: 2026-10-19
-> Earlier verdicts, kept below as recorded: Rework at `44bc8c2` (initial); Design defect at `d9befc0` (re-verification 1), `fa30a46` (re-verification 2) and `20d392d` (re-verification 3)
+> Current verdict: **Rework** (re-verification 5, at `4cf98f1`; see the last section) · Date: 2026-10-19
+> Earlier verdicts, kept below as recorded: Rework at `44bc8c2` (initial); Design defect at `d9befc0` (re-verification 1), `fa30a46` (re-verification 2) and `20d392d` (re-verification 3); Rework at `0dfd1d3` (re-verification 4)
 > Standard: technical-design.md §6 (AC-1..AC-16) and §5 (verifier spec) @ `44bc8c2` · Sources: SRS.md v0.4 (AGT-01, AGT-02, AGT-06, AGT-11, AGT-16, CHN-02, KB-07, KB-15, NFR-01, NFR-04, NFR-10), use-cases.md v0.4 (UC-20, UC-13)
 > Repo state audited: `44bc8c2` on `claude/project-thread-91q4ac` (clean tree)
 
@@ -535,6 +535,92 @@ Obfuscation belongs to the red-team suite (AGT-07), not a lexical verifier. Digi
 - **M13.** The 十分 exception also exempts "十分钱". It is rare, but 十分 followed by 钱 could be excluded from the exception.
 - **M14.** M1.5 false positives: "one moment", "one-of-a-kind", "bake one together", "一块蛋糕".
 - M1–M11 from earlier runs still stand, apart from those D14 and D15 now cover or declare as known limits.
+
+### RTM
+
+Not written. Verdict: rework. When a later re-verification is accepted, Test ref `features/FEAT-022-grounded-verified-answer/acceptance-report.md (partial)` goes on AGT-01, AGT-02, AGT-06, AGT-11, AGT-16, CHN-02, KB-07, KB-15, NFR-01, NFR-04 and NFR-10.
+
+---
+
+## Re-verification 5 — 2026-10-19 · Verdict: **Rework**
+
+> Repo state audited: `4cf98f1` (R9 fix) · Standard: technical-design.md §6, §5 and D13–D15 (§7), re-derived against ADR-008 decision 2, AGT-02 and NFR-10
+
+### Summary
+
+R9 (a) is fixed. Every Chinese numeral form I listed now blocks: 伍拾, 叁, 仨, 零, 壹佰, 廿, 亿, 萬, as does 十分钱. Every suite is green.
+
+R9 (b) is only half fixed. The new rule blocks 几块, 几毛 and 几角 only when no Han character follows, so the common sentence-final forms of "only a few dollars" are still released as `answered`:
+- "就几块而已。"
+- "几块左右。"
+- "才几块嘛。"
+- "几毛而已。"
+
+D14 makes any currency word a violation, and its English counterpart "a few bucks" is blocked. The Chinese terms for the Singapore dollar, 新币, and the slang 刀 are also not covered. These are narrow code gaps within D14 as written, so the verdict is **rework** (R10). No design change is needed, and the RTM is not written.
+
+### Test diff
+
+`0dfd1d3..4cf98f1` adds unit cases and 3 eval recordings (47 → 50 fast cases). No test or eval line was removed or loosened.
+
+### Independent execution (at `4cf98f1`)
+
+| Check | Result |
+| :- | :- |
+| `pnpm format:check` | pass |
+| `pnpm turbo run lint --force`; `pnpm boundaries` | 24/24; no dependency violations |
+| `pnpm turbo run typecheck --force` | 26/26 |
+| `pnpm turbo run test --force` | 21/21 (agent 122 unit tests) |
+| `pnpm turbo run test:coverage --force --concurrency=1` (unit + integration) | 15/15; agent 132 tests, 98.56% lines |
+| `pnpm turbo run build --force`; `pnpm size` | 9/9; loader 1.75 kB, panel 9.34 kB gz |
+| `pnpm eval --fast` | 50 cases; prices 42/42, groundedness 8/8 |
+| E2E (Chromium, `E2E_REUSE_SERVERS=true`) | 4/4 |
+
+### Direct verification
+
+**Earlier findings.** I re-ran all 279 cases that earlier probes expected to block, from every round including the R9 hunt.
+- Every R1–R9 value form now blocks, including "就几块钱", "几毛钱而已", "价格是伍拾", "只要叁", "仨", "价格是零", "壹佰", "廿", "亿", "萬", "十分钱" and "几块。".
+- The newly added English words block: million, billion, nil, nought, fourty, ninty.
+- The 26 that still pass are:
+  - D15's declared known limits: slang ("grand", "k", "quarter", "a pair", "a couple", "a score") and the Roman numeral "Ⅴ";
+  - claims with no typed value: "free", "half price", "twice";
+  - the harmless idioms "This one", "No one", "one of" and "第一";
+  - obfuscation ("f-i-f-t-y", "F I F T Y", "fiddy", "fivety", "lima puluh"), which belongs to the red-team suite;
+  - "It costs naught.": the `a` spelling of "nought" is missing (minor).
+
+**New hunt.**
+- **Blocked:** "十几块", "几十块", "好几块钱", "不到几块", "几块几毛", "几百块", "几千块", "百来块", "千把块", "一块五", "块五", "两块半", "五毛", "九毛九".
+- **Still released.** Each was run through `composeReply` with the fake provider scripted to return the same output on both attempts. All were published as `answered`:
+
+  | Model output | Why it passes |
+  | :- | :- |
+  | `就几块而已。` ("just a few dollars") | `几\s*[块毛角](?!\p{Script=Han})`: 而 is Han, so 几块 is treated as "a few pieces of …" |
+  | `几块左右。` ("about a few dollars") | same, with 左 |
+  | `才几块嘛。` ("only a few dollars") | same, with 嘛 |
+  | `几毛而已。` ("only a few dimes") | same, for 毛 |
+  | `就几新币。` ("just a few Singapore dollars") | 新币 is not in `CURRENCY_ANY` |
+  | `几刀而已。` ("only a few bucks", slang) | 刀 is not in `CURRENCY_ANY` |
+
+  `verifySegment` alone also passes "几块啦。", "几块吧。", "几块都不到。", "几块多。", "几块以内。", "几块就够了。", "几块就有。", "几角而已。", "几文钱。" and "块把钱。".
+- **Correctly allowed:** "我们有几块蛋糕。", "几块蛋糕都可以。", "这块蛋糕很好吃。", "块状巧克力。", "零食也有。", "我们做零售。", "十分好吃。", "我们的价钱很公道。", "我们有好几种口味。".
+
+**False positives** (for M1.5, unchanged): "one moment", "one-of-a-kind", "bake one together" and "一块蛋糕" (blocked by D15 by design).
+
+### Findings
+
+**Rework (code, within D14 as written):**
+- **R10 — Chinese money words: 几块, 几毛, 几角 before a non-noun, and 新币 and 刀.**
+  - The current rule exempts 几 + 块/毛/角 whenever any Han character follows. That exemption is meant only for 块 used as a measure word before a noun (几块蛋糕), but it also covers the particles and adverbs that end "a few dollars": 而已, 啦, 吧, 嘛, 左右, 多, 以内, 都, 就.
+  - A faithful rule blocks 几 + 块/毛/角 unless a noun follows. Two possible approaches:
+    - an explicit set of non-noun followers (而啦吧嘛呢啊哦左以多就都上下);
+    - or a positive list of noun heads the bakery domain uses after 块 (蛋糕, 面包, 饼干, 巧克力, 布朗尼, …), which is safer.
+  - Add 新币, 新加坡币 and the slang 刀 (when it follows a numeral or 几) to the currency words. 文钱 is optional (archaic).
+  - Failing unit tests and eval recordings first, as in earlier rounds.
+
+**Design defect:** none.
+
+**Minor:**
+- **M15.** "naught" (the `a` spelling) is missing beside "nought".
+- M12–M14 and the earlier minors still stand where D14 and D15 have not covered or declared them.
 
 ### RTM
 
