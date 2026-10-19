@@ -3,13 +3,11 @@ import { audit } from '@kaki/governance';
 import type { PreparedChunk } from './chunk.js';
 import type { DashboardKbContext } from './context.js';
 import { FactNotFoundError, InvalidStateError, VersionConflictError } from './errors.js';
-import type { FaqValue, GstTreatment, ProductValue } from './types.js';
+import type { FactInput, FaqValue, GstTreatment, ProductValue } from './types.js';
+
+export type { FactInput };
 
 export type FactStatus = (typeof schema.FACT_STATUSES)[number];
-
-export type FactInput =
-  | { type: 'product'; value: ProductValue; gstTreatment: GstTreatment }
-  | { type: 'faq'; value: FaqValue; gstTreatment: null };
 
 export type FactRecord = FactInput & {
   id: string;

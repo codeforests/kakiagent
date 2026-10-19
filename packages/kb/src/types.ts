@@ -23,3 +23,8 @@ export type VisitorFact =
       gstTreatment: GstTreatment;
     }
   | { id: string; type: 'faq'; version: number; value: FaqValue; gstTreatment: null };
+
+/** What an owner enters for a fact (KB-07). */
+export type FactInput =
+  | { type: 'product'; value: ProductValue; gstTreatment: GstTreatment }
+  | { type: 'faq'; value: FaqValue; gstTreatment: null };

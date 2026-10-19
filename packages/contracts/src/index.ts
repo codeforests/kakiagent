@@ -10,6 +10,10 @@ export const Message = z.object({
   seq: z.number().int(),
   author: MessageAuthor,
   body: z.string(),
+  /** The visitor message an agent or system reply answers (groups SSE segments). */
+  inReplyTo: z.uuid().nullable(),
+  /** The AI disclosure carried by the first agent or system message (AGT-11). */
+  disclosure: z.string().nullable(),
   createdAt: z.iso.datetime({ offset: true }),
 });
 export type Message = z.infer<typeof Message>;

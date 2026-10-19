@@ -9,4 +9,4 @@ export {
   type ZoneDb,
   type TrustZone,
 } from './client.js';
-export { and, asc, desc, eq, gt, isNull, sql } from 'drizzle-orm';
+export { and, asc, desc, eq, gt, isNull, lte, sql } from 'drizzle-orm';

@@ -1,6 +1,6 @@
 import type { LlmGateway } from '@kaki/llm-gateway';
 import { EmbeddingUnavailableError } from './errors.js';
-import type { FactInput } from './facts.js';
+import type { FactInput } from './types.js';
 
 /** The text embedded for a fact (one chunk per fact until FEAT-012 adds documents). */
 export function chunkContent(input: FactInput): string {
