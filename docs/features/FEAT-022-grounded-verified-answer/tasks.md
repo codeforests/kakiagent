@@ -31,5 +31,21 @@
       Done when: `pnpm eval --fast` passes the thresholds, and a planted invented price in a case's expected output makes it fail.
 - [x] T14 — E2E: extend the suite for UC-20/UC-13 (J2): add the facts in the dashboard, ask in the widget, see the disclosure and S$55.00, never S$70/S$99 (AC-16)
       Done when: the new E2E spec and the skeleton spec pass against the local stack in Chromium.
-- [ ] T15 — Verify: every AC in design §6 demonstrably passes; format, lint, boundaries, typecheck, unit, integration, coverage thresholds, build, size and eval are green; latency figures recorded for the PR (AC-12)
+- [x] T15 — Verify: every AC in design §6 demonstrably passes; format, lint, boundaries, typecheck, unit, integration, coverage thresholds, build, size and eval are green; latency figures recorded for the PR (AC-12)
       Done when: all of the above run clean, with output captured for the acceptance report.
+
+## Implementation notes
+
+Small, design-consistent deviations found while building (none changes a contract, schema or acceptance criterion):
+
+- **Chunk text and distance limit.** Product chunks embed `"{name}{, unit}"`; the drafted ". Price." suffix made every product outrank the FAQs for price questions. The visitor search drops results above distance 0.85 (`DEFAULT_SEARCH`), not 0.8. Design §5 is updated to match.
+- **Fake-embedder noise.** Its signed feature hashing can place an unrelated fact within 0.85 (design §8). The eval's no-fact case uses a query clear of such a collision; the limit is tuned on Cohere at MD.
+- **Toggle.** "Use in answers" is a native `button role="switch"` styled to design.md §4.2's toggle, because `@kaki/ui` has no Radix Switch yet. Swap it when the component library gains one.
+- **Skeleton E2E.** `skeleton.e2e.ts` matched the echo text; the echo is gone (design §1, "stubs this feature replaces"), so it now matches the agent reply by author and checks the inbox row count. Its intent (every role on the path, live inbox) is unchanged. Its helpers moved to `e2e/tests/support.ts`.
+- **Local verification without Docker.** This session had no Docker, so integration tests ran with `KAKI_TEST_DATABASE_URL` against a local Postgres 16 + pgvector, and E2E ran against local Postgres, `redis-server` and ElasticMQ standing in for LocalStack SQS. CI runs the compose stack as before.
+
+## Verification record (T15, 2026-10-19)
+
+`pnpm format:check`, `pnpm lint` (24 tasks, 0 boundary violations), `pnpm typecheck` (26 tasks), `pnpm test` (21 tasks), `pnpm test:integration` (db 23, kb 9, inbox 5, agent 10, api 11, platform 4, governance 1), `pnpm test:coverage` (kb 98.5%, agent 98.4% lines; thresholds met), `pnpm build`, `pnpm size` (loader 1.75 KB, panel 9.34 KB gz), `pnpm eval --fast` (prices 17/17, groundedness 8/8), `pnpm test:e2e --project=chromium` (4 passed). Planted invented price in an eval expectation: `prices` 16/17, below threshold, exit 1.
+
+Latency on the local E2E run, fake provider (AC-12; not gated until MD): `firstSegmentMs` 4–12, `totalMs` 7–12 across five turns.

@@ -156,8 +156,8 @@ sequenceDiagram
 
 **`packages/kb`** (owns facts, versions, chunks):
 - `facts.ts` (dashboard scope): `listFacts`, `getFact`, `createFact`, `updateFact`. Each takes a `DashboardKbContext { scope: 'dashboard', tx, tenantId, userId }`. Writes facts + version + chunk + audit in the caller's transaction. Optimistic concurrency: `UPDATE … WHERE version = $expected` (0 rows → `VersionConflictError`).
-- `chunk.ts`: `chunkContent(fact)`: the text that is embedded: `"{name}{, unit}. Price."` for products, `"{question}\n{answer}"` for FAQs.
-- `visitor.ts` (visitor scope): `searchVisitorFacts(ctx: VisitorKbContext, embedding, k = 6)`: one SQL statement over `visitor_chunks` joined to `visitor_facts`, `WHERE tenant_id = $tenant` (explicit, in addition to RLS; ADR-005), ordered by cosine distance `<=>`, returning facts with a score; drops results with distance above 0.8 (configurable). Exact k-NN on the tenant's rows (ADR-005: below 20,000 chunks per tenant); the HNSW index is deferred until a tenant approaches that size.
+- `chunk.ts`: `chunkContent(fact)`: the text that is embedded: `"{name}{, unit}"` for products (a generic "Price" suffix made every product match every price question), `"{question}\n{answer}"` for FAQs.
+- `visitor.ts` (visitor scope): `searchVisitorFacts(ctx: VisitorKbContext, embedding, k = 6)`: one SQL statement over `visitor_chunks` joined to `visitor_facts`, `WHERE tenant_id = $tenant` (explicit, in addition to RLS; ADR-005), ordered by cosine distance `<=>`, returning facts with a score; drops results with distance above 0.85 (configurable, `DEFAULT_SEARCH`). Exact k-NN on the tenant's rows (ADR-005: below 20,000 chunks per tenant); the HNSW index is deferred until a tenant approaches that size.
 - **Scope types (ADR-009):** `VisitorKbContext` and `DashboardKbContext` are distinct branded types; visitor functions don't accept a dashboard context and vice versa. The database grants above back this up.
 
 **`packages/agent`:**
