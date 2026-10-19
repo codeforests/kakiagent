@@ -127,6 +127,19 @@ data "aws_iam_policy_document" "turns_producer" {
   }
 }
 
+# Audit anchoring (ADR-014 decision 5): the scheduler writes chain heads to the Object
+# Lock bucket. Put only; the bucket's compliance retention does the locking.
+data "aws_iam_policy_document" "audit_anchor_writer" {
+  statement {
+    actions   = ["s3:PutObject"]
+    resources = ["${module.storage.bucket_arns["audit-anchors"]}/audit/*"]
+  }
+  statement {
+    actions   = ["kms:GenerateDataKey"]
+    resources = [module.data.kms_key_arn]
+  }
+}
+
 module "service" {
   source   = "../../modules/service"
   for_each = local.roles
@@ -145,8 +158,11 @@ module "service" {
 
   scale_on_queue_name = each.key == "agent-worker" ? "${var.name}-conversation-turns.fifo" : null
   task_policies = lookup({
-    agent-worker     = { sqs = data.aws_iam_policy_document.turns_consumer.json }
-    scheduler-worker = { sqs = data.aws_iam_policy_document.turns_producer.json }
+    agent-worker = { sqs = data.aws_iam_policy_document.turns_consumer.json }
+    scheduler-worker = {
+      sqs   = data.aws_iam_policy_document.turns_producer.json
+      audit = data.aws_iam_policy_document.audit_anchor_writer.json
+    }
   }, each.key, {})
 
   environment = merge(
@@ -172,6 +188,7 @@ module "service" {
         HEALTH_PORT         = "3004"
         AWS_REGION          = local.region
         SQS_TURNS_QUEUE_URL = module.queues.queue_urls["conversation-turns"]
+        AUDIT_ANCHOR_BUCKET = module.storage.bucket_names["audit-anchors"]
       }
     }[each.key] : k => v },
   )

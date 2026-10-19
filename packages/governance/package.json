@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Audit chain, PII store, DSR, retention, kill switch, incidents (architecture §5.2). Skeleton: audit.append.",
+  "description": "Audit chain, PII store, DSR, retention, kill switch, incidents (architecture §5.2). Built: the audit hash chain, audit_pii, anchors and verification (FEAT-002).",
   "exports": {
     ".": "./src/index.ts"
   },

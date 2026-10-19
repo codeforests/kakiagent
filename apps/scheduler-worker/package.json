@@ -2,7 +2,7 @@
   "name": "@kaki/scheduler-worker",
   "private": true,
   "type": "module",
-  "description": "Runtime role: the outbox dispatcher now; durable timers and recurring jobs later (ADR-012).",
+  "description": "Runtime role: the outbox dispatcher and audit anchoring now; durable timers and other recurring jobs later (ADR-012, ADR-014).",
   "scripts": {
     "dev": "tsx watch --clear-screen=false src/main.ts",
     "build": "node ../../scripts/bundle-node.mjs",
@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@kaki/db": "workspace:*",
+    "@kaki/governance": "workspace:*",
     "@kaki/platform": "workspace:*",
     "zod": "4.6.7"
   },
