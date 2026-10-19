@@ -9,6 +9,8 @@ describe('identity', () => {
     expect(can('owner', 'killswitch.toggle')).toBe(true);
     expect(can('agent', 'inbox.reply')).toBe(true);
     expect(can('agent', 'settings.manage')).toBe(false);
+    expect(can('admin', 'kb.manage')).toBe(true);
+    expect(can('agent', 'kb.manage')).toBe(false);
   });
 
   it('round-trips a dev session and rejects tampering', () => {

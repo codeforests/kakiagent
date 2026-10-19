@@ -13,7 +13,7 @@
       Done when: unit tests for AC-1 (render), AC-3 (verifier), AC-10 (GST and formatting) and the segmenter's slot and decimal rules pass.
 - [x] T5 — `agent` domain: prompt and `composeReply` with regeneration, escalation, gate re-check and fallback (design §5; D2; AC-2, AC-5, AC-13, AC-14 mid-stream)
       Done when: unit tests with scripted fake outputs for pass, regenerate-then-pass, fail twice, provider error and gate closing between segments pass, and no failing segment reaches `publish`.
-- [ ] T6 — `kb` module: fact repository (create, update, list, get) with versions, chunks, audit and optimistic concurrency; visitor search; scope-typed contexts; capability `kb.manage` (design §3.2, §5; KB-07)
+- [x] T6 — `kb` module: fact repository (create, update, list, get) with versions, chunks, audit and optimistic concurrency; visitor search; scope-typed contexts; capability `kb.manage` (design §3.2, §5; KB-07)
       Done when: integration tests for create/update/version conflict/invalid state/status transitions and visitor search exclusions pass.
 - [ ] T7 — `agent.runVisitorTurn`: replace the echo with gate → lookup → compose → store (fact IDs, disclosure, audit) (design §5; AC-4, AC-7, AC-8, AC-9, AC-13, AC-14)
       Done when: `turn.int.test.ts` covers a grounded answer with stored fact IDs and the `tool.lookup_kb` audit, the exclusion of a `needs_review` and another tenant's fact, the disclosure on the first message only, an edit used by the next turn, provider failure fallback, kill switch and human status; the FEAT-001 failure test is updated per D6; all pass.

@@ -12,7 +12,7 @@ export function fakeEmbed(text: string): number[] {
     .toLowerCase()
     .normalize('NFKC')
     .split(/[^\p{L}\p{N}]+/u)
-    .filter(Boolean)
+    .filter((w) => w && !STOP_WORDS.has(w))
     .map(stem);
   for (const w of words) {
     add(v, `w:${w}`, 1);
@@ -35,6 +35,13 @@ export function fakeEmbed(text: string): number[] {
   }
   return v.map((x) => x / norm);
 }
+
+/** Common English and Singlish function words, which would otherwise dominate short texts. */
+const STOP_WORDS = new Set(
+  'a an and are ah at be can do does for from got have how i in is it lah leh lor me much my no not of on or our please the to we what when where which who you your'.split(
+    ' ',
+  ),
+);
 
 /** Crude English plural stemming, so "cakes" matches "cake". */
 function stem(w: string): string {
