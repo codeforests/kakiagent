@@ -12,6 +12,8 @@ export type ViolationKind =
   | 'stock'
   | 'price_number'
   | 'policy'
+  | 'quantity'
+  | 'number'
   | 'slot_syntax'
   | 'unknown_fact'
   | 'unknown_field';
@@ -91,15 +93,28 @@ const PATTERNS: [ViolationKind, RegExp][] = [
     'policy',
     /\b(?:refunds?|refundable|deliver(?:y|ed)?\s+by|guarantee[sd]?|warrant(?:y|ies)|money[\s-]back)\b|退款|退货|保证|保修/giu,
   ],
+  ['quantity', new RegExp(String.raw`\b${NUM}(?=${QUANTITY})`, 'giu')],
   ['slot_syntax', /\[\[|\]\]/gu],
 ];
+
+/**
+ * FEAT-022 D13: the model types no numbers at all. A digit, or a number word of ten
+ * or more, that no pattern above explains and no slot rendered is a `number`
+ * violation. Values come from slots; plain counts the visitor typed are the only
+ * exception (D3).
+ */
+const DIGITS = /\d+/gu;
+const BIG_WORDS = new RegExp(
+  String.raw`\b(?:(?:ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundred|thousand)(?:[\s-]+(?:and\s+)?${WORD})*)\b`,
+  'giu',
+);
 
 /**
  * Kinds a visitor's own literal number may justify: plain quantities only (FEAT-022
  * D3). A number after a price word is a price, so "is it 20?" never justifies
  * "the price is 20".
  */
-const VISITOR_LITERAL_KINDS = new Set<ViolationKind>(['stock']);
+const VISITOR_LITERAL_KINDS = new Set<ViolationKind>(['stock', 'quantity']);
 
 const MASK = '';
 
@@ -121,9 +136,12 @@ export function verifySegment(
   masked = masked.normalize('NFKC');
   const visitor = visitorTexts.join('\n').normalize('NFKC');
   const violations: Violation[] = [];
+  // Ranges already explained, as a violation or as an allowed visitor quantity.
+  const covered: [number, number][] = [];
   for (const [kind, re] of PATTERNS) {
     for (const m of masked.matchAll(re)) {
       const hit = m[0];
+      covered.push([m.index, m.index + hit.length]);
       if (VISITOR_LITERAL_KINDS.has(kind)) {
         const nums = hit.match(/\d[\d,]*(?:\.\d+)?/g) ?? [];
         if (
@@ -135,6 +153,12 @@ export function verifySegment(
       violations.push({ kind, text: hit });
     }
   }
+  for (const re of [DIGITS, BIG_WORDS])
+    for (const m of masked.matchAll(re)) {
+      const [s, e] = [m.index, m.index + m[0].length];
+      if (!covered.some(([cs, ce]) => s < ce && e > cs))
+        violations.push({ kind: 'number', text: m[0] });
+    }
   return violations.length ? { ok: false, violations } : { ok: true };
 }
 

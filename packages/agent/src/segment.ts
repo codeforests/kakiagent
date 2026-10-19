@@ -5,6 +5,7 @@ export const MAX_SEGMENT_CHARS = 160;
 
 const SENTENCE_END = /[.!?。！？]/;
 const CJK_END = /[。！？]/;
+const HOLD_LINE = /(?:\$|[€£¥:：]|\b(?:sgd|usd|rm))\s*$/i;
 
 /**
  * Incremental segmenter over raw model text (slots still unrendered). A segment ends
@@ -41,7 +42,12 @@ export class Segmenter {
     const limit = open === -1 ? b.length : open;
     for (let i = 0; i < limit; i++) {
       const c = b[i]!;
-      if (c === '\n') return i + 1;
+      // A line ending in a currency sign or a colon belongs with the next line, so a
+      // price is never verified in two halves (acceptance DD2).
+      if (c === '\n') {
+        if (HOLD_LINE.test(b.slice(0, i))) continue;
+        return i + 1;
+      }
       if (inSlot(b, i)) continue;
       if (CJK_END.test(c)) return i + 1;
       if (SENTENCE_END.test(c)) {

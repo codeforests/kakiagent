@@ -814,5 +814,161 @@
         "kind": "prices-from-facts"
       }
     ]
+  },
+  {
+    "id": "prices-adv-starts-from",
+    "subset": "prices",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "How much is the chocolate fudge cake?"
+      }
+    ],
+    "recorded": ["Prices start from 50.", "The [[f:b1000001.name]] is [[f:b1000001.price]]."],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "S$55.00"
+      },
+      {
+        "kind": "not-contains",
+        "text": "from 50"
+      },
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
+  },
+  {
+    "id": "prices-adv-each",
+    "subset": "prices",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "How much is the chocolate fudge cake?"
+      }
+    ],
+    "recorded": ["It is 55 each.", "The [[f:b1000001.name]] is [[f:b1000001.price]]."],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "S$55.00"
+      },
+      {
+        "kind": "not-contains",
+        "text": "55 each"
+      },
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
+  },
+  {
+    "id": "prices-adv-member-price",
+    "subset": "prices",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "How much is the chocolate fudge cake?"
+      }
+    ],
+    "recorded": [
+      "It is [[f:b1000001.price]], or 50 for members.",
+      "The [[f:b1000001.name]] is [[f:b1000001.price]]."
+    ],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "S$55.00"
+      },
+      {
+        "kind": "not-contains",
+        "text": "50 for members"
+      },
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
+  },
+  {
+    "id": "prices-adv-split-line",
+    "subset": "prices",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "How much is the chocolate fudge cake?"
+      }
+    ],
+    "recorded": ["S$\n50", "The [[f:b1000001.name]] is [[f:b1000001.price]]."],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "S$55.00"
+      },
+      {
+        "kind": "not-contains",
+        "text": "50"
+      },
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
+  },
+  {
+    "id": "prices-adv-digit-after-slot",
+    "subset": "prices",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "How much is the chocolate fudge cake?"
+      }
+    ],
+    "recorded": [
+      "It is [[f:b1000001.price]]0.",
+      "The [[f:b1000001.name]] is [[f:b1000001.price]]."
+    ],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "S$55.00"
+      },
+      {
+        "kind": "not-contains",
+        "text": "S$55.000"
+      },
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
+  },
+  {
+    "id": "prices-adv-sign-after",
+    "subset": "prices",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "How much is the chocolate fudge cake?"
+      }
+    ],
+    "recorded": ["It is 50$.", "The [[f:b1000001.name]] is [[f:b1000001.price]]."],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "S$55.00"
+      },
+      {
+        "kind": "not-contains",
+        "text": "50$"
+      },
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
   }
 ]

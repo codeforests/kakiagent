@@ -137,15 +137,47 @@ describe('verifier (AC-3; AGT-02)', () => {
     expect(renderAndVerify(`[[f:${ref(EXCLUSIVE.id)}.price]]`).verify).toEqual({ ok: true });
   });
 
-  it('passes ordinary sentences with harmless numbers', () => {
+  // D13 replaced "harmless numbers pass": the model types no numbers at all, so a
+  // count the model typed is blocked; counts the visitor typed and slot values pass.
+  it('passes ordinary sentences without typed numbers', () => {
     for (const t of [
       'Hi! How can I help you today?',
-      'We have 3 flavours to choose from.',
-      'The 1 kg cake serves about 8 people.',
-      'It is good for 2 to 3 people.',
+      'We have three flavours to choose from.',
       'Let me check with the team and get back to you.',
     ])
       expect(verifySegment(t, [], []), t).toEqual({ ok: true });
+  });
+
+  it.each([
+    'Prices start from 50.',
+    'The price would be about 50.',
+    'It costs approx. 50.',
+    'It is 55 each.',
+    'It is 55.00.',
+    'Members pay 50.',
+    'Between 50 and 60.',
+    'It is 55 per kg.',
+    'Pricing: 50',
+    '50.',
+    '50$',
+    'It is 50 S$.',
+    'Members pay fifty.',
+    'It is sixty-five.',
+    'We have 3 flavours.',
+  ])('blocks a number the model typed (D13): %j', (text) => {
+    expect(verifySegment(text, [], []).ok).toBe(false);
+  });
+
+  it('blocks a digit typed straight after a rendered price (R5)', () => {
+    const { verify } = renderAndVerify(`It is [[f:${ref(FUDGE.id)}.price]]0.`);
+    expect(verify.ok).toBe(false);
+  });
+
+  it('passes a count the visitor typed, before a quantity noun', () => {
+    expect(
+      verifySegment('Yes, it is enough for 8 people.', [], ['is it enough for 8 people?']),
+    ).toEqual({ ok: true });
+    expect(verifySegment('Yes, 8 is fine.', [], ['is 8 ok?']).ok).toBe(false);
   });
 
   it('allows a plain quantity the visitor typed, never a currency amount (D3)', () => {
@@ -191,6 +223,12 @@ describe('segmenter (ADR-008 decision 4)', () => {
     const s = new Segmenter();
     expect(s.push('Price: [[f:9c1e4a2b')).toEqual([]);
     expect(s.push('.price]] each. ')).toEqual(['Price: [[f:9c1e4a2b.price]] each.']);
+  });
+
+  it('keeps a line ending in a currency sign or colon with the next line (DD2)', () => {
+    const seg = new Segmenter();
+    expect(seg.push('S$\n50 ')).toEqual([]);
+    expect(seg.push('more.\n')).toEqual(['S$\n50 more.']);
   });
 
   it('splits at line breaks and CJK full stops', () => {
