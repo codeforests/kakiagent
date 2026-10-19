@@ -14,6 +14,7 @@ export function defaultRegistry(provider: Exclude<ProviderId, 'bedrock'>): Model
       extract: fake('fake-sonnet'),
       summarise: fake('fake-haiku'),
       judge: fake('fake-opus'),
+      embed: fake('fake-embed'),
     };
   }
   const dev = (modelId: string) => ({ provider: 'anthropic-dev' as const, modelId });
@@ -24,5 +25,7 @@ export function defaultRegistry(provider: Exclude<ProviderId, 'bedrock'>): Model
     extract: dev('claude-sonnet-5-5'),
     summarise: dev('claude-haiku-5-5'),
     judge: dev('claude-opus-5-5'),
+    // Anthropic has no embedding API: the local embedder stands in (FEAT-022 D5).
+    embed: { provider: 'fake', modelId: 'fake-embed' },
   };
 }

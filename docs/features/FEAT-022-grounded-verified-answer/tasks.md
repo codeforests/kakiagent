@@ -7,7 +7,7 @@
       Done when: `pnpm db:setup` applies cleanly on a fresh database and the existing RLS suite passes with the new tables listed.
 - [x] T2 — RLS and grant tests for the new tables and views (design §4; AC-6; AGT-16, GOV-03)
       Done when: `rls.int.test.ts` covers cross-tenant reads/writes on each new table, permission denied for the visitor role on the base tables, and every excluded status in `visitor_facts`/`visitor_chunks`; it passes.
-- [ ] T3 — `llm-gateway`: `stream`, `embed`, the `embed` logical model, scripted streaming and the deterministic embedder in the fake provider, streaming in `anthropic-dev` (design §3.5)
+- [x] T3 — `llm-gateway`: `stream`, `embed`, the `embed` logical model, scripted streaming and the deterministic embedder in the fake provider, streaming in `anthropic-dev` (design §3.5)
       Done when: unit tests for stream chunking, scripted multi-attempt outputs, embedding determinism and similarity ordering pass.
 - [ ] T4 — `agent` domain: slots, renderer (S$, GST), segmenter, verifier (design §5; AGT-02, KB-15, NFR-10)
       Done when: unit tests for AC-1 (render), AC-3 (verifier), AC-10 (GST and formatting) and the segmenter's slot and decimal rules pass.
