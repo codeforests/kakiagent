@@ -1,45 +1,16 @@
-import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
+import { expectNoSeriousA11yViolations, openShadowRoots } from './support.ts';
 
 /**
  * The walking-skeleton done-when (plan §2): a visitor message typed in the widget on
- * a host page comes back as the echo reply in the widget, and appears in the signed-in
- * dashboard inbox without a reload. The path crosses every runtime role: api →
+ * a host page gets the agent's reply in the widget, and the conversation appears in
+ * the signed-in dashboard inbox without a reload. (FEAT-022 replaced the skeleton's
+ * echo with grounded replies, so the reply is matched by author, not by text.) The path crosses every runtime role: api →
  * outbox → scheduler-worker → SQS → agent-worker → Valkey → realtime → both clients.
  */
 const WIDGET_HOST = 'http://localhost:5175/';
 
-/**
- * The widget renders into a closed shadow root (ADR-016), which Playwright cannot
- * pierce. In this test only, attachShadow is forced open; production stays closed.
- */
-async function openShadowRoots(page: Page) {
-  await page.addInitScript(() => {
-    const attach = Element.prototype.attachShadow;
-    Element.prototype.attachShadow = function (init: ShadowRootInit) {
-      return attach.call(this, { ...init, mode: 'open' });
-    };
-  });
-}
-
-async function expectNoSeriousA11yViolations(page: Page, include?: string) {
-  const builder = new AxeBuilder({ page }).withTags([
-    'wcag2a',
-    'wcag2aa',
-    'wcag21a',
-    'wcag21aa',
-    'wcag22aa',
-  ]);
-  const results = await (include ? builder.include(include) : builder).analyze();
-  const serious = results.violations.filter(
-    (v) => v.impact === 'serious' || v.impact === 'critical',
-  );
-  expect(
-    serious.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`),
-  ).toEqual([]);
-}
-
-test('a widget message is echoed to the visitor and shows up live in the inbox', async ({
+test('a widget message gets a reply and shows up live in the inbox', async ({
   page: owner,
   browser,
 }) => {
@@ -52,6 +23,8 @@ test('a widget message is echoed to the visitor and shows up live in the inbox',
   await expect(owner.getByTestId('tenant-name')).toHaveText('Kaki Bakery');
   await expect(owner.getByTestId('live-state')).toHaveText('Live');
   await expectNoSeriousA11yViolations(owner);
+  const rows = owner.getByTestId('conversation-row');
+  const before = await rows.count();
 
   // A visitor opens the host page and chats.
   // A separate browser context: the visitor shares no cookies or storage with the owner.
@@ -66,14 +39,14 @@ test('a widget message is echoed to the visitor and shows up live in the inbox',
   await panel.getByRole('button', { name: 'Send' }).click();
 
   await expect(panel.locator('[data-author="visitor"]').filter({ hasText: text })).toBeVisible();
-  await expect(
-    panel.locator('[data-author="agent"]').filter({ hasText: `Echo: ${text}` }),
-  ).toBeVisible();
+  const reply = panel.locator('[data-author="agent"]:not([data-pending])');
+  await expect(reply).toBeVisible();
+  const replyText = (await reply.innerText()).trim();
   await expectNoSeriousA11yViolations(visitor, 'kaki-agent');
 
   // The inbox updated over the WebSocket: no reload happened on this page.
-  const row = owner.getByTestId('conversation-row').filter({ hasText: `Echo: ${text}` });
-  await expect(row).toBeVisible();
+  await expect(rows).toHaveCount(before + 1);
+  await expect(rows.filter({ hasText: replyText }).first()).toBeVisible();
   await visitorContext.close();
 });
 

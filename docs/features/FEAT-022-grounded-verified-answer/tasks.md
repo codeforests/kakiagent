@@ -29,7 +29,7 @@
       Done when: the pages render every state in ui-design.md against the running API, with typecheck and lint clean.
 - [x] T13 — Evals: fixture tenants, recorded and adversarial cases (≥ 20 fast `prices`/`groundedness`), runner on `composeReply`, `prices-from-facts` and `cites` scorers (design §5; AC-1, AC-4, AC-15)
       Done when: `pnpm eval --fast` passes the thresholds, and a planted invented price in a case's expected output makes it fail.
-- [ ] T14 — E2E: extend the suite for UC-20/UC-13 (J2): add the facts in the dashboard, ask in the widget, see the disclosure and S$55.00, never S$70/S$99 (AC-16)
+- [x] T14 — E2E: extend the suite for UC-20/UC-13 (J2): add the facts in the dashboard, ask in the widget, see the disclosure and S$55.00, never S$70/S$99 (AC-16)
       Done when: the new E2E spec and the skeleton spec pass against the local stack in Chromium.
 - [ ] T15 — Verify: every AC in design §6 demonstrably passes; format, lint, boundaries, typecheck, unit, integration, coverage thresholds, build, size and eval are green; latency figures recorded for the PR (AC-12)
       Done when: all of the above run clean, with output captured for the acceptance report.
