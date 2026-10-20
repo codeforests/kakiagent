@@ -69,8 +69,7 @@ export interface GenerateResult extends ProviderResult {
 /** A streamed reply: text deltas, then one `done` with the whole result. */
 export type StreamChunk = { type: 'text'; text: string } | { type: 'done'; result: GenerateResult };
 export type ProviderStreamChunk =
-  | { type: 'text'; text: string }
-  | { type: 'done'; result: ProviderResult };
+  { type: 'text'; text: string } | { type: 'done'; result: ProviderResult };
 
 /** Embedding dimensions of every embedder: Cohere Embed Multilingual v3 (ADR-019). */
 export const EMBEDDING_DIMENSIONS = 1024;

@@ -40,9 +40,9 @@ describe('routeReply (ADR-007 decision 1, FEAT-004 AC-2)', () => {
   });
 
   it('raises the complexity threshold 0.1 per governor step, capped at 0.95', () => {
-    expect([0, 1, 2, 3].map((governorStep) => effectiveThreshold(policy({ governorStep })))).toEqual(
-      [0.6, 0.7, 0.8, 0.9],
-    );
+    expect(
+      [0, 1, 2, 3].map((governorStep) => effectiveThreshold(policy({ governorStep }))),
+    ).toEqual([0.6, 0.7, 0.8, 0.9]);
     expect(effectiveThreshold(policy({ complexityThreshold: 0.8, governorStep: 3 }))).toBe(0.95);
     expect(effectiveThreshold(policy({ governorStep: 9 }))).toBe(0.9);
     const turn = { ...simple, complexity: 0.75 };

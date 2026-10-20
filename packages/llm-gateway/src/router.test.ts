@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  createFakeProvider,
-  createGateway,
-  defaultRegistry,
-  gatewayFromConfig,
-} from './index.js';
+import { createFakeProvider, createGateway, defaultRegistry, gatewayFromConfig } from './index.js';
 
 describe('llm-gateway', () => {
   it('echoes deterministically through the fake provider', async () => {

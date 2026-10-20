@@ -1,6 +1,13 @@
 /**
- * Public interface of the `analytics` module (architecture §5.2). Empty in the walking
- * skeleton; the feature named in package.json adds it. Other modules may import only
- * this file (dependency-cruiser enforces it).
+ * Public interface of the `analytics` module (architecture §5.2): the usage ledger and
+ * the cost governor (ADR-021, ADR-007; FEAT-004). Dashboards and the EIS report arrive
+ * with FEAT-066 and FEAT-067. Other modules may import only this file.
  */
-export {};
+export {
+  DEFAULT_GOVERNOR,
+  runCostGovernor,
+  usage,
+  usageSink,
+  type GovernorChange,
+  type GovernorConfig,
+} from './usage.js';
