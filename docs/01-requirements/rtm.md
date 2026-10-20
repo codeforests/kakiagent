@@ -19,7 +19,7 @@
 ## Matrix
 | Req ID | Requirement (short) | Priority | Status | Source | Use case(s) | Design ref | Plan ref | Test ref |
 |---|---|---|---|---|---|---|---|---|
-| ONB-01 | Sign up with an email magic link or Google | Must | Active | Research P1 | UC-01 | ADR-020; SCR-APP-001, SCR-APP-003; features/FEAT-005-sign-in/technical-design.md; features/FEAT-005-sign-in/ui-design.md | FEAT-005 | _TBD_ |
+| ONB-01 | Sign up with an email magic link or Google | Must | Active | Research P1 | UC-01 | ADR-020; SCR-APP-001, SCR-APP-003; features/FEAT-005-sign-in/technical-design.md; features/FEAT-005-sign-in/ui-design.md | FEAT-005 | features/FEAT-005-sign-in/acceptance-report.md |
 | ONB-02 | Guided wizard | Must | Active | Research P1 | UC-03 | SCR-APP-006 | FEAT-035 | _TBD_ |
 | ONB-03 | Business profile | Must | Active | Research P1; Appx A A15 | UC-03 | SCR-APP-006, SCR-APP-044 | FEAT-009 | _TBD_ |
 | ONB-04 | "Paste your website URL" as the first and quickest path to a working bot | Must | Active | Research P1 | UC-03 | ADR-018; SCR-APP-007 | FEAT-012 | _TBD_ |
@@ -29,14 +29,14 @@
 | ONB-08 | Median time from sign-up to going live is ≤ 15 minutes for a website-only… | Should | Active | Research P1 | UC-03 | SCR-APP-008 | FEAT-035 | _TBD_ |
 | ONB-09 | Go-live readiness check | Must | Active | Gap review v0.3; Appx A A21 | UC-03, UC-15 | ADR-010; SCR-APP-012 | FEAT-035 | _TBD_ |
 | ONB-10 | Going live and going offline are explicit owner/admin actions per channel | Must | Active | Gap review v0.3; Appx A A21 | UC-03 | ADR-013, ADR-016; SCR-APP-012, SCR-APP-036, SCR-APP-037, SCR-WGT-001, SCR-WGT-005 | FEAT-034 | _TBD_ |
-| AUTH-01 | Sign in with a magic link or Google | Must | Active | Gap review v0.3; Appx A A7 | UC-01, UC-02 | ADR-019, ADR-020; SCR-APP-001, SCR-APP-002; features/FEAT-005-sign-in/technical-design.md; features/FEAT-005-sign-in/ui-design.md | FEAT-005 | _TBD_ |
-| AUTH-02 | Session management | Must | Active | Gap review v0.3; Appx A A7 | UC-02, UC-06 | ADR-020; SCR-APP-055, SCR-APP-059; features/FEAT-005-sign-in/technical-design.md; features/FEAT-005-sign-in/ui-design.md | FEAT-005, FEAT-008 | _TBD_ |
+| AUTH-01 | Sign in with a magic link or Google | Must | Active | Gap review v0.3; Appx A A7 | UC-01, UC-02 | ADR-019, ADR-020; SCR-APP-001, SCR-APP-002; features/FEAT-005-sign-in/technical-design.md; features/FEAT-005-sign-in/ui-design.md | FEAT-005 | features/FEAT-005-sign-in/acceptance-report.md |
+| AUTH-02 | Session management | Must | Active | Gap review v0.3; Appx A A7 | UC-02, UC-06 | ADR-020; SCR-APP-055, SCR-APP-059; features/FEAT-005-sign-in/technical-design.md; features/FEAT-005-sign-in/ui-design.md | FEAT-005, FEAT-008 | features/FEAT-005-sign-in/acceptance-report.md (partial) |
 | AUTH-03 | MFA: tenant users can enrol a TOTP authenticator | Must | Active | Gap review v0.3; Appx A A7 | UC-02, UC-06, UC-07, UC-08, UC-22, UC-24, UC-29, UC-30, UC-32, UC-33, UC-34 | ADR-020; SCR-APP-005, SCR-APP-045, SCR-APP-055, SCR-OPS-001 | FEAT-006 | _TBD_ |
 | AUTH-04 | Team invitations | Must | Active | Gap review v0.3; Appx A A7 | UC-02, UC-06 | ADR-005, ADR-020; SCR-APP-004, SCR-APP-045 | FEAT-007 | _TBD_ |
 | AUTH-05 | Users can change their profile name and email | Must | Active | Gap review v0.3; Appx A A7 | UC-02 | ADR-020; SCR-APP-055 | FEAT-008 | _TBD_ |
 | AUTH-06 | Ownership transfer | Must | Active | Gap review v0.3; Appx A A7 | UC-07 | ADR-020; SCR-APP-053, SCR-APP-060 | FEAT-010 | _TBD_ |
 | AUTH-07 | Tenant deletion | Must | Active | Gap review v0.3; Appx A A7; PDPA – retention limitation | UC-08 | ADR-004, ADR-012, ADR-014, ADR-015; SCR-APP-053 | FEAT-010 | _TBD_ |
-| AUTH-08 | At sign-up the user accepts the Terms of Service, Acceptable Use Policy and the… | Must | Active | Gap review v0.3; Appx A A7; PDPC GenAI guidelines – data-intermediary documentation | UC-01 | ADR-020; SCR-APP-003, SCR-APP-047, SCR-OPS-009; features/FEAT-005-sign-in/technical-design.md; features/FEAT-005-sign-in/ui-design.md | FEAT-005, FEAT-073 | _TBD_ |
+| AUTH-08 | At sign-up the user accepts the Terms of Service, Acceptable Use Policy and the… | Must | Active | Gap review v0.3; Appx A A7; PDPC GenAI guidelines – data-intermediary documentation | UC-01 | ADR-020; SCR-APP-003, SCR-APP-047, SCR-OPS-009; features/FEAT-005-sign-in/technical-design.md; features/FEAT-005-sign-in/ui-design.md | FEAT-005, FEAT-073 | features/FEAT-005-sign-in/acceptance-report.md |
 | KB-01 | Website crawl | Must | Active | Research P1; Appx A A16; D2 | UC-03, UC-14 | ADR-018; SCR-APP-007, SCR-APP-023, SCR-APP-024 | FEAT-012 | _TBD_ |
 | KB-02 | File upload | Must | Active | Research P1 | UC-10 | ADR-018, ADR-019; SCR-APP-007, SCR-APP-023 | FEAT-015 | _TBD_ |
 | KB-03 | Spreadsheet upload (CSV/XLSX) with column mapping to Product, Service, Price,… | Must | Active | Research P1 | UC-10 | ADR-010, ADR-018; SCR-APP-025 | FEAT-016 | _TBD_ |
