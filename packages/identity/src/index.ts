@@ -31,3 +31,11 @@ export { createWorkspace, workspaceSlug, type CreatedWorkspace } from './workspa
 
 /** The session cookie (ADR-020): opaque token, HttpOnly, SameSite=Lax. */
 export const SESSION_COOKIE = 'kaki_session';
+export {
+  createGoogleSignIn,
+  signInWithGoogle,
+  OAUTH_COOKIE,
+  OAUTH_COOKIE_TTL_S,
+  type GoogleConfig,
+  type GoogleSignIn,
+} from './google.js';
