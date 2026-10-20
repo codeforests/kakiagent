@@ -88,6 +88,11 @@ describe('assertAuditEntry (AC-7)', () => {
     ['a card number as related ID', entry({ related: [{ type: 'card', id: '4242424242424242' }] })],
     ['a lower-case NRIC as payload code', bad({ ref: 's1234567d' })],
     ['a card number in an action', entry({ action: 'paid.4242424242424242' })],
+    // Acceptance correction: AC-8 names both values for every field, and "contains" a card.
+    ['a card number as subject ID', entry({ subjectId: '4242424242424242' })],
+    ['a lower-case NRIC as related ID', entry({ related: [{ type: 'contact', id: 's1234567d' }] })],
+    ['a card number in a payload code', bad({ ref: 'order.4242424242424242' })],
+    ['a lower-case NRIC in an actor ID', entry({ actorId: 'staff:s1234567d' })],
   ])('rejects %s', (_n, e) => {
     expect(() => assertAuditEntry(e)).toThrow(AuditPayloadError);
   });
