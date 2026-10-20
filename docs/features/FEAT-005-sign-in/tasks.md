@@ -5,7 +5,7 @@
 
 - [x] T1 — Schema: `users`, `memberships`, `terms_acceptances`, `sessions`, `magic_links` (0006), the `app_identity` role, RLS, policies and grants (0007), the `identity` trust zone, seed users; RLS suite cases (design §4; AC-14)
       Done when: `pnpm db:setup` applies 0006–0007 on a fresh database; the cross-tenant suite passes with `memberships` and `terms_acceptances` listed, and new cases show the identity zone can't read conversations, messages, facts or audit entries and the dashboard and visitor zones can't read users, sessions or magic links.
-- [ ] T2 — Platform: `createSmtpMailer` (nodemailer) and the rate limiter (`createRateLimiter` on Valkey, `memoryRateLimiter`) (design §5.3)
+- [x] T2 — Platform: `createSmtpMailer` (nodemailer) and the rate limiter (`createRateLimiter` on Valkey, `memoryRateLimiter`) (design §5.3)
       Done when: unit tests show the memory limiter allows 5 hits and refuses the 6th in a window and resets after it; the mailer's message building is unit-tested; the Valkey limiter passes the same cases against a Valkey container in an integration test.
 - [ ] T3 — Identity domain: tokens, users, magic links (request, consume, send, sweep, purge), sessions (create, authenticate, revoke, revoke all), terms, workspaces (design §5.1–§5.5; AC-1, AC-2, AC-4, AC-6, AC-7, AC-9–AC-11)
       Done when: identity integration tests on the real schema pass for: hashed storage only; single use; expiry; invalid tokens; derived-token re-send after a failing mailer, no send after expiry, 24-hour purge; idle and absolute expiry; revocation of one and all sessions; deactivated membership and disabled user; workspace creation with acceptances and a verifying audit chain; outdated terms creating nothing.
