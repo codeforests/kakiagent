@@ -96,10 +96,6 @@
 .kaki-btn--danger-ghost:hover {
   background: var(--color-danger-soft);
 }
-.kaki-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
 
 /* design.md §4.3 dialog: centred, max 480, radius xl, shadow-lg; a bottom sheet below 640 px. */
 .kaki-dialog__scrim {

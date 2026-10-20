@@ -1,64 +1,138 @@
-import type { FactStatus } from '@kaki/contracts';
+import type { Fact, FactStatus, FactType } from '@kaki/contracts';
 import { Button, EmptyState, ErrorState } from '@kaki/ui';
-import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import { api, ApiError } from '../lib/api.ts';
-import { factTitle, factValue, STATUS_LABEL, STATUS_TONE, updatedLabel } from '../lib/facts.ts';
+import {
+  factTitle,
+  factValue,
+  needsGst,
+  promotionWindow,
+  STATUS_LABEL,
+  STATUS_TONE,
+  TYPE_LABEL,
+  updatedLabel,
+} from '../lib/facts.ts';
+import { DeleteFactDialog, type DeleteOutcome } from './delete-fact.tsx';
 
-const FILTERS: { value: FactStatus | ''; label: string }[] = [
+/** "GST to check" filters on `gst=unknown` rather than a status (FEAT-011 ui-design). */
+type StatusFilter = FactStatus | 'gst' | '';
+
+const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
   { value: '', label: 'All' },
   { value: 'approved', label: 'Approved' },
   { value: 'disabled', label: 'Disabled' },
   { value: 'needs_review', label: 'Needs review' },
+  { value: 'rejected', label: 'Rejected' },
+  { value: 'conflicted', label: 'Conflicted' },
+  { value: 'gst', label: 'GST to check' },
 ];
 
-export function StatusBadge({ status }: { status: FactStatus }) {
+const TYPE_FILTERS: { value: FactType | ''; label: string }[] = [
+  { value: '', label: 'All types' },
+  { value: 'product', label: 'Products and services' },
+  { value: 'faq', label: 'FAQs' },
+  { value: 'policy', label: 'Policies' },
+  { value: 'promotion', label: 'Promotions' },
+];
+
+export function StatusBadge({ status, busy }: { status: FactStatus; busy?: boolean }) {
   return (
-    <span className={`status-badge status-badge--${STATUS_TONE[status]}`}>
-      <span className="status-badge__dot" aria-hidden="true" />
-      {STATUS_LABEL[status]}
+    <span className={`status-badge status-badge--${STATUS_TONE[status]}`} aria-busy={busy}>
+      {busy ? (
+        <span className="spinner" aria-hidden="true" />
+      ) : (
+        <span className="status-badge__dot" aria-hidden="true" />
+      )}
+      {busy ? 'Updating…' : STATUS_LABEL[status]}
     </span>
   );
 }
 
-const SAVED = 'Fact saved. Your assistant uses it from now on.';
-
-/** The saved toast (design.md §4.3): `role="status"`, gone after 5 s. */
-function useSavedToast() {
+/** The toast (design.md §4.3): `role="status"`, gone after 5 s. Router state seeds it. */
+function useToast() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [toast, setToast] = useState(() =>
-    (location.state as { saved?: boolean } | null)?.saved ? SAVED : null,
+  const [toast, setToast] = useState<string | null>(
+    () => (location.state as { toast?: string } | null)?.toast ?? null,
   );
   useEffect(() => {
     if (!toast) return;
     // Drop the router state so a reload doesn't show the toast again.
-    void navigate(location.pathname, { replace: true, state: null });
+    if (location.state) void navigate(location.pathname, { replace: true, state: null });
     const timer = setTimeout(() => setToast(null), 5000);
     return () => clearTimeout(timer);
-  }, [toast, navigate, location.pathname]);
-  return toast;
+  }, [toast, navigate, location.pathname, location.state]);
+  return [toast, setToast] as const;
 }
 
-/** SCR-APP-027 Facts (KB-07). */
+const DELETE_TOAST: Record<DeleteOutcome, string> = {
+  deleted: 'Fact deleted.',
+  'already-deleted': 'This fact was already deleted.',
+};
+
+/** SCR-APP-027 Facts (KB-07, KB-15; FEAT-022 and FEAT-011 ui-design). */
 export function FactsPage() {
-  const toast = useSavedToast();
+  const queryClient = useQueryClient();
+  const [toast, setToast] = useToast();
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const [q, setQ] = useState('');
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState<FactStatus | ''>('');
+  const [status, setStatus] = useState<StatusFilter>('');
+  const [type, setType] = useState<FactType | ''>('');
+  const [deleting, setDeleting] = useState<Fact | null>(null);
   // Search runs a moment after typing stops, not on each keystroke.
   useEffect(() => {
     const timer = setTimeout(() => setSearch(q.trim()), 250);
     return () => clearTimeout(timer);
   }, [q]);
-  const filtered = Boolean(search || status);
-  const list = useQuery({
-    queryKey: ['facts', status, search],
-    queryFn: () => api.facts({ status: status || undefined, q: search || undefined }),
+  const filtered = Boolean(search || status || type);
+  const list = useInfiniteQuery({
+    queryKey: ['facts', type, status, search],
+    queryFn: ({ pageParam }) =>
+      api.facts({
+        type: type || undefined,
+        status: status && status !== 'gst' ? status : undefined,
+        gst: status === 'gst' ? 'unknown' : undefined,
+        q: search || undefined,
+        cursor: pageParam,
+      }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
   });
+  const facts = list.data?.pages.flatMap((p) => p.facts) ?? [];
   const forbidden = list.error instanceof ApiError && list.error.status === 403;
-  const empty = list.data?.facts.length === 0;
+  const loadFailed = list.isError && !forbidden && facts.length === 0;
+  const empty = list.isSuccess && facts.length === 0;
+
+  const toggle = useMutation({
+    mutationFn: (f: Fact) =>
+      api.updateFact(f.id, {
+        version: f.version,
+        status: f.status === 'disabled' ? 'approved' : 'disabled',
+      }),
+    onSuccess: async ({ fact }) => {
+      await queryClient.invalidateQueries({ queryKey: ['facts'] });
+      setToast(
+        fact.status === 'disabled'
+          ? 'Fact disabled. Your assistant no longer uses it.'
+          : 'Fact enabled. Your assistant uses it from now on.',
+      );
+    },
+    onError: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['facts'] });
+      setToast(null);
+    },
+  });
+
+  const clear = () => {
+    setQ('');
+    setSearch('');
+    setStatus('');
+    setType('');
+  };
 
   const addButton = (
     <Button asChild>
@@ -70,7 +144,9 @@ export function FactsPage() {
     <div className="facts">
       <div className="page-header">
         <div className="page-header__text">
-          <h1 className="page-title">Facts</h1>
+          <h1 className="page-title" ref={headingRef} tabIndex={-1}>
+            Facts
+          </h1>
           <p className="page-lede">
             What your assistant knows. Facts you add here are used in answers right away.
           </p>
@@ -91,19 +167,33 @@ export function FactsPage() {
             <input
               className="input"
               type="search"
-              placeholder="Search facts, e.g. cake"
+              placeholder="Search facts, e.g. cake or refund"
               value={q}
               onChange={(e) => setQ(e.target.value)}
             />
+          </label>
+          <label className="field field--inline">
+            <span className="sr-only">Type</span>
+            <select
+              className="input"
+              value={type}
+              onChange={(e) => setType(e.target.value as FactType | '')}
+            >
+              {TYPE_FILTERS.map((f) => (
+                <option key={f.value} value={f.value}>
+                  {f.label}
+                </option>
+              ))}
+            </select>
           </label>
           <label className="field field--inline">
             <span className="sr-only">Status</span>
             <select
               className="input"
               value={status}
-              onChange={(e) => setStatus(e.target.value as FactStatus | '')}
+              onChange={(e) => setStatus(e.target.value as StatusFilter)}
             >
-              {FILTERS.map((f) => (
+              {STATUS_FILTERS.map((f) => (
                 <option key={f.value} value={f.value}>
                   {f.label}
                 </option>
@@ -121,7 +211,7 @@ export function FactsPage() {
         </div>
       )}
 
-      {list.isError && !forbidden && (
+      {loadFailed && (
         <ErrorState
           title="We couldn't load your facts"
           action={
@@ -143,21 +233,14 @@ export function FactsPage() {
         <EmptyState
           title="No facts match your search"
           action={
-            <Button
-              variant="secondary"
-              onClick={() => {
-                setQ('');
-                setSearch('');
-                setStatus('');
-              }}
-            >
+            <Button variant="secondary" onClick={clear}>
               Clear filters
             </Button>
           }
         />
       )}
 
-      {list.data && list.data.facts.length > 0 && (
+      {facts.length > 0 && (
         <table className="fact-table" data-testid="fact-table">
           <thead>
             <tr>
@@ -166,30 +249,84 @@ export function FactsPage() {
               <th scope="col">Value</th>
               <th scope="col">Status</th>
               <th scope="col">Updated</th>
+              <th scope="col">
+                <span className="sr-only">Actions</span>
+              </th>
             </tr>
           </thead>
           <tbody>
-            {list.data.facts.map((f) => (
-              <tr key={f.id} className="fact-row" data-testid="fact-row">
-                <td className="fact-row__title">
-                  <Link to={`/knowledge/facts/${f.id}`}>{factTitle(f)}</Link>
-                </td>
-                <td className="fact-row__meta">{f.type === 'product' ? 'Product' : 'FAQ'}</td>
-                <td className="fact-row__meta fact-row__value">{factValue(f)}</td>
-                <td className="fact-row__status">
-                  <StatusBadge status={f.status} />
-                </td>
-                <td className="fact-row__meta fact-row__updated">
-                  <time dateTime={f.updatedAt}>{updatedLabel(f.updatedAt)}</time>
-                </td>
-              </tr>
-            ))}
+            {facts.map((f) => {
+              const busy = toggle.isPending && toggle.variables?.id === f.id;
+              const window = f.type === 'promotion' ? promotionWindow(f) : null;
+              return (
+                <tr key={f.id} className="fact-row" data-testid="fact-row">
+                  <td className="fact-row__title">
+                    <Link to={`/knowledge/facts/${f.id}`}>{factTitle(f)}</Link>
+                  </td>
+                  <td className="fact-row__meta">{TYPE_LABEL[f.type]}</td>
+                  <td className="fact-row__meta fact-row__value">
+                    {factValue(f)}
+                    {needsGst(f) && <span className="chip chip--warning">GST to check</span>}
+                    {window && window.state !== 'running' && (
+                      <span className="chip chip--neutral">{window.label}</span>
+                    )}
+                  </td>
+                  <td className="fact-row__status">
+                    <StatusBadge status={f.status} busy={busy} />
+                  </td>
+                  <td className="fact-row__meta fact-row__updated">
+                    <time dateTime={f.updatedAt}>{updatedLabel(f.updatedAt)}</time>
+                  </td>
+                  <td className="fact-row__actions">
+                    <RowMenu
+                      fact={f}
+                      disabled={busy}
+                      onToggle={() => toggle.mutate(f)}
+                      onDelete={() => setDeleting(f)}
+                    />
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       )}
 
+      {list.hasNextPage && !list.isFetchNextPageError && (
+        <div className="load-more">
+          <Button
+            variant="secondary"
+            onClick={() => void list.fetchNextPage()}
+            disabled={list.isFetchingNextPage}
+            aria-busy={list.isFetchingNextPage || undefined}
+          >
+            {list.isFetchingNextPage ? 'Loading…' : 'Load more facts'}
+          </Button>
+        </div>
+      )}
+      {list.isFetchNextPageError && (
+        <div className="alert alert--danger" role="alert">
+          <p>We couldn't load more facts.</p>
+          <Button variant="secondary" onClick={() => void list.fetchNextPage()}>
+            Try again
+          </Button>
+        </div>
+      )}
+
+      <DeleteFactDialog
+        fact={deleting}
+        onClose={() => setDeleting(null)}
+        onConflict={() => void queryClient.invalidateQueries({ queryKey: ['facts'] })}
+        onDone={async (outcome) => {
+          setDeleting(null);
+          await queryClient.invalidateQueries({ queryKey: ['facts'] });
+          setToast(DELETE_TOAST[outcome]);
+          headingRef.current?.focus();
+        }}
+      />
+
       <div className="sr-only" aria-live="polite">
-        {list.data ? `${list.data.facts.length} facts` : ''}
+        {list.data ? `${facts.length} facts shown` : ''}
       </div>
       {toast && (
         <div className="toast" role="status">
@@ -197,5 +334,46 @@ export function FactsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+/** The row's ⋯ menu: use or stop using in answers, then Delete… (FEAT-011 ui-design). */
+function RowMenu({
+  fact,
+  disabled,
+  onToggle,
+  onDelete,
+}: {
+  fact: Fact;
+  disabled: boolean;
+  onToggle: () => void;
+  onDelete: () => void;
+}) {
+  const togglable = fact.status === 'approved' || fact.status === 'disabled';
+  return (
+    <DropdownMenu.Root modal={false}>
+      <DropdownMenu.Trigger
+        className="icon-button"
+        aria-label={`Actions for ${factTitle(fact)}`}
+        disabled={disabled}
+      >
+        <span aria-hidden="true">⋯</span>
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content className="menu" align="end" sideOffset={4}>
+          {togglable && (
+            <>
+              <DropdownMenu.Item className="menu__item" onSelect={onToggle}>
+                {fact.status === 'disabled' ? 'Use in answers' : 'Stop using in answers'}
+              </DropdownMenu.Item>
+              <DropdownMenu.Separator className="menu__divider" />
+            </>
+          )}
+          <DropdownMenu.Item className="menu__item menu__item--danger" onSelect={onDelete}>
+            Delete…
+          </DropdownMenu.Item>
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
   );
 }
