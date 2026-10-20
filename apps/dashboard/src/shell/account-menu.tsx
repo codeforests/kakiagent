@@ -6,7 +6,8 @@ export function AccountMenu({ email }: { email: string | undefined }) {
   const signOut = useSignOut();
   const signOutEverywhere = useSignOut(true);
   return (
-    <DropdownMenu.Root>
+    // Non-modal: a modal menu aria-hides the page while its links stay focusable.
+    <DropdownMenu.Root modal={false}>
       <DropdownMenu.Trigger className="avatar avatar--button" aria-label="Account">
         {email ? email[0]!.toUpperCase() : ' '}
       </DropdownMenu.Trigger>

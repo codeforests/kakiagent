@@ -12,6 +12,12 @@ import { router } from './router.tsx';
  * Where a failed request sends the user (FEAT-005 ui-design SCR-APP-059): no session to
  * sign-in, an ended one to "session expired", and no workspace yet to create one.
  */
+let sessionEnded = false;
+router.subscribe(({ location }) => {
+  if (location.pathname === '/sign-in' || location.pathname === '/auth/verify')
+    sessionEnded = false;
+});
+
 function routeAuthError(err: Error) {
   const to =
     err instanceof UnauthorizedError
@@ -21,6 +27,10 @@ function routeAuthError(err: Error) {
       : err instanceof ApiError && err.code === 'no_workspace'
         ? '/welcome'
         : null;
+  // The first 401 clears the ended session's cookie, so requests still in flight come
+  // back `unauthorized`: they must not replace "session expired" with sign-in.
+  if (to === '/sign-in' && sessionEnded) return;
+  if (to === '/session-expired') sessionEnded = true;
   if (to && location.pathname !== to) {
     queryClient.clear();
     void router.navigate(to, { replace: true });

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { expectNoSeriousA11yViolations, openShadowRoots } from './support.ts';
+import { expectNoSeriousA11yViolations, openShadowRoots, signIn } from './support.ts';
 
 /**
  * The walking-skeleton done-when (plan §2): a visitor message typed in the widget on
@@ -16,10 +16,8 @@ test('a widget message gets a reply and shows up live in the inbox', async ({
 }) => {
   const text = `Do you have pandan cake? ${Date.now()}`;
 
-  // Owner signs in (dev-only sign-in) and opens the inbox.
-  await owner.goto('/sign-in');
-  await owner.getByRole('button', { name: 'Sign in as the Kaki Bakery owner' }).click();
-  await expect(owner).toHaveURL(/\/inbox$/);
+  // Owner signs in with an emailed link (FEAT-005) and lands in the inbox.
+  await signIn(owner, 'owner@kaki-bakery.test');
   await expect(owner.getByTestId('tenant-name')).toHaveText('Kaki Bakery');
   await expect(owner.getByTestId('live-state')).toHaveText('Live');
   await expectNoSeriousA11yViolations(owner);
@@ -51,8 +49,7 @@ test('a widget message gets a reply and shows up live in the inbox', async ({
 });
 
 test("the second tenant's owner cannot see the first tenant's conversations", async ({ page }) => {
-  await page.goto('/sign-in');
-  await page.getByRole('button', { name: "Sign in as the second tenant's owner" }).click();
+  await signIn(page, 'owner@second-tenant.test');
   await expect(page.getByTestId('tenant-name')).toHaveText('Second Tenant Pte Ltd');
   await expect(page.getByTestId('live-state')).toHaveText('Live');
   await expect(page.getByTestId('conversation-row').filter({ hasText: 'pandan' })).toHaveCount(0);
@@ -60,7 +57,7 @@ test("the second tenant's owner cannot see the first tenant's conversations", as
 
 test('the shell is styled by the generated design tokens', async ({ page }) => {
   await page.goto('/sign-in');
-  const button = page.getByRole('button', { name: 'Sign in as the Kaki Bakery owner' });
+  const button = page.getByRole('button', { name: 'Email me a sign-in link' });
   // Without @kaki/design-tokens' CSS the variable is empty and the button unstyled.
   const { token, background } = await button.evaluate((el) => {
     const probe = document.createElement('div');

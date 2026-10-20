@@ -822,6 +822,12 @@ a {
 .alert ul {
   margin: 0;
 }
+/* Error-summary links stack: each keeps a 24 px target (WCAG 2.2 target size). */
+.alert li a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--space-7);
+}
 .alert__title {
   font-size: var(--type-title-sm-size);
   font-weight: var(--font-weight-semibold);

@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { expectNoSeriousA11yViolations, openShadowRoots } from './support.ts';
+import { expectNoSeriousA11yViolations, openShadowRoots, signIn } from './support.ts';
 
 /**
  * FEAT-022 AC-16 (UC-13 1–3, UC-20 main flow, J2): the owner adds a product fact and
@@ -13,9 +13,7 @@ test('a fact added in the dashboard is used in the next widget answer', async ({
   page: owner,
   browser,
 }) => {
-  await owner.goto('/sign-in');
-  await owner.getByRole('button', { name: 'Sign in as the Kaki Bakery owner' }).click();
-  await expect(owner).toHaveURL(/\/inbox$/);
+  await signIn(owner, 'owner@kaki-bakery.test');
 
   // SCR-APP-028: the product and price.
   await owner.goto('/knowledge/facts/new');
