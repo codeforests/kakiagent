@@ -365,6 +365,180 @@ describe('facts and the visitor views', () => {
   });
 });
 
+// ---- FEAT-011: deletion, the new fact types and validity (FEAT-011 §4; AC-3, AC-5, AC-7) --
+
+/** Inserts a fact with its version and chunk as the owner; returns its id. */
+async function seedFact(
+  tenantId: string,
+  f: {
+    type: string;
+    value: object;
+    gst?: string | null;
+    validFrom?: string | null;
+    validUntil?: string | null;
+  },
+) {
+  const { rows } = await owner.query(
+    `insert into facts (tenant_id, type, status, value, gst_treatment, valid_from, valid_until)
+     values ($1, $2, 'approved', $3, $4, $5, $6) returning id`,
+    [tenantId, f.type, f.value, f.gst ?? null, f.validFrom ?? null, f.validUntil ?? null],
+  );
+  const id = rows[0].id as string;
+  await owner.query(
+    `insert into fact_versions (tenant_id, fact_id, version, status, value, gst_treatment, valid_from, valid_until)
+     select tenant_id, id, version, status, value, gst_treatment, valid_from, valid_until from facts where tenant_id = $1 and id = $2`,
+    [tenantId, id],
+  );
+  await owner.query(
+    `insert into kb_chunks (tenant_id, fact_id, fact_version, content, embedding) values ($1, $2, 1, 'x', $3)`,
+    [tenantId, id, VEC],
+  );
+  return id;
+}
+
+const visibleIds = async (tenantId: string) =>
+  asRole('app_agent_visitor', tenantId, async (c) =>
+    (await c.query(`select id from visitor_facts`)).rows.map((r) => r.id as string),
+  );
+
+describe('fact deletion, policy and promotion facts, validity (FEAT-011)', () => {
+  const promo = { title: 'Bundle', details: 'Two boxes', priceCents: 2000, currency: 'SGD' };
+  const hour = 3600_000;
+  const at = (ms: number) => new Date(Date.now() + ms).toISOString();
+
+  it('the dashboard role deletes its own fact, chunk and versions, and nothing of another tenant', async () => {
+    const id = await seedFact(TENANT_A, {
+      type: 'policy',
+      value: { kind: 'refund', title: 'Refunds', details: 'Within a week' },
+    });
+    const crossTenant = await asRole('app_dashboard', TENANT_B, async (c) => {
+      const counts = [];
+      for (const t of ['kb_chunks', 'fact_versions', 'facts']) {
+        const col = t === 'facts' ? 'id' : 'fact_id';
+        counts.push((await c.query(`delete from ${t} where ${col} = $1`, [id])).rowCount);
+      }
+      return counts;
+    });
+    expect(crossTenant).toEqual([0, 0, 0]);
+    const own = await asRole('app_dashboard', TENANT_A, async (c) => {
+      const counts = [];
+      for (const t of ['kb_chunks', 'fact_versions', 'facts']) {
+        const col = t === 'facts' ? 'id' : 'fact_id';
+        counts.push((await c.query(`delete from ${t} where ${col} = $1`, [id])).rowCount);
+      }
+      return counts;
+    });
+    expect(own).toEqual([1, 1, 1]);
+  });
+
+  it.each(['facts', 'fact_versions', 'kb_chunks'])(
+    'the visitor role cannot delete from %s',
+    async (table) => {
+      await expect(
+        asRole('app_agent_visitor', TENANT_A, (c) => c.query(`delete from ${table}`)),
+      ).rejects.toThrow(/permission denied/);
+    },
+  );
+
+  it('visitor_facts applies promotion validity and exposes the validity columns', async () => {
+    const running = await seedFact(TENANT_A, {
+      type: 'promotion',
+      value: promo,
+      gst: 'inclusive',
+      validFrom: at(-hour),
+      validUntil: at(hour),
+    });
+    const notStarted = await seedFact(TENANT_A, {
+      type: 'promotion',
+      value: promo,
+      gst: 'inclusive',
+      validFrom: at(hour),
+      validUntil: at(2 * hour),
+    });
+    const ended = await seedFact(TENANT_A, {
+      type: 'promotion',
+      value: promo,
+      gst: 'inclusive',
+      validUntil: at(-hour),
+    });
+    const ids = await visibleIds(TENANT_A);
+    expect(ids).toContain(running);
+    expect(ids).not.toContain(notStarted);
+    expect(ids).not.toContain(ended);
+    const [row] = await asRole(
+      'app_agent_visitor',
+      TENANT_A,
+      async (c) =>
+        (
+          await c.query(`select valid_from, valid_until from visitor_facts where id = $1`, [
+            running,
+          ])
+        ).rows,
+    );
+    expect(row.valid_until).toBeInstanceOf(Date);
+  });
+
+  it('a GST-unknown promotion price is hidden at a registered tenant only; policies and FAQs have no GST', async () => {
+    const a = await seedFact(TENANT_A, {
+      type: 'promotion',
+      value: promo,
+      gst: 'unknown',
+      validUntil: at(hour),
+    });
+    const b = await seedFact(TENANT_B, {
+      type: 'promotion',
+      value: promo,
+      gst: 'unknown',
+      validUntil: at(hour),
+    });
+    const policy = await seedFact(TENANT_A, {
+      type: 'policy',
+      value: { kind: 'delivery', title: 'Delivery', details: 'Islandwide' },
+    });
+    expect(await visibleIds(TENANT_A)).not.toContain(a);
+    expect(await visibleIds(TENANT_A)).toContain(policy);
+    expect(await visibleIds(TENANT_B)).toContain(b);
+  });
+
+  it.each([
+    [
+      'a policy with a GST treatment',
+      'policy',
+      { kind: 'other', title: 't', details: 'd' },
+      'inclusive',
+      null,
+      null,
+    ],
+    ['a promotion without an end', 'promotion', promo, 'inclusive', null, null],
+    ['a priced promotion without GST', 'promotion', promo, null, null, '2030-01-01T00:00:00Z'],
+    [
+      'an unpriced promotion with GST',
+      'promotion',
+      { title: 't', details: 'd' },
+      'inclusive',
+      null,
+      '2030-01-01T00:00:00Z',
+    ],
+    [
+      'a start after the end',
+      'promotion',
+      promo,
+      'inclusive',
+      '2030-02-01T00:00:00Z',
+      '2030-01-01T00:00:00Z',
+    ],
+    ['an unknown type', 'service', { name: 'x' }, null, null, null],
+  ])('the schema rejects %s', async (_name, type, value, gst, validFrom, validUntil) => {
+    await expect(
+      owner.query(
+        `insert into facts (tenant_id, type, status, value, gst_treatment, valid_from, valid_until)
+         values ($1, $2, 'approved', $3, $4, $5, $6)`,
+        [TENANT_A, type, value, gst, validFrom, validUntil],
+      ),
+    ).rejects.toThrow(/check constraint/);
+  });
+});
+
 // ---- FEAT-002: the audit chain tables and functions (ADR-014; AC-3, AC-9) -------------
 
 const hex = (c: string) => c.repeat(64);

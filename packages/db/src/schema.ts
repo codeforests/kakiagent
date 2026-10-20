@@ -136,7 +136,7 @@ export const messages = pgTable(
   ],
 );
 
-export const FACT_TYPES = ['product', 'faq'] as const;
+export const FACT_TYPES = ['product', 'faq', 'policy', 'promotion'] as const;
 export const FACT_STATUSES = [
   'needs_review',
   'approved',
@@ -159,11 +159,16 @@ export const facts = pgTable(
     id: uuid('id').notNull().defaultRandom(),
     type: text('type', { enum: FACT_TYPES }).notNull(),
     status: text('status', { enum: FACT_STATUSES }).notNull().default('needs_review'),
-    /** product: { name, priceCents, currency: 'SGD', unit? }; faq: { question, answer }. */
+    /**
+     * product: { name, priceCents, currency: 'SGD', unit? }; faq: { question, answer };
+     * policy: { kind, title, details }; promotion: { title, details, priceCents?, currency? }.
+     */
     value: jsonb('value').notNull(),
     gstTreatment: text('gst_treatment', { enum: GST_TREATMENTS }),
     source: text('source').notNull().default('manual'),
     version: integer('version').notNull().default(1),
+    /** Validity (FEAT-011 D3): from 00:00 SGT on the start day; until 00:00 SGT after the end day. */
+    validFrom: timestamp('valid_from', { withTimezone: true }),
     validUntil: timestamp('valid_until', { withTimezone: true }),
     lastConfirmedAt: timestamp('last_confirmed_at', { withTimezone: true }).notNull().defaultNow(),
     createdBy: text('created_by'),
@@ -174,14 +179,19 @@ export const facts = pgTable(
   (t) => [
     primaryKey({ columns: [t.tenantId, t.id] }),
     index('facts_tenant_status_updated_idx').on(t.tenantId, t.status, t.updatedAt.desc()),
-    check('facts_type_ck', sql`${t.type} in ('product', 'faq')`),
+    index('facts_tenant_updated_idx').on(t.tenantId, t.updatedAt.desc(), t.id.desc()),
+    check('facts_type_ck', sql`${t.type} in ('product', 'faq', 'policy', 'promotion')`),
     check(
       'facts_status_ck',
       sql`${t.status} in ('needs_review', 'approved', 'rejected', 'conflicted', 'disabled')`,
     ),
     check(
       'facts_gst_ck',
-      sql`(${t.type} = 'product') = (${t.gstTreatment} is not null) and (${t.gstTreatment} is null or ${t.gstTreatment} in ('inclusive', 'exclusive', 'unknown'))`,
+      sql`(${t.gstTreatment} is null or ${t.gstTreatment} in ('inclusive', 'exclusive', 'unknown')) and ((${t.type} = 'product' and ${t.gstTreatment} is not null) or (${t.type} in ('faq', 'policy') and ${t.gstTreatment} is null) or (${t.type} = 'promotion' and (${t.value} ? 'priceCents') = (${t.gstTreatment} is not null)))`,
+    ),
+    check(
+      'facts_validity_ck',
+      sql`(${t.type} <> 'promotion' or ${t.validUntil} is not null) and (${t.validFrom} is null or ${t.validUntil} is null or ${t.validFrom} < ${t.validUntil})`,
     ),
   ],
 );
@@ -196,6 +206,8 @@ export const factVersions = pgTable(
     status: text('status', { enum: FACT_STATUSES }).notNull(),
     value: jsonb('value').notNull(),
     gstTreatment: text('gst_treatment', { enum: GST_TREATMENTS }),
+    validFrom: timestamp('valid_from', { withTimezone: true }),
+    validUntil: timestamp('valid_until', { withTimezone: true }),
     changedBy: text('changed_by'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },

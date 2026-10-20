@@ -71,6 +71,20 @@
       "when": 1792498497242,
       "tag": "0009_usage_ledger_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792536885464,
+      "tag": "0010_fact_types",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792536892647,
+      "tag": "0011_fact_types_rls",
+      "breakpoints": true
     }
   ]
 }
