@@ -125,7 +125,12 @@ function cardsIn(groups: Group[], out: PiiFinding[]): void {
       const len = from[j + 1]! - from[i]!;
       if (len > 19) break;
       const rank = CARD_LENGTH_RANK.indexOf(len);
-      if (rank >= 0 && luhnRange(digits, from[i]!, from[j + 1]!)) windows.push({ i, j, rank });
+      if (
+        rank >= 0 &&
+        cardPrefixOk(digits[from[i]!]!, len) &&
+        luhnRange(digits, from[i]!, from[j + 1]!)
+      )
+        windows.push({ i, j, rank });
     }
   }
   windows.sort((a, b) => a.rank - b.rank || a.i - b.i);
@@ -135,6 +140,15 @@ function cardsIn(groups: Group[], out: PiiFinding[]): void {
     used.fill(1, w.i, w.j + 1);
     out.push({ kind: 'card', start: groups[w.i]!.start, end: groups[w.j]!.end });
   }
+}
+
+/**
+ * Issued card numbers start with 2–6 (Mastercard 2 and 5, Amex 3, Visa 4, Discover and
+ * UnionPay 6), and only Visa issued 13 digits. A timestamp or order number starting
+ * with 1, 7, 8, 9 or 0 is not a card, even when it passes Luhn (D13).
+ */
+export function cardPrefixOk(first: number, len: number): boolean {
+  return len === 13 ? first === 4 : first >= 2 && first <= 6;
 }
 
 function luhnRange(digits: number[], start: number, end: number): boolean {

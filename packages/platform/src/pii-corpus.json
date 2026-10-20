@@ -395,6 +395,21 @@
       "id": "neg-dash-range",
       "text": "open 10–6, ages 3–12",
       "masked": "open 10–6, ages 3–12"
+    },
+    {
+      "id": "neg-timestamp",
+      "text": "Do you have pandan cake? 1792474873370",
+      "masked": "Do you have pandan cake? 1792474873370"
+    },
+    {
+      "id": "neg-luhn-order-id",
+      "text": "order 1000000000000008 not here",
+      "masked": "order 1000000000000008 not here"
+    },
+    {
+      "id": "neg-13-not-visa",
+      "text": "ref 5000000000005",
+      "masked": "ref 5000000000005"
     }
   ]
 }

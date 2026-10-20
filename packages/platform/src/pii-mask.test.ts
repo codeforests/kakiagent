@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { findPii, luhnOk, maskLogText, nricChecksumOk, piiMask } from './pii-mask.js';
+import { cardPrefixOk, findPii, luhnOk, maskLogText, nricChecksumOk, piiMask } from './pii-mask.js';
 
 interface CorpusCase {
   id: string;
@@ -35,6 +35,12 @@ describe('checksums', () => {
     expect(nricChecksumOk('S', '1234567', 'A')).toBe(false);
     expect(nricChecksumOk('X', '1234567', 'D')).toBe(false);
     expect(nricChecksumOk('S', '123456', 'D')).toBe(false);
+  });
+  it('accepts only issued card prefixes (D13)', () => {
+    expect(cardPrefixOk(4, 13)).toBe(true);
+    expect(cardPrefixOk(5, 13)).toBe(false);
+    for (const d of [2, 3, 4, 5, 6]) expect(cardPrefixOk(d, 16)).toBe(true);
+    for (const d of [0, 1, 7, 8, 9]) expect(cardPrefixOk(d, 16)).toBe(false);
   });
   it('validates Luhn', () => {
     expect(luhnOk('4242424242424242')).toBe(true);
@@ -118,13 +124,13 @@ describe('random inputs', () => {
     for (const s of inputs) expect(piiMask(piiMask(s)), s).toBe(piiMask(s));
   });
 
-  it('leaves no checksum-valid NRIC and no Luhn-valid 16-digit card behind', () => {
+  it('leaves no checksum-valid NRIC and no 16-digit card behind', () => {
     for (const s of inputs) {
       const out = piiMask(s);
       for (const m of out.matchAll(/(?<![A-Za-z0-9])([STFGM])(\d{7})([A-Z])(?![A-Za-z0-9])/gi))
         expect(nricChecksumOk(m[1]!, m[2]!, m[3]!), s).toBe(false);
       for (const m of out.matchAll(/(?<![A-Za-z0-9])\d{16}(?![A-Za-z0-9])/g))
-        expect(luhnOk(m[0]), s).toBe(false);
+        expect(luhnOk(m[0]) && cardPrefixOk(Number(m[0][0]), 16), s).toBe(false);
     }
   });
 });
