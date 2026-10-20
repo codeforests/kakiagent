@@ -12,6 +12,7 @@
     "test": "vitest run --project unit --passWithNoTests"
   },
   "dependencies": {
+    "@kaki/analytics": "workspace:*",
     "@kaki/db": "workspace:*",
     "@kaki/governance": "workspace:*",
     "@kaki/identity": "workspace:*",

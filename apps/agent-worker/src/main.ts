@@ -1,8 +1,9 @@
-import { fakeVisitorResponder, runVisitorTurn } from '@kaki/agent';
+import { fakeAgentScript, runVisitorTurn } from '@kaki/agent';
+import { usageSink } from '@kaki/analytics';
 import { TurnJob, type RealtimeEvent } from '@kaki/contracts';
 import { createZoneDb, ping } from '@kaki/db';
 import { toMessage, toSummary } from '@kaki/inbox';
-import { gatewayFromConfig } from '@kaki/llm-gateway';
+import { gatewayFromConfig, type UsageEvent } from '@kaki/llm-gateway';
 import {
   channels,
   createLogger,
@@ -33,11 +34,27 @@ const logger = createLogger('agent-worker', config.LOG_LEVEL);
 const visitorDb = createZoneDb('visitor', config.VISITOR_DATABASE_URL);
 const publisher = createPublisher(config.VALKEY_URL);
 const queue = createQueueClient({ region: config.AWS_REGION, endpoint: config.AWS_ENDPOINT_URL });
+
+// Every model call is written to the usage ledger (ADR-021) and tallied per turn for
+// the `turn complete` line (FEAT-004 §5.6). The sink logs and never throws (D7).
+const record = usageSink(visitorDb, logger);
+const turnUsage = new Map<string, { costUsd: number; cacheReadTokens: number }>();
+async function onUsage(e: UsageEvent) {
+  if (e.turnId) {
+    const t = turnUsage.get(e.turnId) ?? { costUsd: 0, cacheReadTokens: 0 };
+    t.costUsd += e.costUsd;
+    t.cacheReadTokens += e.cacheReadInputTokens;
+    turnUsage.set(e.turnId, t);
+  }
+  await record(e);
+}
 const llm = gatewayFromConfig({
   provider: config.LLM_PROVIDER,
   anthropicApiKey: config.ANTHROPIC_API_KEY,
-  // The fake model answers from the facts in its prompt, with slots (FEAT-022).
-  fakeScript: fakeVisitorResponder,
+  // The fake model plans with keywords and answers from the facts in its prompt, with
+  // slots (FEAT-022, FEAT-004).
+  fakeScript: fakeAgentScript,
+  onUsage,
 });
 
 const health = startHealthServer(config.HEALTH_PORT, { database: () => ping(visitorDb) });
@@ -71,7 +88,15 @@ const consuming = queue.consume<unknown>(
         .publish(channels.conversation(job.tenantId, job.conversationId), event)
         .catch((err) => log.warn({ err }, 'segment publish failed'));
     };
-    const reply = await runVisitorTurn({ zdb: visitorDb, llm, publishSegment }, job);
+    let reply;
+    let usage: { costUsd: number; cacheReadTokens: number };
+    try {
+      reply = await runVisitorTurn({ zdb: visitorDb, llm, publishSegment }, job);
+    } finally {
+      // A thrown turn is retried with the same message ID; its tally starts again.
+      usage = turnUsage.get(job.messageId) ?? { costUsd: 0, cacheReadTokens: 0 };
+      turnUsage.delete(job.messageId);
+    }
     if (!reply) {
       log.info('turn already handled');
       return;
@@ -99,6 +124,13 @@ const consuming = queue.consume<unknown>(
         outcome: reply.outcome,
         firstSegmentMs: reply.timings?.firstSegmentMs ?? null,
         totalMs: reply.timings?.totalMs ?? null,
+        // FEAT-004: the routed model, the planned task kinds and the turn's cost (codes only).
+        route: reply.route,
+        tasks: reply.plan?.tasks.map((t) => t.kind) ?? [],
+        planFallback: reply.plan?.fallback ?? null,
+        triageMs: reply.timings?.triageMs ?? null,
+        costUsd: Number(usage.costUsd.toFixed(6)),
+        cacheReadTokens: usage.cacheReadTokens,
       },
       'turn complete',
     );

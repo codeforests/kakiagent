@@ -1,3 +1,4 @@
+import { DEFAULT_GOVERNOR, runCostGovernor } from '@kaki/analytics';
 import { createZoneDb, ping } from '@kaki/db';
 import { anchorHeads, createS3AnchorStore } from '@kaki/governance';
 import { sendPendingMagicLinks } from '@kaki/identity';
@@ -32,6 +33,20 @@ const config = loadConfig(
     SMTP_URL: z.string().regex(/^smtps?:\/\//),
     EMAIL_FROM: z.string().min(3).default('KakiAgent <no-reply@kakiagent.local>'),
     MAGIC_LINK_SWEEP_MS: z.coerce.number().int().positive().default(5000),
+    /** The cost governor (ADR-007 decision 3, FEAT-004 D9): hourly, on the 7-day average. */
+    COST_GOVERNOR_INTERVAL_MS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(60 * 60_000),
+    COST_GOVERNOR_TARGET_SGD: z.coerce.number().positive().default(DEFAULT_GOVERNOR.targetSgd),
+    COST_GOVERNOR_RELAX_SGD: z.coerce.number().positive().default(DEFAULT_GOVERNOR.relaxSgd),
+    USD_SGD_RATE: z.coerce.number().positive().default(DEFAULT_GOVERNOR.usdToSgd),
+    COST_GOVERNOR_MIN_CONVERSATIONS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(DEFAULT_GOVERNOR.minConversations),
   }),
 );
 const stopTelemetry = startTelemetry('scheduler-worker', config.OTEL_EXPORTER_OTLP_ENDPOINT);
@@ -91,11 +106,36 @@ const linkTimer = setInterval(() => {
   sweeping = sweeping.then(sweepLinks);
 }, config.MAGIC_LINK_SWEEP_MS);
 
+// The cost governor (FEAT-004 §5.6): moves a tenant's routing threshold one step when
+// its 7-day cost per conversation leaves the band. Each change is a `warn` line, the
+// operator's alert until MD's metric filter and FEAT-070's console.
+const governorConfig = {
+  targetSgd: config.COST_GOVERNOR_TARGET_SGD,
+  relaxSgd: config.COST_GOVERNOR_RELAX_SGD,
+  usdToSgd: config.USD_SGD_RATE,
+  minConversations: config.COST_GOVERNOR_MIN_CONVERSATIONS,
+};
+if (governorConfig.relaxSgd >= governorConfig.targetSgd)
+  throw new Error('COST_GOVERNOR_RELAX_SGD must be below COST_GOVERNOR_TARGET_SGD');
+async function governOnce() {
+  try {
+    const changes = await runCostGovernor(outboxDb, governorConfig);
+    for (const c of changes)
+      logger.warn({ event: 'cost_governor.step_changed', ...c }, 'cost governor step changed');
+    logger.info({ changed: changes.length }, 'cost governor run');
+  } catch (err) {
+    logger.error({ err }, 'cost governor run failed; retrying on the next tick');
+  }
+}
+const governorRun = governOnce();
+const governorTimer = setInterval(() => void governOnce(), config.COST_GOVERNOR_INTERVAL_MS);
+
 async function shutdown() {
   abort.abort();
   clearInterval(anchorTimer);
   clearInterval(linkTimer);
-  await Promise.all([running.catch(() => {}), anchorRun, sweeping]);
+  clearInterval(governorTimer);
+  await Promise.all([running.catch(() => {}), anchorRun, sweeping, governorRun]);
   health.close();
   await mailer.close();
   await Promise.all([outboxDb.pool.end(), identityDb.pool.end()]);
