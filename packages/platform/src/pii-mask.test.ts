@@ -74,8 +74,17 @@ describe('maskLogText (AC-7)', () => {
   });
 });
 
+/**
+ * CPU time of this process in ms. Wall time on a shared CI runner measures how long the
+ * test waited for a core, not the masker (FEAT-003 D14).
+ */
+function cpuMs(): number {
+  const { user, system } = process.cpuUsage();
+  return (user + system) / 1000;
+}
+
 describe('performance (AC-10)', () => {
-  it('masks a 4000-character adversarial message in under 20 ms', () => {
+  it('masks a 4000-character adversarial message in under 20 ms of CPU time', () => {
     const inputs = [
       '1 2 3 4 5 6 7 8 9 0 '.repeat(200),
       'S123456 '.repeat(500),
@@ -84,11 +93,10 @@ describe('performance (AC-10)', () => {
       'S-1-2-3-4-5-6-7-'.repeat(250),
     ].map((s) => s.slice(0, 4000));
     for (const input of inputs) {
-      // Best of five, so a busy CI runner measures the masker, not the scheduler.
       const times = Array.from({ length: 5 }, () => {
-        const t = performance.now();
+        const t = cpuMs();
         piiMask(input);
-        return performance.now() - t;
+        return cpuMs() - t;
       });
       expect(Math.min(...times), input.slice(0, 20)).toBeLessThan(20);
     }
@@ -99,9 +107,9 @@ describe('maskLogText performance (M3)', () => {
   it('stays linear on long strings with and without an @', () => {
     for (const input of ['a@' + 'a'.repeat(16_000), 'a.'.repeat(8_000) + '@', 'a@'.repeat(8_000)]) {
       const times = Array.from({ length: 3 }, () => {
-        const t = performance.now();
+        const t = cpuMs();
         maskLogText(input);
-        return performance.now() - t;
+        return cpuMs() - t;
       });
       expect(Math.min(...times), input.slice(0, 10)).toBeLessThan(20);
     }
