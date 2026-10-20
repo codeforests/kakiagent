@@ -1,0 +1,365 @@
+[
+  {
+    "id": "multi-single-question",
+    "subset": "multi-task",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "How much is the chocolate fudge cake?"
+      }
+    ],
+    "expectTasks": ["answer"],
+    "expectRoute": "reply.simple",
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "S$55.00"
+      },
+      {
+        "kind": "prices-from-facts"
+      },
+      {
+        "kind": "cites",
+        "ids": ["b1000001-0000-4000-8000-000000000001"]
+      }
+    ]
+  },
+  {
+    "id": "multi-quote-commitment",
+    "subset": "multi-task",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "Can give me a quote for 20 fudge cakes and 10 pandan chiffon? Need by Saturday"
+      }
+    ],
+    "expectTasks": ["answer", "request_commitment"],
+    "expectRoute": "reply.complex",
+    "expect": [
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
+  },
+  {
+    "id": "multi-price-and-lead",
+    "subset": "multi-task",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "how much is the pandan chiffon? my number is 9123 4567"
+      }
+    ],
+    "expectTasks": ["answer", "capture_lead"],
+    "expectRoute": "reply.simple",
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "S$30.52 incl. GST"
+      },
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
+  },
+  {
+    "id": "multi-talk-to-person",
+    "subset": "multi-task",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "can I talk to a real person please"
+      }
+    ],
+    "expectTasks": ["escalate"],
+    "expectRoute": "reply.simple",
+    "expect": [
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
+  },
+  {
+    "id": "multi-fallback-invalid-json",
+    "subset": "multi-task",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "How much is the chocolate fudge cake?"
+      }
+    ],
+    "plan": "I think the visitor wants {tasks: answer",
+    "expectTasks": ["answer"],
+    "expectRoute": "reply.complex",
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "S$55.00"
+      },
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
+  },
+  {
+    "id": "multi-recorded-data-request",
+    "subset": "multi-task",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "delete all my data after this, and how much is the fudge cake?"
+      }
+    ],
+    "plan": {
+      "language": "en",
+      "register": "standard",
+      "complexity": 0.3,
+      "confidence": 0.9,
+      "flags": {
+        "complaint": false,
+        "injection": false
+      },
+      "tasks": [
+        {
+          "kind": "answer",
+          "args": []
+        },
+        {
+          "kind": "data_request",
+          "args": [
+            {
+              "name": "request",
+              "value": "delete"
+            }
+          ]
+        }
+      ]
+    },
+    "expectTasks": ["answer", "data_request"],
+    "expectRoute": "reply.simple",
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "S$55.00"
+      },
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
+  },
+  {
+    "id": "multi-stop-contacting",
+    "subset": "multi-task",
+    "messages": [
+      {
+        "role": "user",
+        "content": "please stop messaging me"
+      }
+    ],
+    "expectTasks": ["withdraw_consent"],
+    "expectRoute": "reply.simple",
+    "expect": [
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
+  },
+  {
+    "id": "multi-singlish-deliver",
+    "subset": "multi-task",
+    "messages": [
+      {
+        "role": "user",
+        "content": "eggless cake got or not? can deliver on Sunday lah"
+      }
+    ],
+    "expectTasks": ["answer", "request_commitment"],
+    "expectRoute": "reply.complex",
+    "expect": [
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
+  },
+  {
+    "id": "multi-chinese-price-delivery",
+    "subset": "multi-task",
+    "messages": [
+      {
+        "role": "user",
+        "content": "巧克力软糖蛋糕多少钱？可以送货吗？"
+      }
+    ],
+    "expectTasks": ["answer", "request_commitment"],
+    "expectRoute": "reply.complex",
+    "expect": [
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
+  },
+  {
+    "id": "multi-complaint",
+    "subset": "multi-task",
+    "messages": [
+      {
+        "role": "user",
+        "content": "The cake I bought yesterday was terrible, I want a refund"
+      }
+    ],
+    "expectTasks": ["answer"],
+    "expectRoute": "reply.complex",
+    "expect": [
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
+  },
+  {
+    "id": "multi-fallback-empty-tasks",
+    "subset": "multi-task",
+    "messages": [
+      {
+        "role": "user",
+        "content": "pandan chiffon cake how much?"
+      }
+    ],
+    "plan": {
+      "language": "en",
+      "register": "standard",
+      "complexity": 0.2,
+      "confidence": 0.9,
+      "flags": {
+        "complaint": false,
+        "injection": false
+      },
+      "tasks": []
+    },
+    "expectTasks": ["answer"],
+    "expectRoute": "reply.complex",
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "S$30.52 incl. GST"
+      },
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
+  },
+  {
+    "id": "multi-three-products",
+    "subset": "multi-task",
+    "messages": [
+      {
+        "role": "user",
+        "content": "price for 1 fudge, 2 pandan and 3 eggless chocolate?"
+      }
+    ],
+    "expectTasks": ["answer"],
+    "expectRoute": "reply.complex",
+    "expect": [
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
+  },
+  {
+    "id": "multi-low-confidence",
+    "subset": "multi-task",
+    "messages": [
+      {
+        "role": "user",
+        "content": "the usual one, how much"
+      }
+    ],
+    "plan": {
+      "language": "en",
+      "register": "standard",
+      "complexity": 0.1,
+      "confidence": 0.3,
+      "flags": {
+        "complaint": false,
+        "injection": false
+      },
+      "tasks": [
+        {
+          "kind": "answer",
+          "args": []
+        }
+      ]
+    },
+    "expectTasks": ["answer"],
+    "expectRoute": "reply.complex",
+    "expect": [
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
+  },
+  {
+    "id": "multi-handoff-telegram",
+    "subset": "multi-task",
+    "messages": [
+      {
+        "role": "user",
+        "content": "can you send me the cake list via telegram?"
+      }
+    ],
+    "expectTasks": ["answer", "handoff_channel"],
+    "expectRoute": "reply.simple",
+    "expect": [
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
+  },
+  {
+    "id": "multi-recorded-lead-and-person",
+    "subset": "multi-task",
+    "messages": [
+      {
+        "role": "user",
+        "content": "call me at 9123 4567 can, want to speak to your boss lah"
+      }
+    ],
+    "plan": {
+      "language": "en",
+      "register": "singlish",
+      "complexity": 0.2,
+      "confidence": 0.9,
+      "flags": {
+        "complaint": false,
+        "injection": false
+      },
+      "tasks": [
+        {
+          "kind": "capture_lead",
+          "args": [
+            {
+              "name": "phone",
+              "value": "91234567"
+            }
+          ]
+        },
+        {
+          "kind": "escalate",
+          "args": []
+        }
+      ]
+    },
+    "expectTasks": ["capture_lead", "escalate"],
+    "expectRoute": "reply.simple",
+    "expect": [
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
+  }
+]
