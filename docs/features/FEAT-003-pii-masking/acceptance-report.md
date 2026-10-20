@@ -1,163 +1,145 @@
 # Acceptance Report: FEAT-003 — PII masking at the edge
 
-> Verdict: **Design defect** (re-verification) · Date: 2026-10-20
-> Standard: technical-design.md §6 (AC-1..AC-10) as amended by D10–D14 @ `29dc915` · Sources: SRS.md v0.4 (GOV-04, NFR-01, NFR-05, NFR-12), use-cases.md v0.4 (UC-20 step 4), ADR-015 decision 1 and consequences, ADR-007, ADR-011
-> Repo state audited: `29dc915` on `claude/feat-003-pii-masking-ymm32o` (includes the merge of main `9147ad2`, the D13 card-prefix commit `ad38d56` and the D14 timing commit), plus this audit's corpus correction `d249e1e`
+> Verdict: **Design defect** (third verification) · Date: 2026-10-20
+> Standard: technical-design.md §6 (AC-1..AC-10) as amended by D10–D15 @ `ce5bbe8` · Sources: SRS.md v0.4 (GOV-04, NFR-01, NFR-05, NFR-12), use-cases.md v0.4 (UC-20 step 4), ADR-015 decision 1
+> Repo state audited: `ce5bbe8` on `claude/feat-003-pii-masking-ymm32o`
 
-**History.** First verification (2026-10-20, at `efee620`): **design defect**. DD-1: ideographic, no-break and double spaces, tabs and dashes let card and NRIC numbers through unmasked. There were also minors M1–M9. The design was amended (D10–D12, revised AC-1/2/3/7/10), the code reworked (`df909e0`, T9), and CI follow-ups added D13 (`ad38d56`, T10) and D14 (`29dc915`, T11). This section replaces the first report; its findings are summarised under "Prior findings" below.
+**History.**
+- First verification (at `efee620`): **design defect**, DD-1 (separator and full-width variants let cards and NRICs through).
+- Second verification (at `29dc915`, report `ad8bbd9`): **design defect**, DD-2 (D12 masked space-grouped bank numbers only in part), with minors M1, M3, M4 and M7.
+- Each report replaces the one before it. Prior findings are summarised at the end.
 
 ## Verdict summary
 
-DD-1 is closed. Every separator and full-width variant the first verification found is now masked: in the unit corpus, through the live widget route on a freshly started stack, and in the database and logs. The bare `log.error(err)` leak (M4) and the quadratic email pattern (M3) are fixed, and every suite is green in this run.
+DD-2 is closed. `DBS 123 456789 0`, `UOB 123 456 789 0`, `OCBC 501 234567 001` and `DBS acct 123 456 789 012` are now masked whole with the right last four, both in the unit corpus and through the live widget route. M1, M3, M4 and M7 are closed too, and every suite is green in this run.
 
-The verdict is still **design defect**, because amendment D12 introduced a regression of its own (DD-2). The rule is "the window with the fewest chunks wins". Under it, a bank account written with spaces in the usual Singapore groupings is masked only in part. DBS 3-6-1, UOB 3-3-3-1 and OCBC 3-6-3 each leave the last group raw and put the wrong four digits in the token: `DBS 123 456789 0` becomes `DBS [BANK ••••6789] 0`. Before the rework, all three were masked whole. AC-3 says such a number "becomes `[BANK ••••<last 4>]`", and D12 claims that space-grouped numbers still match whole. The code does exactly what D12 specifies, so the fix belongs to detailed-design. It is a small change to the bank-window preference, and it doesn't touch the binding NRIC/card clause, which holds. No RTM Test ref is written.
+The verdict is still **design defect**, because D15's new chunk rule introduces a regression of its own (DD-3). Some bank numbers that D12 masked are now stored completely raw:
+- numbers typed with a mix of hyphens and spaces (`DBS 123 456789-0`, `UOB 123-456 789-0`, `POSB 123-45678 9`);
+- numbers glued to the bank keyword or to a following word (`DBS acct1234567890`, `DBS 1234567890pls`).
+
+AC-3's general clause says "a 9-to-12-digit number with a keyword within 40 characters … becomes `[BANK ••••<last 4>]`". The code does what D15 specifies, so the fix belongs to detailed-design. It is small: a prototype of it passes all 99 corpus cases (see below). The binding NRIC/card clause holds. No RTM Test ref is written.
 
 ## Standard re-derived (Phase 2)
 
-- **GOV-04** (Must): "PII handling: detect and mask NRIC/FIN, card numbers and bank accounts in visitor messages before storage and before sending to the LLM; mask other PII in logs." Acceptance: "NRIC/card numbers never appear unmasked in the database or the LLM payload (verified by tests)."
-- Each clause has a criterion:
-  - NRIC/FIN → AC-1; cards → AC-2; bank accounts → AC-3; ordinary text → AC-4.
-  - Database → AC-5; LLM payload → AC-6; logs → AC-7; audit IDs (FEAT-002 M1) → AC-8.
-  - UC-20 step 4 → AC-5 and AC-9, with SCR-WGT-002 (p) → AC-9.
-  - NFR-01 and NFR-05 → AC-10; NFR-12 → the 70% line threshold on `src/pii-mask.ts` (unchanged).
-- **Amendments audited against their sources:**
-  - D10 (fold U+3000, U+00A0, U+202F, U+2007, tab, U+2010–U+2015, U+2212; 1–2 spaces or a spaced hyphen as a separator) is faithful to ADR-015's "with separators" and "spacing variants". It closes DD-1 for every character it lists.
-  - D11 (identifiers may touch letters) is faithful.
-  - D13 (cards start with 2–6, and 13-digit cards with 4) is a sound narrowing. Every network a Singapore visitor pays with is covered: Visa, Mastercard 2/5, Amex, JCB 35, UnionPay 62, Discover/Diners. It rests on AC-4 (a Luhn-valid `Date.now()` timestamp is not a card).
-  - D14 (AC-10 measured in CPU time, best of five) keeps the criterion's purpose. CPU time is never less than the masker's own compute, so catastrophic backtracking would still fail. NFR-01's latency budget is unaffected (about 2 ms of compute).
-  - **D12 is where the standard falls short** (DD-2, below). AC-3's wording ("a 9-to-12-digit number … becomes `[BANK ••••<last 4>]`") and D12's own claim ("Space-grouped numbers … still match") can't both be met under D12's preference rule.
+- **GOV-04** (Must): "detect and mask NRIC/FIN, card numbers and bank accounts in visitor messages before storage and before sending to the LLM; mask other PII in logs." Acceptance: "NRIC/card numbers never appear unmasked in the database or the LLM payload (verified by tests)."
+- **Clause to criterion:**
+  - NRIC → AC-1, card → AC-2, bank → AC-3, ordinary text and idempotence → AC-4.
+  - Database → AC-5, LLM payload → AC-6, logs → AC-7, audit IDs → AC-8.
+  - UC-20 step 4 and SCR-WGT-002 (p) → AC-5 and AC-9.
+  - NFR-01 and NFR-05 → AC-10; NFR-12 → coverage threshold.
+- **D15 audited against its sources:**
+  - The fold extension (every `Zs`, `\t\n\r`, U+200B, U+FE58, U+FE63, U+00AD) is faithful. It is one unit to one, so offsets hold. It closes M1.
+  - "9+-digit chunks stand alone" is faithful. It closes DD-2 and keeps `1234567890 2 pcs` correct.
+  - The declared cost (a 1–2-digit number after a space-grouped account is joined to it) is a sound "masks more" trade, though see M10.
+  - **Two parts of D15 fall short of AC-3** (DD-3):
+    - "one written with hyphens is a number on its own" is implemented, as D15's rationale states, for every hyphen-joined chunk, whatever its length;
+    - "not glued to a letter" excludes far more than the UEN and code cases it targets.
+  - D15 drops D11's "identifiers may touch letters" for bank numbers, and neither AC-3 nor §8 lists that as an accepted gap.
+  - The design's two statements of the rule also differ. §3.1 says a hyphen-joined chunk "holding 9–12 digits" stands alone; D15 says any hyphen-joined chunk does. The code follows D15.
 
 ## Audit table
 
 | AC | Encodes | Test(s) | Audit | Observed |
 | :- | :------ | :------ | :---- | :------- |
-| AC-1 | GOV-04 NRIC/FIN | `platform/src/pii-corpus.json` `nric-*` (all five prefixes, lower case, spaced, double space, NBSP, U+3000, hyphen, full-width, Chinese context, glued before/after, glued pair; negatives: bad letter, 6/8 digits, trailing digit, `neg-spaced-word`), `checksums` | **was incomplete → corrected** (no NRIC with a dash, which AC-1 names): `nric-dash` added | green; live route masks `S  1234567  D`, `S　9876543　C`, `S1234567DS9876543C` |
-| AC-2 | GOV-04 cards | corpus `card-*` (plain, groups, hyphen, en dash, spaced hyphen, U+3000 full-width, NBSP, double space, tab, glued before/after, Amex, 13, 19, qty after, number before, Chinese; negatives Luhn fail, too long, `neg-timestamp`, `neg-luhn-order-id`, `neg-13-not-visa`); `cardPrefixOk` unit test; seeded random check | **was incomplete → corrected** (U+202F, U+2007 and U+2212 are folded kinds AC-2 names but no case pinned them): `card-narrow-nbsp`, `card-figure-space`, `card-minus-sign` added; mutation: prefix check off → 3 D13 negatives red | green; live route masks all DD-1 forms and leaves a `Date.now()` timestamp alone |
-| AC-3 | GOV-04 bank accounts | corpus `bank-*` (DBS, after keyword, UOB, POSB, 12 digits, 户口/转账, 银行账号 after, en dash, then date, then qty, hyphenated then number, space groups `1234 5678 90`; negatives no keyword, `+65` phone, far keyword, keyword inside word) | faithful for the cases it holds; **the AC itself fails for space-grouped 3-6-1 / 3-3-3-1 / 3-6-3 numbers under D12 (DD-2)**; no failing test committed, the cases are listed under DD-2 for the amendment | green on the corpus; `DBS 123 456789 0` → `DBS [BANK ••••6789] 0` (live route and unit) |
-| AC-4 | GOV-04 ordinary text; idempotence | corpus `neg-*` (now 21, incl. `neg-two-spaces-numbers`, `neg-zh-spaces`, `neg-dash-range`, `neg-spaced-word`, the D13 negatives); idempotence over every case and 2000 seeded random inputs (alphabet now includes U+3000, NBSP, en dash, tab) | faithful; the random check's narrowing to issued-prefix 16-digit cards follows D13 (declared, sound) | green |
-| AC-5 | GOV-04 "never unmasked in the database" | `apps/api/test/widget-pii.int.test.ts` (unchanged since the first verification) | faithful | green (api 12/12); live scan clean (below) |
-| AC-6 | GOV-04 "… or the LLM payload" | `agent/test/turn.int.test.ts` (as corrected in `3264c91`), `llm-gateway/src/mask.test.ts` | faithful | green (agent 11/11, llm-gateway 15/15) |
-| AC-7 | GOV-04 "mask other PII in logs" | `platform/src/logger.test.ts` (message + format arg; `{ err }` message and stack; bare `log.error(err)` now covered; redacted fields); `maskLogText` unit tests | faithful | green; my logger probes (`err.cause`, `log.warn(err, fmt, email)`, child loggers) leak nothing beyond the D7 by-design cases (M5) |
-| AC-8 | GOV-04 + GOV-01 | `governance/src/payload.test.ts` (as corrected in `595c541`) | faithful | green (governance 74 unit, 19 integration) |
-| AC-9 | UC-20 step 4, SCR-WGT-002 | `e2e/tests/pii-mask.e2e.ts` | faithful; "not shown in the log" checked directly | green (chromium 5/5 on a stack I started); dev log 0 raw hits |
-| AC-10 | NFR-01, NFR-05 | `pii-mask.test.ts` "performance (AC-10)" (5 adversarial 4000-char inputs, best-of-five CPU time < 20 ms) and "maskLogText performance" (3 × 16 000-char inputs, best-of-three CPU time) | faithful to the amended AC (D14); the log test uses best of three where AC-10 says best of five, a stricter reading, fine | green; my wall-time probes: worst 4000-char input 3.3 ms, worst 16 000-char log line 5.6 ms |
+| AC-1 | GOV-04 NRIC/FIN | `pii-corpus.json` `nric-*` (now incl. `nric-small-hyphen`), `checksums` | faithful | green; live route masks `S1234567D`; thin-space and ZWSP forms masked (unit probe) |
+| AC-2 | GOV-04 cards | corpus `card-*` (now incl. `card-line-breaks`, `card-thin-space`, `card-zero-width`), `cardPrefixOk`, seeded random set | faithful | green; live route masks `4242 4242 4242 4242` |
+| AC-3 | GOV-04 bank accounts | corpus `bank-*` (every example AC-3 names is present: `bank-dbs`, `bank-zh`, `bank-after`, `bank-then-date`, `bank-solid-then-qty`, the four `bank-spaced-*`, `neg-bank-uen`, `neg-bank-code`, `bank-phone-cc`, `bank-no-keyword`) | faithful for its named examples; **the general clause fails for mixed-separator and glued numbers under D15 (DD-3)**. No failing test committed; the cases are listed under DD-3 for the amendment | green on the corpus; `DBS 123 456789-0` and `DBS acct1234567890` stored raw (live route + `messages` row) |
+| AC-4 | GOV-04 ordinary text; idempotence | corpus `neg-*`, idempotence over every case and 2000 seeded random inputs | faithful | green; my ~90 extra probes are all idempotent |
+| AC-5 | database | `apps/api/test/widget-pii.int.test.ts` | faithful | green (api 12/12) |
+| AC-6 | LLM payload | `agent/test/turn.int.test.ts`, `llm-gateway/src/mask.test.ts` | faithful | green (agent 11/11) |
+| AC-7 | logs | `platform/src/logger.test.ts`, `maskLogText` tests incl. new 128 000-char one-pass phone test | faithful | green; dev log has 0 raw hits for this run's probes |
+| AC-8 | audit IDs | `governance/src/payload.test.ts` | faithful | green (governance 19 integration) |
+| AC-9 | UC-20 step 4, SCR-WGT-002 | `e2e/tests/pii-mask.e2e.ts` | faithful | green (chromium 5/5) |
+| AC-10 | NFR-01, NFR-05 | `pii-mask.test.ts` performance (CPU time, best of five) and `maskLogText` performance | faithful | green; my CPU-time probes: worst 4000-char input 5.4 ms (`bank\n` + `1\n`×), `maskLogText` 256 000 chars of phones 67 ms (linear; was 4.4 s) |
 
 ## Corrected tests
 
-1. **AC-1, AC-2** (`d249e1e`, `packages/platform/src/pii-corpus.json`). AC-1 names "a hyphen or dash" between NRIC groups. AC-2 names "one or two spaces of any of the folded kinds" and "hyphens or dashes". The corpus had no NRIC with a dash, and no card with U+202F, U+2007 or U+2212. I removed U+202F, U+2007 and U+2212 from `fold` as a temporary mutation, and every test stayed green.
-   - Added `nric-dash` (en dash and minus sign), `card-narrow-nbsp`, `card-figure-space` and `card-minus-sign`.
-   - All four pass against the unchanged code. With that mutation, all four go red.
-   - The file now has 86 cases.
-
-The two corrections from the first verification (`3264c91` AC-6, `595c541` AC-8) are still in place and green.
+None. The corpus additions in `ce5bbe8` are additions only, with no deletions, skips or loosened assertions. Every example AC-3 names is pinned. I did not commit the DD-3 cases as failing tests, because they encode behaviour the design has yet to choose. They are listed below for the amendment.
 
 ## Independent execution
 
-All runs below are mine, at `29dc915` + `d249e1e`, with turbo `--force` (0 cached), on this 4-core container.
+All runs are mine, at `ce5bbe8`, with turbo `--force` (0 cached), on this 4-core container. Logs are in `/tmp/claude-0/rv3/`.
 
 | Check | Command | Result |
 | :- | :- | :- |
 | Format | `pnpm format:check` | pass |
-| Lint + boundaries | `pnpm turbo run lint --force`; `pnpm lint` | 24/24; dependency-cruiser no violations |
+| Lint + boundaries | `pnpm turbo run lint --force`; `pnpm lint` | 24/24; no dependency violations (205 modules) |
 | Typecheck | `pnpm turbo run typecheck --force` | 26/26 |
-| Unit | `pnpm turbo run test --force` | 21/21 tasks (platform 193, governance 74, agent 131, llm-gateway 15, widget 6, …) |
-| Integration | `pnpm turbo run test:integration --force --concurrency=1` (Testcontainers) | 14/14 tasks: db 40, platform 4, governance 19, kb 9, inbox 5, api 12, agent 11 |
-| Coverage gate | `pnpm test:coverage --concurrency=2 --force` (as CI) | 15/15; `src/pii-mask.ts` 100% lines, 97.5% branches; `logger.ts` 100% lines (threshold 70% lines; coverage config unchanged on the branch) |
-| Build / size | `pnpm turbo run build --force`; `pnpm size` | 9/9; loader 1.75 kB gz (≤ 14), panel 9.34 kB (≤ 35), initial 1.75 kB (≤ 30) |
-| Eval | `pnpm eval --fast` | 52 cases; groundedness 8/8, prices 44/44; exit 0 |
-| E2E | `E2E_REUSE_SERVERS=true PLAYWRIGHT_CHROMIUM_EXECUTABLE=… pnpm test:e2e --project=chromium`, against a `pnpm dev` **I started at `ad38d56`** (the later commits are test- and doc-only); run twice, the second time at `d249e1e` | 5/5 both times (facts, pii-mask, skeleton ×3; the skeleton spec sends a `Date.now()` timestamp, so D13 is exercised) |
+| Unit | `pnpm turbo run test --force` | 21/21 tasks; platform 220 |
+| Integration | `pnpm turbo run test:integration --force --concurrency=1` | 14/14: db 40, platform 4, governance 19, inbox 5, kb 9, api 12, agent 11 |
+| Coverage | `pnpm test:coverage --concurrency=2 --force` | 15/15; `src/pii-mask.ts` 100% lines, 97.9% branches |
+| Build / size | `pnpm turbo run build --force`; `pnpm size` | 9/9; loader 1.75 kB, panel 9.34 kB, initial 1.75 kB gz |
+| Eval | `pnpm eval --fast` | 52 cases; groundedness 8/8, prices 44/44 |
+| E2E | `E2E_REUSE_SERVERS=true PLAYWRIGHT_CHROMIUM_EXECUTABLE=/opt/pw-browsers/chromium pnpm test:e2e --project=chromium` against the `pnpm dev` started after `ce5bbe8` | 5/5 |
 
-I ran the suites three times as the coordinator's commits landed: at `9147ad2`, at `ad38d56` (stopped before coverage when D14 arrived), and at `29dc915` + `d249e1e`. Every completed run was green, and I saw no flakiness.
+**Server freshness:** checked before relying on the running server. Through it, `DBS 123 456789 0` comes back as `DBS [BANK ••••7890]` (D15 behaviour; D12 gave `••••6789] 0`). The live route therefore serves the HEAD masker.
 
-**Stale servers (process finding).** The `pnpm dev` that was already running (started 05:05, roles respawned 05:25) did not reload `packages/platform/src/pii-mask.ts` after it changed at 05:34 or at `ad38d56`. `tsx watch` didn't pick up the change; even touching the file didn't trigger a restart. With D13 in place, sending the 81 non-empty corpus cases through its widget route gave 3 mismatches: the three D13 negatives were masked as cards. So E2E runs against that server would not have tested the HEAD masker. I stopped it with SIGTERM to its turbo process and started my own `pnpm dev`. On the fresh server, all 81 cases match exactly, and E2E above ran against it. That server is still running; a copy of its output is in `/tmp/claude-0/rv/dev-server.out`. The earlier "E2E chromium 5/5" claims in T9–T11 may have run against stale code, which is one more reason they're exhibits, not evidence.
-
-**Mutation checks** (temporary edits to `pii-mask.ts`, each restored from a copy, with `git status` clean afterwards):
-- dropping U+202F, U+2007 and U+2212 from the fold → the 4 new corpus cases go red;
-- removing `cardPrefixOk` from the window filter → `neg-timestamp`, `neg-luhn-order-id` and `neg-13-not-visa` go red.
-
-The first verification's mutation checks (gateway backstop, `logMethod`, audit `isCode`, bank pass) cover code this rework didn't change.
-
-**Anti-fake-green review** (`git diff origin/main..HEAD` on test files): nothing was deleted except the stub's pass-through test (intended), and no `.skip`, `.only` or `.todo` was added. The wall-time → CPU-time change (D14) is declared and amends AC-10 first. The random-input card check's narrowing (D13) is declared and follows the design. Two corpus negatives became positives under D11, which D11 also declares. No coverage configuration changed.
-
-**Migrations:** none in this feature. Every integration suite builds a fresh database.
+**Anti-fake-green review** (`git show ce5bbe8` on test files): there are 13 new corpus cases and one new timing test. Nothing was removed or skipped, and no coverage configuration changed. Migrations: none in this feature.
 
 ## Direct verification
 
-- **Live widget route** (scripts `/tmp/claude-0/rv/live.sh` and `/tmp/claude-0/rv/livecorpus.py`, against my fresh server):
-  - **DD-1 is closed on the live route.** Every one of these came back and was stored as `[CARD ••••4242]`: `４２４２　４２４２　４２４２　４２４２`, NBSP, U+202F, double space, tab and en dash separators.
-  - NRICs with a double space or U+3000, and `S1234567DS9876543C`, came back masked.
-  - Glued `…4242pls` and `UOB 1234567890 2024-10-20` were masked.
-  - `Do you have pandan cake? 1792474873370` was unchanged; a 13-digit Visa and an Amex 4-6-5 were masked.
-  - Ordinary text (`2  cakes  and  3  tarts, call 9123 4567, open 10–6`) was unchanged.
-  - Agent replies arrived.
-  - **Table scans:** after the probes, a scan of `messages` (the probe conversation, separators stripped), `outbox`, `conversations`, `audit_entries` and `audit_pii` for the raw values found 0 rows. The dev server's output (539 lines) has 0 raw hits.
-- **Unit-level probes** (`/tmp/claude-0/probe/p.ts` from the first round, plus new `/tmp/claude-0/rv/p2.ts`, `p3.ts` and `cmp.ts`, which compares against the pre-rework masker):
-  - Every DD-1, M1 and M2 input listed in the first report now gives the expected output.
-  - Remaining misses and over-masking are recorded as DD-2 and M-findings below.
-- **D13:** JCB `3530…`, UnionPay `62…`, Mir `2200…`, Mastercard `2221…`, Maestro `67…`, Diners `36…` (14 digits) and Visa-13 are masked. UATP `1…`, `9…` and `7…` prefixes and a 13-digit `5…` are not (by design).
-- **Singlish and Chinese false-positive sweep:** 33 ordinary bakery messages. Examples: `订 2 个蛋糕，10月24号 3点 取，电话 9123　4567`, `要 3　盒 凤梨酥 和 2　个 蛋糕`, `Order 1234 5678 9012 3456 7 ok?`, `pls call 9123-4567 or 8123 - 4567`, `S1234567 is my order no.`, `pandan 2x, kaya 3x, total S$45.60 PayNow 9123 4567`. 24 are unchanged. The 9 that change all sit next to a bank keyword: UEN after `PayNow` (`[BANK ••••2345]K`), `PayNow, ref 20261020 1234`, a promo code after `bank`, `savings 10 20 30 40 50`, `current 1 2 … 12`, `my acct got 1 2 … 9 points`, two phone numbers after "bank transfer", and `GF-123-456-789`/`INV-2026-10-0001` before "bank". This is over-masking of the D4 kind, which the design accepts (M3 below).
-- **ReDoS / NFR-05** (`/tmp/claude-0/probe/perf.ts`, `/tmp/claude-0/rv/redos.ts`, `/tmp/claude-0/rv/ph.ts`; best of 5, wall time on a shared container, indicative only):
-  - **`piiMask` on 32 adversarial 4000-character inputs:** max 3.3 ms. The inputs: digit/space, digit/double-space, digit/spaced-hyphen, mixed separators, U+3000, NBSP, tab, en dash, near-NRICs, double-spaced NRIC shapes, glued NRIC chains, valid cards, keyword-per-chunk, Chinese keywords between digits, and email-ish strings.
-  - Longer inputs grow linearly: `1 ` × 32 000 takes 15.7 ms.
-  - **`maskLogText` on 16 000 characters:** max 5.6 ms. The email pattern is now linear: 64 000 characters take 1 ms, where the first round measured 4.8 s.
-  - One quadratic path is left, the phone replacement (M4): 40 ms at 64 000 characters of phone numbers, 4.4 s at 256 000.
-- **Logger** (`/tmp/claude-0/rv/log.ts`): the bare `log.error(err)`, `log.warn(err, fmt, email)`, `err.cause` and child-logger forms all come out masked. Unredacted object fields and `%o` arguments still pass through; D7 intends this (M5 from the first round).
-- **Contracts:** `findPii`/`piiMask`/`maskLogText` and the new exported `cardPrefixOk` live on `@kaki/platform/pii-mask`. Gateway, governance and logger contracts are unchanged from the first verification. No HTTP shape changed.
-- **Screens:** SCR-WGT-002 shows the stored body (E2E); no new styles; manifest unchanged.
+- **Live widget route** (`/tmp/claude-0/rv3/live.sh`):
+
+  | Message sent | Stored as |
+  | :- | :- |
+  | `DBS 123 456789 0` | `DBS [BANK ••••7890]` |
+  | `UOB 123 456 789 0 and OCBC 501 234567 001` | both masked whole |
+  | `card 4242 4242 4242 4242 IC S1234567D` | both masked |
+  | `DBS 123 456789-0` | **unchanged, raw** in `messages.body` |
+  | `DBS acct1234567890` | **unchanged, raw** in `messages.body` |
+
+- **Regression comparison against the D12 masker** (`/tmp/claude-0/rv3/cmp.ts`, which compares D12 at `ad8bbd9` with D15 at HEAD; also `/tmp/claude-0/rv3/p.ts`, about 70 probes). See DD-3 for the leaks. The other probe results:
+  - **Solid numbers followed by more numbers:** a solid or hyphenated number followed by a quantity, date, phone number or `24 10 2026` stays whole and correct.
+  - **Card and NRIC interactions:** a card or NRIC next to a bank number in the same run gives both tokens correctly.
+  - **UEN, invoice and promo codes:** `201912345K`, `INV-2026-10-0001`, `GF-123-456-789` and `123456789A` are now unchanged (M3 closed).
+  - **Fold variants:** NBSP, `\n`, ZWSP, soft hyphen and full-width bank, card and NRIC forms are all masked.
+- **AC-10 / NFR-05** (`/tmp/claude-0/rv3/t.ts`, CPU time, best of five, with other work running):
+  - `piiMask` on 10 adversarial 4000-character inputs (spaced digits, newline-separated digits, ZWSP, mixed `123-4 ` runs, many banks, cards and banks interleaved, a keyword per chunk, NRIC chains, glued runs) takes at most 5.4 ms.
+  - `maskLogText` takes at most 3 ms at 16 000 characters. With 256 000 characters of phone numbers it takes 67 ms, which is linear growth (M4 closed).
 - **Pending environment:** none.
 
 ## Findings
 
 ### Rework
-None. The code implements the amended design as written.
+None. The code implements D15 as D15 states it.
 
 ### Design defect
-- **DD-2 — D12's "fewest chunks first" rule masks space-grouped Singapore bank numbers only in part, which is a regression (GOV-04 "mask … bank accounts"; AC-3; D5).**
-  - **What the sources require:** AC-3 (technical-design.md:121) says "a 9-to-12-digit number with a keyword within 40 characters … becomes `[BANK ••••<last 4>]`". D12 (technical-design.md:142) adds "Space-grouped numbers … still match as a three-chunk window". D5 says the token shows the number's last four digits.
-  - **What the design says:** technical-design.md:55 (bank row) and D12 choose the window with "fewest chunks first, then earliest". A space-grouped number whose first chunks already reach 9 digits is therefore cut at the first window that reaches 9 digits.
-  - **Code that follows the design:** `packages/platform/src/pii-mask.ts:233` (`windows.sort((a, b) => a.n - b.n || a.start - b.start)`).
-  - **Observed** (unit, and stored through the live widget route):
+- **DD-3: D15 stores some keyword-adjacent bank numbers completely raw, numbers D12 masked (GOV-04 "mask … bank accounts"; AC-3 general clause; D11).**
+  - **What the sources require:** AC-3 (technical-design.md:121): "A 9-to-12-digit number with a keyword within 40 characters … becomes `[BANK ••••<last 4>]`". D10 makes "a hyphen with an optional space" and "one or two spaces" equally valid separators. D11 lets identifiers touch letters.
+  - **What the design says:** D15 (technical-design.md:145): "a chunk of 9 or more digits, or one joined with hyphens, is now a number on its own", and a window "glued to a letter … is a UEN, invoice or promo code". The code follows this at `packages/platform/src/pii-mask.ts`: `banksIn` marks every hyphen-merged chunk `whole: true`, and `gluedToWord` rejects any adjacent letter.
+  - **Observed** (unit; the first and fifth rows were also stored raw through the live route):
 
-    | Input | Output now | Output before the rework |
+    | Input | D15 (now) | D12 (before) |
     | :- | :- | :- |
-    | `DBS 123 456789 0` | `DBS [BANK ••••6789] 0` | whole number masked |
-    | `UOB 123 456 789 0` | `UOB [BANK ••••6789] 0` | whole number masked |
-    | `OCBC 501 234567 001` | `OCBC [BANK ••••4567] 001` | whole number masked |
-    | `DBS acct 123 456 789 012` | `DBS acct [BANK ••••6789] 012` | whole number masked |
+    | `DBS 123 456789-0` | unchanged | `DBS [BANK ••••7890]` |
+    | `UOB 123-456 789-0` | unchanged | `UOB [BANK ••••7890]` |
+    | `POSB 123-45678 9` | unchanged | `POSB [BANK ••••6789]` |
+    | `acct 1234-5678 90` / `acct 1234 5678-90` | unchanged | masked whole |
+    | `DBS acct1234567890` | unchanged | `DBS acct[BANK ••••7890]` |
+    | `DBS 1234567890pls`, `my acct no is 1234567890ok` | unchanged | masked |
+    | `DBS 123-456789 0`, `OCBC 501-234567 001` | `[BANK ••••6789] 0`, `[BANK ••••4567] 001` (DD-2's symptom: the last group raw, the wrong last four) | same |
 
-    `POSB 123 45678 9` and `1234 5678 90` are still masked whole, because their first two chunks hold fewer than 9 digits.
-  - **Effect:** 1–3 digits of the account are stored in clear, and the token names the wrong last four, so staff can't tell which account was meant (D5's purpose). The account can't be rebuilt from what is stored, and the binding NRIC/card clause is not affected.
-  - **Suggested amendment, for detailed-design to decide:** take the earliest start first, then the longest window of 12 digits or fewer, and never join a hyphen-joined chunk with another chunk, because a hyphenated bank number is complete in itself. I tried this rule on a scratch copy of the masker (`/tmp/claude-0/rv/proto.ts`; production code untouched). It passes all 86 corpus cases, including `bank-then-date`, `bank-then-qty`, `bank-hyphenated-then-number` and `bank-spaced-groups`, and masks the four inputs above whole. Add those four as corpus positives.
+  - **Effect:** the whole account number is stored and sent to the model in clear, for formats that are less common than the pure space or pure hyphen ones but plausible in typed chat. NRIC and card masking are unaffected.
+  - **Suggested amendment, for detailed-design to decide.** I tried two changes on a scratch copy (`/tmp/claude-0/rv3/proto.ts`; production code untouched). Together they pass all 99 corpus cases, including `neg-bank-uen`, `neg-bank-code`, `neg-bank-invoice` and `bank-solid-then-qty`, and mask every row above whole except the last.
+    1. A hyphen-joined chunk stands alone only when it holds 9 or more digits. A shorter one joins neighbouring chunks as a group, as §3.1's wording already suggests.
+    2. "Glued to a letter" means only a single trailing letter (the UEN shape) or a letter-hyphen prefix (`GF-`, `INV-`). A window glued to a bank keyword (`acct1234567890`) or followed by a word (`…pls`) is still a bank number.
+
+    The last row (`123-456789 0`, a complete 9-digit hyphenated number followed by one spaced digit) needs a decision: join a trailing 1–3-digit chunk while the total stays ≤ 12, or list it as an accepted gap in §8. Add the table's inputs as corpus positives, and reconcile the §3.1 bank row with D15's wording.
 
 ### Minor
-- **M1 — Whitespace and dash characters not yet folded.** Each of the following leaves a card or NRIC unmasked:
-  - three or more spaces;
-  - a line break (`\n`, `\r\n`);
-  - U+2009 thin space and U+2002/U+2003 en/em spaces;
-  - U+200B zero-width space and U+00AD soft hyphen;
-  - U+FE63 small hyphen-minus;
-  - `.` or `/` as a group separator.
+- **M9: no accepted-gap note for glued bank numbers.** Whatever DD-3's amendment keeps excluded (for example `1234567890pls`) should be listed in §8 next to the D13 and over-masking gaps.
+- **M10: D15's accepted cost also corrupts the token and the visitor's text.** `DBS 123 456 7890 2 pcs` becomes `DBS [BANK ••••8902] pcs`. D12 gave `[BANK ••••7890] 2 pcs`. The quantity disappears from the stored message, and the token names the wrong last four (D5's purpose). D15 says this "masks more, never less", which is true, but it doesn't mention the lost quantity or the wrong token. Worth stating in §8, or avoiding by preferring a window that ends at a 3–4-digit chunk.
+- **M11: over-masking of times and dates next to keywords.** `DBS 10:30 24 10 2026` becomes `DBS 10:[BANK ••••2026]`, and `65 9123 4567 account` (no `+`) is masked as a bank number. This is the same class as §8's accepted over-masking; noted for the pilot review.
+- M2 (D13 prefixes) and M5 (D7 object fields) from earlier rounds: unchanged, by design.
 
-  Ordinary keyboards rarely produce these in the widget, but email bodies (FEAT-034+, which reuse this masker per §8) will wrap lines, and copy-paste can bring in zero-width characters. Recommend folding the whole Unicode `Zs` class plus `\n`, `\r`, U+200B and U+00AD to a space when the email channel lands (design §5.1 `fold`; `pii-mask.ts:26-30`). Not blocking for the widget path.
-- **M2 — D13 leaves non-2–6 prefixes unmasked.** UATP (1), some fleet and private-label cards (7, 8) and some domestic schemes (9) fall outside the rule. The design states this and accepts it (`pii-mask.ts:150`). Noted so the corpus records it if a pilot tenant takes such cards.
-- **M3 — New over-masking from D11 and D12, next to bank keywords.** Examples: `PayNow to UEN 201912345K` → `[BANK ••••2345]K`; `my bank promo code 123456789A`; `savings 10 20 30 40 50`; two phone numbers before "bank transfer"; `GF-123-456-789 bank`. D4 accepts over-masking, but a UEN after "PayNow" is a common Singapore payment phrase. Consider making a run glued to a trailing letter ineligible as a bank number, as for NRICs.
-- **M4 — The phone replacement in `maskLogText` is quadratic.** `replaceOnFolded` (`pii-mask.ts:302-306`) re-slices the whole string for every match. It is well inside AC-10 at 16 000 characters (3 ms), but takes 40 ms at 64 000 and 4.4 s at 256 000 characters of phone numbers. Build the output in one pass, as `piiMask` does.
-- **M5 — Object fields not in the redaction list, and `%o`/`%j` arguments, aren't scrubbed.** Unchanged from the first round; D7 intends this.
-- **M6 — Two corpus gaps against AC-1/AC-2's named variants.** Corrected (above).
-- **M7 — The T9 evidence miscounts the corpus.** `tasks.md:25` says "80 in all"; the commit had 79 cases (57 + 22).
-- **M8 — Process: the reused `pnpm dev` served a stale masker.** It didn't reload after `pii-mask.ts` changed (see Independent execution). Future verifications and implementation E2E evidence should start servers cold.
-
-### Prior findings (first verification)
-- DD-1: closed.
-- M1 (bank followed by a date or quantity): closed by D12, which caused DD-2.
-- M2 (identifiers glued to letters): closed by D11.
-- M3 (quadratic email pattern): closed.
-- M4 (bare `log.error(err)`): closed and tested.
-- M5: by design.
-- M6 (tests corrected): stands.
-- M7 (size labels in T8): fixed.
-- M8 (`package.json` churn): fixed; the file's description no longer differs from main.
-- M9 (no automated log check for AC-9): unchanged, and verified directly again.
+### Prior findings
+- DD-1: closed (round 2).
+- DD-2: **closed**.
+- M1 (unfolded spaces and line breaks): **closed**.
+- M3 (UEN and code over-masking): **closed**.
+- M4 (quadratic phone replacement): **closed**.
+- M7 (task count): **closed**. T9 now says 79, T12 says 99, and the corpus has 99.
+- M6 and M8 (test corrections, stale server): stand as process notes. The server used in this round was confirmed fresh.
 
 ## RTM
 
@@ -165,4 +147,4 @@ Not written. The verdict is design defect, so GOV-04's Test ref stays `_TBD_`.
 
 ## Routing
 
-DD-2 goes to detailed-design's amendment path for FEAT-003: D12, the bank row in §3.1, and four AC-3 corpus positives. I recommend handling M1 (at least `\n` and `Zs`), M3 and M4 in the same pass. Then feature-implementation, then a fresh acceptance run on a cold-started stack.
+DD-3 goes to detailed-design's amendment path for FEAT-003: D15, the §3.1 bank row, AC-3's examples and §8's accepted gaps. Fold M9 and M10 into the same amendment. After that comes feature-implementation, then a fresh acceptance run.
