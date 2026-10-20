@@ -329,6 +329,9 @@ importers:
       '@kaki/governance':
         specifier: workspace:*
         version: link:../../packages/governance
+      '@kaki/identity':
+        specifier: workspace:*
+        version: link:../../packages/identity
       '@kaki/platform':
         specifier: workspace:*
         version: link:../../packages/platform

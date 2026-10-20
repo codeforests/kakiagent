@@ -12,6 +12,7 @@ const deps = {
   logger,
   dashboardDb: createZoneDb('dashboard', config.DASHBOARD_DATABASE_URL, 5),
   visitorDb: createZoneDb('visitor', config.VISITOR_DATABASE_URL, 5),
+  identityDb: createZoneDb('identity', config.IDENTITY_DATABASE_URL, 5),
   subscriber: createSubscriber(config.VALKEY_URL),
 };
 const app = await buildApp(deps);
@@ -23,6 +24,7 @@ async function shutdown() {
   await Promise.all([
     deps.dashboardDb.pool.end(),
     deps.visitorDb.pool.end(),
+    deps.identityDb.pool.end(),
     deps.subscriber.close(),
   ]);
   await stopTelemetry();
