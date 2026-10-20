@@ -17,5 +17,6 @@
       Done when: the new spec passes in chromium against the local stack with `pnpm dev`.
 - [x] T7 — Docs: scaffold-notes §4 stub row marked done (design §2)
       Done when: the row names the masker, the log scrubbing and the gateway backstop.
-- [ ] T8 — Verify: every acceptance criterion (design §6) demonstrably passes; format, lint (with boundaries), typecheck, unit, integration, coverage, build and size green; E2E skeleton, facts and masking flows pass
+- [x] T8 — Verify: every acceptance criterion (design §6) demonstrably passes; format, lint (with boundaries), typecheck, unit, integration, coverage, build and size green; E2E skeleton, facts and masking flows pass
       Done when: the commands in AGENTS.md "Checks" pass and each AC is mapped to the test or run that shows it.
+      Evidence (2026-10-20, Docker with Testcontainers and the compose stack): format, lint and boundaries, typecheck, unit (21 tasks; platform 132 incl. 58 corpus cases × 2, the seeded random set and the adversarial timing), integration (db 40, platform 4, governance 19, kb 9, inbox 5, api 12, agent 11), coverage (`src/pii-mask.ts` 100% lines), build, size (loader 9.34 kB, initial 1.75 kB gz), `eval --fast` (prices 44/44), and E2E chromium 5/5 against `pnpm dev`. After the E2E run, the local `messages` table holds the `[NRIC ••••567D]` token and no raw `S1234567D`, and the dev log has no raw value. Mutation check: with `appendVisitorMessage` storing raw text, the api (AC-5) and agent (AC-6) integration tests both fail.

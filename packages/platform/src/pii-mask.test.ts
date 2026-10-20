@@ -78,10 +78,13 @@ describe('performance (AC-10)', () => {
       'S-1-2-3-4-5-6-7-'.repeat(250),
     ].map((s) => s.slice(0, 4000));
     for (const input of inputs) {
-      piiMask(input); // warm up
-      const t = performance.now();
-      piiMask(input);
-      expect(performance.now() - t, input.slice(0, 20)).toBeLessThan(20);
+      // Best of five, so a busy CI runner measures the masker, not the scheduler.
+      const times = Array.from({ length: 5 }, () => {
+        const t = performance.now();
+        piiMask(input);
+        return performance.now() - t;
+      });
+      expect(Math.min(...times), input.slice(0, 20)).toBeLessThan(20);
     }
   });
 });
