@@ -306,6 +306,40 @@ describe('runVisitorTurn (UC-20)', () => {
     expect(result?.message.body).toBe(`First sentence. ${texts.fallback}`);
   });
 
+  it('sends the model and the embedder only masked visitor text (GOV-04, FEAT-003 AC-6)', async () => {
+    const raw = ['S1234567D', '4242 4242 4242 4242', '4242424242424242'];
+    const c = await conversationWith('fudge cake price? IC S1234567D, card 4242 4242 4242 4242');
+    // What the agent hands the gateway, and what the provider receives behind it.
+    const toGateway: unknown[] = [];
+    const toProvider: unknown[] = [];
+    const fake = createFakeProvider(fakeVisitorResponder);
+    const inner = createGateway(defaultRegistry('fake'), [
+      {
+        ...fake,
+        generate: async (req, id) => (toProvider.push(req), fake.generate(req, id)),
+        stream: (req, id) => (toProvider.push(req), fake.stream!(req, id)),
+        embed: async (req, id) => (toProvider.push(req), fake.embed!(req, id)),
+      },
+    ]);
+    const llm: typeof inner = {
+      generate: (req) => (toGateway.push(req), inner.generate(req)),
+      stream: (req) => (toGateway.push(req), inner.stream(req)),
+      embed: (req) => (toGateway.push(req), inner.embed(req)),
+    };
+    const result = await runVisitorTurn(
+      { zdb: tdb.zone('visitor'), llm },
+      { tenantId: TENANT_A, conversationId: c.conversationId, messageId: c.messageId },
+    );
+    expect(result).not.toBeNull();
+    for (const sent of [toGateway, toProvider]) {
+      expect(sent.length).toBeGreaterThanOrEqual(2); // the query embedding and the reply
+      const text = JSON.stringify(sent);
+      for (const r of raw) expect(text).not.toContain(r);
+      expect(text).toContain('[NRIC ••••567D]');
+      expect(text).toContain('[CARD ••••4242]');
+    }
+  });
+
   it('ignores a job whose message is missing', async () => {
     const llm = gatewayFromConfig({ provider: 'fake' });
     const res = await runVisitorTurn(

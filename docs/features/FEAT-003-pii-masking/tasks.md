@@ -11,7 +11,7 @@
       Done when: governance unit tests reject `s1234567d` and a card number as `actorId`, subject ID, related ID and payload code, and the existing payload tests still pass.
 - [x] T4 — Gateway backstop in `createGateway` (design §3.2; D3; AC-6 second half)
       Done when: llm-gateway unit tests show a raw NRIC in a `user` message (generate and stream) and in a `query` embedding reaching the provider masked, and unchanged in the system prompt, an `assistant` message and a `document` embedding; dependency-cruiser passes.
-- [ ] T5 — Storage and payload: integration tests on the real path (design §5.2; AC-5, AC-6)
+- [x] T5 — Storage and payload: integration tests on the real path (design §5.2; AC-5, AC-6)
       Done when: the api integration test posts a message with an NRIC, a card and a bank number, gets the masked body back (and the same message on retry), and a scan of `messages`, `conversations`, `outbox`, `audit_entries` and `audit_pii` finds none of the raw values; the agent turn test records every provider request and finds none of the raw values and the tokens present.
 - [ ] T6 — E2E: extend the widget journey (UC-20, J2/J7) so a message with an NRIC shows the masked token in the visitor's bubble and still gets a reply (AC-9)
       Done when: the new spec passes in chromium against the local stack with `pnpm dev`.
