@@ -133,6 +133,7 @@ graph TB
 | 19 | Self-hosted auth on Postgres; server-side sessions; re-auth windows | [ADR-020](adr/ADR-020-authentication-sessions-and-authorization.md) |
 | 20 | OpenTelemetry → CloudWatch/X-Ray; per-tenant usage ledger | [ADR-021](adr/ADR-021-observability-and-usage-metering.md) |
 | 21 | AI evaluation gate in CI on the real pipeline | [ADR-022](adr/ADR-022-ai-evaluation-gate-in-ci.md) |
+| 22 | Triage returns a typed turn plan (one or more tasks); one dispatcher in `agent` checks scope, send gate, boundary rules and consent, then routes each task to its owning module. The model interprets, code acts (added 2026-10-20) | [ADR-025](adr/ADR-025-turn-plan-and-task-dispatch.md) |
 
 ## 5. Building block view
 
@@ -228,7 +229,7 @@ graph TB
 | `identity` | users, memberships, sessions, MFA, invites, terms acceptance, operators, support grants | `authenticate`, `requireReauth`, `can(role, capability)` |
 | `tenancy` | tenants, business profile, plans/limits (stub), go-live readiness | `readiness(tenant)`, `limits(tenant)` |
 | `kb` | sources, facts, versions, chunks, conflicts, corrections, replay | `visitorFacts.search`, `approve`, `approveAll(previewHash)`, `proposeCorrection` |
-| `agent` | prompts, retrieval orchestration, slot renderer, verifier, tools, scopes (calls models only through `llm-gateway`) | `runVisitorTurn`, `runCoachingTurn`, `suggestReply` |
+| `agent` | prompts, retrieval orchestration, slot renderer, verifier, tools, scopes, the `TurnPlan` and the task dispatcher, the only place a task or tool call becomes a side effect (ADR-025) (calls models only through `llm-gateway`) | `runVisitorTurn`, `runCoachingTurn`, `suggestReply` |
 | `channels` | adapters, connections, credentials, health, contact identity | `ChannelAdapter`, `resolveContact` |
 | `inbox` | conversations, messages, state machine, takeover, notes, tags, search | `transition`, `takeOver`, `search` |
 | `leads` | leads, consents, scoring, exports, webhooks | `captureLead`, `withdrawConsent` |
@@ -338,12 +339,13 @@ sequenceDiagram
     Q->>AW: turn job
     AW->>DB: send gate: kill switch, live, no human owner (GOV-08, INB-02)
     par triage
-        AW->>BA: Haiku triage (intent, language, complexity, safety)
+        AW->>BA: Haiku triage → TurnPlan (tasks, language, complexity, safety; ADR-025)
     and retrieval
         AW->>BS: embed query
         AW->>DB: search visitor_facts (RLS + tenant filter)
     end
-    AW->>BA: stream reply (Haiku or Sonnet per route) with fact slots
+    AW->>AW: dispatch code-handled tasks in order (safety first; checks scope, gate, boundary rules, consent; ADR-025)
+    AW->>BA: stream reply (Haiku or Sonnet per route) with fact slots and task results as slots
     loop each segment
         AW->>AW: buffer → render slots (GST) → verify values + boundary rules
         alt segment passes
@@ -584,6 +586,7 @@ English UI (NFR-10). Agent language and register come from triage (AGT-03). Form
 | [ADR-022](adr/ADR-022-ai-evaluation-gate-in-ci.md) | AI evaluation gate in CI | AGT-14, NFR-12 |
 | [ADR-023](adr/ADR-023-launch-environment-before-prod.md) | One lean launch environment until the prod trigger (added 2026-10-19) | NFR-03, NFR-04, NFR-08, GOV-13 |
 | [ADR-024](adr/ADR-024-rds-postgres-for-launch.md) | RDS PostgreSQL instead of Aurora until the prod trigger (added 2026-10-19) | NFR-03, NFR-04, NFR-08 |
+| [ADR-025](adr/ADR-025-turn-plan-and-task-dispatch.md) | Turn plan and task dispatch (added 2026-10-20) | AGT-06, AGT-04, AGT-13, LED-07, APR-01, GOV-05 |
 
 ## 10. Quality requirements — NFR to design mapping
 
