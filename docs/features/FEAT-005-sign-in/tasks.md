@@ -3,7 +3,7 @@
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
 > Status: pending | in-progress | done per task · Last updated: 2026-10-20
 
-- [ ] T1 — Schema: `users`, `memberships`, `terms_acceptances`, `sessions`, `magic_links` (0006), the `app_identity` role, RLS, policies and grants (0007), the `identity` trust zone, seed users; RLS suite cases (design §4; AC-14)
+- [x] T1 — Schema: `users`, `memberships`, `terms_acceptances`, `sessions`, `magic_links` (0006), the `app_identity` role, RLS, policies and grants (0007), the `identity` trust zone, seed users; RLS suite cases (design §4; AC-14)
       Done when: `pnpm db:setup` applies 0006–0007 on a fresh database; the cross-tenant suite passes with `memberships` and `terms_acceptances` listed, and new cases show the identity zone can't read conversations, messages, facts or audit entries and the dashboard and visitor zones can't read users, sessions or magic links.
 - [ ] T2 — Platform: `createSmtpMailer` (nodemailer) and the rate limiter (`createRateLimiter` on Valkey, `memoryRateLimiter`) (design §5.3)
       Done when: unit tests show the memory limiter allows 5 hits and refuses the 6th in a window and resets after it; the mailer's message building is unit-tested; the Valkey limiter passes the same cases against a Valkey container in an integration test.

@@ -43,6 +43,20 @@
       "when": 1792450481689,
       "tag": "0005_audit_chain_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1792492040862,
+      "tag": "0006_identity",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792492061820,
+      "tag": "0007_identity_rls",
+      "breakpoints": true
     }
   ]
 }

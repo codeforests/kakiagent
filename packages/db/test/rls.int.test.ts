@@ -12,7 +12,7 @@ let tdb: TestDatabase;
 let owner: pg.Client;
 
 async function asRole<T>(
-  role: 'app_dashboard' | 'app_agent_visitor' | 'app_outbox',
+  role: 'app_dashboard' | 'app_agent_visitor' | 'app_outbox' | 'app_identity',
   tenantId: string | null,
   fn: (c: pg.Client) => Promise<T>,
 ) {
@@ -75,12 +75,12 @@ describe('schema guard', () => {
 
   it('application roles neither own tables nor bypass RLS', async () => {
     const { rows } = await owner.query(
-      `select rolname, rolsuper, rolbypassrls from pg_roles where rolname in ('app_dashboard','app_agent_visitor','app_outbox')`,
+      `select rolname, rolsuper, rolbypassrls from pg_roles where rolname in ('app_dashboard','app_agent_visitor','app_outbox','app_identity')`,
     );
-    expect(rows).toHaveLength(3);
+    expect(rows).toHaveLength(4);
     for (const r of rows) expect(r).toMatchObject({ rolsuper: false, rolbypassrls: false });
     const owned = await owner.query(
-      `select tablename from pg_tables where schemaname = 'public' and tableowner in ('app_dashboard','app_agent_visitor','app_outbox')`,
+      `select tablename from pg_tables where schemaname = 'public' and tableowner in ('app_dashboard','app_agent_visitor','app_outbox','app_identity')`,
     );
     expect(owned.rows).toEqual([]);
   });
@@ -559,5 +559,116 @@ describe('audit chain', () => {
     await expect(
       asRole('app_dashboard', TENANT_A, (cc) => cc.query(`select * from audit_heads_to_anchor()`)),
     ).rejects.toThrow(/permission denied/);
+  });
+});
+
+// ---- FEAT-005: identity tables and the identity zone (ADR-005, ADR-020; AC-14) --------
+
+describe('identity zone', () => {
+  it('the person tables are RLS-forced with a policy for the identity zone only', async () => {
+    const { rows } = await owner.query<{ table: string; forced: boolean; roles: string[] }>(`
+      select c.relname as table, c.relforcerowsecurity as forced,
+             (select array_agg(distinct r::text) from pg_policies p, unnest(p.roles) r
+               where p.schemaname = 'public' and p.tablename = c.relname) as roles
+      from pg_class c join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'public' and c.relname in ('users', 'sessions', 'magic_links')
+      order by 1`);
+    expect(rows).toEqual([
+      { table: 'magic_links', forced: true, roles: ['app_identity'] },
+      { table: 'sessions', forced: true, roles: ['app_identity'] },
+      { table: 'users', forced: true, roles: ['app_identity'] },
+    ]);
+  });
+
+  it.each(['app_dashboard', 'app_agent_visitor', 'app_outbox'] as const)(
+    '%s cannot read users, sessions or magic links',
+    async (role) => {
+      for (const table of ['users', 'sessions', 'magic_links']) {
+        await expect(
+          asRole(role, TENANT_A, (c) => c.query(`select * from ${table}`)),
+          `${role} on ${table}`,
+        ).rejects.toThrow(/permission denied/);
+      }
+    },
+  );
+
+  it.each([
+    'conversations',
+    'messages',
+    'facts',
+    'kb_chunks',
+    'audit_entries',
+    'audit_pii',
+    'outbox',
+  ])('the identity zone cannot read %s', async (table) => {
+    await expect(
+      asRole('app_identity', TENANT_A, (c) => c.query(`select * from ${table}`)),
+    ).rejects.toThrow(/permission denied/);
+  });
+
+  it("reads a user's memberships across tenants, but writes only in the current tenant", async () => {
+    const bakeryOwner = (
+      await owner.query(`select id from users where email = 'owner@kaki-bakery.test'`)
+    ).rows[0].id;
+    const rows = await asRole(
+      'app_identity',
+      null,
+      async (c) =>
+        (await c.query(`select tenant_id, role from memberships where user_id = $1`, [bakeryOwner]))
+          .rows,
+    );
+    expect(rows).toEqual([{ tenant_id: TENANT_A, role: 'owner' }]);
+    await expect(
+      asRole('app_identity', TENANT_B, (c) =>
+        c.query(`insert into memberships (tenant_id, user_id, role) values ($1, $2, 'admin')`, [
+          TENANT_A,
+          bakeryOwner,
+        ]),
+      ),
+    ).rejects.toThrow(/row-level security/);
+  });
+
+  it('the identity zone sees only the current tenant row and cannot create another tenant', async () => {
+    const rows = await asRole(
+      'app_identity',
+      TENANT_B,
+      async (c) => (await c.query(`select id from tenants`)).rows,
+    );
+    expect(rows).toEqual([{ id: TENANT_B }]);
+    await expect(
+      asRole('app_identity', TENANT_B, (c) =>
+        c.query(
+          `insert into tenants (id, slug, name, widget_key) values (gen_random_uuid(), 'x', 'X', 'wk_x')`,
+        ),
+      ),
+    ).rejects.toThrow(/row-level security/);
+  });
+
+  it('memberships and terms acceptances are isolated for the dashboard zone', async () => {
+    const m = await asRole(
+      'app_dashboard',
+      TENANT_B,
+      async (c) => (await c.query(`select tenant_id from memberships`)).rows,
+    );
+    expect(m).toEqual([{ tenant_id: TENANT_B }]);
+    const t = await asRole(
+      'app_dashboard',
+      TENANT_B,
+      async (c) =>
+        (await c.query(`select tenant_id from terms_acceptances where tenant_id = $1`, [TENANT_A]))
+          .rows,
+    );
+    expect(t).toEqual([]);
+  });
+
+  it('terms acceptances are insert-only', async () => {
+    for (const role of ['app_dashboard', 'app_identity'] as const) {
+      await expect(
+        asRole(role, TENANT_A, (c) => c.query(`update terms_acceptances set version = 'x'`)),
+      ).rejects.toThrow(/permission denied/);
+      await expect(
+        asRole(role, TENANT_A, (c) => c.query(`delete from terms_acceptances`)),
+      ).rejects.toThrow(/permission denied/);
+    }
   });
 });

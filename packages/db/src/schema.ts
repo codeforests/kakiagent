@@ -302,6 +302,134 @@ export const auditPii = pgTable(
   ],
 );
 
+// ---- Identity (ADR-020; FEAT-005) ------------------------------------------------------
+
+/**
+ * A person who signs in (architecture §5.3 USER). Not tenant data: one user can belong
+ * to several tenants through `memberships` (AUTH-04). Only the identity zone can read it.
+ */
+export const users = pgTable(
+  'users',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    /** Trimmed and lower-cased. */
+    email: text('email').notNull().unique(),
+    /** Bound on the first Google sign-in; a later one must match (FEAT-005 §5.4). */
+    googleSub: text('google_sub').unique(),
+    status: text('status', { enum: ['active', 'disabled'] })
+      .notNull()
+      .default('active'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    lastSignInAt: timestamp('last_sign_in_at', { withTimezone: true }),
+  },
+  (t) => [check('users_status_ck', sql`${t.status} in ('active', 'disabled')`)],
+);
+
+export const ROLES = ['owner', 'admin', 'agent'] as const;
+
+/** A user's place in a tenant (MEMBERSHIP). The role is re-read on every request. */
+export const memberships = pgTable(
+  'memberships',
+  {
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    role: text('role', { enum: ROLES }).notNull(),
+    status: text('status', { enum: ['active', 'deactivated'] })
+      .notNull()
+      .default('active'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.userId] }),
+    index('memberships_user_idx').on(t.userId),
+    check('memberships_role_ck', sql`${t.role} in ('owner', 'admin', 'agent')`),
+    check('memberships_status_ck', sql`${t.status} in ('active', 'deactivated')`),
+  ],
+);
+
+export const TERMS_DOCUMENTS = ['tos', 'aup', 'dpa'] as const;
+
+/** AUTH-08: who accepted which version of which document, and when. Insert-only. */
+export const termsAcceptances = pgTable(
+  'terms_acceptances',
+  {
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id),
+    id: uuid('id').notNull().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    document: text('document', { enum: TERMS_DOCUMENTS }).notNull(),
+    version: text('version').notNull(),
+    acceptedAt: timestamp('accepted_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.id] }),
+    index('terms_acceptances_document_idx').on(t.tenantId, t.document, t.acceptedAt.desc()),
+    check('terms_acceptances_document_ck', sql`${t.document} in ('tos', 'aup', 'dpa')`),
+  ],
+);
+
+/**
+ * Server-side sessions (ADR-020): the cookie holds a random token, this table its
+ * SHA-256. `active_tenant_id` is the user's current workspace, re-checked against
+ * `memberships` on every request; it is not ownership, so the table isn't tenant-scoped.
+ */
+export const sessions = pgTable(
+  'sessions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    tokenHash: bytea('token_hash').notNull().unique(),
+    activeTenantId: uuid('active_tenant_id').references(() => tenants.id),
+    authMethod: text('auth_method', { enum: ['magic_link', 'google'] }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    /** The last fresh authentication, for AUTH-03's 10-minute re-auth window (FEAT-006). */
+    reauthAt: timestamp('reauth_at', { withTimezone: true }).notNull().defaultNow(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  },
+  (t) => [
+    index('sessions_user_live_idx')
+      .on(t.userId)
+      .where(sql`${t.revokedAt} is null`),
+    check('sessions_auth_method_ck', sql`${t.authMethod} in ('magic_link', 'google')`),
+  ],
+);
+
+/**
+ * Magic links (ADR-020): the token's SHA-256 only. The token itself is
+ * HMAC(MAGIC_LINK_SECRET, id), so a retry can re-derive it (FEAT-005 D6).
+ */
+export const magicLinks = pgTable(
+  'magic_links',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    email: text('email').notNull(),
+    tokenHash: bytea('token_hash').notNull().unique(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    consumedAt: timestamp('consumed_at', { withTimezone: true }),
+    sentAt: timestamp('sent_at', { withTimezone: true }),
+    sendAttempts: integer('send_attempts').notNull().default(0),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('magic_links_unsent_idx')
+      .on(t.nextAttemptAt)
+      .where(sql`${t.sentAt} is null`),
+    index('magic_links_created_idx').on(t.createdAt),
+  ],
+);
+
 /** Tables with `tenant_id` + forced RLS. The cross-tenant suite asserts this list is complete. */
 export const TENANT_SCOPED_TABLES = [
   'tenants',
@@ -315,4 +443,6 @@ export const TENANT_SCOPED_TABLES = [
   'facts',
   'fact_versions',
   'kb_chunks',
+  'memberships',
+  'terms_acceptances',
 ] as const;
