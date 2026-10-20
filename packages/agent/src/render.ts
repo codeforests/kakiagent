@@ -1,4 +1,4 @@
-import type { VisitorFact } from '@kaki/kb';
+import { sgDayLabel, sgLastDayOf, type GstTreatment, type VisitorFact } from '@kaki/kb';
 import { SLOT_FIELDS, SLOT_RE, type TurnFacts } from './slots.js';
 import type { Violation } from './verify.js';
 
@@ -18,11 +18,12 @@ export function withGst(cents: number): number {
 }
 
 /**
- * The visitor-facing price (KB-15): a GST-registered tenant always quotes the
- * GST-inclusive amount; an unregistered tenant quotes the price as stored.
+ * The visitor-facing price (KB-15) of a product or a priced promotion: a GST-registered
+ * tenant always quotes the GST-inclusive amount; an unregistered tenant quotes the
+ * price as stored.
  */
 export function renderPrice(
-  fact: Extract<VisitorFact, { type: 'product' }>,
+  fact: { value: { priceCents: number }; gstTreatment: GstTreatment | null },
   gstRegistered: boolean,
 ): string {
   const cents = fact.value.priceCents;
@@ -31,20 +32,42 @@ export function renderPrice(
   return formatSgd(cents);
 }
 
+/** The last day a promotion runs, "31 Oct 2026" (NFR-10), or null when open-ended. */
+export function renderValidUntil(fact: Extract<VisitorFact, { type: 'promotion' }>): string | null {
+  return fact.validUntil ? sgDayLabel(sgLastDayOf(fact.validUntil)) : null;
+}
+
 export type RenderResult =
   | { ok: true; text: string; spans: [number, number][]; factIds: string[] }
   | { ok: false; violations: Violation[] };
 
 function fieldValue(fact: VisitorFact, field: string, gstRegistered: boolean): string | null {
-  if (fact.type === 'product') {
-    if (field === 'price') return renderPrice(fact, gstRegistered);
-    if (field === 'name') return fact.value.name;
-    if (field === 'unit') return fact.value.unit ?? null;
-    return null;
+  switch (fact.type) {
+    case 'product':
+      if (field === 'price') return renderPrice(fact, gstRegistered);
+      if (field === 'name') return fact.value.name;
+      if (field === 'unit') return fact.value.unit ?? null;
+      return null;
+    case 'faq':
+      if (field === 'question') return fact.value.question;
+      if (field === 'answer') return fact.value.answer;
+      return null;
+    case 'policy':
+      if (field === 'title') return fact.value.title;
+      if (field === 'details') return fact.value.details;
+      return null;
+    case 'promotion': {
+      const { priceCents } = fact.value;
+      if (field === 'title') return fact.value.title;
+      if (field === 'details') return fact.value.details;
+      if (field === 'price')
+        return priceCents === undefined
+          ? null
+          : renderPrice({ value: { priceCents }, gstTreatment: fact.gstTreatment }, gstRegistered);
+      if (field === 'valid_until') return renderValidUntil(fact);
+      return null;
+    }
   }
-  if (field === 'question') return fact.value.question;
-  if (field === 'answer') return fact.value.answer;
-  return null;
 }
 
 /**
