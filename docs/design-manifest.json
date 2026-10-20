@@ -175,7 +175,8 @@
       "feature": "FEAT-022",
       "strategy": "code-native",
       "source": {
-        "spec": "features/FEAT-022-grounded-verified-answer/ui-design.md#scr-app-027--facts"
+        "spec": "features/FEAT-011-kb-manager/ui-design.md#scr-app-027--facts",
+        "extends": "features/FEAT-022-grounded-verified-answer/ui-design.md#scr-app-027--facts"
       },
       "states": {
         "covered": [
@@ -184,15 +185,19 @@
           "empty",
           "filtered-empty",
           "error",
-          "permission"
+          "permission",
+          "row-updating",
+          "delete-confirm",
+          "delete-failed",
+          "load-more-error"
         ],
-        "gaps": [
-          "disable or delete from the list (FEAT-011)"
-        ],
+        "gaps": [],
         "supplements": []
       },
       "contract_bindings": [
-        "GET /api/v1/kb/facts"
+        "GET /api/v1/kb/facts",
+        "PATCH /api/v1/kb/facts/:id",
+        "DELETE /api/v1/kb/facts/:id"
       ],
       "conformance": {
         "result": "pass",
@@ -208,7 +213,8 @@
       "feature": "FEAT-022",
       "strategy": "code-native",
       "source": {
-        "spec": "features/FEAT-022-grounded-verified-answer/ui-design.md#scr-app-028--fact"
+        "spec": "features/FEAT-011-kb-manager/ui-design.md#scr-app-028--fact",
+        "extends": "features/FEAT-022-grounded-verified-answer/ui-design.md#scr-app-028--fact"
       },
       "states": {
         "covered": [
@@ -221,17 +227,19 @@
           "loading",
           "error",
           "not-found",
-          "unavailable"
+          "unavailable",
+          "deleted"
         ],
         "gaps": [
-          "sources, review interval, version history with restore (FEAT-011, FEAT-017)"
+          "sources (FEAT-012), review interval (FEAT-018), version history with restore (FEAT-021)"
         ],
         "supplements": []
       },
       "contract_bindings": [
         "GET /api/v1/kb/facts/:id",
         "POST /api/v1/kb/facts",
-        "PATCH /api/v1/kb/facts/:id"
+        "PATCH /api/v1/kb/facts/:id",
+        "DELETE /api/v1/kb/facts/:id"
       ],
       "conformance": {
         "result": "pass",
