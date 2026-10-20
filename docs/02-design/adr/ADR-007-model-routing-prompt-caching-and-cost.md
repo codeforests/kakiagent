@@ -1,6 +1,7 @@
 # ADR-007: Model routing, prompt caching and the LLM cost budget (settles D6 / NFR-13)
 
 **Status:** Accepted — Q2 decided by the product owner on 2026-10-19 (Haiku by default, Sonnet for complex turns; router as a separate, provider-neutral component)
+**Extended:** the triage output is a typed turn plan with one or more tasks, and tool calls go through one dispatcher ([ADR-025](ADR-025-turn-plan-and-task-dispatch.md), owner, 2026-10-20). The decisions here stand.
 **Date:** 2026-10-19
 **Requirements addressed:** NFR-13, D6, DSH-04, DSH-08, GOV-13, NFR-01, NFR-10, NFR-11, AGT-08, AGT-01, AGT-02, AGT-03, AGT-04, AGT-12, KB-05
 

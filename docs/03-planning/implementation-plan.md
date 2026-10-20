@@ -1,7 +1,7 @@
 # Implementation Plan: KakiAgent MVP
 
-> Status: **Signed off by the product owner, 2026-10-19** · Last updated: 2026-10-19 (revised after owner review: Team and My account moved to M3, alerts split by channel, NFR ownership added in §7; then MD, M6, FEAT-071 and CI/CD aligned with the launch environment, ADR-023 and ADR-024)
-> Inputs (all found, all signed off): [SRS v0.4](../01-requirements/SRS.md) · [use-cases.md](../01-requirements/use-cases.md) · [rtm.md](../01-requirements/rtm.md) · [architecture.md](../02-design/architecture.md) + [ADR-001..022](../02-design/adr/) · [ux-foundations.md](../02-design/ux-foundations.md) · [design.md](../02-design/design.md) · [design-manifest.json](../design-manifest.json)
+> Status: **Signed off by the product owner, 2026-10-19** · Last updated: 2026-10-19 (revised after owner review: Team and My account moved to M3, alerts split by channel, NFR ownership added in §7; then MD, M6, FEAT-071 and CI/CD aligned with the launch environment, ADR-023 and ADR-024; 2026-10-20 turn plan and task dispatch per ADR-025 noted in §4)
+> Inputs (all found, all signed off): [SRS v0.4](../01-requirements/SRS.md) · [use-cases.md](../01-requirements/use-cases.md) · [rtm.md](../01-requirements/rtm.md) · [architecture.md](../02-design/architecture.md) + [ADR-001..025](../02-design/adr/) · [ux-foundations.md](../02-design/ux-foundations.md) · [design.md](../02-design/design.md) · [design-manifest.json](../design-manifest.json)
 > Fidelity: full. Every FR, UC and SCR ID below resolves in those documents.
 
 ## 1. Overview
@@ -247,6 +247,8 @@ Feature IDs are in definition order and are permanent: they are never renumbered
 | FEAT-074 | Dashboard and operator console dark mode | — (owner fast-follow, UX-Q1) | — (keeps NFR-09) | — | all SCR-APP, SCR-OPS (p) | Tokens are ready (design.md §9); work is QA plus `color-scheme` switch and a setting |
 
 **Placed in engineering foundations (§7), not in a single feature:** GOV-03 (RLS and the cross-tenant suite start in FEAT-001 and grow with every table), AGT-14 (the eval harness is set up in FEAT-001; cases are added per feature and completed in M6), AGT-06 (each tool lands with the feature that owns it: FEAT-022, -038, -044, -049, -055).
+
+**Turn plan and task dispatch ([ADR-025](../02-design/adr/ADR-025-turn-plan-and-task-dispatch.md), added 2026-10-20, no new feature):** FEAT-004 introduces the `TurnPlan` schema, has triage produce it (multi-task messages included), and adds the dispatcher in `agent` with an empty handler registry and the scope, send-gate, boundary-rule and consent checks. Each later feature registers its handler with the dispatcher instead of wiring its own path: FEAT-023 `out_of_scope`; FEAT-025 `crisis` and `abuse`; FEAT-038 `handoff_channel`; FEAT-044 `escalate`; FEAT-049 `capture_lead`; FEAT-051 `withdraw_consent`; FEAT-055 `request_commitment` (`draft_approval`); FEAT-061 `data_request` (escalated until then). Each adds its cases to the AGT-14 multi-task and dispatch subset.
 
 **Removed requirements:** KB-10 (removed in SRS v0.4) spawns no work.
 
