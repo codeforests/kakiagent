@@ -227,6 +227,21 @@
       "masked": "card [CARD ••••4242]"
     },
     {
+      "id": "card-narrow-nbsp",
+      "text": "card 4242 4242 4242 4242",
+      "masked": "card [CARD ••••4242]"
+    },
+    {
+      "id": "card-figure-space",
+      "text": "card 4242 4242 4242 4242",
+      "masked": "card [CARD ••••4242]"
+    },
+    {
+      "id": "card-minus-sign",
+      "text": "card 4242−4242−4242−4242",
+      "masked": "card [CARD ••••4242]"
+    },
+    {
       "id": "card-double-space",
       "text": "card 4242  4242  4242  4242",
       "masked": "card [CARD ••••4242]"
@@ -260,6 +275,11 @@
       "id": "nric-ideographic-space",
       "text": "身份证 S　1234567　D",
       "masked": "身份证 [NRIC ••••567D]"
+    },
+    {
+      "id": "nric-dash",
+      "text": "IC S–1234567–D (en dash) or S−1234567−D",
+      "masked": "IC [NRIC ••••567D] (en dash) or [NRIC ••••567D]"
     },
     {
       "id": "bank-en-dash",
