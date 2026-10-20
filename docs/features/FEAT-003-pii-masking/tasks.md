@@ -7,7 +7,7 @@
       Done when: unit tests over the corpus pass for every positive and negative case, idempotence holds for every case, and the 4000-character adversarial input runs under 20 ms.
 - [x] T2 — Logs: `maskLogText`, the `@kaki/platform/pii-mask` subpath export, the logger's `logMethod` hook, `err` serializer and redaction paths (design §3.1, §3.4; D7; AC-7)
       Done when: unit tests that log through `createLogger` into a buffer show masked NRIC, card, email and phone values in messages and error messages, and `[redacted]` for the new fields.
-- [ ] T3 — Audit: `assertAuditEntry` rejects IDs and codes that contain PII (design §3.3; AC-8)
+- [x] T3 — Audit: `assertAuditEntry` rejects IDs and codes that contain PII (design §3.3; AC-8)
       Done when: governance unit tests reject `s1234567d` and a card number as `actorId`, subject ID, related ID and payload code, and the existing payload tests still pass.
 - [ ] T4 — Gateway backstop in `createGateway` (design §3.2; D3; AC-6 second half)
       Done when: llm-gateway unit tests show a raw NRIC in a `user` message (generate and stream) and in a `query` embedding reaching the provider masked, and unchanged in the system prompt, an `assistant` message and a `document` embedding; dependency-cruiser passes.

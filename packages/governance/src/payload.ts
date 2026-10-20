@@ -1,4 +1,4 @@
-import { piiMask } from '@kaki/platform';
+import { findPii, piiMask } from '@kaki/platform';
 import { canonicalJson } from './canonical.js';
 
 /**
@@ -51,7 +51,9 @@ const ARRAY_MAX = 200;
 const DEPTH_MAX = 4;
 const PAYLOAD_BYTES_MAX = 8192;
 
-const isId = (s: string) => UUID_RE.test(s) || CODE_RE.test(s);
+/** A code that holds an NRIC, card or bank number is not a code (FEAT-003 §3.3, AC-8). */
+const isCode = (s: string) => CODE_RE.test(s) && findPii(s).length === 0;
+const isId = (s: string) => UUID_RE.test(s) || isCode(s);
 
 export function auditId(id: string): AuditId {
   if (!UUID_RE.test(id)) throw new AuditPayloadError('auditId: not a UUID');
@@ -59,7 +61,7 @@ export function auditId(id: string): AuditId {
 }
 
 export function auditCode(code: string): AuditCode {
-  if (!CODE_RE.test(code)) throw new AuditPayloadError(`auditCode: invalid code`);
+  if (!isCode(code)) throw new AuditPayloadError(`auditCode: invalid code`);
   return code as AuditCode;
 }
 
@@ -119,7 +121,7 @@ function checkPayload(obj: Record<string, unknown>, path: string, depth: number)
 
 /** Throws `AuditPayloadError` unless every part of the entry is PII-free by construction. */
 export function assertAuditEntry(entry: AuditEntry): void {
-  if (!CODE_RE.test(entry.action)) throw new AuditPayloadError('action: invalid code');
+  if (!isCode(entry.action)) throw new AuditPayloadError('action: invalid code');
   if (!ACTOR_TYPES.includes(entry.actorType)) throw new AuditPayloadError('actorType: invalid');
   if (entry.actorId !== undefined && !isId(entry.actorId))
     throw new AuditPayloadError('actorId: must be an ID');
