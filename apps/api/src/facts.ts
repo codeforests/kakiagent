@@ -4,7 +4,9 @@ import {
   FactListQuery,
   FactResponse,
   FaqValueInput,
+  PolicyValueInput,
   ProductValueInput,
+  PromotionValueInput,
   UpdateFactBody,
   type Fact,
 } from '@kaki/contracts';
@@ -14,17 +16,23 @@ import {
   contentChanged,
   createFact,
   dashboardKb,
+  deleteFact,
   getFact,
   listFacts,
   mergePatch,
   prepareChunk,
+  sgDateOf,
+  sgDayAfter,
+  sgDayStart,
+  sgLastDayOf,
   updateFact,
   type FactInput,
   type FactPatch,
   type FactRecord,
+  type PromotionValue,
 } from '@kaki/kb';
 import type { FastifyRequest } from 'fastify';
-import { ZodError } from 'zod';
+import { z, ZodError } from 'zod';
 import type { TenantSession } from './auth.js';
 import type { App, Deps } from './server.js';
 
@@ -48,30 +56,83 @@ function toFact(r: FactRecord): Fact {
     version: r.version,
     source: r.source,
     updatedAt: r.updatedAt.toISOString(),
+    validFrom: null,
+    validUntil: null,
   };
-  if (r.type === 'product')
-    return {
-      ...base,
-      type: 'product',
-      value: {
-        name: r.value.name,
-        price: fromCents(r.value.priceCents),
-        ...(r.value.unit ? { unit: r.value.unit } : {}),
-      },
-      gstTreatment: r.gstTreatment,
-    };
-  return { ...base, type: 'faq', value: r.value, gstTreatment: null };
+  switch (r.type) {
+    case 'product':
+      return {
+        ...base,
+        type: 'product',
+        value: {
+          name: r.value.name,
+          price: fromCents(r.value.priceCents),
+          ...(r.value.unit ? { unit: r.value.unit } : {}),
+        },
+        gstTreatment: r.gstTreatment,
+      };
+    case 'faq':
+      return { ...base, type: 'faq', value: r.value, gstTreatment: null };
+    case 'policy':
+      return { ...base, type: 'policy', value: r.value, gstTreatment: null };
+    case 'promotion': {
+      const { validFrom, validUntil } = r.validity;
+      return {
+        ...base,
+        type: 'promotion',
+        value: {
+          title: r.value.title,
+          details: r.value.details,
+          ...(r.value.priceCents !== undefined ? { price: fromCents(r.value.priceCents) } : {}),
+        },
+        gstTreatment: r.gstTreatment,
+        validFrom: validFrom ? sgDateOf(validFrom) : null,
+        validUntil: validUntil ? sgLastDayOf(validUntil) : null,
+      };
+    }
+  }
 }
 
-function productValue(v: { name: string; price: string; unit?: string | undefined }) {
+function productValue(v: z.infer<typeof ProductValueInput>) {
   return { name: v.name, priceCents: toCents(v.price), currency: 'SGD' as const, unit: v.unit };
 }
 
+function promotionValue(v: z.infer<typeof PromotionValueInput>): PromotionValue {
+  const { title, details } = v;
+  return v.price === undefined
+    ? { title, details }
+    : { title, details, priceCents: toCents(v.price), currency: 'SGD' };
+}
+
+/** The stored input for a validated create body (FEAT-011 §3.2). */
+function inputOf(body: CreateFactBody): FactInput {
+  switch (body.type) {
+    case 'product':
+      return { type: 'product', value: productValue(body.value), gstTreatment: body.gstTreatment };
+    case 'faq':
+      return { type: 'faq', value: body.value, gstTreatment: null };
+    case 'policy':
+      return { type: 'policy', value: body.value, gstTreatment: null };
+    case 'promotion':
+      return {
+        type: 'promotion',
+        value: promotionValue(body.value),
+        gstTreatment: body.gstTreatment ?? null,
+        validity: {
+          validFrom: body.validFrom ? sgDayStart(body.validFrom) : null,
+          validUntil: sgDayAfter(body.validUntil),
+        },
+      };
+  }
+}
+
+const DeleteQuery = z.object({ version: z.coerce.number().int().min(1) });
+
 /**
- * Facts entered by hand (KB-07; FEAT-022 design §3.2), dashboard trust zone. The
- * tenant comes from the session only. Embedding happens before the transaction (D4);
- * the fact, its version, its chunk and the audit entry commit together, so the next
- * visitor turn sees the change.
+ * The KB manager's fact routes (KB-07; FEAT-022 §3.2, FEAT-011 §3), dashboard trust
+ * zone. The tenant comes from the session only. Embedding happens before the
+ * transaction (FEAT-022 D4); the fact, its version, its chunk and the audit entry
+ * commit together, so the next visitor turn sees the change.
  */
 export function registerFactRoutes(
   app: App,
@@ -94,10 +155,10 @@ export function registerFactRoutes(
   app.get('/api/v1/kb/facts', async (req) => {
     const s = await manager(req);
     const query = FactListQuery.parse(req.query);
-    const facts = await withTenant(dashboardDb, s.tenantId, (tx) =>
+    const page = await withTenant(dashboardDb, s.tenantId, (tx) =>
       listFacts(dashboardKb(tx, s.tenantId, s.userId), query),
     );
-    return FactList.parse({ facts: facts.map(toFact) });
+    return FactList.parse({ facts: page.facts.map(toFact), nextCursor: page.nextCursor });
   });
 
   app.get<{ Params: { id: string } }>('/api/v1/kb/facts/:id', async (req) => {
@@ -111,11 +172,7 @@ export function registerFactRoutes(
 
   app.post('/api/v1/kb/facts', async (req, reply) => {
     const s = await manager(req);
-    const body = CreateFactBody.parse(req.body);
-    const input: FactInput =
-      body.type === 'product'
-        ? { type: 'product', value: productValue(body.value), gstTreatment: body.gstTreatment }
-        : { type: 'faq', value: body.value, gstTreatment: null };
+    const input = inputOf(CreateFactBody.parse(req.body));
     const chunk = await prepareChunk(llm, s.tenantId, input);
     const fact = await withTenant(dashboardDb, s.tenantId, (tx) =>
       createFact(dashboardKb(tx, s.tenantId, s.userId), input, chunk),
@@ -130,15 +187,36 @@ export function registerFactRoutes(
     const current = await withTenant(dashboardDb, s.tenantId, (tx) =>
       getFact(dashboardKb(tx, s.tenantId, s.userId), id),
     );
-    // The value is validated against the fact's own type; FAQs have no GST treatment.
+    // The value is validated against the fact's own type; only priced types take GST,
+    // and only promotions take validity (kb's mergePatch checks the combination).
     const patch: FactPatch = { version: body.version, status: body.status };
-    if (current.type === 'product') {
-      if (body.value) patch.value = productValue(ProductValueInput.parse(body.value));
-      patch.gstTreatment = body.gstTreatment;
-    } else {
-      if (body.gstTreatment) throw new ZodError([]);
-      if (body.value) patch.value = FaqValueInput.parse(body.value);
-    }
+    const priced = current.type === 'product' || current.type === 'promotion';
+    if (!priced && body.gstTreatment) throw new ZodError([]);
+    if (current.type !== 'promotion' && (body.validFrom !== undefined || body.validUntil))
+      throw new ZodError([]);
+    patch.gstTreatment = body.gstTreatment;
+    if (body.value)
+      switch (current.type) {
+        case 'product':
+          patch.value = productValue(ProductValueInput.parse(body.value));
+          break;
+        case 'faq':
+          patch.value = FaqValueInput.parse(body.value);
+          break;
+        case 'policy':
+          patch.value = PolicyValueInput.parse(body.value);
+          break;
+        case 'promotion':
+          patch.value = promotionValue(PromotionValueInput.parse(body.value));
+          break;
+      }
+    if (body.validFrom !== undefined || body.validUntil !== undefined)
+      patch.validity = {
+        ...(body.validFrom !== undefined
+          ? { validFrom: body.validFrom === null ? null : sgDayStart(body.validFrom) }
+          : {}),
+        ...(body.validUntil ? { validUntil: sgDayAfter(body.validUntil) } : {}),
+      };
     const next = mergePatch(current, patch);
     const chunk = contentChanged(current, next)
       ? await prepareChunk(llm, s.tenantId, next)
@@ -147,6 +225,16 @@ export function registerFactRoutes(
       updateFact(dashboardKb(tx, s.tenantId, s.userId), id, patch, chunk),
     );
     return FactResponse.parse({ fact: toFact(fact) });
+  });
+
+  app.delete<{ Params: { id: string } }>('/api/v1/kb/facts/:id', async (req, reply) => {
+    const s = await manager(req);
+    const id = factId(req.params.id);
+    const { version } = DeleteQuery.parse(req.query);
+    await withTenant(dashboardDb, s.tenantId, (tx) =>
+      deleteFact(dashboardKb(tx, s.tenantId, s.userId), id, version),
+    );
+    return reply.code(204).send();
   });
 }
 

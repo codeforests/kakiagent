@@ -22,6 +22,8 @@ import {
 import {
   EmbeddingUnavailableError,
   FactNotFoundError,
+  InvalidCursorError,
+  InvalidFactError,
   InvalidStateError,
   VersionConflictError,
 } from '@kaki/kb';
@@ -66,6 +68,8 @@ export async function buildApp(deps: Deps) {
   app.setErrorHandler((err, req, reply) => {
     if (err instanceof ZodError)
       return reply.code(400).send({ error: 'bad_request', message: 'Invalid request' });
+    if (err instanceof InvalidFactError || err instanceof InvalidCursorError)
+      return reply.code(400).send({ error: 'bad_request', message: err.message });
     if (
       err instanceof NotFoundError ||
       err instanceof FactNotFoundError ||
