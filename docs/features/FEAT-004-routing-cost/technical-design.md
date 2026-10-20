@@ -192,7 +192,7 @@ Migration `0008_usage_ledger.sql` (drizzle-kit, table DDL) and `0009_usage_ledge
 | `cost_usd` | numeric(14,10) not null, check ≥ 0 | at the registry price when written |
 | `created_at` | timestamptz not null default now() | |
 
-Index `(tenant_id, created_at)`. Forced RLS with `tenant_isolation`; added to `TENANT_SCOPED_TABLES` and the RLS suite. Grants: `app_agent_visitor` INSERT only. No dashboard grant yet (DSH-08 is FEAT-067); no role gets UPDATE or DELETE.
+Index `(tenant_id, created_at)`. Forced RLS with `tenant_isolation`; added to `TENANT_SCOPED_TABLES` and the RLS suite. Grants: INSERT only, to `app_agent_visitor` (turns) and `app_dashboard` (the api's fact embeddings, which are billed calls too). No role reads the ledger except the governor (DSH-08's viewer is FEAT-067); no role gets UPDATE or DELETE.
 
 **`tenants`** (the Tenant entity; routing policy is tenant configuration, ADR-007 decision 1):
 
@@ -295,11 +295,12 @@ sequenceDiagram
 ### 5.6 Roles and configuration
 
 - **agent-worker:** `gatewayFromConfig({ …, fakeScript: fakeAgentScript, onUsage: usageSink(visitorDb, logger) })`. The `turn complete` line adds `route`, `tasks` (kinds), `planFallback`, `triageMs` and the turn's `costUsd` and cache-read tokens (summed by a per-turn counter on the sink), IDs and codes only (NFR-11).
+- **api:** `gatewayFromConfig({ …, onUsage: usageSink(dashboardDb, logger) })`, so the fact embeddings an owner's edits cause are in the ledger (no conversation or turn).
 - **scheduler-worker:** an hourly `runCostGovernor(outboxDb, …)` (`COST_GOVERNOR_INTERVAL_MS`, default 3,600,000; the limits from `COST_GOVERNOR_TARGET_SGD`, `COST_GOVERNOR_RELAX_SGD`, `USD_SGD_RATE`, `COST_GOVERNOR_MIN_CONVERSATIONS`, all with the defaults above). Each change logs at `warn`: `{ event: 'cost_governor.step_changed', tenantId, oldStep, newStep, avgSgd, conversations }`. This line is the operator alert until MD's CloudWatch metric filter and FEAT-070's console (§8). All new variables go in each role's `.env.example`.
 
 ### 5.7 Evaluation (ADR-025 decision 8, NFR-13)
 
-- `Case` gains `plan` (the recorded triage output, as a `TurnPlan` object; the fake plays it back), `expectTasks` (the task kinds, order-free) and `expectRoute` (`reply.simple` / `reply.complex`). A case with `expectTasks` or `expectRoute` belongs to the new **`multi-task`** subset, threshold 0.9 in `thresholds.json`.
+- `Case` gains `plan` (the recorded triage output in the wire shape the model writes, or a string played back as is to exercise the fallback; the fake returns it for the triage call), `expectTasks` (the task kinds, order-free) and `expectRoute` (`reply.simple` / `reply.complex`). Cases that score plans and routes go in the new **`multi-task`** subset, threshold 0.9 in `thresholds.json`; `expect` may then be empty.
 - The runner runs the agent's own `triage` and `routeReply` before `composeReply` for every case (with `plan` recorded, the fake provider returns it for the triage call; without it, `fakeTriage`). It scores `expectTasks` against the plan and `expectRoute` against the route, and runs `dispatchPlan` on the empty registry to check every non-answer task is reported (the dispatch check).
 - A usage sink in the runner sums cost per case; the report ends with `cost: <n> conversations, US$<total>, S$<avg> per conversation (target ≤ S$0.03)`. Each case is one conversation.
 - New case file `feat-004-multi-task.json`: at least 12 cases in English, Singlish and Chinese covering a single question (simple), a multi-item quote (commitment + answer, complex), price + lead details, a request for a person, consent withdrawal, a complaint, and a fallback plan (invalid triage JSON → answer, complex). Six are `fast`.

@@ -536,6 +536,27 @@ describe('runVisitorTurn with triage, dispatch and routing (FEAT-004)', () => {
     }
   });
 
+  it('still answers when the ledger insert fails, and logs it (AC-4, NFR-04)', async () => {
+    const warned: string[] = [];
+    // The outbox zone has no INSERT on usage_events, so every write fails.
+    const llm = createGateway(defaultRegistry('fake'), [createFakeProvider(fakeAgentScript)], {
+      onUsage: usageSink(tdb.zone('outbox'), { warn: (_, msg) => void warned.push(msg) }),
+    });
+    const c = await conversationWith('how much is the fudge cake');
+    const result = await runVisitorTurn({ zdb: tdb.zone('visitor'), llm }, job(c));
+    expect(result?.outcome).toBe('answered');
+    expect(result?.message.body).toContain('S$55.00');
+    expect(warned).toEqual([
+      'usage event not recorded',
+      'usage event not recorded',
+      'usage event not recorded',
+    ]);
+    const { rows } = await owner.query(`select 1 from usage_events where turn_id = $1`, [
+      c.messageId,
+    ]);
+    expect(rows).toEqual([]);
+  });
+
   it('ends the turn with a safety handler’s text and makes no reply call (ADR-025 decision 6)', async () => {
     const ran: string[] = [];
     const registry = createRegistry([
