@@ -25,13 +25,14 @@ export async function searchVisitorFacts(
   const { k, maxDistance } = { ...DEFAULT_SEARCH, ...opts };
   const res = await ctx.tx.execute<{
     id: string;
-    type: 'product' | 'faq';
+    type: VisitorFact['type'];
     version: number;
     value: VisitorFact['value'];
     gst_treatment: VisitorFact['gstTreatment'];
+    valid_until: Date | string | null;
     distance: number;
   }>(sql`
-    select vf.id, vf.type, vf.version, vf.value, vf.gst_treatment,
+    select vf.id, vf.type, vf.version, vf.value, vf.gst_treatment, vf.valid_until,
            (c.embedding <=> ${vectorLiteral(embedding)}::vector) as distance
     from visitor_chunks c
     join visitor_facts vf on vf.tenant_id = c.tenant_id and vf.id = c.fact_id
@@ -48,6 +49,9 @@ export async function searchVisitorFacts(
           version: r.version,
           value: r.value,
           gstTreatment: r.gst_treatment,
+          ...(r.type === 'promotion'
+            ? { validUntil: r.valid_until === null ? null : new Date(r.valid_until) }
+            : {}),
           distance: Number(r.distance),
         }) as VisitorFact & { distance: number },
     );

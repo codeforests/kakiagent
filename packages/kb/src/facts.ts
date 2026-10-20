@@ -1,13 +1,29 @@
-import { and, desc, eq, schema, sql } from '@kaki/db';
-import { audit } from '@kaki/governance';
+import { and, desc, eq, getTableColumns, schema, sql } from '@kaki/db';
+import { audit, auditCode } from '@kaki/governance';
 import type { PreparedChunk } from './chunk.js';
 import type { DashboardKbContext } from './context.js';
-import { FactNotFoundError, InvalidStateError, VersionConflictError } from './errors.js';
-import type { FactInput, FaqValue, GstTreatment, ProductValue } from './types.js';
+import {
+  FactNotFoundError,
+  InvalidCursorError,
+  InvalidFactError,
+  InvalidStateError,
+  VersionConflictError,
+} from './errors.js';
+import {
+  NO_VALIDITY,
+  type FactInput,
+  type FaqValue,
+  type GstTreatment,
+  type PolicyValue,
+  type ProductValue,
+  type PromotionValue,
+  type Validity,
+} from './types.js';
 
 export type { FactInput };
 
 export type FactStatus = (typeof schema.FACT_STATUSES)[number];
+export type FactType = (typeof schema.FACT_TYPES)[number];
 
 export type FactRecord = FactInput & {
   id: string;
@@ -15,15 +31,35 @@ export type FactRecord = FactInput & {
   version: number;
   source: string;
   updatedAt: Date;
+  validity: Validity;
 };
 
 export interface FactPatch {
   /** The version the client loaded; a mismatch is a conflict. */
   version: number;
-  value?: ProductValue | FaqValue | undefined;
+  value?: ProductValue | FaqValue | PolicyValue | PromotionValue | undefined;
   gstTreatment?: GstTreatment | null | undefined;
+  /** Promotions only; a field left undefined keeps its current value. */
+  validity?: Partial<Validity> | undefined;
   status?: 'approved' | 'disabled' | undefined;
 }
+
+export interface FactFilter {
+  status?: FactStatus | undefined;
+  type?: FactType | undefined;
+  /** `unknown`: priced facts whose GST treatment needs review (KB-15). */
+  gst?: 'unknown' | undefined;
+  q?: string | undefined;
+  cursor?: string | undefined;
+  limit?: number | undefined;
+}
+
+export interface FactPage {
+  facts: FactRecord[];
+  nextCursor: string | null;
+}
+
+export const DEFAULT_PAGE_SIZE = 50;
 
 type FactRow = typeof schema.facts.$inferSelect;
 
@@ -37,30 +73,99 @@ function toRecord(row: FactRow): FactRecord {
     updatedAt: row.updatedAt,
     value: row.value,
     gstTreatment: row.gstTreatment,
+    validity: { validFrom: row.validFrom, validUntil: row.validUntil },
   } as FactRecord;
 }
 
-/** Facts newest first (SCR-APP-027). `q` matches name, question or answer. */
+const validityOf = (input: FactInput): Validity => input.validity ?? NO_VALIDITY;
+
+/**
+ * The cross-field rules of each type (FEAT-011 §3.2), checked before every write; the
+ * database checks repeat them. Throws `InvalidFactError`.
+ */
+export function checkFact(input: FactInput): void {
+  const { validFrom, validUntil } = validityOf(input);
+  const type = input.type;
+  switch (input.type) {
+    case 'product':
+      if (!input.gstTreatment) throw new InvalidFactError('a price needs its GST treatment');
+      break;
+    case 'faq':
+    case 'policy':
+      if (input.gstTreatment !== null) throw new InvalidFactError(`a ${type} has no GST`);
+      if (validFrom || validUntil) throw new InvalidFactError(`a ${type} has no validity`);
+      break;
+    case 'promotion': {
+      const priced = input.value.priceCents !== undefined;
+      if (priced && !input.gstTreatment)
+        throw new InvalidFactError('a promotion price needs its GST treatment');
+      if (!priced && input.gstTreatment !== null)
+        throw new InvalidFactError('a promotion without a price has no GST treatment');
+      if (!validUntil) throw new InvalidFactError('a promotion needs its end date');
+      break;
+    }
+  }
+  if (validFrom && validUntil && validFrom >= validUntil)
+    throw new InvalidFactError('the start date is after the end date');
+}
+
+// ---- List (SCR-APP-027) -----------------------------------------------------------
+
+const CURSOR_TS = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d{1,6})?[+-]\d{2}(:\d{2})?$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** `updated_at` as Postgres text keeps its microseconds, which a JS Date drops (D5). */
+const encodeCursor = (ts: string, id: string) => Buffer.from(`${ts}|${id}`).toString('base64url');
+
+function decodeCursor(cursor: string): { ts: string; id: string } {
+  const [ts = '', id = '', extra] = Buffer.from(cursor, 'base64url').toString('utf8').split('|');
+  if (extra !== undefined || !CURSOR_TS.test(ts) || !UUID.test(id))
+    throw new InvalidCursorError('bad cursor');
+  return { ts, id };
+}
+
+const like = (q: string) => `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+
+/**
+ * Facts, newest change first, a page at a time (SCR-APP-027; FEAT-011 §3.2). `q`
+ * matches every type's text fields; `cursor` continues after the last row of a page.
+ */
 export async function listFacts(
   ctx: DashboardKbContext,
-  filter: { status?: FactStatus | undefined; q?: string | undefined } = {},
-): Promise<FactRecord[]> {
+  filter: FactFilter = {},
+): Promise<FactPage> {
   const f = schema.facts;
+  const limit = filter.limit ?? DEFAULT_PAGE_SIZE;
   const conditions = [eq(f.tenantId, ctx.tenantId)];
   if (filter.status) conditions.push(eq(f.status, filter.status));
+  if (filter.type) conditions.push(eq(f.type, filter.type));
+  if (filter.gst) conditions.push(eq(f.gstTreatment, filter.gst));
   if (filter.q) {
-    const like = `%${filter.q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+    const pattern = like(filter.q);
+    const fields = ['name', 'unit', 'question', 'answer', 'title', 'details'];
     conditions.push(
-      sql`(${f.value}->>'name' ilike ${like} or ${f.value}->>'question' ilike ${like} or ${f.value}->>'answer' ilike ${like})`,
+      sql`(${sql.join(
+        fields.map((k) => sql`${f.value}->>${k} ilike ${pattern}`),
+        sql` or `,
+      )})`,
     );
   }
+  if (filter.cursor) {
+    const c = decodeCursor(filter.cursor);
+    conditions.push(sql`(${f.updatedAt}, ${f.id}) < (${c.ts}::timestamptz, ${c.id}::uuid)`);
+  }
   const rows = await ctx.tx
-    .select()
+    .select({ ...getTableColumns(f), cursorTs: sql<string>`${f.updatedAt}::text` })
     .from(f)
     .where(and(...conditions))
-    .orderBy(desc(f.updatedAt))
-    .limit(200);
-  return rows.map(toRecord);
+    .orderBy(desc(f.updatedAt), desc(f.id))
+    .limit(limit + 1);
+  const page = rows.slice(0, limit);
+  const last = page.at(-1);
+  return {
+    facts: page.map(toRecord),
+    nextCursor: rows.length > limit && last ? encodeCursor(last.cursorTs, last.id) : null,
+  };
 }
 
 export async function getFact(ctx: DashboardKbContext, id: string): Promise<FactRecord> {
@@ -72,6 +177,8 @@ export async function getFact(ctx: DashboardKbContext, id: string): Promise<Fact
   return toRecord(row);
 }
 
+// ---- Writes -----------------------------------------------------------------------
+
 async function writeVersion(ctx: DashboardKbContext, row: FactRow) {
   await ctx.tx.insert(schema.factVersions).values({
     tenantId: ctx.tenantId,
@@ -80,6 +187,8 @@ async function writeVersion(ctx: DashboardKbContext, row: FactRow) {
     status: row.status,
     value: row.value,
     gstTreatment: row.gstTreatment,
+    validFrom: row.validFrom,
+    validUntil: row.validUntil,
     changedBy: ctx.userId,
   });
 }
@@ -110,6 +219,8 @@ export async function createFact(
   input: FactInput,
   chunk: PreparedChunk,
 ): Promise<FactRecord> {
+  checkFact(input);
+  const { validFrom, validUntil } = validityOf(input);
   const [row] = await ctx.tx
     .insert(schema.facts)
     .values({
@@ -118,6 +229,8 @@ export async function createFact(
       status: 'approved',
       value: input.value,
       gstTreatment: input.gstTreatment,
+      validFrom,
+      validUntil,
       source: 'manual',
       createdBy: ctx.userId,
       updatedBy: ctx.userId,
@@ -135,25 +248,69 @@ export async function createFact(
   return toRecord(row!);
 }
 
-/** The fact as it will be after `patch`: what the caller embeds before saving. */
+/**
+ * The fact as it will be after `patch`: what the caller embeds before saving. A
+ * promotion's GST treatment follows its price (dropped with it, kept while it stays);
+ * a stored `unknown` is kept by an edit that doesn't set it. Throws `InvalidFactError`.
+ */
 export function mergePatch(current: FactRecord, patch: FactPatch): FactInput {
-  if (current.type === 'product')
-    return {
-      type: 'product',
-      value: (patch.value as ProductValue | undefined) ?? current.value,
-      gstTreatment: (patch.gstTreatment as GstTreatment | undefined) ?? current.gstTreatment,
-    };
-  return {
-    type: 'faq',
-    value: (patch.value as FaqValue | undefined) ?? current.value,
-    gstTreatment: null,
-  };
+  if (patch.validity && current.type !== 'promotion')
+    throw new InvalidFactError(`a ${current.type} has no validity`);
+  let next: FactInput;
+  switch (current.type) {
+    case 'product':
+      next = {
+        type: 'product',
+        value: (patch.value as ProductValue | undefined) ?? current.value,
+        gstTreatment: (patch.gstTreatment as GstTreatment | undefined) ?? current.gstTreatment,
+        validity: current.validity,
+      };
+      break;
+    case 'faq':
+    case 'policy':
+      if (patch.gstTreatment) throw new InvalidFactError(`a ${current.type} has no GST`);
+      next = {
+        type: current.type,
+        value: (patch.value ?? current.value) as FaqValue & PolicyValue,
+        gstTreatment: null,
+        validity: current.validity,
+      };
+      break;
+    case 'promotion': {
+      const value = (patch.value as PromotionValue | undefined) ?? current.value;
+      const priced = value.priceCents !== undefined;
+      const gst = patch.gstTreatment ?? (priced ? current.gstTreatment : null);
+      next = {
+        type: 'promotion',
+        value,
+        gstTreatment: gst,
+        validity: {
+          validFrom:
+            patch.validity?.validFrom !== undefined
+              ? patch.validity.validFrom
+              : current.validity.validFrom,
+          validUntil:
+            patch.validity?.validUntil !== undefined
+              ? patch.validity.validUntil
+              : current.validity.validUntil,
+        },
+      };
+      break;
+    }
+  }
+  checkFact(next);
+  return next;
 }
 
+const time = (d: Date | null) => d?.getTime() ?? null;
+
 export function contentChanged(current: FactRecord, next: FactInput): boolean {
+  const v = validityOf(next);
   return (
     JSON.stringify(current.value) !== JSON.stringify(next.value) ||
-    current.gstTreatment !== next.gstTreatment
+    current.gstTreatment !== next.gstTreatment ||
+    time(current.validity.validFrom) !== time(v.validFrom) ||
+    time(current.validity.validUntil) !== time(v.validUntil)
   );
 }
 
@@ -185,11 +342,14 @@ export async function updateFact(
   if (patch.status) status = patch.status;
   if (!changed && status === current.status) return current;
 
+  const { validFrom, validUntil } = validityOf(next);
   const [row] = await ctx.tx
     .update(schema.facts)
     .set({
       value: next.value,
       gstTreatment: next.gstTreatment,
+      validFrom,
+      validUntil,
       status,
       version: sql`${schema.facts.version} + 1`,
       updatedBy: ctx.userId,
@@ -228,4 +388,37 @@ export async function updateFact(
       payload: { version: row.version },
     });
   return toRecord(row);
+}
+
+/**
+ * Deletes a fact with its chunk and versions (KB-07; FEAT-011 D1), conditional on the
+ * version the owner saw. The chunk goes in the same transaction, so the next visitor
+ * turn can't retrieve it. The audit entry keeps the ID, type and last version only.
+ */
+export async function deleteFact(
+  ctx: DashboardKbContext,
+  id: string,
+  version: number,
+): Promise<void> {
+  const f = schema.facts;
+  const [row] = await ctx.tx
+    .select({ type: f.type, version: f.version })
+    .from(f)
+    .where(and(eq(f.tenantId, ctx.tenantId), eq(f.id, id)))
+    .for('update');
+  if (!row) throw new FactNotFoundError('fact not found');
+  if (row.version !== version) throw new VersionConflictError('stale version');
+  const ofFact = <T extends typeof schema.kbChunks | typeof schema.factVersions>(t: T) =>
+    and(eq(t.tenantId, ctx.tenantId), eq(t.factId, id));
+  await ctx.tx.delete(schema.kbChunks).where(ofFact(schema.kbChunks));
+  await ctx.tx.delete(schema.factVersions).where(ofFact(schema.factVersions));
+  await ctx.tx.delete(f).where(and(eq(f.tenantId, ctx.tenantId), eq(f.id, id)));
+  await audit.append(ctx.tx, ctx.tenantId, {
+    action: 'fact.deleted',
+    actorType: 'user',
+    actorId: ctx.userId,
+    subjectType: 'fact',
+    subjectId: id,
+    payload: { type: auditCode(row.type), version: row.version },
+  });
 }
