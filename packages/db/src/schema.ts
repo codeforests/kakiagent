@@ -8,8 +8,11 @@ import {
   index,
   integer,
   jsonb,
+  numeric,
   pgTable,
   primaryKey,
+  real,
+  smallint,
   text,
   timestamp,
   uniqueIndex,
@@ -23,23 +26,42 @@ import {
  * (ADR-005). Later features add their tables through detailed design.
  */
 
-export const tenants = pgTable('tenants', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  slug: text('slug').notNull().unique(),
-  name: text('name').notNull(),
-  status: text('status', { enum: ['active', 'suspended'] })
-    .notNull()
-    .default('active'),
-  // Stub: widget install settings move to the channels module in FEAT-032.
-  widgetKey: text('widget_key').notNull().unique(),
-  allowedOrigins: text('allowed_origins')
-    .array()
-    .notNull()
-    .default(sql`'{}'::text[]`),
-  /** Kill switch (architecture §6.5, ADR-013): read by the send gate via `visitor_tenant_state()`. */
-  aiPaused: boolean('ai_paused').notNull().default(false),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+export const tenants = pgTable(
+  'tenants',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    slug: text('slug').notNull().unique(),
+    name: text('name').notNull(),
+    status: text('status', { enum: ['active', 'suspended'] })
+      .notNull()
+      .default('active'),
+    // Stub: widget install settings move to the channels module in FEAT-032.
+    widgetKey: text('widget_key').notNull().unique(),
+    allowedOrigins: text('allowed_origins')
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    /** Kill switch (architecture §6.5, ADR-013): read by the send gate via `visitor_tenant_state()`. */
+    aiPaused: boolean('ai_paused').notNull().default(false),
+    /**
+     * Reply routing policy (ADR-007 decision 1, FEAT-004 D10): operator settings, read by
+     * the visitor zone through `visitor_tenant_state()`. The cost governor moves the step.
+     */
+    routeComplexityThreshold: real('route_complexity_threshold').notNull().default(0.6),
+    routeMinConfidence: real('route_min_confidence').notNull().default(0.5),
+    costGovernorStep: smallint('cost_governor_step').notNull().default(0),
+    costGovernorChangedAt: timestamp('cost_governor_changed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check(
+      'tenants_route_complexity_threshold_ck',
+      sql`${t.routeComplexityThreshold} between 0 and 1`,
+    ),
+    check('tenants_route_min_confidence_ck', sql`${t.routeMinConfidence} between 0 and 1`),
+    check('tenants_cost_governor_step_ck', sql`${t.costGovernorStep} between 0 and 3`),
+  ],
+);
 
 /**
  * Business profile (ONB-03). FEAT-022 needs only the GST flag (KB-15); FEAT-009 adds the
@@ -430,6 +452,56 @@ export const magicLinks = pgTable(
   ],
 );
 
+export const USAGE_PURPOSES = [
+  'triage',
+  'reply',
+  'extract',
+  'summarise',
+  'judge',
+  'embed',
+] as const;
+
+/**
+ * The usage ledger (ADR-021, FEAT-004): one row per model or embedding call, IDs and
+ * counts only. Feeds the cost governor (ADR-007 decision 3), and later DSH-08 and the
+ * operator console. Writers insert; nobody updates or deletes.
+ */
+export const usageEvents = pgTable(
+  'usage_events',
+  {
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id),
+    id: uuid('id').notNull().defaultRandom(),
+    conversationId: uuid('conversation_id'),
+    /** The visitor message the turn answers. */
+    turnId: uuid('turn_id'),
+    purpose: text('purpose', { enum: USAGE_PURPOSES }).notNull(),
+    model: text('model').notNull(),
+    provider: text('provider').notNull(),
+    providerModelId: text('provider_model_id').notNull(),
+    inputTokens: integer('input_tokens').notNull().default(0),
+    outputTokens: integer('output_tokens').notNull().default(0),
+    cacheReadInputTokens: integer('cache_read_input_tokens').notNull().default(0),
+    cacheWriteInputTokens: integer('cache_write_input_tokens').notNull().default(0),
+    /** USD at the registry price when written (FEAT-004 D5). */
+    costUsd: numeric('cost_usd', { precision: 14, scale: 10, mode: 'number' }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.id] }),
+    index('usage_events_tenant_created_idx').on(t.tenantId, t.createdAt),
+    check(
+      'usage_events_counts_ck',
+      sql`${t.inputTokens} >= 0 and ${t.outputTokens} >= 0 and ${t.cacheReadInputTokens} >= 0 and ${t.cacheWriteInputTokens} >= 0 and ${t.costUsd} >= 0`,
+    ),
+    check(
+      'usage_events_purpose_ck',
+      sql`${t.purpose} in ('triage', 'reply', 'extract', 'summarise', 'judge', 'embed')`,
+    ),
+  ],
+);
+
 /** Tables with `tenant_id` + forced RLS. The cross-tenant suite asserts this list is complete. */
 export const TENANT_SCOPED_TABLES = [
   'tenants',
@@ -445,4 +517,5 @@ export const TENANT_SCOPED_TABLES = [
   'kb_chunks',
   'memberships',
   'terms_acceptances',
+  'usage_events',
 ] as const;

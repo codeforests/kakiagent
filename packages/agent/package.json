@@ -20,9 +20,11 @@
     "@kaki/inbox": "workspace:*",
     "@kaki/kb": "workspace:*",
     "@kaki/llm-gateway": "workspace:*",
-    "@kaki/tenancy": "workspace:*"
+    "@kaki/tenancy": "workspace:*",
+    "zod": "4.6.7"
   },
   "devDependencies": {
+    "@kaki/analytics": "workspace:*",
     "@types/node": "22.20.5",
     "@types/pg": "8.23.1",
     "@vitest/coverage-v8": "5.0.5",

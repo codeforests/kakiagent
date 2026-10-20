@@ -7,7 +7,16 @@ in-memory retrieval over its facts. `recorded` holds the fake model's output per
 answers from the facts in its prompt. Expectations: `contains`, `not-contains`,
 `matches`, `prices-from-facts` (every `S$` amount is a visitor-facing price of the
 tenant's facts) and `cites` (the fact IDs used include `ids`, all of them with
-`exact`, and none from another tenant). Agent features add their own cases (implementation plan §3:
-FEAT-022 prices and groundedness, FEAT-023 Singlish, Chinese and out-of-scope,
+`exact`, and none from another tenant).
+
+Every case also runs the agent's triage, routing and dispatch first (FEAT-004). `plan`
+holds the triage model's recorded output, in the wire shape (arguments as
+`{ "name", "value" }` pairs), or a string played back as is to test the fallback;
+without it the fake triager plans from keywords. `expectTasks` (the plan's task kinds,
+in any order) and `expectRoute` (`reply.simple` or `reply.complex` at the default
+policy) score the plan and the route; such cases go in the `multi-task` subset. Every
+case must also pass the dispatch check: each non-`answer` task is reported
+`unhandled` by the empty registry. The run ends with the cost per conversation. Agent features add their own cases (implementation plan §3:
+FEAT-022 prices and groundedness, FEAT-004 multi-task, FEAT-023 Singlish, Chinese and out-of-scope,
 FEAT-025 red-team and harmful content, FEAT-051 withdrawal). Mark a case `fast: true`
 to include it in the PR subset.

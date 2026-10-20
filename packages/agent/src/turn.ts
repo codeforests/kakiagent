@@ -8,9 +8,17 @@ import {
   replyExists,
 } from '@kaki/inbox';
 import { searchVisitorFacts, visitorKb, type VisitorFact } from '@kaki/kb';
-import type { LlmGateway } from '@kaki/llm-gateway';
+import { routeReply, type LlmGateway, type LogicalModel } from '@kaki/llm-gateway';
 import { composeReply, type ComposeOutcome, type ComposeResult } from './compose.js';
+import {
+  dispatchPlan,
+  visitorRegistry,
+  type DispatchContext,
+  type DispatchReport,
+  type Registry,
+} from './dispatch.js';
 import { aiAllowed } from './gate.js';
+import { routeSignals, triage, type TurnPlan } from './plan.js';
 import { HISTORY_LIMIT } from './prompt.js';
 import { texts } from './texts.js';
 
@@ -20,6 +28,9 @@ export interface TurnDeps {
   llm: LlmGateway;
   /** Releases a verified segment to the conversation's realtime channel. */
   publishSegment?: (segment: { turnId: string; seq: number; text: string }) => Promise<void>;
+  /** The visitor scope's task handlers (ADR-025); the production registry by default. */
+  registry?: Registry;
+  now?: () => number;
 }
 
 export interface TurnJobInput {
@@ -28,20 +39,27 @@ export interface TurnJobInput {
   messageId: string;
 }
 
-export type TurnOutcome = ComposeOutcome | 'paused';
+/** `ended`: a safety task ended the turn with its own text (ADR-025 decision 6). */
+export type TurnOutcome = ComposeOutcome | 'paused' | 'ended';
 
 type Stored = NonNullable<Awaited<ReturnType<typeof appendAgentReply>>>;
 
 export type TurnResult = Stored & {
   outcome: TurnOutcome;
-  timings: ComposeResult['timings'] | null;
+  timings: (ComposeResult['timings'] & { triageMs: number | null }) | null;
+  /** The triaged plan and what the dispatcher did with it (FEAT-004). Null when the gate was closed. */
+  plan: TurnPlan | null;
+  dispatched: DispatchReport[];
+  /** The model of the first reply attempt (ADR-007 routing). */
+  route: LogicalModel | null;
 };
 
 /**
- * One visitor turn (UC-20; ADR-008, ADR-009, ADR-013): gate → `lookup_kb` → verified
- * reply → store with fact IDs and disclosure. No transaction is held while the model
- * streams (D8). Idempotent: a turn whose visitor message already has a reply does
- * nothing, and the unique `in_reply_to` index settles a race.
+ * One visitor turn (UC-20; ADR-007, ADR-008, ADR-009, ADR-013, ADR-025): gate → triage
+ * in parallel with `lookup_kb` → dispatch the plan's tasks → verified reply on the
+ * routed model → store with fact IDs and disclosure. No transaction is held while a
+ * model runs (FEAT-022 D8). Idempotent: a turn whose visitor message already has a
+ * reply does nothing, and the unique `in_reply_to` index settles a race.
  */
 export async function runVisitorTurn(
   deps: TurnDeps,
@@ -49,6 +67,7 @@ export async function runVisitorTurn(
 ): Promise<TurnResult | null> {
   const { zdb, llm } = deps;
   const { tenantId, conversationId } = job;
+  const now = deps.now ?? (() => performance.now());
 
   const prep = await withTenant(zdb, tenantId, async (tx) => {
     const message = await getMessage(tx, tenantId, job.messageId);
@@ -68,6 +87,11 @@ export async function runVisitorTurn(
   const { message, gate } = prep;
   const businessName = gate.tenant?.businessName ?? '';
   const disclosure = prep.disclosed ? null : texts.disclosure(businessName);
+  const meta = { tenantId, conversationId, turnId: message.id };
+  let plan: TurnPlan | null = null;
+  let dispatched: DispatchReport[] = [];
+  let route: LogicalModel | null = null;
+  let triageMs: number | null = null;
 
   async function store(
     outcome: TurnOutcome,
@@ -107,10 +131,24 @@ export async function runVisitorTurn(
         factIds: (composed?.factIds ?? []).map(auditId),
         attempts: composed?.attempts ?? 0,
         violations: composed?.violations.length ?? 0,
+        // ADR-007 routing and the ADR-025 plan: codes only.
+        route: route ? auditCode(route) : null,
+        models: (composed?.models ?? []).map(auditCode),
+        tasks: (plan?.tasks ?? []).map((t) => auditCode(t.kind)),
+        planFallback: plan?.fallback ?? null,
       });
       return reply;
     });
-    return stored ? { ...stored, outcome, timings: composed?.timings ?? null } : null;
+    return stored
+      ? {
+          ...stored,
+          outcome,
+          timings: composed ? { ...composed.timings, triageMs } : null,
+          plan,
+          dispatched,
+          route,
+        }
+      : null;
   }
 
   if (!gate.open) {
@@ -119,14 +157,21 @@ export async function runVisitorTurn(
     return gate.reason === 'paused' ? store('paused', 'system', texts.fallback, null) : null;
   }
 
-  let facts: VisitorFact[];
-  try {
-    const { vectors } = await llm.embed({
-      texts: [message.body],
-      purpose: 'query',
-      meta: { tenantId },
-    });
-    facts = await withTenant(zdb, tenantId, async (tx) => {
+  const history = prep.history.map((m) => ({
+    role: m.author === 'visitor' ? ('user' as const) : ('assistant' as const),
+    content: m.body,
+  }));
+
+  // Triage runs alongside retrieval (ADR-007: no extra latency on the critical path, NFR-01).
+  const triageStart = now();
+  const planned = triage(llm, { history, meta }).then((p) => {
+    triageMs = Math.round(now() - triageStart);
+    return p;
+  });
+  const retrieved = retrieve();
+  async function retrieve(): Promise<VisitorFact[]> {
+    const { vectors } = await llm.embed({ texts: [message.body], purpose: 'query', meta });
+    return withTenant(zdb, tenantId, async (tx) => {
       const found = await searchVisitorFacts(visitorKb(tx, tenantId, conversationId), vectors[0]!);
       await audit.append(tx, tenantId, {
         action: 'tool.lookup_kb',
@@ -138,22 +183,58 @@ export async function runVisitorTurn(
       });
       return found;
     });
-  } catch {
-    // NFR-04: no embedder, no grounded answer. The fallback closes the turn (D6).
+  }
+  const [planResult, factsResult] = await Promise.allSettled([planned, retrieved]);
+  // `triage` never rejects; the fallback plan stands in for any failure.
+  plan = planResult.status === 'fulfilled' ? planResult.value : null;
+  if (factsResult.status === 'rejected' || !plan) {
+    // NFR-04: no embedder, no grounded answer. The fallback closes the turn (FEAT-022 D6).
     return store('unavailable', 'system', texts.fallback, null);
   }
+  const facts = factsResult.value;
 
-  const history = prep.history.map((m) => ({
-    role: m.author === 'visitor' ? ('user' as const) : ('assistant' as const),
-    content: m.body,
-  }));
+  // ADR-025: the dispatcher turns the plan's tasks into side effects, or reports why not.
+  const ctx: DispatchContext = {
+    scope: 'visitor',
+    tenantId,
+    conversationId,
+    turnId: message.id,
+    gateOpen: async () =>
+      (await withTenant(zdb, tenantId, (tx) => aiAllowed(tx, tenantId, conversationId))).open,
+    // Consent (LED-02) arrives with FEAT-049/058 and boundary rules (APR-01) with FEAT-054.
+    consentGiven: async () => false,
+    boundaryRules: async () => null,
+    audit: async (e) => {
+      await withTenant(zdb, tenantId, (tx) =>
+        audit.append(tx, tenantId, {
+          action: 'agent.dispatch',
+          actorType: 'agent',
+          subjectType: 'message',
+          subjectId: message.id,
+          related: [{ type: 'conversation', id: conversationId }],
+          payload: {
+            task: auditCode(e.task),
+            outcome: auditCode(e.outcome),
+            ...(e.reason ? { reason: auditCode(e.reason) } : {}),
+            ...(e.tool ? { tool: auditCode(e.tool) } : {}),
+          },
+        }),
+      );
+    },
+  };
+  const dispatch = await dispatchPlan(deps.registry ?? visitorRegistry, plan, ctx);
+  dispatched = dispatch.reports;
+  if (dispatch.endTurn) return store('ended', 'agent', dispatch.endTurn.text, null);
+
+  route = routeReply(routeSignals(plan, false), gate.tenant.routePolicy);
   const composed = await composeReply(
     {
       facts,
       history,
       businessName,
       gstRegistered: gate.tenant.gstRegistered,
-      meta: { tenantId, conversationId },
+      meta,
+      model: route,
     },
     {
       llm,

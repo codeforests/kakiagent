@@ -29,6 +29,8 @@ export interface VisitorTenantState {
   aiPaused: boolean;
   businessName: string;
   gstRegistered: boolean;
+  /** Reply routing policy (ADR-007 decision 1, FEAT-004 D10); its shape is llm-gateway's `RoutePolicy`. */
+  routePolicy: { complexityThreshold: number; minConfidence: number; governorStep: number };
 }
 
 /**
@@ -42,13 +44,26 @@ export async function visitorTenantState(tx: Tx): Promise<VisitorTenantState | n
     ai_paused: boolean;
     business_name: string;
     gst_registered: boolean;
-  }>(sql`select ai_paused, business_name, gst_registered from visitor_tenant_state()`);
+    route_complexity_threshold: number;
+    route_min_confidence: number;
+    cost_governor_step: number;
+  }>(
+    sql`select ai_paused, business_name, gst_registered, route_complexity_threshold,
+               route_min_confidence, cost_governor_step
+        from visitor_tenant_state()`,
+  );
   const row = res.rows[0];
   return row
     ? {
         aiPaused: row.ai_paused,
         businessName: row.business_name,
         gstRegistered: row.gst_registered,
+        routePolicy: {
+          // `real` columns: rounded so 0.6 stays 0.6 rather than 0.6000000238.
+          complexityThreshold: Math.round(Number(row.route_complexity_threshold) * 1000) / 1000,
+          minConfidence: Math.round(Number(row.route_min_confidence) * 1000) / 1000,
+          governorStep: Number(row.cost_governor_step),
+        },
       }
     : null;
 }

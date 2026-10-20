@@ -1,3 +1,4 @@
+import { usageSink } from '@kaki/analytics';
 import { createZoneDb } from '@kaki/db';
 import { createGoogleSignIn } from '@kaki/identity';
 import { gatewayFromConfig } from '@kaki/llm-gateway';
@@ -15,15 +16,18 @@ const config = loadApiConfig();
 const stopTelemetry = startTelemetry('api', config.OTEL_EXPORTER_OTLP_ENDPOINT);
 const logger = createLogger('api', config.LOG_LEVEL);
 
+const dashboardDb = createZoneDb('dashboard', config.DASHBOARD_DATABASE_URL);
 const deps = {
   config,
   logger,
-  dashboardDb: createZoneDb('dashboard', config.DASHBOARD_DATABASE_URL),
+  dashboardDb,
   visitorDb: createZoneDb('visitor', config.VISITOR_DATABASE_URL),
   publisher: createPublisher(config.VALKEY_URL),
   llm: gatewayFromConfig({
     provider: config.LLM_PROVIDER,
     anthropicApiKey: config.ANTHROPIC_API_KEY,
+    // Fact embeddings are billed calls too (ADR-021, FEAT-004 §5.6).
+    onUsage: usageSink(dashboardDb, logger),
   }),
   identityDb: createZoneDb('identity', config.IDENTITY_DATABASE_URL),
   mailer: createSmtpMailer(config.SMTP_URL, config.EMAIL_FROM),

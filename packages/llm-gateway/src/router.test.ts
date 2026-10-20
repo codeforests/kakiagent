@@ -1,19 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import {
-  createFakeProvider,
-  createGateway,
-  defaultRegistry,
-  gatewayFromConfig,
-  route,
-} from './index.js';
+import { createFakeProvider, createGateway, defaultRegistry, gatewayFromConfig } from './index.js';
 
 describe('llm-gateway', () => {
-  it('routes every skeleton reply to reply.simple', () => {
-    expect(route('reply')).toBe('reply.simple');
-    expect(route('reply', { complexity: 0.9 })).toBe('reply.simple');
-    expect(route('triage')).toBe('triage');
-  });
-
   it('echoes deterministically through the fake provider', async () => {
     const gw = gatewayFromConfig({ provider: 'fake' });
     const res = await gw.generate({

@@ -1,5 +1,5 @@
 import type { VisitorFact } from '@kaki/kb';
-import { route, type GenerateRequest, type LlmGateway } from '@kaki/llm-gateway';
+import type { GenerateRequest, LlmGateway, LogicalModel } from '@kaki/llm-gateway';
 import { buildVisitorPrompt, type HistoryMessage } from './prompt.js';
 import { renderSegment } from './render.js';
 import { Segmenter } from './segment.js';
@@ -20,6 +20,10 @@ export interface ComposeInput {
   businessName: string;
   gstRegistered: boolean;
   meta: GenerateRequest['meta'];
+  /** The routed reply model (FEAT-004); a regeneration always uses `reply.complex` (ADR-007). */
+  model?: LogicalModel | undefined;
+  /** For the tail's current SGT time. */
+  now?: Date | undefined;
 }
 
 export interface ComposeDeps {
@@ -40,6 +44,8 @@ export interface ComposeResult {
   /** Every guardrail failure, for the audit log (GOV-01). */
   violations: Violation[];
   attempts: number;
+  /** The model of each attempt, in order. */
+  models: LogicalModel[];
   timings: { firstSegmentMs: number | null; totalMs: number };
 }
 
@@ -59,6 +65,7 @@ export async function composeReply(input: ComposeInput, deps: ComposeDeps): Prom
   const released: string[] = [];
   const factIds = new Set<string>();
   const violations: Violation[] = [];
+  const models: LogicalModel[] = [];
 
   const result = (outcome: ComposeOutcome, attempts: number): ComposeResult => ({
     outcome,
@@ -67,6 +74,7 @@ export async function composeReply(input: ComposeInput, deps: ComposeDeps): Prom
     factIds: [...factIds],
     violations,
     attempts,
+    models: [...models],
     timings: {
       firstSegmentMs: firstSegmentAt === null ? null : Math.round(firstSegmentAt - start),
       totalMs: Math.round(now() - start),
@@ -93,6 +101,8 @@ export async function composeReply(input: ComposeInput, deps: ComposeDeps): Prom
 
   let lastFailure: Violation[] = [];
   for (let attempt = 0; attempt <= MAX_REGENERATIONS; attempt++) {
+    const model: LogicalModel = attempt === 0 ? (input.model ?? 'reply.simple') : 'reply.complex';
+    models.push(model);
     const req = buildVisitorPrompt({
       businessName: input.businessName,
       gstRegistered: input.gstRegistered,
@@ -106,8 +116,9 @@ export async function composeReply(input: ComposeInput, deps: ComposeDeps): Prom
               prefix: released.join(' '),
               violations: lastFailure.map((v) => `${v.kind} "${v.text}"`),
             },
+      now: input.now ?? new Date(),
       meta: input.meta,
-      model: route('reply'),
+      model,
     });
     const segmenter = new Segmenter();
     let step: Step = { kind: 'ok' };

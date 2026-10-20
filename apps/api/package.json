@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@fastify/cookie": "11.1.3",
+    "@kaki/analytics": "workspace:*",
     "@kaki/channels": "workspace:*",
     "@kaki/contracts": "workspace:*",
     "@kaki/db": "workspace:*",

@@ -78,8 +78,8 @@ describe('composeReply (ADR-008)', () => {
     expect(published.some((p) => p.text.includes('S$50'))).toBe(false);
     expect(result.violations).toEqual([{ kind: 'currency', text: 'S$50' }]);
     expect(prompts).toHaveLength(2);
-    expect(prompts[1]!.system).toContain('blocked by the fact checker');
-    expect(prompts[1]!.system).toContain('"Yes we have eggless cakes."');
+    expect(prompts[1]!.tail).toContain('blocked by the fact checker');
+    expect(prompts[1]!.tail).toContain('"Yes we have eggless cakes."');
   });
 
   it('escalates after two failed attempts and publishes only verified text (AC-2)', async () => {
@@ -165,7 +165,7 @@ describe('composeReply (ADR-008)', () => {
       { ...input, history },
       { llm, gateOpen: async () => true, publish: async () => {} },
     );
-    expect(prompts[0]!.system).toContain(`[[f:${P}.price]]`);
+    expect(prompts[0]!.tail).toContain(`[[f:${P}.price]]`);
     expect(prompts[0]!.system).toContain('SLOT RULE');
     expect(prompts[0]!.messages).toHaveLength(10);
     expect(prompts[0]!.messages.at(-1)?.content).toBe('m13');

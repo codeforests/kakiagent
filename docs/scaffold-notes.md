@@ -66,14 +66,14 @@ Monorepo tooling: pnpm 10.28.0 (`packageManager`), Turborepo 2.11.9, Node 22. Ve
 
 | Stub | Where | Replaced by |
 |---|---|---|
-| Fake LLM provider that echoes `Echo: <text>`; the `anthropic-dev` provider sits behind `LLM_PROVIDER` | `packages/llm-gateway` | FEAT-022 (the real turn), FEAT-004 (routing, cost governor), MD (Bedrock `au.`) |
+| Fake LLM provider that echoes `Echo: <text>`; the `anthropic-dev` provider sits behind `LLM_PROVIDER` | `packages/llm-gateway` | FEAT-022 (the real turn), FEAT-004 (done: Haiku triage into a `TurnPlan`, the dispatcher with an empty registry, Haiku/Sonnet routing with per-tenant thresholds, priced calls written to `usage_events`, the hourly cost governor in scheduler-worker; the fake provider plays a keyword triager), MD (Bedrock `au.`) |
 | `runVisitorTurn` echoes, with no retrieval, slots or verifier | `packages/agent` | FEAT-022 |
 | Dev-only sign-in as a seeded owner | `apps/api/src/dev-auth.ts`, `apps/dashboard/src/pages/dev-sign-in.tsx` | FEAT-005 (done: magic-link and Google sign-in, sessions in Postgres with sign-out everywhere, workspace creation with terms acceptance; locally the links arrive in Mailpit at http://localhost:8025) |
 | `audit.append` writes plain IDs-only rows, with no hash chain | `packages/governance` | FEAT-002 (done: per-tenant hash chain, `audit_pii`, S3 anchors from scheduler-worker, `pnpm audit:verify`) |
 | `piiMask` is a pass-through | `packages/platform/src/pii-mask.ts` | FEAT-003 (done: NRIC/FIN, card and bank-number masking before storage, log-line scrubbing, and a gateway backstop on visitor content) |
 | `can(role, capability)` with a minimal capability table | `packages/identity` | FEAT-005, FEAT-007 |
 | Widget uses the default `--kaki-*` tokens (no theme detection) | `apps/widget` | FEAT-032 |
-| `kb`, `leads`, `approvals`, `analytics` are empty modules | `packages/*` | FEAT-011, -049, -055, -004/-066 |
+| `kb`, `leads`, `approvals`, `analytics` are empty modules | `packages/*` | FEAT-011 (kb done by FEAT-022), -049, -055, FEAT-004 (analytics: usage ledger and cost governor done; dashboards with FEAT-066/067) |
 | `ingest-worker` is idle (health only) | `apps/ingest-worker` | FEAT-011 onwards |
 | Eval case set is empty | `evals/cases` | FEAT-022, -023, -025, -051 |
 | Dashboard sections other than Inbox are placeholders naming their feature; inbox is a bare live list | `apps/dashboard` | per plan §4 |
@@ -87,6 +87,7 @@ Monorepo tooling: pnpm 10.28.0 (`packageManager`), Turborepo 2.11.9, Node 22. Ve
 - A CD workflow: OIDC role `kaki-prod-github-deploy` (module `ci-oidc`), image push by digest, an ECS rolling deploy, a static upload to the `static` bucket, and a CloudFront invalidation.
 - `terraform providers lock -platform=linux_arm64 -platform=darwin_arm64` if other platforms run Terraform. The committed lock file was produced on linux_amd64.
 - An origin domain (for example `origin.<domain>`) with an ACM certificate in ap-southeast-1 and a DNS record pointing at the `alb_dns_name` output. Set them as `origin_domain_name` and `origin_certificate_arn`.
+- Cost and usage (FEAT-004): a CloudWatch metric filter, alarm and SNS route on the scheduler-worker `cost_governor.step_changed` warn line (the operator alert until FEAT-070's console); the cache-hit-rate alarm (below 60% on warm tenants, ADR-007) from `usage_events`; the Bedrock registry entries with the 1.10 price multiplier when the Bedrock provider replaces `anthropic-dev`; model and route as trace span attributes (NFR-11).
 - Then done-when 4: run `skeleton.e2e.ts` against the CloudFront URL.
 - At the prod trigger: `profile = "full"`, the ADR-024 read-replica move to Aurora, and a staging root from the same modules.
 
