@@ -1,3 +1,4 @@
+import type { VisitorFact } from '@kaki/kb';
 import { describe, expect, it } from 'vitest';
 import { buildVisitorPrompt, sgtNow } from './prompt.js';
 import { assignRefs } from './slots.js';
@@ -5,7 +6,7 @@ import { EGGLESS, FUDGE } from './testing/facts.js';
 
 const meta = { tenantId: '11111111-1111-4111-8111-111111111111' };
 const turn = (
-  facts: (typeof FUDGE)[],
+  facts: VisitorFact[],
   history: { role: 'user' | 'assistant'; content: string }[],
   now: Date,
 ) =>
