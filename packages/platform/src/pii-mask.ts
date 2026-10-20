@@ -190,30 +190,35 @@ const overlaps = (a: { start: number; end: number }, found: PiiFinding[]) =>
 const isLetter = (c: string | undefined) => c !== undefined && /[A-Za-z]/.test(c);
 
 const BANK_WORD =
-  /^(?:accounts?|acct|acc|a\/c|bank|savings|current|paynow|dbs|posb|ocbc|uob|maybank|hsbc|citi|citibank|scb)$/i;
+  /^(?:accounts?|acct|acc|a\/c|bank|savings|current|paynow|dbs|posb|ocbc|uob|maybank|hsbc|citi|citibank|scb|no|number|num|nbr)$/i;
 
 /**
- * Not an account number although near a keyword (D16): a UEN-shaped number with one
- * letter after it (`201912345K`), a code with a letter prefix and a hyphen
- * (`INV-2026-10-0001`, unless the prefix is a bank word: `DBS-1234567890`), and the
- * tail of a time, decimal or date (`10:30 24 10 2026`).
+ * Not an account number although near a keyword (D16, D17): a UEN (nine digits written
+ * solid, then one letter: `201912345K`), a code with a letter prefix and a hyphen
+ * (`INV-2026-10-0001`, unless the prefix is a bank word: `DBS-1234567890`, `no-…`), and
+ * spaced parts that continue a time, decimal or date (`10:30 24 10 2026`).
  */
 function notAnAccount(folded: string, start: number, end: number): boolean {
-  if (isLetter(folded[end]) && !isLetter(folded[end + 1])) return true;
+  if (end - start === 9 && isLetter(folded[end]) && !isLetter(folded[end + 1])) return true;
   const before = folded[start - 1];
   if (before === '-') {
     const word = /[A-Za-z/]+$/.exec(folded.slice(Math.max(0, start - 21), start - 1));
     if (word && !BANK_WORD.test(word[0])) return true;
   }
-  return (before === ':' || before === '.' || before === '/') && /\d/.test(folded[start - 2] ?? '');
+  return (
+    (before === ':' || before === '.' || before === '/') &&
+    /\d/.test(folded[start - 2] ?? '') &&
+    folded.slice(start, end).includes(' ')
+  );
 }
 
 /**
- * Bank numbers (D4, D15, D16): a run is split at space-only separators into chunks (the
- * groups a visitor joined with hyphens stay together). A chunk of 9 or more digits that is
- * solid or in three or more groups is a number on its own, so a quantity typed after it
- * stays out. Other chunks are parts typed with spaces (`123 456789 0`, `123-456789 0`), so
- * from the earliest such chunk the longest window of 9–12 digits is taken whole. Either kind must sit next to a keyword.
+ * Bank numbers (D4, D15–D17): a run is split at space-only separators into chunks (the
+ * groups a visitor joined with hyphens stay together). A solid chunk of 9 or more digits,
+ * or a hyphenated one of 10 or more in three or more groups, is a number on its own, so a
+ * quantity typed after it stays out. Other chunks are parts typed with spaces
+ * (`123 456789 0`, `123-456789 0`), so from the earliest such chunk the longest window of
+ * 9–12 digits that isn't excluded is taken whole. Either kind must sit next to a keyword.
  */
 function banksIn(
   folded: string,
@@ -249,7 +254,8 @@ function banksIn(
     else chunks.push({ start: g.start, end: g.end, digits: g.digits, parts: 1 });
   }
   // Complete as written: solid, or in the three or more hyphenated groups bank formats use.
-  const whole = (c: Group & { parts: number }) => c.digits.length >= 9 && c.parts !== 2;
+  const whole = (c: Group & { parts: number }) =>
+    c.parts === 1 ? c.digits.length >= 9 : c.parts >= 3 && c.digits.length >= 10;
   const take = (start: number, end: number) => {
     const w = { start, end };
     if (overlaps(w, found) || folded[start - 1] === '+' || notAnAccount(folded, start, end))
@@ -265,13 +271,18 @@ function banksIn(
       continue;
     }
     let len = 0;
-    let last = -1;
+    const ends: number[] = [];
     for (let j = i; j < chunks.length && !whole(chunks[j]!); j++) {
       len += chunks[j]!.digits.length;
       if (len > 12) break;
-      if (len >= 9) last = j;
+      if (len >= 9) ends.push(j);
     }
-    if (last >= 0 && take(c.start, chunks[last]!.end)) i = last;
+    // Longest first; when that one is excluded, a shorter one may still be the number (D17).
+    for (let e = ends.length - 1; e >= 0; e--)
+      if (take(c.start, chunks[ends[e]!]!.end)) {
+        i = ends[e]!;
+        break;
+      }
   }
 }
 
@@ -313,8 +324,22 @@ function token(kind: PiiKind, value: string): string {
   return `[${kind === 'card' ? 'CARD' : 'BANK'} ${DOTS}${digits.slice(-4)}]`;
 }
 
-/** GOV-04: the text with every finding replaced by its token. Idempotent. */
+/**
+ * GOV-04: the text with every finding replaced by its token. A token can free an
+ * identifier that touched the one it replaced (`S1234567D4242424242424242`), so passes
+ * repeat until nothing changes, which makes the result idempotent (D17, M12).
+ */
 export function piiMask(text: string): string {
+  let out = maskOnce(text);
+  for (let pass = 0; pass < 4; pass++) {
+    const next = maskOnce(out);
+    if (next === out) break;
+    out = next;
+  }
+  return out;
+}
+
+function maskOnce(text: string): string {
   const parts: string[] = [];
   let at = 0;
   for (const f of findPii(text)) {

@@ -131,7 +131,8 @@ describe('random inputs', () => {
   let seed = 20261020;
   const rand = (n: number) => {
     seed = (seed * 1103515245 + 12345) % 2 ** 31;
-    return seed % n;
+    // The high bits: an LCG's low bits repeat with a short period.
+    return Math.floor((seed / 2 ** 31) * n);
   };
   const alphabet = '0123456789     --STFGMDJabc户口账号+.\u3000\u00a0\u2013\t';
   const inputs = Array.from({ length: 2000 }, () =>
@@ -140,6 +141,23 @@ describe('random inputs', () => {
 
   it('is idempotent', () => {
     for (const s of inputs) expect(piiMask(piiMask(s)), s).toBe(piiMask(s));
+  });
+
+  it('is idempotent when identifiers touch each other (D17, M12)', () => {
+    const parts = [
+      'S1234567D',
+      'T1234567J',
+      '4242424242424242',
+      '1234567890',
+      'acct ',
+      ' ',
+      '-',
+      'x',
+    ];
+    for (let n = 0; n < 2000; n++) {
+      const s = Array.from({ length: 2 + rand(5) }, () => parts[rand(parts.length)]).join('');
+      expect(piiMask(piiMask(s)), s).toBe(piiMask(s));
+    }
   });
 
   it('leaves no checksum-valid NRIC and no 16-digit card behind', () => {

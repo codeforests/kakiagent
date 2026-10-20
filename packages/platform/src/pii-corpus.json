@@ -545,6 +545,46 @@
       "id": "neg-bank-time-date",
       "text": "DBS 10:30 24 10 2026",
       "masked": "DBS 10:30 24 10 2026"
+    },
+    {
+      "id": "bank-spaced-then-letter",
+      "text": "DBS 123 456 7890 2x",
+      "masked": "DBS [BANK ••••8902]x"
+    },
+    {
+      "id": "bank-no-hyphen",
+      "text": "DBS acct no-1234567890",
+      "masked": "DBS acct no-[BANK ••••7890]"
+    },
+    {
+      "id": "bank-ac-no-hyphen",
+      "text": "A/C No-1234567890",
+      "masked": "A/C No-[BANK ••••7890]"
+    },
+    {
+      "id": "bank-uob-hyphens-then-space",
+      "text": "UOB 123-456-789 0",
+      "masked": "UOB [BANK ••••7890]"
+    },
+    {
+      "id": "bank-after-slash",
+      "text": "DBS acct 3/1234567890",
+      "masked": "DBS acct 3/[BANK ••••7890]"
+    },
+    {
+      "id": "bank-ten-digits-then-letter",
+      "text": "DBS 1234567890a.",
+      "masked": "DBS [BANK ••••7890]a."
+    },
+    {
+      "id": "nric-glued-to-card",
+      "text": "S1234567D4242424242424242",
+      "masked": "[NRIC ••••567D][CARD ••••4242]"
+    },
+    {
+      "id": "nric-glued-to-bank",
+      "text": "acct S1234567D1234567890",
+      "masked": "acct [NRIC ••••567D][BANK ••••7890]"
     }
   ]
 }
