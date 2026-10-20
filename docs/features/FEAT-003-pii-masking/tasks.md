@@ -13,9 +13,9 @@
       Done when: llm-gateway unit tests show a raw NRIC in a `user` message (generate and stream) and in a `query` embedding reaching the provider masked, and unchanged in the system prompt, an `assistant` message and a `document` embedding; dependency-cruiser passes.
 - [x] T5 — Storage and payload: integration tests on the real path (design §5.2; AC-5, AC-6)
       Done when: the api integration test posts a message with an NRIC, a card and a bank number, gets the masked body back (and the same message on retry), and a scan of `messages`, `conversations`, `outbox`, `audit_entries` and `audit_pii` finds none of the raw values; the agent turn test records every provider request and finds none of the raw values and the tokens present.
-- [ ] T6 — E2E: extend the widget journey (UC-20, J2/J7) so a message with an NRIC shows the masked token in the visitor's bubble and still gets a reply (AC-9)
+- [x] T6 — E2E: extend the widget journey (UC-20, J2/J7) so a message with an NRIC shows the masked token in the visitor's bubble and still gets a reply (AC-9)
       Done when: the new spec passes in chromium against the local stack with `pnpm dev`.
-- [ ] T7 — Docs: scaffold-notes §4 stub row marked done (design §2)
+- [x] T7 — Docs: scaffold-notes §4 stub row marked done (design §2)
       Done when: the row names the masker, the log scrubbing and the gateway backstop.
 - [ ] T8 — Verify: every acceptance criterion (design §6) demonstrably passes; format, lint (with boundaries), typecheck, unit, integration, coverage, build and size green; E2E skeleton, facts and masking flows pass
       Done when: the commands in AGENTS.md "Checks" pass and each AC is mapped to the test or run that shows it.
