@@ -33,6 +33,7 @@ const request = (): GenerateRequest => ({
     { role: 'assistant', content: 'Our DBS account is 123-456789-0' },
     { role: 'user', content: 'card 4242 4242 4242 4242' },
   ],
+  tail: '<facts> PayNow DBS acct 123-456789-0 </facts>',
   maxTokens: 100,
   meta,
 });
@@ -50,6 +51,8 @@ describe('gateway PII backstop (GOV-04, FEAT-003 D3)', () => {
         'card [CARD ••••4242]',
       ]);
       expect(req.system).toBe('Pay by PayNow to DBS acct 123-456789-0');
+      // The tail is the business's own facts (FEAT-004 D2).
+      expect(req.tail).toBe('<facts> PayNow DBS acct 123-456789-0 </facts>');
     }
   });
 
