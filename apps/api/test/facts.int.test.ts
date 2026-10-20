@@ -1,59 +1,38 @@
 import { startTestDatabase, TENANT_A, TENANT_B, type TestDatabase } from '@kaki/db/testing';
-import { DEV_SESSION_COOKIE, issueDevSession } from '@kaki/identity';
-import { gatewayFromConfig } from '@kaki/llm-gateway';
-import { createLogger, signToken } from '@kaki/platform';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { buildApp } from '../src/app.js';
-import { schema as configSchema } from '../src/config.js';
-
-const SECRET = 's'.repeat(32);
+import type { buildApp } from '../src/app.js';
+import { sessionCookie, testApp } from './support.js';
 
 let tdb: TestDatabase;
 let app: Awaited<ReturnType<typeof buildApp>>;
 let owner: pg.Client;
+let asA: string;
+let asB: string;
+let asAgent: string;
 
 beforeAll(async () => {
   tdb = await startTestDatabase();
-  const config = configSchema.parse({
-    NODE_ENV: 'test',
-    VALKEY_URL: 'redis://localhost:6379',
-    DASHBOARD_DATABASE_URL: tdb.urlFor('app_dashboard'),
-    VISITOR_DATABASE_URL: tdb.urlFor('app_agent_visitor'),
-    PUBLIC_REALTIME_URL: 'http://localhost:3001',
-    PUBLIC_WIDGET_PANEL_URL: 'http://localhost:5175/w/v1/panel.js',
-    VISITOR_TOKEN_SECRET: 'v'.repeat(32),
-    SESSION_SECRET: SECRET,
-  });
-  app = await buildApp({
-    config,
-    logger: createLogger('api-test', 'silent'),
-    dashboardDb: tdb.zone('dashboard'),
-    visitorDb: tdb.zone('visitor'),
-    publisher: { publish: async () => {}, close: async () => {} },
-    llm: gatewayFromConfig({ provider: 'fake' }),
-  });
+  app = await testApp(tdb);
   owner = new pg.Client({ connectionString: tdb.ownerUrl });
   await owner.connect();
+  // A staff member (role agent) of tenant A, for the permission checks.
+  const staff = await owner.query<{ id: string }>(
+    `insert into users (email) values ('staff@kaki-bakery.test') returning id`,
+  );
+  await owner.query(`insert into memberships (tenant_id, user_id, role) values ($1, $2, 'agent')`, [
+    TENANT_A,
+    staff.rows[0]!.id,
+  ]);
+  asA = await sessionCookie(tdb, 'owner@kaki-bakery.test');
+  asB = await sessionCookie(tdb, 'owner@second-tenant.test');
+  asAgent = await sessionCookie(tdb, 'staff@kaki-bakery.test');
 });
 afterAll(async () => {
   await app?.close();
   await owner?.end();
   await tdb?.stop();
 });
-
-const cookie = (tenantId: string) => `${DEV_SESSION_COOKIE}=${issueDevSession(tenantId, SECRET)}`;
-const asA = cookie(TENANT_A);
-const asB = cookie(TENANT_B);
-const asAgent = `${DEV_SESSION_COOKIE}=${signToken(
-  {
-    tenantId: TENANT_A,
-    userId: 'dev-agent',
-    role: 'agent',
-    exp: Math.floor(Date.now() / 1000) + 600,
-  },
-  SECRET,
-)}`;
 
 const call = (method: 'GET' | 'POST' | 'PATCH', url: string, who: string, payload?: unknown) =>
   app.inject({ method, url, headers: { cookie: who }, ...(payload ? { payload } : {}) });

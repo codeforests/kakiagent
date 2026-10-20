@@ -1,10 +1,4 @@
 export { can, type Role, type Capability } from './capabilities.js';
-export {
-  issueDevSession,
-  readDevSession,
-  DEV_SESSION_COOKIE,
-  type DevSession,
-} from './dev-session.js';
 export { CURRENT_TERMS, TERMS_DOCUMENTS, termsAreCurrent, type TermsDocument } from './terms.js';
 export { LinkError, GoogleSignInError, TermsOutdatedError } from './errors.js';
 export { normaliseEmail, magicLinkEmail } from './email.js';
