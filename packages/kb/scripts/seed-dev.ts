@@ -1,6 +1,6 @@
 /**
- * DEV-ONLY demonstration facts (FEAT-022 §5), run by `pnpm db:setup` after the dev
- * tenants exist. Both must never reach a bakery visitor: a `needs_review` bakery fact
+ * DEV-ONLY demonstration facts (FEAT-022 §5, FEAT-011 §5), run by `pnpm db:setup` after
+ * the dev tenants exist. None may reach a bakery visitor: a `needs_review` bakery fact
  * and an approved fact of the second tenant (AC-7, AC-16). Fixed IDs keep it
  * idempotent. Reads packages/db/.env, like the db setup.
  */
@@ -42,6 +42,18 @@ const seeds: {
       type: 'product',
       value: { name: 'Chocolate fudge cake', priceCents: 9900, currency: 'SGD', unit: '1 kg' },
       gstTreatment: 'inclusive',
+    },
+  },
+  // FEAT-011: an approved price whose GST treatment is unknown. It is listed under "GST
+  // to check" and, the bakery being GST-registered, never quoted until it's set (KB-15).
+  {
+    tenantId: '11111111-1111-4111-8111-111111111111',
+    id: 'dd000003-0000-4000-8000-000000000003',
+    status: 'approved',
+    input: {
+      type: 'product',
+      value: { name: 'Ondeh ondeh box', priceCents: 1800, currency: 'SGD', unit: '12 pieces' },
+      gstTreatment: 'unknown',
     },
   },
 ];
