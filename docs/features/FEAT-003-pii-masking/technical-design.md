@@ -51,7 +51,7 @@ export function maskLogText(text: string): string;
 | Kind | Shape | Validation | Token |
 |---|---|---|---|
 | NRIC/FIN | `[STFGM]`, 7 digits, a letter; one optional space or hyphen between any two characters | Weights 2 7 6 5 4 3 2; offset 4 for T and G, 3 for M; remainder mod 11 indexes `JZIHGFEDCBA` (S, T), `XWUTRQPNMLK` (F, G), `XWUTRQPNJLK` (M) | `[NRIC ••••567D]`: last three digits and the letter, upper-case |
-| Card | A digit run: digit groups joined by single spaces or hyphens | The longest window of consecutive groups (earliest first) with 13–19 digits that passes Luhn; the rest of the run is searched again | `[CARD ••••4242]`: last four digits |
+| Card | A digit run: digit groups joined by single spaces or hyphens | Windows of consecutive groups with 13–19 digits that pass Luhn, taken best first (16, 15, 19, 14, 13, 17, then 18 digits; earliest among equals) where they share no group with one already taken (D9) | `[CARD ••••4242]`: last four digits |
 | Bank account | A digit run (as above) of 9–12 digits in total, not preceded by `+` | A keyword within 40 characters before or after the run (§5.1) | `[BANK ••••7890]`: last four digits |
 
 Passes run in that order (NRIC, then card, then bank), so a 16-digit card next to the word "account" is a card. Tokens contain at most four consecutive digits and no NRIC shape, so masking twice changes nothing.
@@ -84,7 +84,7 @@ Pure functions, no dependencies, replacing the stub:
 - `fold(text)`: the full-width fold.
 - `nricFindings(folded)`: regex `(?<![A-Za-z0-9])([STFGM])[ -]?((?:\d[ -]?){6}\d)[ -]?([A-Z])(?![A-Za-z0-9])` with flags `gi`, then `nricChecksumOk(prefix, digits, letter)`.
 - `digitRuns(folded)`: regex `(?<![A-Za-z0-9])\d+(?:[ -]\d+)*(?![A-Za-z0-9])`, split into groups with their offsets.
-- `cardFindings(runs)`: per run, windows of consecutive groups with 13–19 digits, longest first then earliest; `luhnOk(digits)`; on a hit, record it and search the groups before and after it the same way. A run has at most a few dozen groups (4000-character messages), and each window holds at most 19 digits, so the search is bounded (AC-10).
+- `cardsIn(groups)`: per run, every window of consecutive groups with 13–19 digits that passes `luhnOk`, sorted by length rank then start, taken greedily where it shares no group with a window already taken. Each window holds at most 19 digits, so there are at most 19 windows per group and the search is linear in the message (AC-10).
 - `bankFindings(runs, folded)`: runs not overlapping an earlier finding, with 9–12 digits, not preceded by `+`, and with `BANK_KEYWORD` within 40 characters on either side: `account`, `acct`, `acc`, `a/c`, `bank`, `savings`, `current`, `paynow`, `dbs`, `posb`, `ocbc`, `uob`, `maybank`, `hsbc`, `citi`, `citibank`, `standard chartered`, `scb`, `户口`, `账号`, `帐号`, `账户`, `帐户`, `银行`, `转账`, `转帐`, `存折`. English keywords are whole words.
 - `findPii(text)` merges the three passes; `piiMask` replaces findings right to left; `maskLogText` applies `piiMask`, then `EMAIL_RE` (`[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}` → `[EMAIL]`) and `SG_PHONE_RE` (optional `+65`, then 8 digits starting 3, 6, 8 or 9, with an optional separator after the fourth → `[PHONE]`).
 
@@ -136,6 +136,7 @@ sequenceDiagram
 - **D5 — Token format.** Driver: ADR-015 decision 1's examples (`[NRIC ••••567A]`, `[CARD ••••4242]`); the bank token follows the same pattern (`[BANK ••••7890]`). Keeping the last characters lets staff and the visitor tell which number was meant without the number being stored; the last three digits and letter of an NRIC are what PDPC's guidance treats as acceptable partial display.
 - **D6 — The corpus is a unit-test fixture, not an eval subset.** Driver: ADR-015's consequence puts the masker "in the AGT-14 CI gate". The masker is deterministic and doesn't involve the agent, so the eval runner (which scores `composeReply` outputs) is the wrong harness; the unit tests run in the same CI pipeline and fail it on a single miss, which is stricter than a pass-rate threshold. `evals/thresholds.json` is unchanged.
 - **D7 — Logs are scrubbed by pattern as well as by field.** Driver: GOV-04 "mask other PII in logs" and ADR-015 decision 3. Field redaction can't catch a value interpolated into a message or an error (a driver error that echoes a parameter), so string arguments and error messages go through `maskLogText`. Names in free text can't be detected by pattern; they are kept out of logs by the existing IDs-only rule.
+- **D9 — Common card lengths win over longer windows.** Driver: AC-2 (`4242 4242 4242 4242 2 pcs`). A stray quantity next to a card makes a 17-digit window that passes Luhn one time in ten; preferring the longest window would then swallow the quantity and show the wrong last four digits. Ranking 16, 15 and 19 first (the lengths cards are issued in) keeps the card and the quantity apart. Either way the card is masked.
 - **D8 — Branch name.** AGENTS.md asks for `feat/FEAT-003-pii-masking`; this session's tooling pins `claude/feat-003-pii-masking-ymm32o`. The PR is titled with the feature ID, as FEAT-022 and FEAT-002 were.
 
 ## 8. Escalations and open items
