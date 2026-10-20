@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { usageSink } from '@kaki/analytics';
+import { DEFAULT_GOVERNOR, runCostGovernor, usageSink } from '@kaki/analytics';
 import { withTenant } from '@kaki/db';
 import { startTestDatabase, TENANT_A, TENANT_B, type TestDatabase } from '@kaki/db/testing';
 import { appendVisitorMessage, createConversation, messagesSince } from '@kaki/inbox';
@@ -481,6 +481,48 @@ describe('runVisitorTurn with triage, dispatch and routing (FEAT-004)', () => {
     expect(rows[0]).toEqual({ route_complexity_threshold: 0.6, cost_governor_step: 0 });
   });
 
+  // Acceptance correction (AC-6): the criterion ends with "the next turn of a raised
+  // tenant routes with the raised threshold"; no test ran the governor and then a turn.
+  it('routes the next turn with the threshold the cost governor raised (AC-6)', async () => {
+    const plan = JSON.stringify({
+      language: 'en',
+      register: 'standard',
+      complexity: 0.65,
+      confidence: 0.9,
+      flags: { complaint: false, injection: false },
+      tasks: [{ kind: 'answer', args: [] }],
+    });
+    const routed = async () => {
+      const { llm } = llmWith(fakeVisitorResponder, () => plan);
+      const c = await conversationWith('how much is the fudge cake');
+      return (await runVisitorTurn({ zdb: tdb.zone('visitor'), llm }, job(c)))?.route;
+    };
+    await owner.query(
+      `update tenants set cost_governor_step = 0, cost_governor_changed_at = null where id = $1`,
+      [TENANT_A],
+    );
+    expect(await routed()).toBe('reply.complex'); // 0.65 ≥ 0.6
+    // 25 conversations at S$0.04 each over the last day: above the S$0.025 target.
+    const seeded = await owner.query(
+      `insert into usage_events (tenant_id, conversation_id, purpose, model, provider, provider_model_id, cost_usd)
+       select $1, gen_random_uuid(), 'reply', 'reply.simple', 'fake', 'fake-haiku', $2
+       from generate_series(1, 25) returning id`,
+      [TENANT_A, 0.04 / DEFAULT_GOVERNOR.usdToSgd],
+    );
+    try {
+      const changes = await runCostGovernor(tdb.zone('outbox'));
+      expect(changes).toEqual([expect.objectContaining({ tenantId: TENANT_A, newStep: 1 })]);
+      expect(await routed()).toBe('reply.simple'); // 0.65 < 0.6 + 0.1
+    } finally {
+      await owner.query(`delete from usage_events where id = any($1::uuid[])`, [
+        seeded.rows.map((r) => r.id),
+      ]);
+      await owner.query(`update tenants set cost_governor_changed_at = null where id = $1`, [
+        TENANT_A,
+      ]);
+    }
+  });
+
   it('runs triage alongside retrieval, so the reply starts after one delay, not two (AC-9)', async () => {
     const DELAY = 200;
     const sleep = () => new Promise((r) => setTimeout(r, DELAY));
@@ -534,6 +576,68 @@ describe('runVisitorTurn with triage, dispatch and routing (FEAT-004)', () => {
       expect(r.input_tokens).toBeGreaterThan(0);
       expect(Number(r.cost_usd)).toBeGreaterThan(0);
     }
+  });
+
+  // Acceptance correction (AC-4): the criterion names every field of each row, a row for
+  // a regeneration, and rows that hold no message text; the test above checked a subset.
+  it('records each call with its turn, provider model, four token counts and cost, a regeneration included, and no text (AC-4)', async () => {
+    const replies = scriptedOutputs(['It is S$50.', 'Only $45 lah.']);
+    const llm = createGateway(
+      defaultRegistry('fake'),
+      [createFakeProvider((req) => (req.model === 'triage' ? fakeTriage(req) : replies(req)))],
+      { onUsage: usageSink(tdb.zone('visitor'), { warn: () => {} }) },
+    );
+    const c = await conversationWith('how much is the fudge cake');
+    const result = await runVisitorTurn({ zdb: tdb.zone('visitor'), llm }, job(c));
+    expect(result?.outcome).toBe('escalated');
+    const { rows } = await owner.query(
+      `select * from usage_events where turn_id = $1 order by created_at`,
+      [c.messageId],
+    );
+    expect(rows.map((r) => [r.purpose, r.model, r.provider_model_id]).sort()).toEqual(
+      [
+        ['embed', 'embed', 'fake-embed'],
+        ['reply', 'reply.complex', 'fake-sonnet'],
+        ['reply', 'reply.simple', 'fake-haiku'],
+        ['triage', 'triage', 'fake-haiku'],
+      ].sort(),
+    );
+    for (const r of rows) {
+      expect(r).toMatchObject({
+        tenant_id: TENANT_A,
+        conversation_id: c.conversationId,
+        turn_id: c.messageId,
+        provider: 'fake',
+      });
+      for (const k of [
+        'input_tokens',
+        'output_tokens',
+        'cache_read_input_tokens',
+        'cache_write_input_tokens',
+      ])
+        expect(r[k]).toEqual(expect.any(Number));
+      expect(Number(r.cost_usd)).toBeGreaterThan(0);
+    }
+    // The row is IDs, codes, counts and cost: no visitor or reply text.
+    expect(Object.keys(rows[0]!).sort()).toEqual(
+      [
+        'tenant_id',
+        'id',
+        'conversation_id',
+        'turn_id',
+        'purpose',
+        'model',
+        'provider',
+        'provider_model_id',
+        'input_tokens',
+        'output_tokens',
+        'cache_read_input_tokens',
+        'cache_write_input_tokens',
+        'cost_usd',
+        'created_at',
+      ].sort(),
+    );
+    expect(JSON.stringify(rows)).not.toMatch(/fudge|S\$50|\$45/i);
   });
 
   it('still answers when the ledger insert fails, and logs it (AC-4, NFR-04)', async () => {

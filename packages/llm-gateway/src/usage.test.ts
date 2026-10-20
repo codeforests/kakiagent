@@ -33,6 +33,23 @@ describe('costOf (FEAT-004 AC-5)', () => {
       ),
     ).toBe(0);
   });
+
+  // Acceptance correction (AC-5: "for each price table"): Opus was only checked at zero
+  // usage and the embed price only against costOf itself.
+  it('matches a hand calculation for the Opus and embed price tables', () => {
+    const usage = {
+      inputTokens: 1_000,
+      cacheWriteInputTokens: 2_000,
+      cacheReadInputTokens: 3_000,
+      outputTokens: 400,
+    };
+    // Opus: 1000×4 + 2000×5 + 3000×0.2 + 400×20 = 22,600 per million.
+    expect(costOf(usage, PRICES.opus)).toBeCloseTo(0.0226, 10);
+    // Embed: input only, 1000×0.1 = 100 per million; other counts are free.
+    expect(costOf(usage, PRICES.embed)).toBeCloseTo(0.0001, 10);
+    // Sonnet through the Bedrock route premium: 11,600 × 1.1 = 12,760 per million.
+    expect(costOf(usage, { ...PRICES.sonnet, multiplier: 1.1 })).toBeCloseTo(0.01276, 10);
+  });
 });
 
 describe('usage events (ADR-021, FEAT-004 AC-4)', () => {
