@@ -1,6 +1,7 @@
 # ADR-009: Agent scopes — a visitor scope and a coaching scope fixed by the entry point
 
 **Status:** Accepted — architecture phase signed off by the product owner on 2026-10-19
+**Extended:** each scope's tools and code-handled tasks are registered with one dispatcher that checks scope, the send gate, boundary rules and consent before any side effect ([ADR-025](ADR-025-turn-plan-and-task-dispatch.md), owner, 2026-10-20). The decisions here stand.
 **Date:** 2026-10-19
 **Requirements addressed:** AGT-16, AGT-17, AGT-07, AGT-06, AGT-01, KB-16, KB-18, ONB-05, GOV-03, GOV-01, DSH-02, DSH-04, UC-04, UC-20 (exception flows 3a, 3d)
 

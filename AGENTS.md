@@ -96,6 +96,7 @@ These span many documents and are easy to break by accident. Read the cited ADR 
 - **Facts reach visitors only through the `visitor_facts` view** (approved, enabled, not conflicted). Corrections are proposals in the `corrections` queue and never edit facts directly (ADR-010).
 - **Visitor scope and coaching scope are fixed by the entry point** (a channel adapter or the authenticated dashboard), never by message content, and are enforced by types and database grants (ADR-009).
 - **The model never writes protected values.** Prices, stock, dates and policies come from fact slots that the renderer fills. A deterministic verifier checks each sentence before it is released, so nothing unverified is ever streamed (ADR-008).
+- **The model interprets, code acts.** Triage returns a typed `TurnPlan` of one or more tasks; one dispatcher in `@kaki/agent` checks scope, the send gate, boundary rules and consent, then routes each task or model tool call to its owning module. A model tool call is a proposal, never a side effect. New features register a handler with the dispatcher rather than wiring their own path (ADR-025).
 - **Channels** implement the `ChannelAdapter` contract; the core never branches on channel kind (ADR-011).
 - **All side effects go through the transactional outbox → SQS.** Consumers are idempotent. Timers live in Postgres (ADR-012).
 - **The AI send gate** (kill switch, channel live, no human owner) is checked before every turn and every AI send. Concurrency is enforced by the database (ADR-013).
