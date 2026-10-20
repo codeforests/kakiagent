@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { runChecks } from './health.js';
 import { envSchemas, loadConfig } from './config.js';
-import { piiMask } from './pii-mask.js';
 import { channels } from './pubsub.js';
 import { signToken, TokenError, verifyToken } from './tokens.js';
 
@@ -21,12 +20,6 @@ describe('tokens', () => {
     expect(() => verifyToken(`${body}.${sig}`, 'x'.repeat(32))).toThrow(TokenError);
     expect(() => verifyToken(signToken({ exp: 1 }, SECRET), SECRET)).toThrow('expired');
     expect(() => verifyToken('nope', SECRET)).toThrow(TokenError);
-  });
-});
-
-describe('piiMask (stub until FEAT-003)', () => {
-  it('passes text through unchanged', () => {
-    expect(piiMask('hello S1234567D')).toBe('hello S1234567D');
   });
 });
 

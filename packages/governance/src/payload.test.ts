@@ -81,8 +81,25 @@ describe('assertAuditEntry (AC-7)', () => {
     ['an invalid actor type', entry({ actorType: 'admin' as never })],
     ['a PII contact that is not a UUID', entry({ pii: { contactId: 'x', data: {} } })],
     ['a payload that is an array', entry({ payload: [] as never })],
+    // FEAT-003 AC-8: lower-case identifiers pass the code shape, so the masker decides.
+    ['a lower-case NRIC as actor ID', entry({ actorId: 's1234567d' })],
+    ['a card number as actor ID', entry({ actorId: '4242-4242-4242-4242' })],
+    ['a lower-case NRIC as subject ID', entry({ subjectId: 's1234567d' })],
+    ['a card number as related ID', entry({ related: [{ type: 'card', id: '4242424242424242' }] })],
+    ['a lower-case NRIC as payload code', bad({ ref: 's1234567d' })],
+    ['a card number in an action', entry({ action: 'paid.4242424242424242' })],
+    // Acceptance correction: AC-8 names both values for every field, and "contains" a card.
+    ['a card number as subject ID', entry({ subjectId: '4242424242424242' })],
+    ['a lower-case NRIC as related ID', entry({ related: [{ type: 'contact', id: 's1234567d' }] })],
+    ['a card number in a payload code', bad({ ref: 'order.4242424242424242' })],
+    ['a lower-case NRIC in an actor ID', entry({ actorId: 'staff:s1234567d' })],
   ])('rejects %s', (_n, e) => {
     expect(() => assertAuditEntry(e)).toThrow(AuditPayloadError);
+  });
+
+  it('rejects a PII code at construction', () => {
+    expect(() => auditCode('s1234567d')).toThrow(AuditPayloadError);
+    expect(() => auditCode('4242424242424242')).toThrow(AuditPayloadError);
   });
 
   it('accepts the shapes the existing callers write', () => {
