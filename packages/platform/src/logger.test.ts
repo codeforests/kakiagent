@@ -31,6 +31,13 @@ describe('logger PII scrubbing (GOV-04, FEAT-003 AC-7)', () => {
     expect(err.stack).not.toContain('S1234567D');
   });
 
+  it('masks an error logged on its own (M4)', () => {
+    const { log, lines } = capture();
+    log.error(new Error('no card 4242424242424242'));
+    expect(lines[0]!.msg).toBe('no card [CARD ••••4242]');
+    expect(JSON.stringify(lines[0])).not.toContain('4242424242424242');
+  });
+
   it('redacts content fields', () => {
     const { log, lines } = capture();
     log.info(

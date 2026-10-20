@@ -89,6 +89,19 @@ describe('performance (AC-10)', () => {
   });
 });
 
+describe('maskLogText performance (M3)', () => {
+  it('stays linear on long strings with and without an @', () => {
+    for (const input of ['a@' + 'a'.repeat(16_000), 'a.'.repeat(8_000) + '@', 'a@'.repeat(8_000)]) {
+      const times = Array.from({ length: 3 }, () => {
+        const t = performance.now();
+        maskLogText(input);
+        return performance.now() - t;
+      });
+      expect(Math.min(...times), input.slice(0, 10)).toBeLessThan(20);
+    }
+  });
+});
+
 describe('random inputs', () => {
   // A small seeded generator, so a failure reproduces.
   let seed = 20261020;
@@ -96,7 +109,7 @@ describe('random inputs', () => {
     seed = (seed * 1103515245 + 12345) % 2 ** 31;
     return seed % n;
   };
-  const alphabet = '0123456789     --STFGMDJabc户口账号+.';
+  const alphabet = '0123456789     --STFGMDJabc户口账号+.\u3000\u00a0\u2013\t';
   const inputs = Array.from({ length: 2000 }, () =>
     Array.from({ length: 10 + rand(60) }, () => alphabet[rand(alphabet.length)]).join(''),
   );

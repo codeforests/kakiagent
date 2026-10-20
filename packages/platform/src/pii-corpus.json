@@ -1,9 +1,21 @@
 {
   "$comment": "GOV-04 masker corpus (ADR-015 consequences; FEAT-003 §5.3). Each case: the visitor text and the exact text that must be stored. Cases whose `masked` equals `text` are negatives: ordinary messages that must come back unchanged. The NRIC/FIN and card numbers are checksum-valid test values, not real people's.",
   "cases": [
-    { "id": "nric-s", "text": "My IC is S1234567D", "masked": "My IC is [NRIC ••••567D]" },
-    { "id": "nric-t", "text": "NRIC T0123456G thanks", "masked": "NRIC [NRIC ••••456G] thanks" },
-    { "id": "nric-f", "text": "FIN F1234567N", "masked": "FIN [NRIC ••••567N]" },
+    {
+      "id": "nric-s",
+      "text": "My IC is S1234567D",
+      "masked": "My IC is [NRIC ••••567D]"
+    },
+    {
+      "id": "nric-t",
+      "text": "NRIC T0123456G thanks",
+      "masked": "NRIC [NRIC ••••456G] thanks"
+    },
+    {
+      "id": "nric-f",
+      "text": "FIN F1234567N",
+      "masked": "FIN [NRIC ••••567N]"
+    },
     {
       "id": "nric-g",
       "text": "my fin is G9876543W can book?",
@@ -14,20 +26,36 @@
       "text": "M1234567K for the delivery form",
       "masked": "[NRIC ••••567K] for the delivery form"
     },
-    { "id": "nric-lower", "text": "ic s1234567d", "masked": "ic [NRIC ••••567D]" },
-    { "id": "nric-spaced", "text": "IC: S 1234567 D", "masked": "IC: [NRIC ••••567D]" },
-    { "id": "nric-hyphen", "text": "S-123-4567-D pls", "masked": "[NRIC ••••567D] pls" },
     {
-      "id": "nric-fullwidth",
+      "id": "nric-lower",
+      "text": "ic s1234567d",
+      "masked": "ic [NRIC ••••567D]"
+    },
+    {
+      "id": "nric-spaced",
+      "text": "IC: S 1234567 D",
+      "masked": "IC: [NRIC ••••567D]"
+    },
+    {
+      "id": "nric-hyphen",
+      "text": "S-123-4567-D pls",
+      "masked": "[NRIC ••••567D] pls"
+    },
+    {
+      "id": "nric-fullwidth-glued",
       "text": "身份证ＳＴ１２３４５６７Ｊ",
-      "masked": "身份证ＳＴ１２３４５６７Ｊ"
+      "masked": "身份证Ｓ[NRIC ••••567J]"
     },
     {
       "id": "nric-fullwidth-valid",
       "text": "身份证Ｓ１２３４５６７Ｄ",
       "masked": "身份证[NRIC ••••567D]"
     },
-    { "id": "nric-zh", "text": "我的IC是S1234567D谢谢", "masked": "我的IC是[NRIC ••••567D]谢谢" },
+    {
+      "id": "nric-zh",
+      "text": "我的IC是S1234567D谢谢",
+      "masked": "我的IC是[NRIC ••••567D]谢谢"
+    },
     {
       "id": "nric-singlish",
       "text": "ok lah my nric T1234567J can or not",
@@ -38,14 +66,41 @@
       "text": "me S1234567D and my wife S9876543C",
       "masked": "me [NRIC ••••567D] and my wife [NRIC ••••543C]"
     },
-    { "id": "nric-punct", "text": "(S1234567D), next", "masked": "([NRIC ••••567D]), next" },
-    { "id": "nric-bad-letter", "text": "code S1234567A", "masked": "code S1234567A" },
-    { "id": "nric-short", "text": "S123456D", "masked": "S123456D" },
-    { "id": "nric-long", "text": "S12345678D", "masked": "S12345678D" },
-    { "id": "nric-inside-word", "text": "XS1234567D", "masked": "XS1234567D" },
-    { "id": "nric-trailing-digit", "text": "S1234567D9", "masked": "S1234567D9" },
-
-    { "id": "card-plain", "text": "card 4242424242424242", "masked": "card [CARD ••••4242]" },
+    {
+      "id": "nric-punct",
+      "text": "(S1234567D), next",
+      "masked": "([NRIC ••••567D]), next"
+    },
+    {
+      "id": "nric-bad-letter",
+      "text": "code S1234567A",
+      "masked": "code S1234567A"
+    },
+    {
+      "id": "nric-short",
+      "text": "S123456D",
+      "masked": "S123456D"
+    },
+    {
+      "id": "nric-long",
+      "text": "S12345678D",
+      "masked": "S12345678D"
+    },
+    {
+      "id": "nric-glued-before",
+      "text": "XS1234567D",
+      "masked": "X[NRIC ••••567D]"
+    },
+    {
+      "id": "nric-trailing-digit",
+      "text": "S1234567D9",
+      "masked": "S1234567D9"
+    },
+    {
+      "id": "card-plain",
+      "text": "card 4242424242424242",
+      "masked": "card [CARD ••••4242]"
+    },
     {
       "id": "card-spaced",
       "text": "can pay with 4242 4242 4242 4242?",
@@ -56,8 +111,16 @@
       "text": "5555-5555-5555-4444 exp 12/29",
       "masked": "[CARD ••••4444] exp 12/29"
     },
-    { "id": "card-amex", "text": "amex 3782 822463 10005", "masked": "amex [CARD ••••0005]" },
-    { "id": "card-13", "text": "old visa 4222222222222", "masked": "old visa [CARD ••••2222]" },
+    {
+      "id": "card-amex",
+      "text": "amex 3782 822463 10005",
+      "masked": "amex [CARD ••••0005]"
+    },
+    {
+      "id": "card-13",
+      "text": "old visa 4222222222222",
+      "masked": "old visa [CARD ••••2222]"
+    },
     {
       "id": "card-19",
       "text": "unionpay 6200000000000000000",
@@ -78,13 +141,16 @@
       "text": "信用卡4242424242424242可以吗",
       "masked": "信用卡[CARD ••••4242]可以吗"
     },
-    { "id": "card-luhn-fail", "text": "ref 4242424242424241", "masked": "ref 4242424242424241" },
+    {
+      "id": "card-luhn-fail",
+      "text": "ref 4242424242424241",
+      "masked": "ref 4242424242424241"
+    },
     {
       "id": "card-too-long",
       "text": "tracking 12345678901234567890123",
       "masked": "tracking 12345678901234567890123"
     },
-
     {
       "id": "bank-dbs",
       "text": "my DBS acct 123-456789-0",
@@ -110,13 +176,21 @@
       "text": "account no. 501-234567-001",
       "masked": "account no. [BANK ••••7001]"
     },
-    { "id": "bank-zh", "text": "转账到户口 1234567890", "masked": "转账到户口 [BANK ••••7890]" },
+    {
+      "id": "bank-zh",
+      "text": "转账到户口 1234567890",
+      "masked": "转账到户口 [BANK ••••7890]"
+    },
     {
       "id": "bank-zh-after",
       "text": "1234567890是我的银行账号",
       "masked": "[BANK ••••7890]是我的银行账号"
     },
-    { "id": "bank-no-keyword", "text": "ref 1234567890", "masked": "ref 1234567890" },
+    {
+      "id": "bank-no-keyword",
+      "text": "ref 1234567890",
+      "masked": "ref 1234567890"
+    },
     {
       "id": "bank-phone-cc",
       "text": "account phone +65 9123 4567",
@@ -137,13 +211,101 @@
       "text": "account 4242 4242 4242 4242",
       "masked": "account [CARD ••••4242]"
     },
-
     {
       "id": "mixed",
       "text": "IC S1234567D, card 4242 4242 4242 4242, DBS acct 123-456789-0",
       "masked": "IC [NRIC ••••567D], card [CARD ••••4242], DBS acct [BANK ••••7890]"
     },
-
+    {
+      "id": "card-ideographic-space",
+      "text": "卡号４２４２　４２４２　４２４２　４２４２",
+      "masked": "卡号[CARD ••••4242]"
+    },
+    {
+      "id": "card-nbsp",
+      "text": "card 4242 4242 4242 4242",
+      "masked": "card [CARD ••••4242]"
+    },
+    {
+      "id": "card-double-space",
+      "text": "card 4242  4242  4242  4242",
+      "masked": "card [CARD ••••4242]"
+    },
+    {
+      "id": "card-tab",
+      "text": "card 4242\t4242\t4242\t4242",
+      "masked": "card [CARD ••••4242]"
+    },
+    {
+      "id": "card-en-dash",
+      "text": "card 4242–4242–4242–4242",
+      "masked": "card [CARD ••••4242]"
+    },
+    {
+      "id": "card-spaced-hyphen",
+      "text": "card 4242 - 4242 - 4242 - 4242",
+      "masked": "card [CARD ••••4242]"
+    },
+    {
+      "id": "nric-double-space",
+      "text": "IC S  1234567  D",
+      "masked": "IC [NRIC ••••567D]"
+    },
+    {
+      "id": "nric-nbsp",
+      "text": "IC S 1234567 D",
+      "masked": "IC [NRIC ••••567D]"
+    },
+    {
+      "id": "nric-ideographic-space",
+      "text": "身份证 S　1234567　D",
+      "masked": "身份证 [NRIC ••••567D]"
+    },
+    {
+      "id": "bank-en-dash",
+      "text": "DBS acct 123–456789–0",
+      "masked": "DBS acct [BANK ••••7890]"
+    },
+    {
+      "id": "bank-then-date",
+      "text": "UOB 1234567890 2024-10-20",
+      "masked": "UOB [BANK ••••7890] 2024-10-20"
+    },
+    {
+      "id": "bank-then-qty",
+      "text": "DBS acct 123456789012 2 pcs",
+      "masked": "DBS acct [BANK ••••9012] 2 pcs"
+    },
+    {
+      "id": "bank-hyphenated-then-number",
+      "text": "DBS acct 123-456789-0 5",
+      "masked": "DBS acct [BANK ••••7890] 5"
+    },
+    {
+      "id": "bank-spaced-groups",
+      "text": "OCBC account 1234 5678 90",
+      "masked": "OCBC account [BANK ••••7890]"
+    },
+    {
+      "id": "card-glued-after",
+      "text": "4242 4242 4242 4242pls",
+      "masked": "[CARD ••••4242]pls"
+    },
+    {
+      "id": "card-glued-before",
+      "text": "card4242424242424242",
+      "masked": "card[CARD ••••4242]"
+    },
+    {
+      "id": "nric-glued-pair",
+      "text": "S1234567DS9876543C",
+      "masked": "[NRIC ••••567D][NRIC ••••543C]"
+    },
+    {
+      "id": "nric-glued-after",
+      "text": "S1234567Dpls",
+      "masked": "[NRIC ••••567D]pls"
+    },
     {
       "id": "neg-price",
       "text": "How much is the chocolate fudge cake? S$55.00 ah?",
@@ -189,8 +351,16 @@
       "text": "can I pay by bank transfer or PayNow?",
       "masked": "can I pay by bank transfer or PayNow?"
     },
-    { "id": "neg-sku", "text": "item S1234567A in stock?", "masked": "item S1234567A in stock?" },
-    { "id": "neg-uen", "text": "our UEN is 201912345K", "masked": "our UEN is 201912345K" },
+    {
+      "id": "neg-sku",
+      "text": "item S1234567A in stock?",
+      "masked": "item S1234567A in stock?"
+    },
+    {
+      "id": "neg-uen",
+      "text": "our UEN is 201912345K",
+      "masked": "our UEN is 201912345K"
+    },
     {
       "id": "neg-time-range",
       "text": "open 10-6 daily, 9.30am on Sat",
@@ -201,6 +371,30 @@
       "text": "the hotline is 1800 123 4567",
       "masked": "the hotline is 1800 123 4567"
     },
-    { "id": "neg-empty", "text": "", "masked": "" }
+    {
+      "id": "neg-empty",
+      "text": "",
+      "masked": ""
+    },
+    {
+      "id": "neg-spaced-word",
+      "text": "she has 1234567 A grade cakes",
+      "masked": "she has 1234567 A grade cakes"
+    },
+    {
+      "id": "neg-two-spaces-numbers",
+      "text": "2  cakes  and  3  tarts",
+      "masked": "2  cakes  and  3  tarts"
+    },
+    {
+      "id": "neg-zh-spaces",
+      "text": "两个　蛋糕　谢谢",
+      "masked": "两个　蛋糕　谢谢"
+    },
+    {
+      "id": "neg-dash-range",
+      "text": "open 10–6, ages 3–12",
+      "masked": "open 10–6, ages 3–12"
+    }
   ]
 }

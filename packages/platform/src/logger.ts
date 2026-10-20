@@ -39,9 +39,16 @@ export function createLogger(
     },
     hooks: {
       logMethod(args: unknown[], method: (...a: unknown[]) => void) {
+        // `log.error(err)` would copy the raw `err.message` into `msg` after this hook,
+        // so it is rewritten as `log.error({ err }, message)` (M4).
+        const [first, ...rest] = args;
+        const normalised =
+          first instanceof Error
+            ? [{ err: first }, ...(rest.length ? rest : [first.message])]
+            : args;
         method.apply(
           this,
-          args.map((a) => (typeof a === 'string' ? maskLogText(a) : a)),
+          normalised.map((a) => (typeof a === 'string' ? maskLogText(a) : a)),
         );
       },
     },

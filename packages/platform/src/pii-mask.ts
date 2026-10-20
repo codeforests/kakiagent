@@ -17,14 +17,26 @@ export interface PiiFinding {
 
 const DOTS = '••••';
 
-/** Full-width forms (U+FF01–U+FF5E) to ASCII: one UTF-16 unit each, so offsets hold. */
+/**
+ * Matching runs on a folded copy: full-width forms (U+FF01–U+FF5E) become ASCII, other
+ * spaces (ideographic, no-break, narrow, figure, tab) a space, and dashes (U+2010–U+2015,
+ * U+2212) a hyphen. Every mapping is one UTF-16 unit to one, so offsets hold (DD-1).
+ */
 function fold(text: string): string {
-  return text.replace(/[！-～]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0));
+  return text
+    .replace(/[\uFF01-\uFF5E]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
+    .replace(/[\u3000\u00A0\u202F\u2007\t]/g, ' ')
+    .replace(/[\u2010-\u2015\u2212]/g, '-');
 }
 
 const digitsOf = (s: string) => s.replace(/\D/g, '');
 
-const NRIC_RE = /(?<![A-Za-z0-9])([STFGM])[ -]?((?:\d[ -]?){6}\d)[ -]?([A-Z])(?![A-Za-z0-9])/gi;
+/** Between groups: one or two spaces, or a hyphen with an optional space either side. */
+const SEP = '(?: {1,2}| ?- ?)';
+const NRIC_RE = new RegExp(
+  `(?<!\\d)([STFGM])(${SEP}?)((?:\\d${SEP}?){6}\\d)(${SEP}?)([A-Z])(?!\\d)`,
+  'gi',
+);
 const NRIC_WEIGHTS = [2, 7, 6, 5, 4, 3, 2];
 const NRIC_LETTERS: Record<string, string> = {
   S: 'JZIHGFEDCBA',
@@ -62,16 +74,26 @@ interface Group {
   digits: string;
 }
 
-/** Digit groups joined by single spaces or hyphens, not inside a longer letter or digit run. */
-const RUN_RE = /(?<![A-Za-z0-9])\d+(?:[ -]\d+)*(?![A-Za-z0-9])/g;
+/**
+ * Digit groups joined by separators. Letters may touch a run (`…4242pls`, M2); digits
+ * can't, by construction. `spaced` marks a group that follows a space-only separator.
+ */
+const RUN_RE = new RegExp(`\\d+(?:${SEP}\\d+)*`, 'g');
 
-function digitRuns(folded: string): Group[][] {
-  const runs: Group[][] = [];
+interface RunGroup extends Group {
+  spaced: boolean;
+}
+
+function digitRuns(folded: string): RunGroup[][] {
+  const runs: RunGroup[][] = [];
   for (const m of folded.matchAll(RUN_RE)) {
-    const groups: Group[] = [];
+    const groups: RunGroup[] = [];
+    let prevEnd = -1;
     for (const g of m[0].matchAll(/\d+/g)) {
       const start = m.index + g.index;
-      groups.push({ start, end: start + g[0].length, digits: g[0] });
+      const spaced = prevEnd >= 0 && !folded.slice(prevEnd, start).includes('-');
+      groups.push({ start, end: start + g[0].length, digits: g[0], spaced });
+      prevEnd = start + g[0].length;
     }
     runs.push(groups);
   }
@@ -88,14 +110,22 @@ const CARD_LENGTH_RANK = [16, 15, 19, 14, 13, 17, 18];
  * and the whole search is bounded (AC-10).
  */
 function cardsIn(groups: Group[], out: PiiFinding[]): void {
+  // The run's digits as numbers, and where each group starts in them: no strings built
+  // per window, so a 4000-character run of digits stays cheap (AC-10).
+  const digits: number[] = [];
+  const from: number[] = [];
+  for (const g of groups) {
+    from.push(digits.length);
+    for (let k = 0; k < g.digits.length; k++) digits.push(g.digits.charCodeAt(k) - 48);
+  }
+  from.push(digits.length);
   const windows: { i: number; j: number; rank: number }[] = [];
   for (let i = 0; i < groups.length; i++) {
-    let digits = '';
     for (let j = i; j < groups.length; j++) {
-      digits += groups[j]!.digits;
-      if (digits.length > 19) break;
-      const rank = CARD_LENGTH_RANK.indexOf(digits.length);
-      if (rank >= 0 && luhnOk(digits)) windows.push({ i, j, rank });
+      const len = from[j + 1]! - from[i]!;
+      if (len > 19) break;
+      const rank = CARD_LENGTH_RANK.indexOf(len);
+      if (rank >= 0 && luhnRange(digits, from[i]!, from[j + 1]!)) windows.push({ i, j, rank });
     }
   }
   windows.sort((a, b) => a.rank - b.rank || a.i - b.i);
@@ -107,22 +137,92 @@ function cardsIn(groups: Group[], out: PiiFinding[]): void {
   }
 }
 
+function luhnRange(digits: number[], start: number, end: number): boolean {
+  let sum = 0;
+  for (let k = end - 1, i = 0; k >= start; k--, i++) {
+    let d = digits[k]!;
+    if (i % 2 === 1) {
+      d *= 2;
+      if (d > 9) d -= 9;
+    }
+    sum += d;
+  }
+  return sum % 10 === 0;
+}
+
 /** ADR-015 decision 1 keywords, plus bank names and transfer words visitors use (D4). */
 const BANK_KEYWORD_EN =
-  /(?<![A-Za-z])(?:accounts?|acct|acc|a\/c|bank|savings|current|paynow|dbs|posb|ocbc|uob|maybank|hsbc|citi|citibank|standard chartered|scb)(?![A-Za-z])/i;
-const BANK_KEYWORD_ZH = /户口|账号|帐号|账户|帐户|银行|转账|转帐|存折/;
+  /(?<![A-Za-z])(?:accounts?|acct|acc|a\/c|bank|savings|current|paynow|dbs|posb|ocbc|uob|maybank|hsbc|citi|citibank|standard chartered|scb)(?![A-Za-z])/gi;
+const BANK_KEYWORD_ZH = /户口|账号|帐号|账户|帐户|银行|转账|转帐|存折/g;
 const BANK_WINDOW = 40;
 
-function nearBankKeyword(folded: string, start: number, end: number): boolean {
-  const around =
-    folded.slice(Math.max(0, start - BANK_WINDOW), start) +
-    ' ' +
-    folded.slice(end, end + BANK_WINDOW);
-  return BANK_KEYWORD_EN.test(around) || BANK_KEYWORD_ZH.test(around);
+/** Where the bank keywords are, as [start, end) spans, found once per text. */
+function bankKeywordSpans(folded: string): [number, number][] {
+  const spans: [number, number][] = [];
+  for (const re of [BANK_KEYWORD_EN, BANK_KEYWORD_ZH])
+    for (const m of folded.matchAll(re)) spans.push([m.index, m.index + m[0].length]);
+  return spans.sort((a, b) => a[0] - b[0]);
 }
+
+const nearBankKeyword = (spans: [number, number][], start: number, end: number) =>
+  spans.some(([s, e]) =>
+    e <= start ? start - e <= BANK_WINDOW : s >= end && s - end < BANK_WINDOW,
+  );
 
 const overlaps = (a: { start: number; end: number }, found: PiiFinding[]) =>
   found.some((f) => a.start < f.end && f.start < a.end);
+
+/**
+ * Bank numbers (D4, M1): a run is split at space-only separators into chunks (bank
+ * formats join their groups with hyphens); a window of consecutive chunks with 9–12
+ * digits next to a keyword is a bank number. Fewest chunks win, then the earliest, so a
+ * date or quantity after the number stays out of it.
+ */
+function banksIn(
+  folded: string,
+  keywords: [number, number][],
+  groups: RunGroup[],
+  found: PiiFinding[],
+): void {
+  if (groups.reduce((n, g) => n + g.digits.length, 0) < 9) return;
+  const runStart = groups[0]!.start;
+  const runEnd = groups[groups.length - 1]!.end;
+  const near: [number, number][] = [];
+  // `keywords` is sorted by start, and so by end: skip to the first that can be near.
+  let lo = 0;
+  let hi = keywords.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (keywords[mid]![1] < runStart - BANK_WINDOW) lo = mid + 1;
+    else hi = mid;
+  }
+  for (let k = lo; k < keywords.length && keywords[k]![0] < runEnd + BANK_WINDOW; k++)
+    near.push(keywords[k]!);
+  if (near.length === 0) return;
+  const chunks: Group[] = [];
+  for (const g of groups) {
+    const last = chunks[chunks.length - 1];
+    if (last && !g.spaced)
+      chunks[chunks.length - 1] = { start: last.start, end: g.end, digits: last.digits + g.digits };
+    else chunks.push({ start: g.start, end: g.end, digits: g.digits });
+  }
+  const windows: { start: number; end: number; n: number }[] = [];
+  for (let i = 0; i < chunks.length; i++) {
+    let len = 0;
+    for (let j = i; j < chunks.length; j++) {
+      len += chunks[j]!.digits.length;
+      if (len > 12) break;
+      const w = { start: chunks[i]!.start, end: chunks[j]!.end, n: j - i + 1 };
+      if (len >= 9) windows.push(w);
+    }
+  }
+  windows.sort((a, b) => a.n - b.n || a.start - b.start);
+  for (const w of windows) {
+    if (overlaps(w, found) || folded[w.start - 1] === '+') continue;
+    if (nearBankKeyword(near, w.start, w.end))
+      found.push({ kind: 'bank', start: w.start, end: w.end });
+  }
+}
 
 /** Every NRIC/FIN, card and bank account number in the text, in order, non-overlapping. */
 export function findPii(text: string): PiiFinding[] {
@@ -130,8 +230,14 @@ export function findPii(text: string): PiiFinding[] {
   const found: PiiFinding[] = [];
 
   for (const m of folded.matchAll(NRIC_RE)) {
-    if (nricChecksumOk(m[1]!, digitsOf(m[2]!), m[3]!))
-      found.push({ kind: 'nric', start: m.index, end: m.index + m[0].length });
+    const [whole, prefix, sepAfterPrefix, digits, sepBeforeLetter, letter] =
+      m as unknown as string[];
+    const end = m.index + whole!.length;
+    // Glued to a word (M2) only when written solid: "has 1234567 A" is not an NRIC.
+    if (/[A-Za-z]/.test(folded[m.index - 1] ?? '') && sepAfterPrefix) continue;
+    if (/[A-Za-z]/.test(folded[end] ?? '') && sepBeforeLetter) continue;
+    if (nricChecksumOk(prefix!, digitsOf(digits!), letter!))
+      found.push({ kind: 'nric', start: m.index, end });
   }
 
   const runs = digitRuns(folded)
@@ -141,13 +247,8 @@ export function findPii(text: string): PiiFinding[] {
   for (const groups of runs) cardsIn(groups, cards);
   found.push(...cards.sort((a, b) => a.start - b.start));
 
-  for (const groups of runs) {
-    const span = { start: groups[0]!.start, end: groups[groups.length - 1]!.end };
-    const len = groups.reduce((n, g) => n + g.digits.length, 0);
-    if (len < 9 || len > 12 || overlaps(span, found)) continue;
-    if (folded[span.start - 1] === '+') continue;
-    if (nearBankKeyword(folded, span.start, span.end)) found.push({ kind: 'bank', ...span });
-  }
+  const keywords = bankKeywordSpans(folded);
+  if (keywords.length > 0) for (const groups of runs) banksIn(folded, keywords, groups, found);
 
   return found.sort((a, b) => a.start - b.start);
 }
@@ -163,16 +264,30 @@ function token(kind: PiiKind, value: string): string {
 
 /** GOV-04: the text with every finding replaced by its token. Idempotent. */
 export function piiMask(text: string): string {
-  let out = text;
-  for (const f of findPii(text).reverse())
-    out = out.slice(0, f.start) + token(f.kind, text.slice(f.start, f.end)) + out.slice(f.end);
-  return out;
+  const parts: string[] = [];
+  let at = 0;
+  for (const f of findPii(text)) {
+    parts.push(text.slice(at, f.start), token(f.kind, text.slice(f.start, f.end)));
+    at = f.end;
+  }
+  parts.push(text.slice(at));
+  return parts.join('');
 }
 
-const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
-const SG_PHONE_RE = /(?<![A-Za-z0-9+])(?:\+?65[ -]?)?[3689]\d{3}[ -]?\d{4}(?![A-Za-z0-9])/g;
+// The lookbehind starts a match only at the start of a local part, so the scan is linear (M3).
+const EMAIL_RE =
+  /(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}/g;
+const SG_PHONE_RE = /(?<![0-9+])(?:\+?65[ -]?)?[3689]\d{3}[ -]?\d{4}(?!\d)/g;
 
 /** GOV-04 "mask other PII in logs": piiMask, then emails and SG phone numbers. */
 export function maskLogText(text: string): string {
-  return piiMask(text).replace(EMAIL_RE, '[EMAIL]').replace(SG_PHONE_RE, '[PHONE]');
+  return replaceOnFolded(piiMask(text).replace(EMAIL_RE, '[EMAIL]'), SG_PHONE_RE, '[PHONE]');
+}
+
+/** Replaces matches found on the folded text in the original, right to left. */
+function replaceOnFolded(text: string, re: RegExp, by: string): string {
+  let out = text;
+  for (const m of [...fold(text).matchAll(re)].reverse())
+    out = out.slice(0, m.index) + by + out.slice(m.index + m[0].length);
+  return out;
 }
