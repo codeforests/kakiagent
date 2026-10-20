@@ -64,3 +64,70 @@ test('a fact added in the dashboard is used in the next widget answer', async ({
   await expectNoSeriousA11yViolations(visitor, 'kaki-agent');
   await visitorContext.close();
 });
+
+/**
+ * FEAT-011 AC-9 (UC-13 1–3, UC-20): the owner adds a refund policy, finds it by type,
+ * a visitor's question is answered with its details; the owner deletes it from its
+ * row menu, and the next identical question no longer gets them.
+ */
+test('a policy is answered, then deleted from the list and no longer used', async ({
+  page: owner,
+  browser,
+}) => {
+  // A word unique to this run, so facts left by an earlier run can't answer for it.
+  const token = Array.from({ length: 8 }, () =>
+    String.fromCharCode(97 + Math.floor(Math.random() * 26)),
+  ).join('');
+  const details = `Cancel at least 2 days before collection for a full refund, ref ${token}.`;
+  await signIn(owner, 'owner@kaki-bakery.test');
+
+  // SCR-APP-028: the policy.
+  await owner.goto('/knowledge/facts/new');
+  await owner.getByLabel('Policy', { exact: true }).check();
+  await owner.getByLabel('Kind (required)').selectOption('refund');
+  await owner.getByLabel('Title (required)').fill('Cake order refund policy');
+  await owner.getByLabel('Details (required)').fill(details);
+  await expectNoSeriousA11yViolations(owner);
+  await owner.getByRole('button', { name: 'Save fact' }).click();
+  await expect(owner).toHaveURL(/\/knowledge$/);
+  await expect(owner.getByRole('status').filter({ hasText: 'Fact saved' })).toBeVisible();
+
+  // SCR-APP-027: filter by type.
+  await owner.getByLabel('Type').selectOption('policy');
+  const row = owner.getByTestId('fact-row').filter({ hasText: token });
+  await expect(row).toHaveCount(1);
+  await expect(row).toContainText('Policy');
+  await expect(owner.getByTestId('fact-row').filter({ hasText: 'Chocolate' })).toHaveCount(0);
+
+  // A visitor asks.
+  const ask = async () => {
+    const context = await browser.newContext();
+    const visitor = await context.newPage();
+    await openShadowRoots(visitor);
+    await visitor.goto(WIDGET_HOST);
+    await visitor.getByRole('button', { name: /^Chat with / }).click();
+    const panel = visitor.getByRole('dialog');
+    await panel.getByLabel('Message').fill('what is your cake order refund policy?');
+    await panel.getByRole('button', { name: 'Send' }).click();
+    const reply = panel.locator('[data-author="agent"]:not([data-pending])');
+    await expect(reply).toBeVisible();
+    const text = await reply.innerText();
+    await context.close();
+    return text;
+  };
+  expect(await ask()).toContain(details);
+
+  // Delete from the row menu, through the confirm dialog.
+  await row.getByRole('button', { name: /^Actions for / }).click();
+  await owner.getByRole('menuitem', { name: 'Delete…' }).click();
+  const dialog = owner.getByRole('alertdialog', { name: 'Delete this fact?' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Cancel' })).toBeFocused();
+  await expectNoSeriousA11yViolations(owner);
+  await dialog.getByRole('button', { name: 'Delete fact' }).click();
+  await expect(dialog).toBeHidden();
+  await expect(owner.getByRole('status').filter({ hasText: 'Fact deleted.' })).toBeVisible();
+  await expect(owner.getByTestId('fact-row').filter({ hasText: token })).toHaveCount(0);
+
+  expect(await ask()).not.toContain(token);
+});
