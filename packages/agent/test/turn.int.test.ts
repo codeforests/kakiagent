@@ -307,8 +307,17 @@ describe('runVisitorTurn (UC-20)', () => {
   });
 
   it('sends the model and the embedder only masked visitor text (GOV-04, FEAT-003 AC-6)', async () => {
-    const raw = ['S1234567D', '4242 4242 4242 4242', '4242424242424242'];
-    const c = await conversationWith('fudge cake price? IC S1234567D, card 4242 4242 4242 4242');
+    // AC-6: the turn on the AC-5 message, so the bank number is checked too (acceptance correction).
+    const raw = [
+      'S1234567D',
+      '4242 4242 4242 4242',
+      '4242424242424242',
+      '123-456789-0',
+      '1234567890',
+    ];
+    const c = await conversationWith(
+      'fudge cake price? IC S1234567D, card 4242 4242 4242 4242, refund to DBS acct 123-456789-0',
+    );
     // What the agent hands the gateway, and what the provider receives behind it.
     const toGateway: unknown[] = [];
     const toProvider: unknown[] = [];
@@ -337,6 +346,7 @@ describe('runVisitorTurn (UC-20)', () => {
       for (const r of raw) expect(text).not.toContain(r);
       expect(text).toContain('[NRIC ••••567D]');
       expect(text).toContain('[CARD ••••4242]');
+      expect(text).toContain('[BANK ••••7890]');
     }
   });
 
