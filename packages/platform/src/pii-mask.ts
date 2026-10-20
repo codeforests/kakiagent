@@ -189,17 +189,31 @@ const overlaps = (a: { start: number; end: number }, found: PiiFinding[]) =>
 
 const isLetter = (c: string | undefined) => c !== undefined && /[A-Za-z]/.test(c);
 
-/** A bank number glued to a word (`UEN 201912345K`, `INV-2026-10-0001`) is a code (D15). */
-const gluedToWord = (folded: string, start: number, end: number) =>
-  isLetter(folded[end]) ||
-  isLetter(folded[start - 1]) ||
-  (folded[start - 1] === '-' && isLetter(folded[start - 2]));
+const BANK_WORD =
+  /^(?:accounts?|acct|acc|a\/c|bank|savings|current|paynow|dbs|posb|ocbc|uob|maybank|hsbc|citi|citibank|scb)$/i;
 
 /**
- * Bank numbers (D4, D15): a run is split at space-only separators into chunks. A chunk of
- * 9 or more digits, or one written with hyphens, is a number on its own. Shorter chunks
- * are groups typed with spaces (`123 456789 0`), so from the earliest such chunk the
- * longest window of 9–12 digits is taken whole. Either kind must sit next to a keyword.
+ * Not an account number although near a keyword (D16): a UEN-shaped number with one
+ * letter after it (`201912345K`), a code with a letter prefix and a hyphen
+ * (`INV-2026-10-0001`, unless the prefix is a bank word: `DBS-1234567890`), and the
+ * tail of a time, decimal or date (`10:30 24 10 2026`).
+ */
+function notAnAccount(folded: string, start: number, end: number): boolean {
+  if (isLetter(folded[end]) && !isLetter(folded[end + 1])) return true;
+  const before = folded[start - 1];
+  if (before === '-') {
+    const word = /[A-Za-z/]+$/.exec(folded.slice(Math.max(0, start - 21), start - 1));
+    if (word && !BANK_WORD.test(word[0])) return true;
+  }
+  return (before === ':' || before === '.' || before === '/') && /\d/.test(folded[start - 2] ?? '');
+}
+
+/**
+ * Bank numbers (D4, D15, D16): a run is split at space-only separators into chunks (the
+ * groups a visitor joined with hyphens stay together). A chunk of 9 or more digits that is
+ * solid or in three or more groups is a number on its own, so a quantity typed after it
+ * stays out. Other chunks are parts typed with spaces (`123 456789 0`, `123-456789 0`), so
+ * from the earliest such chunk the longest window of 9–12 digits is taken whole. Either kind must sit next to a keyword.
  */
 function banksIn(
   folded: string,
@@ -222,7 +236,7 @@ function banksIn(
   for (let k = lo; k < keywords.length && keywords[k]![0] < runEnd + BANK_WINDOW; k++)
     near.push(keywords[k]!);
   if (near.length === 0) return;
-  const chunks: (Group & { whole: boolean })[] = [];
+  const chunks: (Group & { parts: number })[] = [];
   for (const g of groups) {
     const last = chunks[chunks.length - 1];
     if (last && !g.spaced)
@@ -230,13 +244,15 @@ function banksIn(
         start: last.start,
         end: g.end,
         digits: last.digits + g.digits,
-        whole: true,
+        parts: last.parts + 1,
       };
-    else chunks.push({ start: g.start, end: g.end, digits: g.digits, whole: g.digits.length >= 9 });
+    else chunks.push({ start: g.start, end: g.end, digits: g.digits, parts: 1 });
   }
+  // Complete as written: solid, or in the three or more hyphenated groups bank formats use.
+  const whole = (c: Group & { parts: number }) => c.digits.length >= 9 && c.parts !== 2;
   const take = (start: number, end: number) => {
     const w = { start, end };
-    if (overlaps(w, found) || folded[start - 1] === '+' || gluedToWord(folded, start, end))
+    if (overlaps(w, found) || folded[start - 1] === '+' || notAnAccount(folded, start, end))
       return false;
     if (!nearBankKeyword(near, start, end)) return false;
     found.push({ kind: 'bank', start, end });
@@ -244,13 +260,13 @@ function banksIn(
   };
   for (let i = 0; i < chunks.length; i++) {
     const c = chunks[i]!;
-    if (c.whole) {
-      if (c.digits.length >= 9 && c.digits.length <= 12) take(c.start, c.end);
+    if (whole(c)) {
+      if (c.digits.length <= 12) take(c.start, c.end);
       continue;
     }
     let len = 0;
     let last = -1;
-    for (let j = i; j < chunks.length && !chunks[j]!.whole; j++) {
+    for (let j = i; j < chunks.length && !whole(chunks[j]!); j++) {
       len += chunks[j]!.digits.length;
       if (len > 12) break;
       if (len >= 9) last = j;

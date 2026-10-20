@@ -495,6 +495,56 @@
       "id": "nric-small-hyphen",
       "text": "S﹣1234567﹣D",
       "masked": "[NRIC ••••567D]"
+    },
+    {
+      "id": "bank-mixed-space-then-hyphen",
+      "text": "DBS 123 456789-0",
+      "masked": "DBS [BANK ••••7890]"
+    },
+    {
+      "id": "bank-mixed-hyphen-pairs",
+      "text": "UOB 123-456 789-0",
+      "masked": "UOB [BANK ••••7890]"
+    },
+    {
+      "id": "bank-mixed-posb",
+      "text": "POSB 123-45678 9",
+      "masked": "POSB [BANK ••••6789]"
+    },
+    {
+      "id": "bank-mixed-4-4-2",
+      "text": "acct 1234-5678 90",
+      "masked": "acct [BANK ••••7890]"
+    },
+    {
+      "id": "bank-mixed-hyphen-then-space",
+      "text": "DBS 123-456789 0",
+      "masked": "DBS [BANK ••••7890]"
+    },
+    {
+      "id": "bank-mixed-ocbc",
+      "text": "OCBC 501-234567 001",
+      "masked": "OCBC [BANK ••••7001]"
+    },
+    {
+      "id": "bank-glued-keyword",
+      "text": "DBS acct1234567890",
+      "masked": "DBS acct[BANK ••••7890]"
+    },
+    {
+      "id": "bank-glued-word-after",
+      "text": "DBS 1234567890pls",
+      "masked": "DBS [BANK ••••7890]pls"
+    },
+    {
+      "id": "bank-keyword-hyphen",
+      "text": "DBS-1234567890",
+      "masked": "DBS-[BANK ••••7890]"
+    },
+    {
+      "id": "neg-bank-time-date",
+      "text": "DBS 10:30 24 10 2026",
+      "masked": "DBS 10:30 24 10 2026"
     }
   ]
 }
