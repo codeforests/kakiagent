@@ -57,6 +57,20 @@
       "when": 1792492061820,
       "tag": "0007_identity_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792498496275,
+      "tag": "0008_usage_ledger",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792498497242,
+      "tag": "0009_usage_ledger_rls",
+      "breakpoints": true
     }
   ]
 }

@@ -346,7 +346,16 @@ describe('facts and the visitor views', () => {
       TENANT_A,
       async (c) => (await c.query(`select * from visitor_tenant_state()`)).rows,
     );
-    expect(a).toEqual([{ ai_paused: false, business_name: 'Kaki Bakery', gst_registered: true }]);
+    expect(a).toEqual([
+      {
+        ai_paused: false,
+        business_name: 'Kaki Bakery',
+        gst_registered: true,
+        route_complexity_threshold: 0.6,
+        route_min_confidence: 0.5,
+        cost_governor_step: 0,
+      },
+    ]);
     const none = await asRole(
       'app_agent_visitor',
       null,
@@ -670,5 +679,59 @@ describe('identity zone', () => {
         asRole(role, TENANT_A, (c) => c.query(`delete from terms_acceptances`)),
       ).rejects.toThrow(/permission denied/);
     }
+  });
+});
+
+// ---- FEAT-004: the usage ledger and the cost governor (ADR-021, ADR-007; AC-4, AC-6) ---
+
+describe('usage ledger', () => {
+  const insertEvent = (c: pg.Client, tenantId: string) =>
+    c.query(
+      `insert into usage_events (tenant_id, purpose, model, provider, provider_model_id, cost_usd)
+       values ($1, 'reply', 'reply.simple', 'fake', 'fake-haiku', 0.001)`,
+      [tenantId],
+    );
+
+  beforeAll(async () => {
+    for (const t of [TENANT_A, TENANT_B]) await insertEvent(owner, t);
+  });
+
+  it('the visitor and dashboard zones insert in their own tenant only, and read nothing', async () => {
+    for (const role of ['app_agent_visitor', 'app_dashboard'] as const) {
+      await asRole(role, TENANT_B, (c) => insertEvent(c, TENANT_B));
+      await expect(asRole(role, TENANT_B, (c) => insertEvent(c, TENANT_A))).rejects.toThrow(
+        /row-level security/,
+      );
+      await expect(
+        asRole(role, TENANT_B, (c) => c.query(`select * from usage_events`)),
+      ).rejects.toThrow(/permission denied/);
+    }
+  });
+
+  it('no zone can update or delete a ledger row', async () => {
+    for (const role of ['app_agent_visitor', 'app_dashboard', 'app_outbox'] as const) {
+      await expect(
+        asRole(role, TENANT_A, (c) => c.query(`update usage_events set cost_usd = 0`)),
+      ).rejects.toThrow(/permission denied/);
+      await expect(
+        asRole(role, TENANT_A, (c) => c.query(`delete from usage_events`)),
+      ).rejects.toThrow(/permission denied/);
+    }
+  });
+
+  it('only the outbox zone may run the governor, and it reads nothing else', async () => {
+    const rows = await asRole(
+      'app_outbox',
+      null,
+      async (c) => (await c.query(`select * from cost_governor_evaluate(0, 0, 1)`)).rows,
+    );
+    expect(rows).toEqual([]);
+    await expect(
+      asRole('app_outbox', null, (c) => c.query(`select * from usage_events`)),
+    ).rejects.toThrow(/permission denied/);
+    for (const role of ['app_agent_visitor', 'app_dashboard', 'app_identity'] as const)
+      await expect(
+        asRole(role, TENANT_A, (c) => c.query(`select * from cost_governor_evaluate(0, 0, 1)`)),
+      ).rejects.toThrow(/permission denied/);
   });
 });
