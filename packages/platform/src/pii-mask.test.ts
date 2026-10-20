@@ -114,6 +114,16 @@ describe('maskLogText performance (M3)', () => {
       expect(Math.min(...times), input.slice(0, 10)).toBeLessThan(20);
     }
   });
+
+  it('replaces many phone numbers in one pass (re-verification M4)', () => {
+    const input = 'call 91234567 '.repeat(9_400); // about 128,000 characters
+    const times = Array.from({ length: 3 }, () => {
+      const t = cpuMs();
+      maskLogText(input);
+      return cpuMs() - t;
+    });
+    expect(Math.min(...times)).toBeLessThan(100);
+  });
 });
 
 describe('random inputs', () => {

@@ -19,14 +19,15 @@ const DOTS = '••••';
 
 /**
  * Matching runs on a folded copy: full-width forms (U+FF01–U+FF5E) become ASCII, other
- * spaces (ideographic, no-break, narrow, figure, tab) a space, and dashes (U+2010–U+2015,
- * U+2212) a hyphen. Every mapping is one UTF-16 unit to one, so offsets hold (DD-1).
+ * spaces (every Unicode space separator, tab, line breaks, zero-width space) a space, and
+ * dashes (U+2010–U+2015, U+2212, U+FE58, U+FE63, soft hyphen) a hyphen. Every mapping is
+ * one UTF-16 unit to one, so offsets hold (DD-1, D10).
  */
 function fold(text: string): string {
   return text
     .replace(/[\uFF01-\uFF5E]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
-    .replace(/[\u3000\u00A0\u202F\u2007\t]/g, ' ')
-    .replace(/[\u2010-\u2015\u2212]/g, '-');
+    .replace(/[\p{Zs}\t\n\r\u200B]/gu, ' ')
+    .replace(/[\u2010-\u2015\u2212\uFE58\uFE63\u00AD]/g, '-');
 }
 
 const digitsOf = (s: string) => s.replace(/\D/g, '');
@@ -186,11 +187,19 @@ const nearBankKeyword = (spans: [number, number][], start: number, end: number) 
 const overlaps = (a: { start: number; end: number }, found: PiiFinding[]) =>
   found.some((f) => a.start < f.end && f.start < a.end);
 
+const isLetter = (c: string | undefined) => c !== undefined && /[A-Za-z]/.test(c);
+
+/** A bank number glued to a word (`UEN 201912345K`, `INV-2026-10-0001`) is a code (D15). */
+const gluedToWord = (folded: string, start: number, end: number) =>
+  isLetter(folded[end]) ||
+  isLetter(folded[start - 1]) ||
+  (folded[start - 1] === '-' && isLetter(folded[start - 2]));
+
 /**
- * Bank numbers (D4, M1): a run is split at space-only separators into chunks (bank
- * formats join their groups with hyphens); a window of consecutive chunks with 9–12
- * digits next to a keyword is a bank number. Fewest chunks win, then the earliest, so a
- * date or quantity after the number stays out of it.
+ * Bank numbers (D4, D15): a run is split at space-only separators into chunks. A chunk of
+ * 9 or more digits, or one written with hyphens, is a number on its own. Shorter chunks
+ * are groups typed with spaces (`123 456789 0`), so from the earliest such chunk the
+ * longest window of 9–12 digits is taken whole. Either kind must sit next to a keyword.
  */
 function banksIn(
   folded: string,
@@ -213,28 +222,40 @@ function banksIn(
   for (let k = lo; k < keywords.length && keywords[k]![0] < runEnd + BANK_WINDOW; k++)
     near.push(keywords[k]!);
   if (near.length === 0) return;
-  const chunks: Group[] = [];
+  const chunks: (Group & { whole: boolean })[] = [];
   for (const g of groups) {
     const last = chunks[chunks.length - 1];
     if (last && !g.spaced)
-      chunks[chunks.length - 1] = { start: last.start, end: g.end, digits: last.digits + g.digits };
-    else chunks.push({ start: g.start, end: g.end, digits: g.digits });
+      chunks[chunks.length - 1] = {
+        start: last.start,
+        end: g.end,
+        digits: last.digits + g.digits,
+        whole: true,
+      };
+    else chunks.push({ start: g.start, end: g.end, digits: g.digits, whole: g.digits.length >= 9 });
   }
-  const windows: { start: number; end: number; n: number }[] = [];
+  const take = (start: number, end: number) => {
+    const w = { start, end };
+    if (overlaps(w, found) || folded[start - 1] === '+' || gluedToWord(folded, start, end))
+      return false;
+    if (!nearBankKeyword(near, start, end)) return false;
+    found.push({ kind: 'bank', start, end });
+    return true;
+  };
   for (let i = 0; i < chunks.length; i++) {
+    const c = chunks[i]!;
+    if (c.whole) {
+      if (c.digits.length >= 9 && c.digits.length <= 12) take(c.start, c.end);
+      continue;
+    }
     let len = 0;
-    for (let j = i; j < chunks.length; j++) {
+    let last = -1;
+    for (let j = i; j < chunks.length && !chunks[j]!.whole; j++) {
       len += chunks[j]!.digits.length;
       if (len > 12) break;
-      const w = { start: chunks[i]!.start, end: chunks[j]!.end, n: j - i + 1 };
-      if (len >= 9) windows.push(w);
+      if (len >= 9) last = j;
     }
-  }
-  windows.sort((a, b) => a.n - b.n || a.start - b.start);
-  for (const w of windows) {
-    if (overlaps(w, found) || folded[w.start - 1] === '+') continue;
-    if (nearBankKeyword(near, w.start, w.end))
-      found.push({ kind: 'bank', start: w.start, end: w.end });
+    if (last >= 0 && take(c.start, chunks[last]!.end)) i = last;
   }
 }
 
@@ -298,10 +319,14 @@ export function maskLogText(text: string): string {
   return replaceOnFolded(piiMask(text).replace(EMAIL_RE, '[EMAIL]'), SG_PHONE_RE, '[PHONE]');
 }
 
-/** Replaces matches found on the folded text in the original, right to left. */
+/** Replaces matches found on the folded text in the original, in one pass (M4). */
 function replaceOnFolded(text: string, re: RegExp, by: string): string {
-  let out = text;
-  for (const m of [...fold(text).matchAll(re)].reverse())
-    out = out.slice(0, m.index) + by + out.slice(m.index + m[0].length);
-  return out;
+  const parts: string[] = [];
+  let at = 0;
+  for (const m of fold(text).matchAll(re)) {
+    parts.push(text.slice(at, m.index), by);
+    at = m.index + m[0].length;
+  }
+  parts.push(text.slice(at));
+  return parts.join('');
 }

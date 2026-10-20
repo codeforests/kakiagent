@@ -430,6 +430,71 @@
       "id": "neg-13-not-visa",
       "text": "ref 5000000000005",
       "masked": "ref 5000000000005"
+    },
+    {
+      "id": "bank-spaced-3-6-1",
+      "text": "DBS 123 456789 0",
+      "masked": "DBS [BANK ••••7890]"
+    },
+    {
+      "id": "bank-spaced-3-3-3-1",
+      "text": "UOB 123 456 789 0",
+      "masked": "UOB [BANK ••••7890]"
+    },
+    {
+      "id": "bank-spaced-3-6-3",
+      "text": "OCBC 501 234567 001",
+      "masked": "OCBC [BANK ••••7001]"
+    },
+    {
+      "id": "bank-spaced-3-3-3-3",
+      "text": "DBS acct 123 456 789 012",
+      "masked": "DBS acct [BANK ••••9012]"
+    },
+    {
+      "id": "bank-solid-then-qty",
+      "text": "DBS acct 1234567890 2 pcs",
+      "masked": "DBS acct [BANK ••••7890] 2 pcs"
+    },
+    {
+      "id": "bank-soft-hyphen",
+      "text": "DBS 123­456789­0",
+      "masked": "DBS [BANK ••••7890]"
+    },
+    {
+      "id": "neg-bank-uen",
+      "text": "PayNow to UEN 201912345K",
+      "masked": "PayNow to UEN 201912345K"
+    },
+    {
+      "id": "neg-bank-invoice",
+      "text": "bank transfer for INV-2026-10-0001",
+      "masked": "bank transfer for INV-2026-10-0001"
+    },
+    {
+      "id": "neg-bank-code",
+      "text": "bank GF-123-456-789",
+      "masked": "bank GF-123-456-789"
+    },
+    {
+      "id": "card-line-breaks",
+      "text": "card 4242\n4242\r\n4242\n4242",
+      "masked": "card [CARD ••••4242]"
+    },
+    {
+      "id": "card-thin-space",
+      "text": "4242 4242 4242 4242",
+      "masked": "[CARD ••••4242]"
+    },
+    {
+      "id": "card-zero-width",
+      "text": "4242​4242​4242​4242",
+      "masked": "[CARD ••••4242]"
+    },
+    {
+      "id": "nric-small-hyphen",
+      "text": "S﹣1234567﹣D",
+      "masked": "[NRIC ••••567D]"
     }
   ]
 }
