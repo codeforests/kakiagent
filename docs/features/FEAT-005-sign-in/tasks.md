@@ -21,7 +21,7 @@
 - [x] T8 — E2E: a Mailpit sign-in helper; `auth.e2e.ts` for sign-up → workspace → `/setup` (under one minute), sign-out, existing-owner sign-in, the used-link page, axe on the auth screens; move `skeleton`, `facts` and `pii-mask` specs to the helper (AC-15, AC-16)
       Done when: every spec passes in chromium against the local stack with `pnpm dev`.
       Note: the helper clears the sign-in rate-limit counters (`rl:ml:*` in Valkey) before each request, so repeated local runs stay under AUTH-01's limits. axe on the open account menu led to a non-modal menu (a modal one aria-hides the page), and on the workspace error summary to 24 px link targets in `.alert` lists.
-- [ ] T9 — Docs: scaffold-notes §3/§4 (dev sign-in removed, identity zone, D1), AGENTS.md's dev-only convention line, `.env.example` comments (design §2, §8)
+- [x] T9 — Docs: scaffold-notes §3/§4 (dev sign-in removed, identity zone, D1), AGENTS.md's dev-only convention line, `.env.example` comments (design §2, §8)
       Done when: no document describes the dev sign-in as current, and the stub row names what replaced it.
 - [ ] T10 — Verify: every acceptance criterion (design §6) demonstrably passes; format, lint (with boundaries), typecheck, unit, integration, coverage, build, size, eval and E2E green
       Done when: the commands in AGENTS.md "Checks" pass and each AC is mapped to the test or run that shows it.

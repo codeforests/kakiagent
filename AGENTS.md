@@ -50,7 +50,7 @@ pnpm eval [--fast]               # the eval set on the fake provider
 # One E2E browser: pnpm test:e2e --project=chromium
 ```
 
-Local URLs: dashboard http://localhost:5173 (sign in at `/sign-in`), operator http://localhost:5174, widget host page http://localhost:5175, api :3000, realtime :3001, worker health ports 3002–3004, Mailpit http://localhost:8025.
+Local URLs: dashboard http://localhost:5173 (sign in at `/sign-in` as `owner@kaki-bakery.test` or `owner@second-tenant.test`; the link arrives in Mailpit), operator http://localhost:5174, widget host page http://localhost:5175, api :3000, realtime :3001, worker health ports 3002–3004, Mailpit http://localhost:8025.
 
 Other: `pnpm db:generate` (Drizzle migration from `packages/db/src/schema.ts`), `pnpm tokens` (rebuild token CSS), `pnpm audit:verify --tenant <uuid>` (recompute a tenant's audit chain against its S3 anchors; exit 1 names the first broken entry), `pnpm stack:down`, `pnpm stack:reset` (wipes local data). Without Docker, integration tests take `KAKI_TEST_DATABASE_URL` (Postgres 16 + pgvector superuser URL) and `KAKI_TEST_S3_ENDPOINT` (an S3 endpoint with Object Lock) instead of Testcontainers.
 
@@ -58,10 +58,10 @@ Other: `pnpm db:generate` (Drizzle migration from `packages/db/src/schema.ts`), 
 
 - **Module boundaries are enforced** by `.dependency-cruiser.cjs` (run by `pnpm lint`). Import another module only through its package name (its `src/index.ts` or a declared `exports` entry); never its internals. Packages never import apps. Provider SDKs only in `llm-gateway`. `@kaki/db/testing` only in tests. No cycles.
 - **Every tenant-scoped table** gets forced RLS and a policy in the same migration, its name in `TENANT_SCOPED_TABLES`, and a case in `packages/db/test/rls.int.test.ts`. The suite fails if a tenant-scoped table has no policy.
-- **Database access** goes through `withTenant(zoneDb, tenantId, fn)` on the connection of the right trust zone (`createZoneDb('dashboard' | 'visitor' | 'outbox')`). The tenant ID comes from a verified token, session or widget key, never from a request body.
+- **Database access** goes through `withTenant(zoneDb, tenantId, fn)` on the connection of the right trust zone (`createZoneDb('dashboard' | 'visitor' | 'outbox' | 'identity')`; `identity` is for sign-in and sessions only). The tenant ID comes from a verified token, session or widget key, never from a request body.
 - **Side effects** are written with `enqueue(tx, …)` from `@kaki/platform/outbox` in the same transaction as the change.
 - **Config** is parsed with Zod at start-up (`loadConfig`); every variable is listed in the unit's `.env.example`.
-- **Dev-only code** (the dev sign-in) is guarded by `process.env.KAKI_BUILD !== 'production'` in Node roles and `import.meta.env.DEV` in the dashboard, so production builds drop it. CI checks that it is absent. FEAT-005 deletes it.
+- **Dev-only code:** none remains; FEAT-005 replaced the dev sign-in with real sign-in (locally, sign-in links arrive in Mailpit). Any future dev-only code is guarded by `process.env.KAKI_BUILD !== 'production'` in Node roles and `import.meta.env.DEV` in the dashboard, so production builds drop it; CI checks the bundles for the old dev sign-in.
 - Pinned exact dependency versions; Renovate proposes updates. Formatting is Prettier (Markdown excluded); ESLint flat config at the root, with the Vite apps keeping their generated configs.
 - Tests live next to the code (`src/**/*.test.ts`, unit) or in `test/**/*.int.test.ts` (integration, real Postgres via Testcontainers).
 
