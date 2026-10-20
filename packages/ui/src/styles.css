@@ -81,3 +81,90 @@
 .kaki-skip-link:focus {
   top: var(--space-3);
 }
+
+.kaki-btn--danger {
+  background: var(--color-danger-default);
+  color: var(--color-text-on-accent);
+}
+.kaki-btn--danger:hover {
+  background: var(--color-danger-hover);
+}
+.kaki-btn--danger-ghost {
+  background: transparent;
+  color: var(--color-danger-default);
+}
+.kaki-btn--danger-ghost:hover {
+  background: var(--color-danger-soft);
+}
+
+/* design.md §4.3 dialog: centred, max 480, radius xl, shadow-lg; a bottom sheet below 640 px. */
+.kaki-dialog__scrim {
+  position: fixed;
+  inset: 0;
+  background: var(--color-bg-scrim);
+  z-index: var(--z-overlay);
+}
+.kaki-dialog {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: calc(100% - 2 * var(--space-6));
+  max-width: 480px;
+  padding: var(--space-6);
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  z-index: var(--z-modal);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.kaki-dialog:focus {
+  outline: none;
+}
+.kaki-dialog__title {
+  margin: 0;
+  font-size: var(--type-title-sm-size);
+  line-height: var(--type-title-sm-line);
+  font-weight: var(--type-title-sm-weight);
+}
+.kaki-dialog__body {
+  color: var(--color-text-secondary);
+}
+.kaki-dialog__body p {
+  margin: 0;
+}
+.kaki-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+@media (max-width: 639px) {
+  .kaki-dialog {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    transform: none;
+    width: 100%;
+    max-width: none;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    padding-bottom: calc(var(--space-6) + env(safe-area-inset-bottom));
+  }
+  .kaki-dialog::before {
+    content: '';
+    align-self: center;
+    width: var(--space-9);
+    height: var(--space-2);
+    border-radius: var(--radius-full);
+    background: var(--color-border-strong);
+  }
+  .kaki-dialog__actions {
+    justify-content: stretch;
+  }
+  .kaki-dialog__actions > * {
+    flex: 1;
+  }
+}

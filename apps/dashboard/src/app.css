@@ -847,3 +847,111 @@ a {
   border-radius: var(--radius-md);
   background: var(--color-bg-subtle);
 }
+
+/* FEAT-011: row actions, chips, Load more and the promotion dates (ui-design SCR-APP-027/028). */
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-control-md);
+  height: var(--size-control-md);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: var(--type-title-sm-size);
+  cursor: pointer;
+}
+.icon-button:hover {
+  background: var(--color-bg-subtle);
+  color: var(--color-text-primary);
+}
+.icon-button:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+.icon-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+@media (pointer: coarse) {
+  .icon-button {
+    width: var(--size-control-lg);
+    height: var(--size-control-lg);
+  }
+}
+/* Above the row's full-size link. */
+.fact-row__actions {
+  position: relative;
+  z-index: 1;
+  width: var(--size-control-lg);
+  text-align: right;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: calc(var(--space-5) + var(--space-2));
+  margin-left: var(--space-3);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-full);
+  font-size: var(--type-caption-size);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+}
+.chip--warning {
+  background: var(--color-warning-soft);
+  color: var(--color-warning-default);
+}
+.chip--neutral {
+  background: var(--color-bg-subtle);
+  color: var(--color-text-secondary);
+}
+.load-more {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--space-5);
+}
+.date-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+@media (max-width: 479px) {
+  .date-pair {
+    grid-template-columns: 1fr;
+  }
+}
+.action-bar__end {
+  margin-left: auto;
+}
+@media (max-width: 479px) {
+  .action-bar {
+    flex-wrap: wrap;
+  }
+  .action-bar__end {
+    margin-left: 0;
+    flex-basis: 100%;
+  }
+}
+@media (max-width: 767px) {
+  .fact-table .fact-row {
+    grid-template-columns: 1fr auto auto;
+    grid-template-areas: 'title status actions' 'meta status actions';
+  }
+  .fact-row__actions {
+    grid-area: actions;
+    align-self: center;
+    width: auto;
+  }
+}
+@media (max-width: 767px) {
+  .filters .field--inline:first-child {
+    flex-basis: 100%;
+  }
+  .filters .field--inline {
+    flex: 1 1 0;
+    max-width: none;
+  }
+}

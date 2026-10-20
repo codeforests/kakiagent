@@ -6,7 +6,10 @@ import { appendVisitorMessage, createConversation, messagesSince } from '@kaki/i
 import {
   createFact,
   dashboardKb,
+  deleteFact,
   getFact,
+  sgDayAfter,
+  sgDateOf,
   mergePatch,
   prepareChunk,
   updateFact,
@@ -688,5 +691,71 @@ describe('runVisitorTurn with triage, dispatch and routing (FEAT-004)', () => {
       route: null,
       tasks: ['crisis'],
     });
+  });
+});
+
+describe('runVisitorTurn with policy and promotion facts (FEAT-011)', () => {
+  const inDays = (n: number) => sgDayAfter(sgDateOf(new Date(Date.now() + n * 86_400_000)));
+
+  it('answers from a policy and a priced promotion, rendered and cited (AC-6)', async () => {
+    const refund = await addFact(TENANT_A, {
+      type: 'policy',
+      value: {
+        kind: 'refund',
+        title: 'Cake refund policy',
+        details: 'Cancel at least 2 days before collection for a full refund.',
+      },
+      gstTreatment: null,
+    });
+    const c = await conversationWith('cake refund policy');
+    const { result } = await turn(c);
+    expect(result?.outcome).toBe('answered');
+    expect(result?.message.body).toContain('Cancel at least 2 days before collection');
+    expect(result?.message.factIds).toContain(refund.id);
+
+    const promo = await addFact(TENANT_A, {
+      type: 'promotion',
+      value: {
+        title: 'Lantern mooncake set',
+        details: 'Four mooncakes in a lantern box.',
+        priceCents: 4000,
+        currency: 'SGD',
+      },
+      gstTreatment: 'exclusive',
+      validity: { validFrom: null, validUntil: inDays(5) },
+    });
+    const c2 = await conversationWith('lantern mooncake set');
+    const second = await turn(c2);
+    expect(second.result?.message.factIds).toContain(promo.id);
+    expect(second.result?.message.body).toContain('S$43.60 incl. GST');
+    expect(second.result?.message.body).toMatch(/until \d{1,2} [A-Z][a-z]{2} \d{4}/);
+  });
+
+  it('never uses a deleted, disabled or ended fact on the next turn (AC-3, AC-8)', async () => {
+    const make = (title: string, validUntil = inDays(5)) =>
+      addFact(TENANT_A, {
+        type: 'promotion',
+        value: { title, details: 'Free kaya jar with any cake.' },
+        gstTreatment: null,
+        validity: { validFrom: null, validUntil },
+      });
+    const deleted = await make('Durian festival kaya jar');
+    const before = await turn(await conversationWith('durian festival kaya jar'));
+    expect(before.result?.message.factIds).toContain(deleted.id);
+    await withTenant(tdb.zone('dashboard'), TENANT_A, (tx) =>
+      deleteFact(dashboardKb(tx, TENANT_A, 'owner-1'), deleted.id, 1),
+    );
+    const after = await turn(await conversationWith('durian festival kaya jar'));
+    expect(after.result?.message.factIds).not.toContain(deleted.id);
+    expect(after.result?.message.body).not.toContain('Free kaya jar');
+
+    const disabled = await make('Rambutan festival kaya jar');
+    await editFact(TENANT_A, disabled.id, { version: 1, status: 'disabled' });
+    const off = await turn(await conversationWith('rambutan festival kaya jar'));
+    expect(off.result?.message.factIds).not.toContain(disabled.id);
+
+    const ended = await make('Mangosteen festival kaya jar', inDays(-2));
+    const gone = await turn(await conversationWith('mangosteen festival kaya jar'));
+    expect(gone.result?.message.factIds).not.toContain(ended.id);
   });
 });

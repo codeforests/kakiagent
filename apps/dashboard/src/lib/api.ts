@@ -9,7 +9,7 @@ import {
   Me,
   type CreateFactBody,
   type CreateWorkspaceBody,
-  type FactStatus,
+  type FactListQuery,
   type UpdateFactBody,
 } from '@kaki/contracts';
 import type { z } from 'zod';
@@ -37,7 +37,7 @@ export class ApiError extends Error {
   }
 }
 
-async function send(method: 'GET' | 'POST' | 'PATCH', path: string, body?: unknown) {
+async function send(method: 'GET' | 'POST' | 'PATCH' | 'DELETE', path: string, body?: unknown) {
   const res = await fetch(path, {
     method,
     credentials: 'same-origin',
@@ -79,10 +79,10 @@ export const api = {
   createWorkspace: (body: CreateWorkspaceBody) =>
     request('POST', '/api/v1/workspaces', CreateWorkspaceResponse, body),
   conversations: () => getJson('/api/v1/conversations', ConversationList),
-  facts: (filter: { status?: FactStatus | undefined; q?: string | undefined }) => {
+  facts: (filter: FactListQuery) => {
     const params = new URLSearchParams();
-    if (filter.status) params.set('status', filter.status);
-    if (filter.q) params.set('q', filter.q);
+    for (const [k, v] of Object.entries(filter))
+      if (v !== undefined && v !== '') params.set(k, String(v));
     const qs = params.toString();
     return getJson(`/api/v1/kb/facts${qs ? `?${qs}` : ''}`, FactList);
   },
@@ -90,4 +90,7 @@ export const api = {
   createFact: (body: CreateFactBody) => request('POST', '/api/v1/kb/facts', FactResponse, body),
   updateFact: (id: string, body: UpdateFactBody) =>
     request('PATCH', `/api/v1/kb/facts/${encodeURIComponent(id)}`, FactResponse, body),
+  /** FEAT-011 §3.2: conditional on the version the owner saw; 204 on success. */
+  deleteFact: async (id: string, version: number) =>
+    void (await send('DELETE', `/api/v1/kb/facts/${encodeURIComponent(id)}?version=${version}`)),
 };

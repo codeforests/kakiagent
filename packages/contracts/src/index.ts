@@ -105,7 +105,7 @@ export const CreateWorkspaceResponse = z.object({
   tenant: z.object({ id: z.uuid(), name: z.string(), status: z.enum(['active', 'suspended']) }),
 });
 
-// ---- Dashboard API: facts (KB-07; FEAT-022 design §3.2) ------------------------------
+// ---- Dashboard API: facts (KB-07; FEAT-022 §3.2, FEAT-011 §3) -----------------------
 
 export const FactStatus = z.enum([
   'needs_review',
@@ -138,34 +138,119 @@ export const FaqValueInput = z.object({
   question: z.string().trim().min(1).max(300),
   answer: z.string().trim().min(1).max(2000),
 });
+export const PolicyKind = z.enum(['refund', 'delivery', 'booking', 'payment', 'other']);
+export type PolicyKind = z.infer<typeof PolicyKind>;
+export const PolicyValueInput = z.object({
+  kind: PolicyKind,
+  title: z.string().trim().min(1).max(120),
+  details: z.string().trim().min(1).max(2000),
+});
+export const PromotionValueInput = z.object({
+  title: z.string().trim().min(1).max(120),
+  details: z.string().trim().min(1).max(2000),
+  price: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() === '' ? undefined : v),
+    Money.optional(),
+  ),
+});
 /** Manual entries: the owner always chooses the GST treatment of a price (KB-15). */
 export const ManualGstTreatment = z.enum(['inclusive', 'exclusive']);
 
+/** A calendar day in Singapore, `YYYY-MM-DD` (FEAT-011 D3); a real day, not 2026-02-30. */
+export const SgDate = z.string().refine((s) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (!m) return false;
+  const t = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+  return t.toISOString().slice(0, 10) === s;
+}, 'Enter a date like 2026-10-31');
+
+export const FactType = z.enum(['product', 'faq', 'policy', 'promotion']);
+export type FactType = z.infer<typeof FactType>;
+
+const promotionRules = (
+  b: {
+    value: { price?: string | undefined };
+    gstTreatment?: unknown;
+    validFrom?: string | null | undefined;
+    validUntil?: string | undefined;
+  },
+  ctx: z.RefinementCtx,
+) => {
+  if (b.value.price !== undefined && !b.gstTreatment)
+    ctx.addIssue({
+      code: 'custom',
+      path: ['gstTreatment'],
+      message: 'Choose whether the price includes GST',
+    });
+  if (b.value.price === undefined && b.gstTreatment)
+    ctx.addIssue({
+      code: 'custom',
+      path: ['gstTreatment'],
+      message: 'A promotion without a price has no GST treatment',
+    });
+  if (b.validFrom && b.validUntil && b.validFrom > b.validUntil)
+    ctx.addIssue({
+      code: 'custom',
+      path: ['validUntil'],
+      message: 'The end date must be on or after the start date',
+    });
+};
+
 export const CreateFactBody = z.discriminatedUnion('type', [
-  z.object({
-    type: z.literal('product'),
-    value: ProductValueInput,
-    gstTreatment: ManualGstTreatment,
-  }),
-  z.object({
-    type: z.literal('faq'),
-    value: FaqValueInput,
-    gstTreatment: z.null().optional(),
-  }),
+  z
+    .object({
+      type: z.literal('product'),
+      value: ProductValueInput,
+      gstTreatment: ManualGstTreatment,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('faq'),
+      value: FaqValueInput,
+      gstTreatment: z.null().optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('policy'),
+      value: PolicyValueInput,
+      gstTreatment: z.null().optional(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('promotion'),
+      value: PromotionValueInput,
+      gstTreatment: ManualGstTreatment.nullable().optional(),
+      validFrom: SgDate.nullable().optional(),
+      validUntil: SgDate,
+    })
+    .strict()
+    .superRefine(promotionRules),
 ]);
 export type CreateFactBody = z.infer<typeof CreateFactBody>;
 
-/** `value` is checked against the fact's own type by the route. */
+/** `value` is checked against the fact's own type by the route; validity is for promotions. */
 export const UpdateFactBody = z
   .object({
     version: z.int().min(1),
     value: z.record(z.string(), z.unknown()).optional(),
     gstTreatment: ManualGstTreatment.optional(),
+    validFrom: SgDate.nullable().optional(),
+    validUntil: SgDate.optional(),
     status: z.enum(['approved', 'disabled']).optional(),
   })
-  .refine((b) => b.value !== undefined || b.gstTreatment !== undefined || b.status !== undefined, {
-    message: 'Nothing to change',
-  });
+  .strict()
+  .refine(
+    (b) =>
+      b.value !== undefined ||
+      b.gstTreatment !== undefined ||
+      b.validFrom !== undefined ||
+      b.validUntil !== undefined ||
+      b.status !== undefined,
+    { message: 'Nothing to change' },
+  );
 export type UpdateFactBody = z.infer<typeof UpdateFactBody>;
 
 const factBase = {
@@ -174,6 +259,9 @@ const factBase = {
   version: z.int(),
   source: z.string(),
   updatedAt: z.iso.datetime({ offset: true }),
+  /** Promotions: the first and last day they run, in Singapore (null for other types). */
+  validFrom: SgDate.nullable(),
+  validUntil: SgDate.nullable(),
 };
 export const Fact = z.discriminatedUnion('type', [
   z.object({
@@ -188,14 +276,32 @@ export const Fact = z.discriminatedUnion('type', [
     value: z.object({ question: z.string(), answer: z.string() }),
     gstTreatment: z.null(),
   }),
+  z.object({
+    ...factBase,
+    type: z.literal('policy'),
+    value: z.object({ kind: PolicyKind, title: z.string(), details: z.string() }),
+    gstTreatment: z.null(),
+  }),
+  z.object({
+    ...factBase,
+    type: z.literal('promotion'),
+    value: z.object({ title: z.string(), details: z.string(), price: Money.optional() }),
+    gstTreatment: GstTreatment.nullable(),
+  }),
 ]);
 export type Fact = z.infer<typeof Fact>;
 
 export const FactListQuery = z.object({
   status: FactStatus.optional(),
+  type: FactType.optional(),
+  /** Priced facts whose GST treatment needs review (KB-15). */
+  gst: z.literal('unknown').optional(),
   q: z.string().trim().max(100).optional(),
+  cursor: z.string().min(1).max(200).optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional(),
 });
-export const FactList = z.object({ facts: z.array(Fact) });
+export type FactListQuery = z.infer<typeof FactListQuery>;
+export const FactList = z.object({ facts: z.array(Fact), nextCursor: z.string().nullable() });
 export const FactResponse = z.object({ fact: Fact });
 
 // ---- Realtime events (Valkey pub/sub payloads, SSE and WebSocket frames; ADR-017) --

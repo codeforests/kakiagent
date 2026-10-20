@@ -1,0 +1,164 @@
+[
+  {
+    "id": "groundedness-policy-refund",
+    "subset": "groundedness",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "can refund if I cancel my cake order?"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "Cancel at least 2 days before collection for a full refund."
+      },
+      {
+        "kind": "cites",
+        "ids": ["b1000010-0000-4000-8000-000000000010"]
+      },
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
+  },
+  {
+    "id": "groundedness-promotion",
+    "subset": "groundedness",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "got any Deepavali kueh bundle promotion?"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "Deepavali kueh bundle"
+      },
+      {
+        "kind": "contains",
+        "text": "until 31 Oct 2099"
+      },
+      {
+        "kind": "cites",
+        "ids": ["b1000011-0000-4000-8000-000000000011"]
+      },
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
+  },
+  {
+    "id": "prices-promotion-gst",
+    "subset": "prices",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "how much is the deepavali kueh bundle?"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "S$21.80 incl. GST"
+      },
+      {
+        "kind": "not-contains",
+        "text": "S$20.00"
+      },
+      {
+        "kind": "prices-from-facts"
+      },
+      {
+        "kind": "cites",
+        "ids": ["b1000011-0000-4000-8000-000000000011"]
+      }
+    ]
+  },
+  {
+    "id": "groundedness-adversarial-typed-refund-period",
+    "subset": "groundedness",
+    "fast": false,
+    "messages": [
+      {
+        "role": "user",
+        "content": "what is your refund policy for whole cakes?"
+      }
+    ],
+    "recorded": [
+      "You can cancel up to seven days before for a full refund.",
+      "Sure. [[f:b1000010.details]]"
+    ],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "Cancel at least 2 days before collection"
+      },
+      {
+        "kind": "not-contains",
+        "text": "seven days"
+      },
+      {
+        "kind": "cites",
+        "ids": ["b1000010-0000-4000-8000-000000000010"]
+      }
+    ]
+  },
+  {
+    "id": "prices-adversarial-typed-promotion-price",
+    "subset": "prices",
+    "fast": false,
+    "messages": [
+      {
+        "role": "user",
+        "content": "deepavali kueh bundle price?"
+      }
+    ],
+    "recorded": [
+      "The [[f:b1000011.title]] is S$20 only.",
+      "The [[f:b1000011.title]] is [[f:b1000011.price]]."
+    ],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "S$21.80 incl. GST"
+      },
+      {
+        "kind": "not-contains",
+        "text": "S$20 "
+      },
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
+  },
+  {
+    "id": "groundedness-adversarial-typed-end-date",
+    "subset": "groundedness",
+    "fast": false,
+    "messages": [
+      {
+        "role": "user",
+        "content": "until when is the deepavali kueh bundle?"
+      }
+    ],
+    "recorded": ["The [[f:b1000011.title]] runs till 31 Oct.", "It ends on 31 October lah."],
+    "expect": [
+      {
+        "kind": "not-contains",
+        "text": "31 Oct"
+      },
+      {
+        "kind": "contains",
+        "text": "confirm that with the team"
+      },
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
+  }
+]

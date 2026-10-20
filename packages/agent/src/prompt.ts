@@ -1,6 +1,6 @@
 import type { GenerateRequest } from '@kaki/llm-gateway';
 import type { VisitorFact } from '@kaki/kb';
-import { renderPrice } from './render.js';
+import { renderPrice, renderValidUntil } from './render.js';
 import { PROTECTED_FIELDS, type TurnFacts } from './slots.js';
 
 export interface HistoryMessage {
@@ -14,11 +14,26 @@ export const HISTORY_LIMIT = 10;
 /** One fact per line, machine-readable so the fake responder can answer from it. */
 export function factLine(ref: string, fact: VisitorFact, gstRegistered: boolean): string {
   const slot = (field: string) => `[[f:${ref}.${field}]]`;
-  if (fact.type === 'product') {
-    const unit = fact.value.unit ? ` | unit: ${fact.value.unit} → ${slot('unit')}` : '';
-    return `[f:${ref}] product | name: ${fact.value.name} → ${slot('name')}${unit} | price: ${renderPrice(fact, gstRegistered)} → ${slot('price')}`;
+  switch (fact.type) {
+    case 'product': {
+      const unit = fact.value.unit ? ` | unit: ${fact.value.unit} → ${slot('unit')}` : '';
+      return `[f:${ref}] product | name: ${fact.value.name} → ${slot('name')}${unit} | price: ${renderPrice(fact, gstRegistered)} → ${slot('price')}`;
+    }
+    case 'faq':
+      return `[f:${ref}] faq | question: ${fact.value.question} | answer: ${fact.value.answer} → ${slot('answer')}`;
+    case 'policy':
+      return `[f:${ref}] policy | kind: ${fact.value.kind} | title: ${fact.value.title} → ${slot('title')} | details: ${fact.value.details} → ${slot('details')}`;
+    case 'promotion': {
+      const { priceCents } = fact.value;
+      const price =
+        priceCents === undefined
+          ? ''
+          : ` | price: ${renderPrice({ value: { priceCents }, gstTreatment: fact.gstTreatment }, gstRegistered)} → ${slot('price')}`;
+      const until = renderValidUntil(fact);
+      const end = until ? ` | until: ${until} → ${slot('valid_until')}` : '';
+      return `[f:${ref}] promotion | title: ${fact.value.title} → ${slot('title')} | details: ${fact.value.details} → ${slot('details')}${price}${end}`;
+    }
   }
-  return `[f:${ref}] faq | question: ${fact.value.question} | answer: ${fact.value.answer} → ${slot('answer')}`;
 }
 
 /** The current time in Singapore, to the minute, for the uncached tail (ADR-007 decision 2). */

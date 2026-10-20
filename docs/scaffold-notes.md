@@ -73,7 +73,7 @@ Monorepo tooling: pnpm 10.28.0 (`packageManager`), Turborepo 2.11.9, Node 22. Ve
 | `piiMask` is a pass-through | `packages/platform/src/pii-mask.ts` | FEAT-003 (done: NRIC/FIN, card and bank-number masking before storage, log-line scrubbing, and a gateway backstop on visitor content) |
 | `can(role, capability)` with a minimal capability table | `packages/identity` | FEAT-005, FEAT-007 |
 | Widget uses the default `--kaki-*` tokens (no theme detection) | `apps/widget` | FEAT-032 |
-| `kb`, `leads`, `approvals`, `analytics` are empty modules | `packages/*` | FEAT-011 (kb done by FEAT-022), -049, -055, FEAT-004 (analytics: usage ledger and cost governor done; dashboards with FEAT-066/067) |
+| `kb`, `leads`, `approvals`, `analytics` are empty modules | `packages/*` | FEAT-011 (kb done by FEAT-022; FEAT-011 done: policy and promotion facts with validity, list filters and keyset paging, fact deletion), -049, -055, FEAT-004 (analytics: usage ledger and cost governor done; dashboards with FEAT-066/067) |
 | `ingest-worker` is idle (health only) | `apps/ingest-worker` | FEAT-011 onwards |
 | Eval case set is empty | `evals/cases` | FEAT-022, -023, -025, -051 |
 | Dashboard sections other than Inbox are placeholders naming their feature; inbox is a bare live list | `apps/dashboard` | per plan §4 |

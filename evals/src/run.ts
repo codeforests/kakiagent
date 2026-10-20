@@ -65,7 +65,14 @@ const fixtures = Object.fromEntries(
     const renderedPrices = new Set(
       fixture.facts.flatMap((f) =>
         // Only the price a visitor may see: GST-inclusive for a registered tenant (KB-15).
-        f.type === 'product' ? [renderPrice(f, fixture.gstRegistered).split(' ')[0]!] : [],
+        f.type === 'product' || (f.type === 'promotion' && f.value.priceCents !== undefined)
+          ? [
+              renderPrice(
+                { value: { priceCents: f.value.priceCents! }, gstTreatment: f.gstTreatment },
+                fixture.gstRegistered,
+              ).split(' ')[0]!,
+            ]
+          : [],
       ),
     );
     return [name, { fixture, chunks, ctx: { fixture, renderedPrices } satisfies ScoreContext }];

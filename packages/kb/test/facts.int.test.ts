@@ -178,23 +178,23 @@ describe('fact repository (KB-07, ADR-010)', () => {
       value: { ...FUDGE.value, name: 'Tenant B cake' },
     } as FactInput);
     const dash = tdb.zone('dashboard');
-    const list = await withTenant(dash, TENANT_A, (tx) =>
+    const { facts: list } = await withTenant(dash, TENANT_A, (tx) =>
       listFacts(dashboardKb(tx, TENANT_A, USER)),
     );
     expect(list.length).toBeGreaterThan(0);
     expect(list.some((f) => f.type === 'product' && f.value.name === 'Tenant B cake')).toBe(false);
-    const q = await withTenant(dash, TENANT_A, (tx) =>
+    const { facts: q } = await withTenant(dash, TENANT_A, (tx) =>
       listFacts(dashboardKb(tx, TENANT_A, USER), { q: 'EGGLESS' }),
     );
     expect(q.length).toBeGreaterThan(0);
     expect(q.every((f) => f.type === 'faq')).toBe(true);
-    const disabled = await withTenant(dash, TENANT_A, (tx) =>
+    const { facts: disabled } = await withTenant(dash, TENANT_A, (tx) =>
       listFacts(dashboardKb(tx, TENANT_A, USER), { status: 'disabled' }),
     );
     expect(disabled.every((f) => f.status === 'disabled')).toBe(true);
     const bFact = (
       await withTenant(dash, TENANT_B, (tx) => listFacts(dashboardKb(tx, TENANT_B, USER)))
-    )[0]!;
+    ).facts[0]!;
     await expect(
       withTenant(dash, TENANT_A, (tx) => getFact(dashboardKb(tx, TENANT_A, USER), bFact.id)),
     ).rejects.toBeInstanceOf(FactNotFoundError);
@@ -205,7 +205,9 @@ describe('visitor search (AGT-16, ADR-005)', () => {
   it('finds approved facts of the tenant only, best match first', async () => {
     const results = await search(TENANT_A, 'got eggless cake or not? how much ah');
     expect(results.length).toBeGreaterThan(0);
-    expect(results.every((r) => r.type === 'faq' || r.value.name !== 'Tenant B cake')).toBe(true);
+    expect(results.every((r) => r.type !== 'product' || r.value.name !== 'Tenant B cake')).toBe(
+      true,
+    );
     expect(results[0]!.type).toBe('faq');
   });
 

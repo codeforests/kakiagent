@@ -10,12 +10,19 @@ export const SLOT_RE = /\[\[f:([0-9a-f-]{4,36})\.([a-z_]+)\]\]/g;
 export const SLOT_FIELDS = {
   product: ['name', 'price', 'unit'],
   faq: ['question', 'answer'],
+  policy: ['title', 'details'],
+  promotion: ['title', 'details', 'price', 'valid_until'],
 } as const;
 
-/** Fields whose value is protected: it may reach a visitor only through its slot. */
+/**
+ * Fields whose value is protected: it may reach a visitor only through its slot. Policy
+ * terms and a promotion's wording are its offer, so they are protected whole (FEAT-011 D4).
+ */
 export const PROTECTED_FIELDS = {
   product: ['price'],
   faq: ['answer'],
+  policy: ['title', 'details'],
+  promotion: ['title', 'details', 'price', 'valid_until'],
 } as const;
 
 export interface TurnFacts {
