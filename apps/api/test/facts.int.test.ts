@@ -1,4 +1,4 @@
-import { startTestDatabase, TENANT_A, TENANT_B, type TestDatabase } from '@kaki/db/testing';
+import { startTestDatabase, TENANT_A, type TestDatabase } from '@kaki/db/testing';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { buildApp } from '../src/app.js';
