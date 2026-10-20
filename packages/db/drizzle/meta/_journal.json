@@ -29,6 +29,20 @@
       "when": 1792423309820,
       "tag": "0003_facts_rls_views",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792450472580,
+      "tag": "0004_audit_chain",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792450481689,
+      "tag": "0005_audit_chain_rls",
+      "breakpoints": true
     }
   ]
 }

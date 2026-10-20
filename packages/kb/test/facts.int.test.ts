@@ -90,7 +90,7 @@ describe('fact repository (KB-07, ADR-010)', () => {
     ]);
     expect(chunks.rows).toEqual([{ fact_version: 1 }]);
     const audit = await owner.query(
-      `select action, actor_id from audit_events where subject_id = $1`,
+      `select event_type as action, actor_ref as actor_id from audit_entries where split_part(subject_refs[1], ':', 2) = $1`,
       [fact.id],
     );
     expect(audit.rows).toEqual([{ action: 'fact.created', actor_id: USER }]);
@@ -115,6 +115,16 @@ describe('fact repository (KB-07, ADR-010)', () => {
       fact.id,
     ]);
     expect(chunk.rows).toEqual([{ fact_version: 2 }]);
+    const audit = await owner.query(
+      `select event_type, actor_ref, payload from audit_entries
+       where split_part(subject_refs[1], ':', 2) = $1 order by seq`,
+      [fact.id],
+    );
+    expect(audit.rows.at(-1)).toEqual({
+      event_type: 'fact.updated',
+      actor_ref: USER,
+      payload: { version: 2 },
+    });
   });
 
   it('rejects a stale version (409 version_conflict)', async () => {
@@ -135,7 +145,7 @@ describe('fact repository (KB-07, ADR-010)', () => {
     const on = await edit(TENANT_A, fact.id, { version: 2, status: 'approved' });
     expect(on.status).toBe('approved');
     const audit = await owner.query(
-      `select action from audit_events where subject_id = $1 order by seq`,
+      `select event_type as action from audit_entries where split_part(subject_refs[1], ':', 2) = $1 order by seq`,
       [fact.id],
     );
     expect(audit.rows.map((r) => r.action)).toEqual([

@@ -52,7 +52,7 @@ pnpm eval [--fast]               # the eval set on the fake provider
 
 Local URLs: dashboard http://localhost:5173 (sign in at `/sign-in`), operator http://localhost:5174, widget host page http://localhost:5175, api :3000, realtime :3001, worker health ports 3002–3004, Mailpit http://localhost:8025.
 
-Other: `pnpm db:generate` (Drizzle migration from `packages/db/src/schema.ts`), `pnpm tokens` (rebuild token CSS), `pnpm stack:down`, `pnpm stack:reset` (wipes local data).
+Other: `pnpm db:generate` (Drizzle migration from `packages/db/src/schema.ts`), `pnpm tokens` (rebuild token CSS), `pnpm audit:verify --tenant <uuid>` (recompute a tenant's audit chain against its S3 anchors; exit 1 names the first broken entry), `pnpm stack:down`, `pnpm stack:reset` (wipes local data). Without Docker, integration tests take `KAKI_TEST_DATABASE_URL` (Postgres 16 + pgvector superuser URL) and `KAKI_TEST_S3_ENDPOINT` (an S3 endpoint with Object Lock) instead of Testcontainers.
 
 ## Code conventions
 

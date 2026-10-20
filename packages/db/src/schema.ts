@@ -3,6 +3,7 @@ import {
   bigint,
   boolean,
   check,
+  customType,
   foreignKey,
   index,
   integer,
@@ -225,26 +226,79 @@ export const outbox = pgTable(
   ],
 );
 
+const bytea = customType<{ data: Buffer }>({ dataType: () => 'bytea' });
+
 /**
- * Audit events (ADR-014). IDs only, never personal data. FEAT-002 adds the per-tenant
- * hash chain, verification and anchoring.
+ * The audit log (ADR-014): one hash chain per tenant. Entries hold IDs, codes, numbers
+ * and masked values only; personal data an entry needs lives in `audit_pii`. Appends go
+ * through `audit_head_lock()` and a trigger that checks `seq` and `prev_hash` and moves
+ * the head; no role can update or delete an entry (migration 0005).
  */
-export const auditEvents = pgTable(
-  'audit_events',
+export const auditEntries = pgTable(
+  'audit_entries',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    /** Gap-free per tenant, from 1. */
+    seq: bigint('seq', { mode: 'number' }).notNull(),
+    ts: timestamp('ts', { withTimezone: true, precision: 3 }).notNull(),
+    actorType: text('actor_type', {
+      enum: ['agent', 'user', 'operator', 'system', 'visitor'],
+    }).notNull(),
+    actorRef: text('actor_ref'),
+    eventType: text('event_type').notNull(),
+    /** `type:id`, the primary subject first. */
+    subjectRefs: text('subject_refs').array().notNull(),
+    payload: jsonb('payload').notNull().default({}),
+    piiRef: uuid('pii_ref'),
+    piiCommitment: text('pii_commitment'),
+    prevHash: text('prev_hash').notNull(),
+    hash: text('hash').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.seq] }),
+    index('audit_entries_tenant_ts_idx').on(t.tenantId, t.ts),
+    index('audit_entries_subject_refs_idx').using('gin', t.subjectRefs),
+    check(
+      'audit_entries_actor_type_check',
+      sql`${t.actorType} in ('agent', 'user', 'operator', 'system', 'visitor')`,
+    ),
+    check('audit_entries_pii_pair', sql`(${t.piiRef} is null) = (${t.piiCommitment} is null)`),
+    check(
+      'audit_entries_hash_format',
+      sql`${t.hash} ~ '^[0-9a-f]{64}$' and ${t.prevHash} ~ '^[0-9a-f]{64}$' and (${t.piiCommitment} is null or ${t.piiCommitment} ~ '^[0-9a-f]{64}$')`,
+    ),
+    check('audit_entries_seq_positive', sql`${t.seq} > 0`),
+  ],
+);
+
+/** Each tenant's chain head (ADR-014 decision 4). Only the audit functions touch it. */
+export const auditHeads = pgTable('audit_heads', {
+  tenantId: uuid('tenant_id').primaryKey(),
+  seq: bigint('seq', { mode: 'number' }).notNull(),
+  hash: text('hash').notNull(),
+  /** The last `seq` written to the S3 Object Lock anchors. */
+  anchoredSeq: bigint('anchored_seq', { mode: 'number' }).notNull().default(0),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Personal data an audit entry needs (ADR-014 decision 2). Deleted with the contact;
+ * the entry keeps `pii_ref` and a salted commitment, so the chain still verifies.
+ */
+export const auditPii = pgTable(
+  'audit_pii',
   {
     tenantId: uuid('tenant_id').notNull(),
     id: uuid('id').notNull().defaultRandom(),
-    seq: bigint('seq', { mode: 'number' }).generatedAlwaysAsIdentity(),
-    action: text('action').notNull(),
-    actorType: text('actor_type', { enum: ['visitor', 'agent', 'user', 'system'] }).notNull(),
-    actorId: text('actor_id'),
-    subjectType: text('subject_type').notNull(),
-    subjectId: text('subject_id').notNull(),
+    // No FK yet: `contacts` arrives with FEAT-049.
+    contactId: uuid('contact_id'),
+    salt: bytea('salt').notNull(),
+    data: jsonb('data').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     primaryKey({ columns: [t.tenantId, t.id] }),
-    index('audit_events_tenant_seq_idx').on(t.tenantId, t.seq),
+    index('audit_pii_contact_idx').on(t.tenantId, t.contactId),
   ],
 );
 
@@ -254,7 +308,9 @@ export const TENANT_SCOPED_TABLES = [
   'conversations',
   'messages',
   'outbox',
-  'audit_events',
+  'audit_entries',
+  'audit_heads',
+  'audit_pii',
   'business_profiles',
   'facts',
   'fact_versions',

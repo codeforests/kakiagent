@@ -1,5 +1,5 @@
 import { withTenant, type ZoneDb } from '@kaki/db';
-import { audit } from '@kaki/governance';
+import { audit, auditCode, auditId, type AuditPayload } from '@kaki/governance';
 import {
   appendAgentReply,
   getMessage,
@@ -86,18 +86,28 @@ export async function runVisitorTurn(
         disclosure,
       });
       if (!reply) return null;
-      const entry = (action: string) =>
+      const entry = (action: string, payload?: AuditPayload) =>
         audit.append(tx, tenantId, {
           action,
           actorType: 'agent',
           subjectType: 'message',
           subjectId: reply.message.id,
+          related: [{ type: 'conversation', id: conversationId }],
+          payload,
         });
-      // Guardrail results (ADR-008 decision 5, GOV-01): IDs only, no message text.
-      for (let i = 0; i < (composed?.violations.length ?? 0); i++)
-        await entry('guardrail.segment_blocked');
+      // Guardrail results (ADR-008 decision 5, GOV-01): the rule that fired, never the text.
+      for (const v of composed?.violations ?? [])
+        await entry('guardrail.segment_blocked', { kind: auditCode(v.kind) });
       if (outcome === 'escalated') await entry('guardrail.escalated');
       if (outcome === 'unavailable' || outcome === 'paused') await entry('agent.fallback_sent');
+      // The decision's structured rationale (GOV-01, architecture OI-8): what happened and
+      // which facts it rests on.
+      await entry('agent.decision', {
+        outcome: auditCode(outcome),
+        factIds: (composed?.factIds ?? []).map(auditId),
+        attempts: composed?.attempts ?? 0,
+        violations: composed?.violations.length ?? 0,
+      });
       return reply;
     });
     return stored ? { ...stored, outcome, timings: composed?.timings ?? null } : null;
@@ -123,6 +133,8 @@ export async function runVisitorTurn(
         actorType: 'agent',
         subjectType: 'conversation',
         subjectId: conversationId,
+        related: [{ type: 'message', id: message.id }],
+        payload: { tool: auditCode('lookup_kb'), factIds: found.map((f) => auditId(f.id)) },
       });
       return found;
     });

@@ -68,7 +68,7 @@ Monorepo tooling: pnpm 10.28.0 (`packageManager`), Turborepo 2.11.9, Node 22. Ve
 | Fake LLM provider that echoes `Echo: <text>`; the `anthropic-dev` provider sits behind `LLM_PROVIDER` | `packages/llm-gateway` | FEAT-022 (the real turn), FEAT-004 (routing, cost governor), MD (Bedrock `au.`) |
 | `runVisitorTurn` echoes, with no retrieval, slots or verifier | `packages/agent` | FEAT-022 |
 | Dev-only sign-in as a seeded owner | `apps/api/src/dev-auth.ts`, `apps/dashboard/src/pages/dev-sign-in.tsx` | FEAT-005 |
-| `audit.append` writes plain IDs-only rows, with no hash chain | `packages/governance` | FEAT-002 |
+| `audit.append` writes plain IDs-only rows, with no hash chain | `packages/governance` | FEAT-002 (done: per-tenant hash chain, `audit_pii`, S3 anchors from scheduler-worker, `pnpm audit:verify`) |
 | `piiMask` is a pass-through | `packages/platform/src/pii-mask.ts` | FEAT-003 |
 | `can(role, capability)` with a minimal capability table | `packages/identity` | FEAT-005, FEAT-007 |
 | Widget uses the default `--kaki-*` tokens (no theme detection) | `apps/widget` | FEAT-032 |

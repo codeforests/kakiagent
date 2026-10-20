@@ -12,7 +12,7 @@ let tdb: TestDatabase;
 let owner: pg.Client;
 
 async function asRole<T>(
-  role: 'app_dashboard' | 'app_agent_visitor',
+  role: 'app_dashboard' | 'app_agent_visitor' | 'app_outbox',
   tenantId: string | null,
   fn: (c: pg.Client) => Promise<T>,
 ) {
@@ -353,5 +353,211 @@ describe('facts and the visitor views', () => {
       async (c) => (await c.query(`select * from visitor_tenant_state()`)).rows,
     );
     expect(none).toEqual([]);
+  });
+});
+
+// ---- FEAT-002: the audit chain tables and functions (ADR-014; AC-3, AC-9) -------------
+
+const hex = (c: string) => c.repeat(64);
+
+/** Appends one linked entry through the head lock, as `audit.append` does (any valid hash). */
+async function appendRaw(c: pg.Client, tenantId: string, hash: string) {
+  const head = (await c.query(`select seq, hash, ts from audit_head_lock()`)).rows[0];
+  await c.query(
+    `insert into audit_entries (tenant_id, seq, ts, actor_type, event_type, subject_refs, prev_hash, hash)
+     values ($1, $2, $3, 'system', 'test.entry', '{test:1}', $4, $5)`,
+    [tenantId, Number(head.seq) + 1, head.ts, head.hash, hash],
+  );
+}
+
+/** Commits entries for a tenant as the dashboard role. */
+async function commitEntries(tenantId: string, hashes: string[]) {
+  const c = new pg.Client({ connectionString: tdb.urlFor('app_dashboard') });
+  await c.connect();
+  try {
+    await c.query('begin');
+    await c.query(`select set_config('app.tenant_id', $1, true)`, [tenantId]);
+    for (const h of hashes) await appendRaw(c, tenantId, h);
+    await c.query(
+      `insert into audit_pii (tenant_id, id, salt, data) values ($1, gen_random_uuid(), '\\x00', '{}')`,
+      [tenantId],
+    );
+    await c.query('commit');
+  } finally {
+    await c.end();
+  }
+}
+
+describe('audit chain', () => {
+  beforeAll(async () => {
+    await commitEntries(TENANT_A, [hex('a'), hex('b')]);
+    await commitEntries(TENANT_B, [hex('c')]);
+  });
+
+  it('appends extend the head by one and link to it', async () => {
+    const { rows } = await owner.query(
+      `select tenant_id, seq::int, prev_hash, hash from audit_entries order by tenant_id, seq`,
+    );
+    const a = rows.filter((r) => r.tenant_id === TENANT_A);
+    expect(a.map((r) => [r.seq, r.prev_hash, r.hash])).toEqual([
+      [1, hex('0'), hex('a')],
+      [2, hex('a'), hex('b')],
+    ]);
+    const heads = (await owner.query(`select tenant_id, seq::int, hash from audit_heads`)).rows;
+    expect(heads).toEqual(
+      expect.arrayContaining([
+        { tenant_id: TENANT_A, seq: 2, hash: hex('b') },
+        { tenant_id: TENANT_B, seq: 1, hash: hex('c') },
+      ]),
+    );
+  });
+
+  it.each([
+    ['a wrong seq', 5, hex('b')],
+    ['a wrong prev_hash', 3, hex('f')],
+  ])('rejects a hand-written insert with %s', async (_name, seq, prev) => {
+    await expect(
+      asRole('app_dashboard', TENANT_A, (c) =>
+        c.query(
+          `insert into audit_entries (tenant_id, seq, ts, actor_type, event_type, subject_refs, prev_hash, hash)
+           values ($1, $2, now(), 'system', 'forged', '{x:1}', $3, $4)`,
+          [TENANT_A, seq, prev, hex('e')],
+        ),
+      ),
+    ).rejects.toThrow(/does not extend the chain/);
+  });
+
+  it('rejects an insert with no chain head, even as the owner', async () => {
+    const t = '00000000-0000-4000-8000-0000000000ff';
+    await expect(
+      owner.query(
+        `insert into audit_entries (tenant_id, seq, ts, actor_type, event_type, subject_refs, prev_hash, hash)
+         values ($1, 1, now(), 'system', 'forged', '{x:1}', $2, $3)`,
+        [t, hex('0'), hex('e')],
+      ),
+    ).rejects.toThrow(/no chain head/);
+  });
+
+  it.each([
+    ['update', `update audit_entries set event_type = 'x'`],
+    ['delete', `delete from audit_entries`],
+    ['truncate', `truncate audit_entries`],
+  ])('the owner cannot %s entries', async (_op, q) => {
+    await expect(owner.query(q)).rejects.toThrow(/append-only|permission denied/);
+  });
+
+  it.each(['app_dashboard', 'app_agent_visitor'] as const)(
+    '%s cannot update, delete or truncate entries',
+    async (role) => {
+      for (const q of [
+        `update audit_entries set event_type = 'x'`,
+        `delete from audit_entries`,
+        `truncate audit_entries`,
+      ])
+        await expect(asRole(role, TENANT_A, (c) => c.query(q))).rejects.toThrow(
+          /permission denied/,
+        );
+    },
+  );
+
+  it("tenant B's context cannot read tenant A's entries or PII rows; no context reads nothing", async () => {
+    const rows = await asRole(
+      'app_dashboard',
+      TENANT_B,
+      async (c) =>
+        (await c.query(`select tenant_id from audit_entries where tenant_id = $1`, [TENANT_A]))
+          .rows,
+    );
+    expect(rows).toEqual([]);
+    const pii = await asRole(
+      'app_dashboard',
+      TENANT_B,
+      async (c) =>
+        (await c.query(`select tenant_id from audit_pii where tenant_id = $1`, [TENANT_A])).rows,
+    );
+    expect(pii).toEqual([]);
+    const own = await asRole(
+      'app_dashboard',
+      TENANT_B,
+      async (c) => (await c.query(`select tenant_id from audit_entries`)).rows,
+    );
+    expect(own).toEqual([{ tenant_id: TENANT_B }]);
+    const none = await asRole(
+      'app_dashboard',
+      null,
+      async (c) => (await c.query(`select seq from audit_entries`)).rows,
+    );
+    expect(none).toEqual([]);
+  });
+
+  it("tenant B's context cannot append to tenant A's chain", async () => {
+    await expect(
+      asRole('app_dashboard', TENANT_B, (c) =>
+        c.query(
+          `insert into audit_entries (tenant_id, seq, ts, actor_type, event_type, subject_refs, prev_hash, hash)
+           values ($1, 3, now(), 'system', 'forged', '{x:1}', $2, $3)`,
+          [TENANT_A, hex('b'), hex('e')],
+        ),
+      ),
+    ).rejects.toThrow(/no chain head|row-level security/);
+  });
+
+  it('the head lock fails closed without a tenant context', async () => {
+    await expect(
+      asRole('app_agent_visitor', null, (c) => c.query(`select * from audit_head_lock()`)),
+    ).rejects.toThrow(/no tenant context/);
+  });
+
+  it('the visitor role appends but cannot read entries or PII rows', async () => {
+    await asRole('app_agent_visitor', TENANT_A, (c) => appendRaw(c, TENANT_A, hex('d')));
+    for (const q of [`select * from audit_entries`, `select * from audit_pii`])
+      await expect(asRole('app_agent_visitor', TENANT_A, (c) => c.query(q))).rejects.toThrow(
+        /permission denied/,
+      );
+  });
+
+  it.each(['app_dashboard', 'app_agent_visitor', 'app_outbox'] as const)(
+    '%s has no direct access to audit_heads',
+    async (role) => {
+      await expect(
+        asRole(role, TENANT_A, (c) => c.query(`select * from audit_heads`)),
+      ).rejects.toThrow(/permission denied/);
+      // FEAT-002 acceptance: "read or write" covers insert and delete too (AC-3).
+      for (const q of [
+        `update audit_heads set seq = 0`,
+        `insert into audit_heads (tenant_id, seq, hash) values ('${TENANT_A}', 0, repeat('0', 64))`,
+        `delete from audit_heads`,
+      ])
+        await expect(asRole(role, TENANT_A, (c) => c.query(q))).rejects.toThrow(
+          /permission denied/,
+        );
+    },
+  );
+
+  it('the outbox role sees moved heads across tenants and records anchors, nothing else', async () => {
+    const heads = await asRole(
+      'app_outbox',
+      null,
+      async (c) => (await c.query(`select tenant_id, seq::int from audit_heads_to_anchor()`)).rows,
+    );
+    expect(heads).toEqual(
+      expect.arrayContaining([
+        { tenant_id: TENANT_A, seq: 2 },
+        { tenant_id: TENANT_B, seq: 1 },
+      ]),
+    );
+    const c = new pg.Client({ connectionString: tdb.urlFor('app_outbox') });
+    await c.connect();
+    await c.query(`select audit_mark_anchored($1, 2)`, [TENANT_A]);
+    const after = (await c.query(`select tenant_id from audit_heads_to_anchor()`)).rows;
+    await c.end();
+    expect(after).toEqual([{ tenant_id: TENANT_B }]);
+    for (const q of [`select * from audit_entries`, `select * from audit_pii`])
+      await expect(asRole('app_outbox', null, (cc) => cc.query(q))).rejects.toThrow(
+        /permission denied/,
+      );
+    await expect(
+      asRole('app_dashboard', TENANT_A, (cc) => cc.query(`select * from audit_heads_to_anchor()`)),
+    ).rejects.toThrow(/permission denied/);
   });
 });

@@ -85,9 +85,10 @@ describe('fact endpoints (AC-11)', () => {
       fact.id,
     ]);
     expect(chunks.rows).toEqual([{ fact_version: 1 }]);
-    const audit = await owner.query(`select action from audit_events where subject_id = $1`, [
-      fact.id,
-    ]);
+    const audit = await owner.query(
+      `select event_type as action from audit_entries where split_part(subject_refs[1], ':', 2) = $1`,
+      [fact.id],
+    );
     expect(audit.rows).toEqual([{ action: 'fact.created' }]);
     const stored = await owner.query(`select value from facts where id = $1`, [fact.id]);
     expect(stored.rows[0].value).toMatchObject({ priceCents: 5500, currency: 'SGD' });

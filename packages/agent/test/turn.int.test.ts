@@ -124,12 +124,18 @@ async function turn(
   return { result, segments, calls };
 }
 
-async function auditActions(subjectId: string) {
+/** Audit entries whose primary subject is `subjectId`, in chain order (FEAT-002). */
+async function auditRows(subjectId: string) {
   const { rows } = await owner.query(
-    `select action from audit_events where subject_id = $1 order by seq`,
+    `select event_type, payload, subject_refs from audit_entries
+     where split_part(subject_refs[1], ':', 2) = $1 order by seq`,
     [subjectId],
   );
-  return rows.map((r) => r.action as string);
+  return rows as { event_type: string; payload: Record<string, unknown>; subject_refs: string[] }[];
+}
+
+async function auditActions(subjectId: string) {
+  return (await auditRows(subjectId)).map((r) => r.event_type);
 }
 
 describe('runVisitorTurn (UC-20)', () => {
@@ -148,8 +154,30 @@ describe('runVisitorTurn (UC-20)', () => {
     expect(result!.message.disclosure).toBe(texts.disclosure('Kaki Bakery'));
     expect(segments.map((s) => s.text).join(' ')).toBe(body);
     expect(segments.every((s) => s.turnId === c.messageId)).toBe(true);
-    expect(await auditActions(result!.message.id)).toEqual(['message.ai_sent']);
+    expect(await auditActions(result!.message.id)).toEqual(['message.ai_sent', 'agent.decision']);
     expect(await auditActions(c.conversationId)).toContain('tool.lookup_kb');
+    // GOV-01 agent decisions (FEAT-002 AC-8): KB IDs retrieved, the tool, the rationale.
+    const lookup = (await auditRows(c.conversationId)).find(
+      (r) => r.event_type === 'tool.lookup_kb',
+    )!;
+    expect(lookup.payload.tool).toBe('lookup_kb');
+    expect(lookup.payload.factIds).toEqual(expect.arrayContaining([ids.fudge, ids.eggless]));
+    expect(lookup.payload.factIds).not.toContain(ids.review);
+    expect(lookup.payload.factIds).not.toContain(ids.other);
+    const decision = (await auditRows(result!.message.id)).find(
+      (r) => r.event_type === 'agent.decision',
+    )!;
+    expect(decision.subject_refs).toEqual([
+      `message:${result!.message.id}`,
+      `conversation:${c.conversationId}`,
+    ]);
+    expect(decision.payload).toEqual({
+      outcome: 'answered',
+      factIds: expect.arrayContaining([ids.fudge, ids.eggless]),
+      attempts: 1,
+      violations: 0,
+    });
+    expect((decision.payload.factIds as string[]).sort()).toEqual(result!.message.factIds.sort());
   });
 
   it('discloses only on the first reply of a conversation (AC-8)', async () => {
@@ -206,7 +234,20 @@ describe('runVisitorTurn (UC-20)', () => {
       'guardrail.segment_blocked',
       'guardrail.segment_blocked',
       'guardrail.escalated',
+      'agent.decision',
     ]);
+    // The rule that fired is logged, never the blocked text (FEAT-002 AC-8).
+    const rows = await auditRows(result!.message.id);
+    const blocked = rows.filter((r) => r.event_type === 'guardrail.segment_blocked');
+    // Both scripted outputs are literal currency amounts, so the logged kind must be the
+    // verifier's `currency` rule, one entry per blocked segment (FEAT-002 acceptance).
+    expect(blocked.map((r) => r.payload)).toEqual([{ kind: 'currency' }, { kind: 'currency' }]);
+    expect(JSON.stringify(rows)).not.toMatch(/S\$50|\$45|fudge/i);
+    expect(rows.at(-1)!.payload).toMatchObject({
+      outcome: 'escalated',
+      factIds: [],
+      violations: 2,
+    });
   });
 
   it('stores the fallback as the reply when the model call fails (AC-13, D6)', async () => {

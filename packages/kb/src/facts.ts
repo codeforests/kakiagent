@@ -225,6 +225,7 @@ export async function updateFact(
       actorId: ctx.userId,
       subjectType: 'fact',
       subjectId: id,
+      payload: { version: row.version },
     });
   return toRecord(row);
 }
