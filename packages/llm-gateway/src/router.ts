@@ -1,3 +1,4 @@
+import { piiMask } from '@kaki/platform/pii-mask';
 import type {
   EmbedRequest,
   EmbedResult,
@@ -38,6 +39,25 @@ export interface LlmGateway {
   embed(req: EmbedRequest): Promise<EmbedResult>;
 }
 
+/**
+ * GOV-04 backstop (FEAT-003 D3): visitor content is masked before any provider sees it,
+ * whoever built the request. Callers already send masked text, so this is a no-op for
+ * them. The system prompt and assistant turns carry the business's own approved facts
+ * (a PayNow bank account, say) and are left alone.
+ */
+function maskGenerate(req: GenerateRequest): GenerateRequest {
+  return {
+    ...req,
+    messages: req.messages.map((m) =>
+      m.role === 'user' ? { ...m, content: piiMask(m.content) } : m,
+    ),
+  };
+}
+
+function maskEmbed(req: EmbedRequest): EmbedRequest {
+  return req.purpose === 'query' ? { ...req, texts: req.texts.map(piiMask) } : req;
+}
+
 /** The single entry point other modules use. No module outside llm-gateway imports a provider SDK. */
 export function createGateway(registry: ModelRegistry, providers: ModelProvider[]): LlmGateway {
   const byId = new Map<ProviderId, ModelProvider>(providers.map((p) => [p.id, p]));
@@ -48,11 +68,13 @@ export function createGateway(registry: ModelRegistry, providers: ModelProvider[
     return { provider, modelId: entry.modelId };
   }
   return {
-    async generate(req) {
+    async generate(raw) {
+      const req = maskGenerate(raw);
       const { provider, modelId } = resolve(req.model);
       return provider.generate(req, modelId);
     },
-    async *stream(req) {
+    async *stream(raw) {
+      const req = maskGenerate(raw);
       const { provider, modelId } = resolve(req.model);
       if (provider.stream) {
         yield* provider.stream(req, modelId);
@@ -62,7 +84,8 @@ export function createGateway(registry: ModelRegistry, providers: ModelProvider[
       yield { type: 'text', text: result.text };
       yield { type: 'done', result };
     },
-    async embed(req) {
+    async embed(raw) {
+      const req = maskEmbed(raw);
       const { provider, modelId } = resolve('embed');
       if (!provider.embed) throw new Error(`llm-gateway: provider ${provider.id} cannot embed`);
       return provider.embed(req, modelId);

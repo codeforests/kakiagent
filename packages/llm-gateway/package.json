@@ -14,7 +14,8 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "0.135.0"
+    "@anthropic-ai/sdk": "0.135.0",
+    "@kaki/platform": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "22.20.5",
