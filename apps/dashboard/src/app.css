@@ -327,10 +327,152 @@ a {
   color: var(--color-danger-default);
 }
 
+/* ---- Sign-in, link and workspace screens (SCR-APP-001..003; FEAT-005) ------------- */
+.auth__brand {
+  margin: 0;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-accent-default);
+}
+.auth__card .page-title {
+  margin: 0;
+}
+.auth__card .alert {
+  margin-bottom: 0;
+}
+.auth__body {
+  margin: 0;
+}
+.auth__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.auth__wide {
+  width: 100%;
+}
+.auth__caption {
+  margin: 0;
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+  color: var(--color-text-secondary);
+}
+.auth__divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  font-size: var(--type-caption-size);
+  color: var(--color-text-secondary);
+}
+.auth__divider::before,
+.auth__divider::after {
+  content: '';
+  flex: 1;
+  border-top: 1px solid var(--color-border-default);
+}
+.checkbox {
+  align-items: flex-start;
+}
+.checkbox input {
+  flex: none;
+  margin-top: var(--space-1);
+}
+.kaki-btn__icon {
+  width: var(--space-5);
+  height: var(--space-5);
+}
+.kaki-btn[aria-busy='true'] {
+  pointer-events: none;
+}
+
+/* design.md §4 spinner: a ring in currentColor, revealed after 300 ms. */
+.spinner {
+  display: inline-block;
+  flex: none;
+  width: var(--space-5);
+  height: var(--space-5);
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: var(--radius-full);
+  vertical-align: middle;
+  opacity: 0;
+  animation:
+    spinner-spin calc(var(--duration-slow) * 3) linear infinite,
+    spinner-reveal 0s linear 300ms forwards;
+}
+@keyframes spinner-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes spinner-reveal {
+  to {
+    opacity: 1;
+  }
+}
+
+/* design.md §4.5 menu (the account menu, SCR-APP-059). */
+.avatar--button {
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+.avatar--button:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+.menu {
+  min-width: calc(var(--space-11) * 2);
+  padding: var(--space-2) 0;
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  z-index: var(--z-dropdown);
+}
+.menu__label {
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--type-body-sm-size);
+  color: var(--color-text-secondary);
+}
+.menu__item {
+  display: flex;
+  align-items: center;
+  min-height: var(--size-control-md);
+  padding: 0 var(--space-4);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  outline: none;
+}
+.menu__item[data-highlighted] {
+  background: var(--color-bg-subtle);
+}
+.menu__item--danger {
+  color: var(--color-danger-default);
+}
+.menu__divider {
+  height: 1px;
+  margin: var(--space-2) 0;
+  background: var(--color-border-default);
+}
+@media (pointer: coarse) {
+  .menu__item {
+    min-height: var(--size-control-lg);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     transition: none !important;
     animation: none !important;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* No rotation, but the ring still shows that something is happening. */
+  .spinner {
+    opacity: 1;
   }
 }
 
@@ -679,6 +821,12 @@ a {
 .alert p,
 .alert ul {
   margin: 0;
+}
+/* Error-summary links stack: each keeps a 24 px target (WCAG 2.2 target size). */
+.alert li a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--space-7);
 }
 .alert__title {
   font-size: var(--type-title-sm-size);

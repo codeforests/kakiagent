@@ -1,11 +1,10 @@
 import { startTestDatabase, TENANT_A, type TestDatabase } from '@kaki/db/testing';
-import { gatewayFromConfig } from '@kaki/llm-gateway';
-import { createLogger, signToken } from '@kaki/platform';
+import { signToken } from '@kaki/platform';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { buildApp } from '../src/app.js';
-import { schema as configSchema } from '../src/config.js';
+import type { buildApp } from '../src/app.js';
+import { testApp } from './support.js';
 
 /**
  * FEAT-003 AC-5 (GOV-04 acceptance): identifiers a visitor types never reach the
@@ -21,27 +20,13 @@ const published: string[] = [];
 
 beforeAll(async () => {
   tdb = await startTestDatabase();
-  const config = configSchema.parse({
-    NODE_ENV: 'test',
-    VALKEY_URL: 'redis://localhost:6379',
-    DASHBOARD_DATABASE_URL: tdb.urlFor('app_dashboard'),
-    VISITOR_DATABASE_URL: tdb.urlFor('app_agent_visitor'),
-    PUBLIC_REALTIME_URL: 'http://localhost:3001',
-    PUBLIC_WIDGET_PANEL_URL: 'http://localhost:5175/w/v1/panel.js',
-    VISITOR_TOKEN_SECRET: VISITOR_SECRET,
-    SESSION_SECRET: 's'.repeat(32),
-  });
-  app = await buildApp({
-    config,
-    logger: createLogger('api-test', 'silent'),
-    dashboardDb: tdb.zone('dashboard'),
-    visitorDb: tdb.zone('visitor'),
+  app = await testApp(tdb, {
+    env: { VISITOR_TOKEN_SECRET: VISITOR_SECRET },
     publisher: {
       publish: async (_channel: string, payload: unknown) =>
         void published.push(JSON.stringify(payload)),
       close: async () => {},
     },
-    llm: gatewayFromConfig({ provider: 'fake' }),
   });
   owner = new pg.Client({ connectionString: tdb.ownerUrl });
   await owner.connect();

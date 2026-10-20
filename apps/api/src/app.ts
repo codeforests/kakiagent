@@ -3,15 +3,14 @@ import { isAllowedOrigin } from '@kaki/channels';
 import {
   ConversationList,
   CreateConversationResponse,
-  Me,
   SendMessageBody,
   SendMessageResponse,
   WidgetConfigQuery,
   WidgetConfigResponse,
   type RealtimeEvent,
 } from '@kaki/contracts';
-import { eq, ping, schema, withTenant } from '@kaki/db';
-import { DEV_SESSION_COOKIE, readDevSession, type DevSession } from '@kaki/identity';
+import { ping, withTenant } from '@kaki/db';
+import { LinkError, SESSION_COOKIE, TermsOutdatedError } from '@kaki/identity';
 import {
   appendVisitorMessage,
   createConversation,
@@ -31,6 +30,13 @@ import { resolveWidgetKey } from '@kaki/tenancy';
 import { randomUUID } from 'node:crypto';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { ZodError } from 'zod';
+import {
+  NoWorkspaceError,
+  RateLimitedError,
+  registerAuth,
+  UnauthenticatedError,
+  UnavailableError,
+} from './auth.js';
 import { FactNotFound, ForbiddenError, registerFactRoutes } from './facts.js';
 import { createServer, type Deps } from './server.js';
 
@@ -45,6 +51,12 @@ interface VisitorClaims {
 }
 
 const VISITOR_TOKEN_TTL_S = 3600;
+
+const LINK_MESSAGES: Record<LinkError['code'], string> = {
+  link_expired: 'This link has expired.',
+  link_used: 'This link has already been used.',
+  link_invalid: "This link isn't valid.",
+};
 
 export async function buildApp(deps: Deps) {
   const { config, dashboardDb, visitorDb, publisher } = deps;
@@ -62,6 +74,32 @@ export async function buildApp(deps: Deps) {
       return reply.code(404).send({ error: 'not_found', message: 'Not found' });
     if (err instanceof TokenError)
       return reply.code(401).send({ error: 'unauthorized', message: 'Sign in again' });
+    if (err instanceof UnauthenticatedError) {
+      if (!err.expired)
+        return reply.code(401).send({ error: 'unauthorized', message: 'Sign in to continue' });
+      return reply
+        .clearCookie(SESSION_COOKIE, { path: '/' })
+        .code(401)
+        .send({ error: 'session_expired', message: 'Your session has ended. Sign in again.' });
+    }
+    if (err instanceof NoWorkspaceError)
+      return reply
+        .code(403)
+        .send({ error: 'no_workspace', message: 'Create your workspace first.' });
+    if (err instanceof LinkError)
+      return reply.code(400).send({ error: err.code, message: LINK_MESSAGES[err.code] });
+    if (err instanceof TermsOutdatedError)
+      return reply.code(409).send({
+        error: 'terms_outdated',
+        message: 'The terms have been updated. Please review them again.',
+      });
+    if (err instanceof RateLimitedError)
+      return reply.code(429).send({
+        error: 'rate_limited',
+        message: 'Too many sign-in links. Try again in a few minutes.',
+      });
+    if (err instanceof UnavailableError)
+      return reply.code(503).send({ error: 'unavailable', message: 'Try again shortly' });
     if (err instanceof ForbiddenError)
       return reply.code(403).send({ error: 'forbidden', message: 'Not allowed' });
     if (err instanceof VersionConflictError)
@@ -204,27 +242,10 @@ export async function buildApp(deps: Deps) {
   );
 
   // ---- Dashboard API (dashboard trust zone) -------------------------------------------
-  function sessionFrom(req: FastifyRequest): DevSession {
-    const session = readDevSession(req.cookies[DEV_SESSION_COOKIE], config.SESSION_SECRET);
-    if (!session) throw new TokenError('no session');
-    return session;
-  }
-
-  app.get('/api/v1/me', async (req) => {
-    const s = sessionFrom(req);
-    const [tenant] = await withTenant(dashboardDb, s.tenantId, (tx) =>
-      tx.select().from(schema.tenants).where(eq(schema.tenants.id, s.tenantId)),
-    );
-    if (!tenant) throw new TokenError('tenant gone');
-    return Me.parse({
-      userId: s.userId,
-      role: s.role,
-      tenant: { id: tenant.id, name: tenant.name, status: tenant.status },
-    });
-  });
+  const { sessionFrom } = registerAuth(app, deps);
 
   app.get('/api/v1/conversations', async (req) => {
-    const s = sessionFrom(req);
+    const s = await sessionFrom(req);
     const conversations = await withTenant(dashboardDb, s.tenantId, (tx) =>
       listConversations(tx, s.tenantId),
     );
@@ -232,13 +253,6 @@ export async function buildApp(deps: Deps) {
   });
 
   registerFactRoutes(app, deps, sessionFrom);
-
-  // Dev-only sign-in. `process.env.KAKI_BUILD` is replaced with "production" by the
-  // bundler, which makes this branch dead code and drops the module (plan §2).
-  if (process.env.KAKI_BUILD !== 'production' && config.KAKI_DEV_AUTH === 'true') {
-    const { registerDevAuth } = await import('./dev-auth.js');
-    registerDevAuth(app, deps);
-  }
 
   return app;
 }

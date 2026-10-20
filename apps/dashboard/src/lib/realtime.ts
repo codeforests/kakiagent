@@ -42,9 +42,15 @@ export function useInboxSocket(): LiveState {
           );
         }
       };
-      socket.onclose = () => {
+      socket.onclose = (e) => {
         if (closed) return;
         setState('offline');
+        // Refused for the session (4401) or the workspace (4403): `me` routes the user
+        // to sign in or create one, so don't retry (FEAT-005 §3.6).
+        if (e.code === 4401 || e.code === 4403) {
+          void queryClient.invalidateQueries({ queryKey: ['me'] });
+          return;
+        }
         retry = setTimeout(connect, Math.min(30_000, 1000 * 2 ** attempt++));
       };
     };

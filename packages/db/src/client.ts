@@ -11,9 +11,11 @@ export type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
  * owns a table or has BYPASSRLS:
  * - `dashboard`: authenticated dashboard requests and the inbox WebSocket;
  * - `visitor`: the widget API, the agent worker and the widget SSE stream (ADR-009);
- * - `outbox`: the outbox dispatcher, which reads pending rows across tenants.
+ * - `outbox`: the outbox dispatcher, which reads pending rows across tenants;
+ * - `identity`: sign-in, sessions and workspace creation, before any tenant context
+ *   exists (FEAT-005 D2).
  */
-export type TrustZone = 'dashboard' | 'visitor' | 'outbox';
+export type TrustZone = 'dashboard' | 'visitor' | 'outbox' | 'identity';
 
 export interface ZoneDb {
   zone: TrustZone;

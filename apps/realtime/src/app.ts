@@ -2,7 +2,7 @@ import cookie from '@fastify/cookie';
 import websocket from '@fastify/websocket';
 import { RealtimeEvent } from '@kaki/contracts';
 import { ping, withTenant, type ZoneDb } from '@kaki/db';
-import { DEV_SESSION_COOKIE, readDevSession } from '@kaki/identity';
+import { authenticate, SESSION_COOKIE } from '@kaki/identity';
 import { messagesSince, NotFoundError, toMessage } from '@kaki/inbox';
 import { channels, TokenError, verifyToken, type Logger, type Subscriber } from '@kaki/platform';
 import Fastify from 'fastify';
@@ -15,6 +15,7 @@ export interface Deps {
   logger: Logger;
   dashboardDb: ZoneDb;
   visitorDb: ZoneDb;
+  identityDb: ZoneDb;
   subscriber: Subscriber;
 }
 
@@ -140,12 +141,17 @@ export async function buildApp(deps: Deps) {
 
   // ---- Dashboard: WebSocket --------------------------------------------------------
   app.get('/ws', { websocket: true }, async (socket, req) => {
-    const session = readDevSession(req.cookies[DEV_SESSION_COOKIE], config.SESSION_SECRET);
-    if (!session) {
+    const result = await authenticate(deps.identityDb, req.cookies[SESSION_COOKIE]);
+    if (!result.ok) {
       socket.close(4401, 'unauthorized');
       return;
     }
-    const unsubscribe = await subscriber.subscribe(channels.inbox(session.tenantId), (e) => {
+    const { tenantId } = result.auth;
+    if (!tenantId) {
+      socket.close(4403, 'no_workspace');
+      return;
+    }
+    const unsubscribe = await subscriber.subscribe(channels.inbox(tenantId), (e) => {
       const parsedEvent = RealtimeEvent.safeParse(e);
       if (parsedEvent.success && socket.readyState === socket.OPEN)
         socket.send(JSON.stringify(parsedEvent.data));

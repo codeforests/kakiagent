@@ -21,6 +21,7 @@ module.exports = {
           // Declared secondary entry points (package.json "exports").
           '^packages/platform/src/(outbox|pii-mask)\\.ts$',
           '^packages/db/src/(setup|testing)\\.ts$',
+          '^packages/identity/src/testing\\.ts$',
           '^packages/ui/src/styles\\.css$',
         ],
       },
@@ -44,7 +45,7 @@ module.exports = {
       comment: 'Testcontainers helpers never ship in a runtime role.',
       severity: 'error',
       from: { pathNot: '(^|/)(test|e2e)/|\\.test\\.ts$' },
-      to: { path: '^packages/db/src/testing\\.ts$' },
+      to: { path: '^packages/(db|identity)/src/testing\\.ts$' },
     },
     {
       name: 'not-to-unresolvable',

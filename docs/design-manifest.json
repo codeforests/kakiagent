@@ -5,6 +5,103 @@
     "note": "Set 2026-10-19 by the product owner (no design tool connected; HTML prototypes for anchors). Overridable per screen. Paths are relative to docs/."
   },
   "screens": {
+    "SCR-APP-001": {
+      "name": "Sign in",
+      "surface": "APP",
+      "feature": "FEAT-005",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-005-sign-in/ui-design.md#scr-app-001--sign-in"
+      },
+      "states": {
+        "covered": [
+          "default",
+          "sending",
+          "sent",
+          "rate-limited",
+          "validation",
+          "error"
+        ],
+        "gaps": [],
+        "supplements": []
+      },
+      "contract_bindings": [
+        "GET /api/v1/auth/options",
+        "POST /api/v1/auth/magic-link",
+        "GET /api/v1/auth/google/start"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-10-20"
+    },
+    "SCR-APP-002": {
+      "name": "Check your email / link problem",
+      "surface": "APP",
+      "feature": "FEAT-005",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-005-sign-in/ui-design.md#scr-app-002--check-your-email--link-problem"
+      },
+      "states": {
+        "covered": [
+          "sent",
+          "verifying",
+          "expired",
+          "used",
+          "invalid",
+          "error"
+        ],
+        "gaps": [],
+        "supplements": []
+      },
+      "contract_bindings": [
+        "POST /api/v1/auth/magic-link",
+        "POST /api/v1/auth/magic-link/verify"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-10-20"
+    },
+    "SCR-APP-003": {
+      "name": "Create your workspace",
+      "surface": "APP",
+      "feature": "FEAT-005",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-005-sign-in/ui-design.md#scr-app-003--create-your-workspace"
+      },
+      "states": {
+        "covered": [
+          "default",
+          "saving",
+          "validation",
+          "terms-updated",
+          "declined",
+          "error"
+        ],
+        "gaps": [],
+        "supplements": []
+      },
+      "contract_bindings": [
+        "GET /api/v1/auth/options",
+        "POST /api/v1/workspaces"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-10-20"
+    },
     "SCR-APP-015": {
       "name": "Conversation",
       "surface": "APP",
@@ -145,6 +242,38 @@
       },
       "status": "designed",
       "designed_at": "2026-10-19"
+    },
+    "SCR-APP-059": {
+      "name": "System pages",
+      "surface": "APP",
+      "feature": "FEAT-005",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-005-sign-in/ui-design.md#scr-app-059--system-pages-session-expired-account-menu"
+      },
+      "states": {
+        "covered": [
+          "session-expired",
+          "account menu"
+        ],
+        "gaps": [
+          "not found, no permission, offline and tenant suspended predate this feature (FEAT-001) and are unchanged",
+          "no warning before session expiry (design.md §5 rule 11; see ui-design.md Gaps)"
+        ],
+        "supplements": []
+      },
+      "contract_bindings": [
+        "GET /api/v1/me",
+        "POST /api/v1/auth/sign-out",
+        "POST /api/v1/auth/sign-out-everywhere"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-10-20"
     },
     "SCR-WGT-002": {
       "name": "Chat panel",

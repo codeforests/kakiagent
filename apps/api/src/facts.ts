@@ -9,7 +9,7 @@ import {
   type Fact,
 } from '@kaki/contracts';
 import { withTenant } from '@kaki/db';
-import { can, type DevSession } from '@kaki/identity';
+import { can } from '@kaki/identity';
 import {
   contentChanged,
   createFact,
@@ -25,6 +25,7 @@ import {
 } from '@kaki/kb';
 import type { FastifyRequest } from 'fastify';
 import { ZodError } from 'zod';
+import type { TenantSession } from './auth.js';
 import type { App, Deps } from './server.js';
 
 export class ForbiddenError extends Error {}
@@ -75,12 +76,12 @@ function productValue(v: { name: string; price: string; unit?: string | undefine
 export function registerFactRoutes(
   app: App,
   deps: Deps,
-  sessionFrom: (req: FastifyRequest) => DevSession,
+  sessionFrom: (req: FastifyRequest) => Promise<TenantSession>,
 ) {
   const { dashboardDb, llm } = deps;
 
-  function manager(req: FastifyRequest) {
-    const s = sessionFrom(req);
+  async function manager(req: FastifyRequest) {
+    const s = await sessionFrom(req);
     if (!can(s.role, 'kb.manage')) throw new ForbiddenError('kb.manage');
     return s;
   }
@@ -91,7 +92,7 @@ export function registerFactRoutes(
   };
 
   app.get('/api/v1/kb/facts', async (req) => {
-    const s = manager(req);
+    const s = await manager(req);
     const query = FactListQuery.parse(req.query);
     const facts = await withTenant(dashboardDb, s.tenantId, (tx) =>
       listFacts(dashboardKb(tx, s.tenantId, s.userId), query),
@@ -100,7 +101,7 @@ export function registerFactRoutes(
   });
 
   app.get<{ Params: { id: string } }>('/api/v1/kb/facts/:id', async (req) => {
-    const s = manager(req);
+    const s = await manager(req);
     const id = factId(req.params.id);
     const fact = await withTenant(dashboardDb, s.tenantId, (tx) =>
       getFact(dashboardKb(tx, s.tenantId, s.userId), id),
@@ -109,7 +110,7 @@ export function registerFactRoutes(
   });
 
   app.post('/api/v1/kb/facts', async (req, reply) => {
-    const s = manager(req);
+    const s = await manager(req);
     const body = CreateFactBody.parse(req.body);
     const input: FactInput =
       body.type === 'product'
@@ -123,7 +124,7 @@ export function registerFactRoutes(
   });
 
   app.patch<{ Params: { id: string } }>('/api/v1/kb/facts/:id', async (req) => {
-    const s = manager(req);
+    const s = await manager(req);
     const id = factId(req.params.id);
     const body = UpdateFactBody.parse(req.body);
     const current = await withTenant(dashboardDb, s.tenantId, (tx) =>

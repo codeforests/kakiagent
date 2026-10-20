@@ -99,11 +99,15 @@ module "edge" {
   origin_domain_name                 = var.origin_domain_name
 }
 
-# Application secrets: the per-trust-zone database URLs (ADR-005) and token keys. Values
+# Application secrets: the per-trust-zone database URLs (ADR-005), token keys and the SMTP
+# URL (it carries the SES SMTP credentials). Values
 # are set out of band at MD (`pnpm db:setup` creates the roles), never in Terraform state.
 # Each role's URL points at the database endpoint output.
 resource "aws_secretsmanager_secret" "app" {
-  for_each   = toset(["dashboard-database-url", "visitor-database-url", "outbox-database-url", "visitor-token-secret", "session-secret"])
+  for_each = toset([
+    "dashboard-database-url", "visitor-database-url", "outbox-database-url", "identity-database-url",
+    "visitor-token-secret", "session-secret", "magic-link-secret", "smtp-url",
+  ])
   name       = "${var.name}/${each.key}"
   kms_key_id = module.data.kms_key_arn
 }
@@ -173,7 +177,7 @@ module "service" {
         VALKEY_URL              = local.valkey
         PUBLIC_REALTIME_URL     = local.public_url
         PUBLIC_WIDGET_PANEL_URL = "${local.public_url}/w/v1/panel.js"
-        KAKI_DEV_AUTH           = "false"
+        PUBLIC_APP_URL          = local.public_url
       }
       realtime = { PORT = "3001", VALKEY_URL = local.valkey }
       agent-worker = {
@@ -189,6 +193,7 @@ module "service" {
         AWS_REGION          = local.region
         SQS_TURNS_QUEUE_URL = module.queues.queue_urls["conversation-turns"]
         AUDIT_ANCHOR_BUCKET = module.storage.bucket_names["audit-anchors"]
+        PUBLIC_APP_URL      = local.public_url
       }
     }[each.key] : k => v },
   )
@@ -199,16 +204,24 @@ module "service" {
       VISITOR_DATABASE_URL   = local.secret["visitor-database-url"]
       VISITOR_TOKEN_SECRET   = local.secret["visitor-token-secret"]
       SESSION_SECRET         = local.secret["session-secret"]
+      IDENTITY_DATABASE_URL  = local.secret["identity-database-url"]
+      MAGIC_LINK_SECRET      = local.secret["magic-link-secret"]
+      SMTP_URL               = local.secret["smtp-url"]
     }
     realtime = {
       DASHBOARD_DATABASE_URL = local.secret["dashboard-database-url"]
       VISITOR_DATABASE_URL   = local.secret["visitor-database-url"]
+      IDENTITY_DATABASE_URL  = local.secret["identity-database-url"]
       VISITOR_TOKEN_SECRET   = local.secret["visitor-token-secret"]
-      SESSION_SECRET         = local.secret["session-secret"]
     }
-    agent-worker     = { VISITOR_DATABASE_URL = local.secret["visitor-database-url"] }
-    ingest-worker    = {}
-    scheduler-worker = { OUTBOX_DATABASE_URL = local.secret["outbox-database-url"] }
+    agent-worker  = { VISITOR_DATABASE_URL = local.secret["visitor-database-url"] }
+    ingest-worker = {}
+    scheduler-worker = {
+      OUTBOX_DATABASE_URL   = local.secret["outbox-database-url"]
+      IDENTITY_DATABASE_URL = local.secret["identity-database-url"]
+      MAGIC_LINK_SECRET     = local.secret["magic-link-secret"]
+      SMTP_URL              = local.secret["smtp-url"]
+    }
   }[each.key]
 }
 

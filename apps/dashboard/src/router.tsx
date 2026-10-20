@@ -4,7 +4,11 @@ import { FactPage } from './pages/fact.tsx';
 import { FactsPage } from './pages/facts.tsx';
 import { HomePage } from './pages/home.tsx';
 import { InboxPage } from './pages/inbox.tsx';
+import { LegalPage } from './pages/legal.tsx';
+import { SignInPage } from './pages/sign-in.tsx';
 import { NoPermission, NotFound, SessionExpired } from './pages/system.tsx';
+import { VerifyPage } from './pages/verify.tsx';
+import { WelcomePage } from './pages/welcome.tsx';
 import { AppShell } from './shell/app-shell.tsx';
 import { MorePage } from './shell/more.tsx';
 
@@ -13,20 +17,19 @@ import { MorePage } from './shell/more.tsx';
  * builds them (plan §4). System pages are SCR-APP-059.
  */
 export const router = createBrowserRouter([
-  // The dev sign-in exists only in dev builds; `import.meta.env.DEV` is false in
-  // `vite build`, so the module is dropped (plan §2). FEAT-005 builds SCR-APP-001.
-  import.meta.env.DEV
-    ? {
-        path: '/sign-in',
-        lazy: () => import('./pages/dev-sign-in.tsx').then((m) => ({ Component: m.DevSignInPage })),
-      }
-    : { path: '/sign-in', element: <Placeholder title="Sign in" feature="FEAT-005" /> },
+  // Outside the shell (FEAT-005): sign-in, the emailed link, workspace creation.
+  { path: '/sign-in', element: <SignInPage /> },
+  { path: '/auth/verify', element: <VerifyPage /> },
+  { path: '/welcome', element: <WelcomePage /> },
+  { path: '/legal/:document', element: <LegalPage /> },
   { path: '/session-expired', element: <SessionExpired /> },
   {
     path: '/',
     element: <AppShell />,
     children: [
       { index: true, element: <HomePage /> },
+      // The setup wizard's entry (UC-03 step 1); FEAT-009 builds it.
+      { path: 'setup', element: <Placeholder title="Set up your assistant" feature="FEAT-009" /> },
       { path: 'inbox', element: <InboxPage /> },
       { path: 'approvals', element: <Placeholder title="Approvals" feature="FEAT-055" /> },
       { path: 'review', element: <Placeholder title="Review" feature="FEAT-013" /> },

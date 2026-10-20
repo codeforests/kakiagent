@@ -1,0 +1,55 @@
+import { schema, sql, type Tx } from '@kaki/db';
+import { newSessionToken, hashToken } from './tokens.js';
+
+export interface UserRow {
+  id: string;
+  status: 'active' | 'disabled';
+  googleSub: string | null;
+}
+
+/** The user with this (normalised) email, created on first sign-in. */
+export async function findOrCreateUser(tx: Tx, email: string): Promise<UserRow> {
+  await tx.execute(sql`insert into users (email) values (${email}) on conflict (email) do nothing`);
+  const { rows } = await tx.execute<{
+    id: string;
+    status: UserRow['status'];
+    google_sub: string | null;
+  }>(sql`select id, status, google_sub from users where email = ${email}`);
+  const row = rows[0]!;
+  return { id: row.id, status: row.status, googleSub: row.google_sub };
+}
+
+export interface SignedIn {
+  /** The session cookie value. */
+  token: string;
+  userId: string;
+  /** Where the dashboard goes next: the app, or SCR-APP-003 (FEAT-005 §3.2). */
+  next: 'app' | 'create-workspace';
+}
+
+/**
+ * Starts a session for a user who just proved who they are (§5.4 steps 3–5). Every
+ * sign-in mints a new token, so a session can't be fixed in advance. The session opens
+ * the user's earliest active membership until the switcher exists (D11).
+ */
+export async function startSession(
+  tx: Tx,
+  userId: string,
+  method: 'magic_link' | 'google',
+): Promise<SignedIn> {
+  await tx.execute(sql`update users set last_sign_in_at = now() where id = ${userId}`);
+  const { rows } = await tx.execute<{ tenant_id: string }>(
+    sql`select tenant_id from memberships where user_id = ${userId} and status = 'active'
+        order by created_at, tenant_id limit 1`,
+  );
+  const tenantId = rows[0]?.tenant_id ?? null;
+  const token = newSessionToken();
+  await tx.insert(schema.sessions).values({
+    userId,
+    tokenHash: hashToken(token),
+    activeTenantId: tenantId,
+    authMethod: method,
+    expiresAt: sql`now() + interval '30 days'`,
+  });
+  return { token, userId, next: tenantId ? 'app' : 'create-workspace' };
+}

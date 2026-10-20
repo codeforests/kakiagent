@@ -27,10 +27,17 @@ const s = {
   APP_DASHBOARD_PASSWORD: prev.APP_DASHBOARD_PASSWORD ?? rand(),
   APP_AGENT_VISITOR_PASSWORD: prev.APP_AGENT_VISITOR_PASSWORD ?? rand(),
   APP_OUTBOX_PASSWORD: prev.APP_OUTBOX_PASSWORD ?? rand(),
+  APP_IDENTITY_PASSWORD: prev.APP_IDENTITY_PASSWORD ?? rand(),
   VISITOR_TOKEN_SECRET: prev.VISITOR_TOKEN_SECRET ?? rand() + rand(),
   SESSION_SECRET: prev.SESSION_SECRET ?? rand() + rand(),
+  MAGIC_LINK_SECRET: prev.MAGIC_LINK_SECRET ?? rand() + rand(),
 };
 const pg = (user, pw) => `postgres://${user}:${pw}@localhost:5432/kakiagent`;
+const mail = {
+  SMTP_URL: 'smtp://localhost:1025',
+  PUBLIC_APP_URL: 'http://localhost:5173',
+  MAGIC_LINK_SECRET: s.MAGIC_LINK_SECRET,
+};
 const queue =
   'http://sqs.ap-southeast-1.localhost.localstack.cloud:4566/000000000000/conversation-turns.fifo';
 
@@ -44,9 +51,13 @@ const files = {
     APP_DASHBOARD_PASSWORD: s.APP_DASHBOARD_PASSWORD,
     APP_AGENT_VISITOR_PASSWORD: s.APP_AGENT_VISITOR_PASSWORD,
     APP_OUTBOX_PASSWORD: s.APP_OUTBOX_PASSWORD,
+    APP_IDENTITY_PASSWORD: s.APP_IDENTITY_PASSWORD,
   },
   'apps/api/.env': {
-    KAKI_DEV_AUTH: 'true',
+    // Local HTTP: browsers drop a Secure cookie on http://localhost in some setups.
+    COOKIE_SECURE: 'false',
+    ...mail,
+    IDENTITY_DATABASE_URL: pg('app_identity', s.APP_IDENTITY_PASSWORD),
     DASHBOARD_DATABASE_URL: pg('app_dashboard', s.APP_DASHBOARD_PASSWORD),
     VISITOR_DATABASE_URL: pg('app_agent_visitor', s.APP_AGENT_VISITOR_PASSWORD),
     VISITOR_TOKEN_SECRET: s.VISITOR_TOKEN_SECRET,
@@ -55,8 +66,8 @@ const files = {
   'apps/realtime/.env': {
     DASHBOARD_DATABASE_URL: pg('app_dashboard', s.APP_DASHBOARD_PASSWORD),
     VISITOR_DATABASE_URL: pg('app_agent_visitor', s.APP_AGENT_VISITOR_PASSWORD),
+    IDENTITY_DATABASE_URL: pg('app_identity', s.APP_IDENTITY_PASSWORD),
     VISITOR_TOKEN_SECRET: s.VISITOR_TOKEN_SECRET,
-    SESSION_SECRET: s.SESSION_SECRET,
   },
   'apps/agent-worker/.env': {
     VISITOR_DATABASE_URL: pg('app_agent_visitor', s.APP_AGENT_VISITOR_PASSWORD),
@@ -66,6 +77,8 @@ const files = {
   },
   'apps/scheduler-worker/.env': {
     OUTBOX_DATABASE_URL: pg('app_outbox', s.APP_OUTBOX_PASSWORD),
+    IDENTITY_DATABASE_URL: pg('app_identity', s.APP_IDENTITY_PASSWORD),
+    ...mail,
     SQS_TURNS_QUEUE_URL: queue,
     AWS_ACCESS_KEY_ID: 'test',
     AWS_SECRET_ACCESS_KEY: 'test',

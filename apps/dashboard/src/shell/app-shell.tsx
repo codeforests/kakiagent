@@ -2,8 +2,9 @@ import { SkipLink } from '@kaki/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { Navigate, NavLink, Outlet } from 'react-router';
-import { api, UnauthorizedError } from '../lib/api.ts';
+import { api } from '../lib/api.ts';
 import { Offline, TenantSuspended } from '../pages/system.tsx';
+import { AccountMenu } from './account-menu.tsx';
 import { Icon } from './icon.tsx';
 import { SIDEBAR, TAB_BAR } from './nav.ts';
 
@@ -30,8 +31,9 @@ export function AppShell() {
   const online = useOnline();
   const me = useQuery({ queryKey: ['me'], queryFn: api.me });
 
-  if (me.error instanceof UnauthorizedError) return <Navigate to="/sign-in" replace />;
-  if (me.data?.tenant.status === 'suspended') return <TenantSuspended />;
+  // A 401 is routed to sign-in or "session expired" by the query cache (main.tsx).
+  if (me.data && !me.data.tenant) return <Navigate to="/welcome" replace />;
+  if (me.data?.tenant?.status === 'suspended') return <TenantSuspended />;
 
   return (
     <div className="shell">
@@ -51,16 +53,14 @@ export function AppShell() {
       </nav>
       <header className="topbar">
         <span className="topbar__tenant" data-testid="tenant-name">
-          {me.data?.tenant.name ?? ' '}
+          {me.data?.tenant?.name ?? ' '}
         </span>
         {/* AI status pill: becomes the kill-switch trigger in FEAT-057 (GOV-08). */}
         <span className="status-pill status-pill--off" title="The assistant isn't live yet">
           <span className="status-pill__dot" aria-hidden="true" />
           Not live
         </span>
-        <span className="avatar" aria-label="Signed in as the owner (dev)">
-          O
-        </span>
+        <AccountMenu email={me.data?.user.email} />
       </header>
       <main id="main" className="content" tabIndex={-1}>
         {online ? <Outlet /> : <Offline />}

@@ -1,15 +1,30 @@
 import {
+  AuthOptions,
   ConversationList,
+  CreateWorkspaceResponse,
+  MagicLinkResponse,
+  MagicLinkVerifyResponse,
   FactList,
   FactResponse,
   Me,
   type CreateFactBody,
+  type CreateWorkspaceBody,
   type FactStatus,
   type UpdateFactBody,
 } from '@kaki/contracts';
 import type { z } from 'zod';
 
-export class UnauthorizedError extends Error {}
+/**
+ * A 401 (FEAT-005 §3.6): `unauthorized` when no session was sent, `session_expired` when
+ * the one sent has ended (idle, too old or signed out elsewhere).
+ */
+export class UnauthorizedError extends Error {
+  readonly code: 'unauthorized' | 'session_expired';
+  constructor(code: string) {
+    super('Sign in to continue');
+    this.code = code === 'session_expired' ? 'session_expired' : 'unauthorized';
+  }
+}
 
 /** A non-2xx answer with the API's `{ error, message }` body (design §3.2). */
 export class ApiError extends Error {
@@ -22,12 +37,7 @@ export class ApiError extends Error {
   }
 }
 
-async function request<S extends z.ZodType>(
-  method: 'GET' | 'POST' | 'PATCH',
-  path: string,
-  schema: S,
-  body?: unknown,
-): Promise<z.infer<S>> {
+async function send(method: 'GET' | 'POST' | 'PATCH', path: string, body?: unknown) {
   const res = await fetch(path, {
     method,
     credentials: 'same-origin',
@@ -37,11 +47,21 @@ async function request<S extends z.ZodType>(
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
-  if (res.status === 401) throw new UnauthorizedError();
   if (!res.ok) {
     const err = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
+    if (res.status === 401) throw new UnauthorizedError(err.error ?? 'unauthorized');
     throw new ApiError(res.status, err.error ?? 'error', err.message ?? `${path}: ${res.status}`);
   }
+  return res;
+}
+
+async function request<S extends z.ZodType>(
+  method: 'GET' | 'POST' | 'PATCH',
+  path: string,
+  schema: S,
+  body?: unknown,
+): Promise<z.infer<S>> {
+  const res = await send(method, path, body);
   return schema.parse(await res.json());
 }
 
@@ -49,6 +69,15 @@ const getJson = <S extends z.ZodType>(path: string, schema: S) => request('GET',
 
 export const api = {
   me: () => getJson('/api/v1/me', Me),
+  authOptions: () => getJson('/api/v1/auth/options', AuthOptions),
+  requestMagicLink: (email: string) =>
+    request('POST', '/api/v1/auth/magic-link', MagicLinkResponse, { email }),
+  verifyMagicLink: (token: string) =>
+    request('POST', '/api/v1/auth/magic-link/verify', MagicLinkVerifyResponse, { token }),
+  signOut: async () => void (await send('POST', '/api/v1/auth/sign-out')),
+  signOutEverywhere: async () => void (await send('POST', '/api/v1/auth/sign-out-everywhere')),
+  createWorkspace: (body: CreateWorkspaceBody) =>
+    request('POST', '/api/v1/workspaces', CreateWorkspaceResponse, body),
   conversations: () => getJson('/api/v1/conversations', ConversationList),
   facts: (filter: { status?: FactStatus | undefined; q?: string | undefined }) => {
     const params = new URLSearchParams();

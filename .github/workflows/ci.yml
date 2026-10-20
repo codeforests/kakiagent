@@ -61,10 +61,10 @@ jobs:
       - uses: ./.github/actions/setup
       - run: pnpm build
       - run: pnpm size # ADR-016 loader ≤ 14 KB gz, NFR-02 initial load ≤ 30 KB gz
-      - name: Dev sign-in is compiled out (plan §2)
+      - name: No dev sign-in in a bundle (plan §2; removed by FEAT-005)
         run: |
-          if grep -rq "dev/sign-in" apps/api/dist/main.js apps/dashboard/dist/assets; then
-            echo "::error::The dev sign-in is in a production bundle"
+          if grep -rqE "dev/sign-in|kaki_dev_session" apps/api/dist/main.js apps/realtime/dist/main.js apps/dashboard/dist/assets; then
+            echo "::error::A dev sign-in is in a production bundle"
             exit 1
           fi
 

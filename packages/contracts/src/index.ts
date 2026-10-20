@@ -53,14 +53,57 @@ export const SendMessageResponse = z.object({ message: Message });
 
 // ---- Dashboard API (api role) ----------------------------------------------------
 
+export const Role = z.enum(['owner', 'admin', 'agent']);
+export type Role = z.infer<typeof Role>;
+
+/** The signed-in user; role and tenant are null until they have a workspace (FEAT-005 D10). */
 export const Me = z.object({
-  userId: z.string(),
-  role: z.enum(['owner', 'admin', 'agent']),
-  tenant: z.object({ id: z.uuid(), name: z.string(), status: z.enum(['active', 'suspended']) }),
+  user: z.object({ id: z.uuid(), email: z.string() }),
+  role: Role.nullable(),
+  tenant: z
+    .object({ id: z.uuid(), name: z.string(), status: z.enum(['active', 'suspended']) })
+    .nullable(),
 });
 export type Me = z.infer<typeof Me>;
 
 export const ConversationList = z.object({ conversations: z.array(ConversationSummary) });
+
+// ---- Dashboard API: sign-in and workspaces (FEAT-005 design §3) ---------------------
+
+export const TermsDocument = z.enum(['tos', 'aup', 'dpa']);
+export type TermsDocument = z.infer<typeof TermsDocument>;
+
+export const AuthOptions = z.object({
+  /** Whether "Continue with Google" is offered (GOOGLE_CLIENT_ID is set). */
+  google: z.boolean(),
+  /** The documents a new Owner accepts, at their current versions (AUTH-08). */
+  terms: z.array(z.object({ document: TermsDocument, title: z.string(), version: z.string() })),
+});
+export type AuthOptions = z.infer<typeof AuthOptions>;
+
+export const MagicLinkRequest = z.object({
+  email: z.string().trim().toLowerCase().max(254).pipe(z.email()),
+});
+/** The same for every well-formed address (AUTH-01); `delayed` when email is slow (UC-01 2c). */
+export const MagicLinkResponse = z.object({ delayed: z.boolean() });
+
+export const MagicLinkVerifyBody = z.object({ token: z.string().max(100) });
+export const MagicLinkVerifyResponse = z.object({ next: z.enum(['app', 'create-workspace']) });
+export type MagicLinkVerifyResponse = z.infer<typeof MagicLinkVerifyResponse>;
+
+export const CreateWorkspaceBody = z.object({
+  businessName: z.string().trim().min(1).max(120),
+  /** The versions the user was shown and agreed to (AUTH-08). */
+  accepted: z.object({
+    tos: z.string().min(1).max(40),
+    aup: z.string().min(1).max(40),
+    dpa: z.string().min(1).max(40),
+  }),
+});
+export type CreateWorkspaceBody = z.infer<typeof CreateWorkspaceBody>;
+export const CreateWorkspaceResponse = z.object({
+  tenant: z.object({ id: z.uuid(), name: z.string(), status: z.enum(['active', 'suspended']) }),
+});
 
 // ---- Dashboard API: facts (KB-07; FEAT-022 design §3.2) ------------------------------
 

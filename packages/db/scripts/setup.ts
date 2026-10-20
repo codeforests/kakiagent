@@ -19,6 +19,7 @@ await setupDatabase({
     app_dashboard: need('APP_DASHBOARD_PASSWORD'),
     app_agent_visitor: need('APP_AGENT_VISITOR_PASSWORD'),
     app_outbox: need('APP_OUTBOX_PASSWORD'),
+    app_identity: need('APP_IDENTITY_PASSWORD'),
   },
   seedTenants:
     process.env.SEED_DEV_TENANTS === 'true'

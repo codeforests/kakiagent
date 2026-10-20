@@ -3,9 +3,10 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Users, sessions, MFA, roles and capabilities (ADR-020). Skeleton: can() and the dev-only session.",
+  "description": "Users, sessions, magic links, Google sign-in, workspaces and capabilities (ADR-020, FEAT-005).",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./testing": "./src/testing.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -15,11 +16,17 @@
     "test:coverage": "vitest run --coverage --passWithNoTests"
   },
   "dependencies": {
-    "@kaki/platform": "workspace:*"
+    "@kaki/db": "workspace:*",
+    "@kaki/governance": "workspace:*",
+    "@kaki/platform": "workspace:*",
+    "openid-client": "6.8.8"
   },
   "devDependencies": {
     "@types/node": "22.20.5",
+    "@types/pg": "8.23.1",
     "@vitest/coverage-v8": "5.0.5",
+    "jose": "6.2.12",
+    "pg": "8.23.1",
     "vitest": "5.0.5"
   }
 }

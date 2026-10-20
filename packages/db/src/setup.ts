@@ -6,7 +6,12 @@ import pg from 'pg';
 export const MIGRATIONS_DIR = fileURLToPath(new URL('../drizzle', import.meta.url));
 
 /** Login roles, one per trust zone (ADR-005). Created by the migration owner, outside migrations, because they carry passwords. */
-export const LOGIN_ROLES = ['app_dashboard', 'app_agent_visitor', 'app_outbox'] as const;
+export const LOGIN_ROLES = [
+  'app_dashboard',
+  'app_agent_visitor',
+  'app_outbox',
+  'app_identity',
+] as const;
 export type LoginRole = (typeof LOGIN_ROLES)[number];
 
 export interface SeedTenant {
@@ -17,7 +22,16 @@ export interface SeedTenant {
   allowedOrigins: string[];
   /** KB-15: the bakery quotes GST-inclusive prices; the second tenant isn't registered. */
   gstRegistered: boolean;
+  /** The seeded Owner, who signs in by magic link (FEAT-005). */
+  ownerEmail: string;
 }
+
+/**
+ * The terms version the seeded owners accepted. `@kaki/identity`'s test keeps it equal
+ * to `CURRENT_TERMS`, so the seed always looks like a tenant that accepted the current
+ * terms (AUTH-08).
+ */
+export const SEED_TERMS_VERSION = '2026-10-20';
 
 /** The bakery and a second tenant (plan §7), with fixed IDs so tests and demos can refer to them. */
 export function devTenants(allowedOrigins: string[]): SeedTenant[] {
@@ -29,6 +43,7 @@ export function devTenants(allowedOrigins: string[]): SeedTenant[] {
       widgetKey: 'wk_dev_bakery',
       allowedOrigins,
       gstRegistered: true,
+      ownerEmail: 'owner@kaki-bakery.test',
     },
     {
       id: '22222222-2222-4222-8222-222222222222',
@@ -37,6 +52,7 @@ export function devTenants(allowedOrigins: string[]): SeedTenant[] {
       widgetKey: 'wk_dev_second',
       allowedOrigins,
       gstRegistered: false,
+      ownerEmail: 'owner@second-tenant.test',
     },
   ];
 }
@@ -70,6 +86,23 @@ export async function seed(client: pg.ClientBase, tenants: SeedTenant[]): Promis
       `insert into business_profiles (tenant_id, gst_registered) values ($1, $2)
        on conflict (tenant_id) do update set gst_registered = excluded.gst_registered, updated_at = now()`,
       [t.id, t.gstRegistered],
+    );
+    const user = await client.query<{ id: string }>(
+      `insert into users (email) values ($1)
+       on conflict (email) do update set email = excluded.email returning id`,
+      [t.ownerEmail],
+    );
+    const userId = user.rows[0]!.id;
+    await client.query(
+      `insert into memberships (tenant_id, user_id, role) values ($1, $2, 'owner')
+       on conflict (tenant_id, user_id) do nothing`,
+      [t.id, userId],
+    );
+    await client.query(
+      `insert into terms_acceptances (tenant_id, user_id, document, version)
+       select $1, $2, d, $3 from unnest(array['tos', 'aup', 'dpa']) as d
+       where not exists (select 1 from terms_acceptances where tenant_id = $1 and version = $3)`,
+      [t.id, userId, SEED_TERMS_VERSION],
     );
   }
 }
