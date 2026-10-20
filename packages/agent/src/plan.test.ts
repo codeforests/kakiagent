@@ -14,7 +14,6 @@ import {
   TRIAGE_HISTORY,
   TRIAGE_OUTPUT_SCHEMA,
   TRIAGE_SYSTEM,
-  type TurnPlan,
 } from './plan.js';
 
 const meta = { tenantId: '11111111-1111-4111-8111-111111111111', conversationId: 'c', turnId: 't' };
