@@ -5,7 +5,7 @@
 
 - [x] T1 — Domain: the masker in `platform/src/pii-mask.ts` (`findPii`, `piiMask`, fold, NRIC checksum, Luhn, digit runs, bank keywords) and the corpus `pii-corpus.json`; replace the pass-through test (design §3.1, §5.1, §5.3; GOV-04; AC-1–AC-4, AC-10)
       Done when: unit tests over the corpus pass for every positive and negative case, idempotence holds for every case, and the 4000-character adversarial input runs under 20 ms.
-- [ ] T2 — Logs: `maskLogText`, the `@kaki/platform/pii-mask` subpath export, the logger's `logMethod` hook, `err` serializer and redaction paths (design §3.1, §3.4; D7; AC-7)
+- [x] T2 — Logs: `maskLogText`, the `@kaki/platform/pii-mask` subpath export, the logger's `logMethod` hook, `err` serializer and redaction paths (design §3.1, §3.4; D7; AC-7)
       Done when: unit tests that log through `createLogger` into a buffer show masked NRIC, card, email and phone values in messages and error messages, and `[redacted]` for the new fields.
 - [ ] T3 — Audit: `assertAuditEntry` rejects IDs and codes that contain PII (design §3.3; AC-8)
       Done when: governance unit tests reject `s1234567d` and a card number as `actorId`, subject ID, related ID and payload code, and the existing payload tests still pass.
