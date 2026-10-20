@@ -98,6 +98,7 @@ test('a policy is answered, then deleted from the list and no longer used', asyn
   await expect(row).toHaveCount(1);
   await expect(row).toContainText('Policy');
   await expect(owner.getByTestId('fact-row').filter({ hasText: 'Chocolate' })).toHaveCount(0);
+  await expectNoSeriousA11yViolations(owner);
 
   // A visitor asks.
   const ask = async () => {

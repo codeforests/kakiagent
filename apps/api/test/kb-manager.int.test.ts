@@ -176,10 +176,15 @@ describe('policies and promotions (AC-4)', () => {
 
 describe('list filters and paging (AC-1)', () => {
   it('filters by type, GST and text, and pages with nextCursor', async () => {
+    const created: string[] = [];
     for (let i = 0; i < 5; i++)
-      await create(
-        { type: 'faq', value: { question: `Paging question ${i}?`, answer: 'Yes.' } },
-        asB,
+      created.push(
+        (
+          await create(
+            { type: 'faq', value: { question: `Paging question ${i}?`, answer: 'Yes.' } },
+            asB,
+          )
+        ).id,
       );
     const seen: string[] = [];
     let url = '/api/v1/kb/facts?q=Paging&limit=2';
@@ -189,8 +194,8 @@ describe('list filters and paging (AC-1)', () => {
       if (!page.nextCursor) break;
       url = `/api/v1/kb/facts?q=Paging&limit=2&cursor=${page.nextCursor}`;
     }
-    expect(seen).toHaveLength(5);
-    expect(new Set(seen).size).toBe(5);
+    // Newest change first, across pages (AC-1).
+    expect(seen).toEqual(created.toReversed());
     const def = (await call('GET', '/api/v1/kb/facts', asB)).json();
     expect(def.nextCursor).toBeNull();
 
