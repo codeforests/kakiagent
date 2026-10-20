@@ -103,6 +103,31 @@ export const Fixture = z.object({
         value: z.object({ question: z.string(), answer: z.string() }),
         gstTreatment: z.null(),
       }),
+      z.object({
+        id: z.uuid(),
+        type: z.literal('policy'),
+        version: z.int(),
+        value: z.object({
+          kind: z.enum(['refund', 'delivery', 'booking', 'payment', 'other']),
+          title: z.string(),
+          details: z.string(),
+        }),
+        gstTreatment: z.null(),
+      }),
+      z.object({
+        id: z.uuid(),
+        type: z.literal('promotion'),
+        version: z.int(),
+        value: z.object({
+          title: z.string(),
+          details: z.string(),
+          priceCents: z.int().optional(),
+          currency: z.literal('SGD').optional(),
+        }),
+        gstTreatment: z.enum(['inclusive', 'exclusive', 'unknown']).nullable(),
+        /** The exclusive end instant, as `visitor_facts` returns it (FEAT-011 D3). */
+        validUntil: z.iso.datetime().pipe(z.coerce.date()).nullable(),
+      }),
     ]),
   ),
 });
