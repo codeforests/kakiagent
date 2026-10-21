@@ -303,11 +303,11 @@
           "host-dark",
           "host-pale-brand-clamped",
           "typing",
-          "error"
+          "error",
+          "after-hours"
         ],
         "gaps": [
           "rate-limited",
-          "after-hours",
           "waiting-for-approval",
           "attachment"
         ],
@@ -331,13 +331,24 @@
             "state": "error",
             "strategy": "code-native",
             "source": "features/FEAT-022-grounded-verified-answer/ui-design.md#error"
+          },
+          {
+            "state": "after-hours",
+            "strategy": "code-native",
+            "source": "features/FEAT-023-language-scope-hours/ui-design.md#after-hours"
+          },
+          {
+            "state": "language",
+            "strategy": "code-native",
+            "source": "features/FEAT-023-language-scope-hours/ui-design.md#language"
           }
         ]
       },
       "contract_bindings": [
         "POST /widget/v1/conversations/:id/messages",
         "SSE event: message",
-        "SSE event: segment"
+        "SSE event: segment",
+        "Message.notice (FEAT-023)"
       ],
       "conformance": {
         "result": "pass",
