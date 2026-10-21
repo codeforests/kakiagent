@@ -53,8 +53,8 @@ The local stack ran under Docker in this session (compose, `pnpm db:setup`, `pnp
 | Criterion | Where it is shown |
 |---|---|
 | AC-1 | `language.test.ts`, `prompt.test.ts` (tail names language and register; `system` byte-identical; changes with hours) |
-| AC-2 | `hours-text.test.ts`, `system-slots.test.ts`, `verify` cases in `compose.test.ts`; `language-hours.int.test.ts` (Chinese disclosure and reply); eval `chinese` |
-| AC-3 | eval `singlish` (22 cases) and `chinese` (17 cases) at 1.000 (threshold 0.9); verifier cases for particles, "this one nice one lah", typed "$55 only lah" and "can collect 3pm" |
+| AC-2 | `hours-text.test.ts`, `system-slots.test.ts` (verifier cases: weekday names, 三明治, typed times and dates); `language-hours.int.test.ts` (Chinese disclosure and reply); eval `chinese` |
+| AC-3 | eval `singlish` (22 cases) and `chinese` (17 cases) at 1.000 (threshold 0.9); verifier cases in `system-slots.test.ts` for particles, "this one nice one lah", typed "$55 only lah" and "can collect 3pm" |
 | AC-4 | `answer.test.ts`, `dispatch.test.ts`; `language-hours.int.test.ts` (triage call only, `out_of_scope: done` audited, mixed answer then refusal) |
 | AC-5 | `answer.test.ts` (`replyPlan` rules); `language-hours.int.test.ts` (unsure, triage call only); eval `out-of-scope` 18 cases at 1.000 (threshold 0.95) |
 | AC-6 | `tenancy/src/hours.test.ts` (14 tests), `tenancy/test/hours.int.test.ts` |
