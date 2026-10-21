@@ -127,6 +127,20 @@
       "when": 1792585009492,
       "tag": "0017_safety_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792596039751,
+      "tag": "0018_business_profile",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792596045720,
+      "tag": "0019_business_profile_rls",
+      "breakpoints": true
     }
   ]
 }

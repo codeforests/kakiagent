@@ -369,6 +369,7 @@ describe('facts and the visitor views', () => {
         after_hours_zh: null,
         fallback_en: null,
         fallback_zh: null,
+        holidays: {},
       },
     ]);
     const none = await asRole(
@@ -1206,5 +1207,147 @@ describe('usage ledger', () => {
       await expect(
         asRole(role, TENANT_A, (c) => c.query(`select * from cost_governor_evaluate(0, 0, 1)`)),
       ).rejects.toThrow(/permission denied/);
+  });
+});
+
+// ---- FEAT-009: business profile and holiday exceptions (FEAT-009 §4; AC-2, AC-9) ------
+
+describe('business profile and holidays (FEAT-009)', () => {
+  /** A Singapore day `offset` days from today, `YYYY-MM-DD`. */
+  const sgDay = (offset: number) =>
+    new Date(Date.now() + 8 * 3600_000 + offset * 86_400_000).toISOString().slice(0, 10);
+  const HOLIDAYS = `select holidays from visitor_tenant_state()`;
+
+  it("the dashboard edits its own tenant's profile, name and holidays only", async () => {
+    const { rows: before } = await owner.query(`select name from tenants where id = $1`, [
+      TENANT_B,
+    ]);
+    try {
+      await asRole('app_dashboard', TENANT_B, async (c) => {
+        await c.query(
+          `update business_profiles set uen = '201912345K', industry = 'fnb', contact_phone = '+6591234567',
+                  languages = '{en,zh}', version = version + 1`,
+        );
+        await c.query(`update tenants set name = 'Renamed'`);
+        await c.query(
+          `insert into holidays (tenant_id, day, kind, label) values ($1, $2, 'closed', 'Staff day')`,
+          [TENANT_B, sgDay(1)],
+        );
+        expect((await c.query(`select day::text, kind from holidays`)).rows).toEqual([
+          { day: sgDay(1), kind: 'closed' },
+        ]);
+      });
+      // Each refused statement in its own transaction (a failed one aborts the rest).
+      for (const stmt of [
+        `update tenants set ai_paused = true`,
+        `update tenants set widget_key = 'x'`,
+        `update business_profiles set tenant_id = tenant_id`,
+      ])
+        await expect(asRole('app_dashboard', TENANT_B, (c) => c.query(stmt))).rejects.toThrow(
+          /permission denied/,
+        );
+      await owner.query(`insert into holidays (tenant_id, day, kind) values ($1, $2, 'closed')`, [
+        TENANT_B,
+        sgDay(1),
+      ]);
+      const b = await asRole(
+        'app_agent_visitor',
+        TENANT_B,
+        async (c) => (await c.query(HOLIDAYS)).rows,
+      );
+      expect(b).toEqual([{ holidays: { [sgDay(1)]: 'closed' } }]);
+      const a = await asRole(
+        'app_agent_visitor',
+        TENANT_A,
+        async (c) => (await c.query(HOLIDAYS)).rows,
+      );
+      expect(a).toEqual([{ holidays: {} }]);
+    } finally {
+      await owner.query(`delete from holidays where tenant_id = $1`, [TENANT_B]);
+      await owner.query(`update tenants set name = $2 where id = $1`, [TENANT_B, before[0].name]);
+      await owner.query(
+        `update business_profiles set uen = null, industry = null, contact_phone = null, languages = '{en}' where tenant_id = $1`,
+        [TENANT_B],
+      );
+    }
+  });
+
+  it("tenant B can't read or write tenant A's holidays", async () => {
+    await owner.query(`insert into holidays (tenant_id, day, kind) values ($1, $2, 'closed')`, [
+      TENANT_A,
+      sgDay(2),
+    ]);
+    try {
+      await asRole('app_dashboard', TENANT_B, async (c) => {
+        expect((await c.query(`select * from holidays`)).rows).toEqual([]);
+        expect((await c.query(`delete from holidays`)).rowCount).toBe(0);
+        expect(
+          (await c.query(`update tenants set name = 'Hacked' where id = $1`, [TENANT_A])).rowCount,
+        ).toBe(0);
+        await expect(
+          c.query(`insert into holidays (tenant_id, day, kind) values ($1, $2, 'open')`, [
+            TENANT_A,
+            sgDay(3),
+          ]),
+        ).rejects.toThrow(/row-level security/);
+      });
+    } finally {
+      await owner.query(`delete from holidays where tenant_id = $1`, [TENANT_A]);
+    }
+  });
+
+  it('visitor_tenant_state returns exceptions within 15 days only; the visitor role cannot read holidays', async () => {
+    await owner.query(
+      `insert into holidays (tenant_id, day, kind) values ($1, $2, 'closed'), ($1, $3, 'open'), ($1, $4, 'closed')`,
+      [TENANT_A, sgDay(-20), sgDay(-15), sgDay(16)],
+    );
+    try {
+      const rows = await asRole(
+        'app_agent_visitor',
+        TENANT_A,
+        async (c) => (await c.query(HOLIDAYS)).rows,
+      );
+      expect(rows).toEqual([{ holidays: { [sgDay(-15)]: 'open' } }]);
+      await expect(
+        asRole('app_agent_visitor', TENANT_A, (c) => c.query(`select * from holidays`)),
+      ).rejects.toThrow(/permission denied/);
+    } finally {
+      await owner.query(`delete from holidays where tenant_id = $1`, [TENANT_A]);
+    }
+  });
+
+  it('the checks reject bad UENs, phones, emails, industries, languages, kinds and labels', async () => {
+    const upd = (set: string, v: unknown) =>
+      owner.query(`update business_profiles set ${set} = $2 where tenant_id = $1`, [TENANT_A, v]);
+    for (const uen of ['2019123K', '201912345', 'X08LL1234A', 's99ab1234z', '2019-12345K'])
+      await expect(upd('uen', uen)).rejects.toThrow(/business_profiles_uen_ck/);
+    for (const phone of ['91234567', '+6571234567', '+659123456'])
+      await expect(upd('contact_phone', phone)).rejects.toThrow(/business_profiles_phone_ck/);
+    await expect(upd('contact_email', 'no-at-sign')).rejects.toThrow(/business_profiles_email_ck/);
+    await expect(upd('industry', 'mining')).rejects.toThrow(/business_profiles_industry_ck/);
+    await expect(upd('languages', '{}')).rejects.toThrow(/business_profiles_languages_ck/);
+    await expect(upd('languages', '{en,fr}')).rejects.toThrow(/business_profiles_languages_ck/);
+    for (const [uen, phone] of [
+      ['53312345A', '+6561234567'],
+      ['201912345K', '+6591234567'],
+      ['T08LL1234A', '+6581234567'],
+    ]) {
+      await upd('uen', uen);
+      await upd('contact_phone', phone);
+    }
+    await owner.query(
+      `update business_profiles set uen = null, contact_phone = null where tenant_id = $1`,
+      [TENANT_A],
+    );
+    const ins = (kind: string, label: string | null) =>
+      owner.query(`insert into holidays (tenant_id, day, kind, label) values ($1, $2, $3, $4)`, [
+        TENANT_A,
+        sgDay(5),
+        kind,
+        label,
+      ]);
+    await expect(ins('half', null)).rejects.toThrow(/holidays_kind_ck/);
+    await expect(ins('closed', '  ')).rejects.toThrow(/holidays_label_ck/);
+    await expect(ins('closed', 'x'.repeat(61))).rejects.toThrow(/holidays_label_ck/);
   });
 });
