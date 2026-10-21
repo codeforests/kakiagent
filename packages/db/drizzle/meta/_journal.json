@@ -85,6 +85,20 @@
       "when": 1792536892647,
       "tag": "0011_fact_types_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792541508241,
+      "tag": "0012_hours_notice",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1792541513789,
+      "tag": "0013_hours_notice_rls",
+      "breakpoints": true
     }
   ]
 }

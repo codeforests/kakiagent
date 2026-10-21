@@ -64,17 +64,36 @@ export const tenants = pgTable(
 );
 
 /**
- * Business profile (ONB-03). FEAT-022 needs only the GST flag (KB-15); FEAT-009 adds the
- * rest of the profile.
+ * Business profile (ONB-03). FEAT-022 needs only the GST flag (KB-15) and FEAT-023 the
+ * opening hours (AGT-09); FEAT-009 adds the rest of the profile and its editor.
  */
-export const businessProfiles = pgTable('business_profiles', {
-  tenantId: uuid('tenant_id')
-    .primaryKey()
-    .references(() => tenants.id),
-  gstRegistered: boolean('gst_registered').notNull().default(false),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-});
+export const businessProfiles = pgTable(
+  'business_profiles',
+  {
+    tenantId: uuid('tenant_id')
+      .primaryKey()
+      .references(() => tenants.id),
+    gstRegistered: boolean('gst_registered').notNull().default(false),
+    /**
+     * Weekly opening hours in SGT, `{ mon: [{ open: '08:00', close: '19:00' }], …, sun: [] }`
+     * (FEAT-023 §4; `WeeklyHours` in @kaki/tenancy). Null: not set, so no after-hours behaviour.
+     */
+    hours: jsonb('hours'),
+    /** False: closed on SG public holidays (SRS §1.4 "Business hours"). */
+    openOnPublicHolidays: boolean('open_on_public_holidays').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check(
+      'business_profiles_hours_ck',
+      sql`${t.hours} is null or jsonb_typeof(${t.hours}) = 'object'`,
+    ),
+  ],
+);
+
+/** System notice kinds on a message (FEAT-023 §4); later kinds extend `messages_notice_ck`. */
+export const NOTICE_KINDS = ['after_hours'] as const;
 
 export const conversations = pgTable(
   'conversations',
@@ -118,6 +137,9 @@ export const messages = pgTable(
       .default(sql`'{}'::uuid[]`),
     /** The AI disclosure, on the first agent or system message of a conversation (AGT-11). */
     disclosure: text('disclosure'),
+    /** A system notice shown with the message, server-rendered (AGT-09 after hours, FEAT-023 D6). */
+    notice: text('notice'),
+    noticeKind: text('notice_kind', { enum: NOTICE_KINDS }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -133,6 +155,10 @@ export const messages = pgTable(
       t.clientMessageId,
     ),
     uniqueIndex('messages_in_reply_to_uq').on(t.tenantId, t.inReplyTo),
+    check(
+      'messages_notice_ck',
+      sql`(${t.notice} is null) = (${t.noticeKind} is null) and (${t.noticeKind} is null or ${t.noticeKind} in ('after_hours'))`,
+    ),
   ],
 );
 
