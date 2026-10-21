@@ -171,3 +171,59 @@ describe('composeReply (ADR-008)', () => {
     expect(prompts[0]!.messages.at(-1)?.content).toBe('m13');
   });
 });
+
+describe('the fake responder in Chinese and for hours (FEAT-023 T4)', () => {
+  const HOURS = new Map([
+    ['hours.sat', '上午9:00至下午5:00'],
+    ['hours.sun', '上午9:00至中午1:00'],
+    ['hours.today', '上午8:00至晚上7:00'],
+  ]);
+  const compose = (question: string, extra: Partial<ComposeInput>) => {
+    const llm = createGateway(defaultRegistry('fake'), [
+      createFakeProvider(fakeVisitorResponder, { chunkSize: 3 }),
+    ]);
+    return composeReply(
+      { ...input, history: [{ role: 'user', content: question }], ...extra },
+      { llm, gateOpen: async () => true, publish: async () => {} },
+    );
+  };
+
+  it('answers a price in Chinese with slots that pass the verifier', async () => {
+    const r = await compose('chocolate fudge cake 多少钱？', { language: 'zh', facts: [FUDGE] });
+    expect(r).toMatchObject({ outcome: 'answered', attempts: 1 });
+    expect(r.text).toBe('Chocolate fudge cake（1 kg）的价格是S$55.00。');
+  });
+
+  it('answers J7 from the hours slots', async () => {
+    const hours = {
+      hours: { mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] },
+      openOnPublicHolidays: false,
+      status: { open: true, since: null, nextOpen: null, today: [], closedForHoliday: false },
+      now: new Date(),
+    };
+    const r = await compose('请问周末营业时间？', {
+      language: 'zh',
+      facts: [],
+      hours,
+      systemSlots: HOURS,
+    });
+    expect(r).toMatchObject({ outcome: 'answered', slots: ['hours.sat', 'hours.sun'] });
+    expect(r.text).toBe('周六营业时间是上午9:00至下午5:00，周日是上午9:00至中午1:00。');
+  });
+
+  it('says it will check, in Chinese, when nothing matches', async () => {
+    const r = await compose('你们有榴莲蛋糕吗？', { language: 'zh', facts: [] });
+    expect(r.text).toBe('这个我不太确定，我先跟团队确认一下再回复您。');
+  });
+
+  it('escalates in the reply language', async () => {
+    const llm = createGateway(defaultRegistry('fake'), [
+      createFakeProvider(scriptedOutputs(['S$1', 'S$2'])),
+    ]);
+    const r = await composeReply(
+      { ...input, language: 'zh' },
+      { llm, gateOpen: async () => true, publish: async () => {} },
+    );
+    expect(r).toMatchObject({ outcome: 'escalated', text: '我先跟团队确认一下，稍后回复您。' });
+  });
+});

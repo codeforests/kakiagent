@@ -38,7 +38,14 @@ export function renderValidUntil(fact: Extract<VisitorFact, { type: 'promotion' 
 }
 
 export type RenderResult =
-  | { ok: true; text: string; spans: [number, number][]; factIds: string[] }
+  | {
+      ok: true;
+      text: string;
+      spans: [number, number][];
+      factIds: string[];
+      /** The system slots rendered (FEAT-023), for the audit entry. */
+      slots: string[];
+    }
   | { ok: false; violations: Violation[] };
 
 function fieldValue(fact: VisitorFact, field: string, gstRegistered: boolean): string | null {
@@ -71,18 +78,39 @@ function fieldValue(fact: VisitorFact, field: string, gstRegistered: boolean): s
 }
 
 /**
- * Replaces every slot with its KB value (ADR-008 decision 1). Returns the rendered
- * text, the character ranges that came from slots (the verifier's protected spans) and
- * the facts used. A slot naming a fact or field outside this turn's set fails.
+ * Replaces every slot with its KB or system value (ADR-008 decision 1). Returns the
+ * rendered text, the character ranges that came from slots (the verifier's protected
+ * spans), the facts and the system slots used. A slot naming a fact, field or system
+ * value outside this turn's set fails.
  */
-export function renderSegment(raw: string, facts: TurnFacts, gstRegistered: boolean): RenderResult {
+export function renderSegment(
+  raw: string,
+  facts: TurnFacts,
+  gstRegistered: boolean,
+  system: ReadonlyMap<string, string> = new Map(),
+): RenderResult {
   let text = '';
   const spans: [number, number][] = [];
   const used = new Set<string>();
+  const usedSlots = new Set<string>();
   const violations: Violation[] = [];
   let last = 0;
   for (const m of raw.matchAll(SLOT_RE)) {
-    const [token, ref, field] = m as unknown as [string, string, string];
+    const [token, ref, field, name] = m as unknown as [string, string, string, string | undefined];
+    if (name !== undefined) {
+      // A system slot (FEAT-023): only the names this turn computed.
+      const value = system.get(name);
+      if (value === undefined) {
+        violations.push({ kind: 'unknown_field', text: token });
+        continue;
+      }
+      text += raw.slice(last, m.index);
+      spans.push([text.length, text.length + value.length]);
+      text += value;
+      usedSlots.add(name);
+      last = m.index + token.length;
+      continue;
+    }
     const fact = facts.byRef.get(ref);
     const allowed = fact ? (SLOT_FIELDS[fact.type] as readonly string[]).includes(field) : false;
     const value = fact && allowed ? fieldValue(fact, field, gstRegistered) : null;
@@ -101,5 +129,5 @@ export function renderSegment(raw: string, facts: TurnFacts, gstRegistered: bool
   }
   if (violations.length) return { ok: false, violations };
   text += raw.slice(last);
-  return { ok: true, text, spans, factIds: [...used] };
+  return { ok: true, text, spans, factIds: [...used], slots: [...usedSlots] };
 }

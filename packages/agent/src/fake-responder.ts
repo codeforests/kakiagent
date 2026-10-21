@@ -1,16 +1,29 @@
 import type { GenerateRequest } from '@kaki/llm-gateway';
 
+/** Questions about opening hours, in English, Singlish and Chinese. */
+const HOURS_Q = /\b(hours?|open|opening|close|closing)\b|营业|几点|开门|关门|周末/i;
+const WEEKEND_Q = /\b(weekends?|saturday|sunday|sat|sun)\b|周末|星期六|星期天|星期日|周六|周日/i;
+
 /**
  * What the fake model writes in local development and the E2E suite (plan §2, P10): a
  * slot-correct answer built from the first two facts in the prompt, or "I'll check".
- * It reads the fact lines that `factLine` writes into the tail, so it stays in this module.
+ * It reads the fact lines that `factLine` writes into the tail, the reply language, and
+ * (FEAT-023) answers an hours question with the hours slots, so it stays in this module.
  */
 export function fakeVisitorResponder(req: GenerateRequest): string {
+  const tail = req.tail ?? '';
+  const zh = /^Reply language: Chinese/m.test(tail);
+  const question =
+    [...(req.messages ?? [])].reverse().find((m) => m.role === 'user')?.content ?? '';
+  if (HOURS_Q.test(question) && /\[\[s:hours\.today\]\]/.test(tail))
+    return hoursAnswer(question, tail, zh);
   const facts = [
-    ...(req.tail ?? '').matchAll(/^\[f:([0-9a-f]+)\] (product|faq|policy|promotion)\b(.*)$/gm),
+    ...tail.matchAll(/^\[f:([0-9a-f]+)\] (product|faq|policy|promotion)\b(.*)$/gm),
   ].slice(0, 2);
   if (!facts.length)
-    return "I'm not sure about that. Let me check with the team and get back to you.";
+    return zh
+      ? '这个我不太确定，我先跟团队确认一下再回复您。'
+      : "I'm not sure about that. Let me check with the team and get back to you.";
   const parts = facts.map(([, ref, type, rest = '']) => {
     const slot = (field: string) => `[[f:${ref}.${field}]]`;
     switch (type) {
@@ -20,15 +33,35 @@ export function fakeVisitorResponder(req: GenerateRequest): string {
         return slot('details');
       case 'promotion': {
         const price = rest.includes('| price:') ? slot('price') : '';
-        const until = rest.includes('| until:') ? `until ${slot('valid_until')}` : '';
-        const extra = [price, until].filter(Boolean).join(', ');
+        const until = rest.includes('| until:')
+          ? zh
+            ? `截至${slot('valid_until')}`
+            : `until ${slot('valid_until')}`
+          : '';
+        const extra = [price, until].filter(Boolean).join(zh ? '，' : ', ');
+        if (zh) return `${slot('title')}：${slot('details')}${extra ? `（${extra}）` : ''}`;
         return `${slot('title')}: ${slot('details')}${extra ? ` (${extra})` : ''}`;
       }
       default: {
+        if (zh) {
+          const unit = rest.includes('| unit:') ? `（${slot('unit')}）` : '';
+          return `${slot('name')}${unit}的价格是${slot('price')}。`;
+        }
         const unit = rest.includes('| unit:') ? ` (${slot('unit')})` : '';
         return `The ${slot('name')}${unit} is ${slot('price')}.`;
       }
     }
   });
   return parts.join(' ');
+}
+
+function hoursAnswer(question: string, tail: string, zh: boolean): string {
+  const closed = /\[\[s:next_open\]\]/.test(tail);
+  if (WEEKEND_Q.test(question))
+    return zh
+      ? '周六营业时间是[[s:hours.sat]]，周日是[[s:hours.sun]]。'
+      : 'On Saturday we are open [[s:hours.sat]], and on Sunday [[s:hours.sun]].';
+  const today = zh ? '今天的营业时间是[[s:hours.today]]。' : "Today's hours are [[s:hours.today]].";
+  if (!closed) return today;
+  return zh ? `${today}我们将于[[s:next_open]]再开门。` : `${today} We open again [[s:next_open]].`;
 }

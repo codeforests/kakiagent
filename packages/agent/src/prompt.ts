@@ -80,7 +80,7 @@ export function buildVisitorPrompt(input: {
   /** AGT-09: the tenant's hours and whether it is open now; null when not set. */
   hours?: HoursContext | null | undefined;
   /** This turn's system slot values, in the reply language (`systemSlots`). */
-  systemSlots?: Map<string, string> | undefined;
+  systemSlots?: ReadonlyMap<string, string> | undefined;
   /** The plan also has an `out_of_scope` task (AGT-04, FEAT-023 §5.2). */
   outOfScope?: boolean | undefined;
 }): GenerateRequest {

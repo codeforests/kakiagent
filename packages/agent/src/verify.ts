@@ -112,11 +112,18 @@ const NUMBER_WORD = new RegExp(
 /** Simplified, Traditional and formal (大写) numerals, plus 〇, 廿, 卅, 仨 and 俩. */
 const ZH_NUMERAL =
   /[〇零一二两兩三四五六七八九十百千万萬亿億壹贰貳叁參弎肆伍陆陸柒捌玖拾佰仟廿卅仨俩倆]+/gu;
-/** Idioms the D15 rule leaves alone: "this one", "one of", 一起, 唯一, 十分 ("very"). */
+/**
+ * Idioms the D15 rule leaves alone: "this one", "one of", 一起, 唯一, 十分 ("very"); and
+ * (FEAT-023 D7) Chinese weekday names (星期六, 周日, 礼拜天), 三明治 ("sandwich") and the
+ * Singlish emphatic "one" directly before a particle ("nice one lah").
+ */
 const NOT_NUMBERS = new RegExp(
   [
     String.raw`\b(?:no|this|that|the|which|any|every|each|some)\s+one\b`,
     String.raw`\bone\s+(?:of|another)\b`,
+    String.raw`\bone(?=\s+(?:lah|leh|lor|hor|meh|ah)\b)`,
+    '(?:星期|礼拜|禮拜|周|週)[一二三四五六日天]',
+    '三明治',
     '一(?=[起下样些定直切般旦边致律同向])',
     '(?<=[唯统同第])一',
     '十分(?!钱)',
