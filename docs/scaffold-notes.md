@@ -76,7 +76,7 @@ Monorepo tooling: pnpm 10.28.0 (`packageManager`), Turborepo 2.11.9, Node 22. Ve
 | `kb`, `leads`, `approvals`, `analytics` are empty modules | `packages/*` | FEAT-011 (kb done by FEAT-022; FEAT-011 done: policy and promotion facts with validity, list filters and keyset paging, fact deletion), -049, -055, FEAT-004 (analytics: usage ledger and cost governor done; dashboards with FEAT-066/067) |
 | `ingest-worker` is idle (health only) | `apps/ingest-worker` | FEAT-011 onwards |
 | Eval case set is empty | `evals/cases` | FEAT-022, -023 (done: Singlish, Chinese, out-of-scope, after-hours and retrieval cases, the LLM judge on `judge` that runs only with a real model, and the agreement sample, whose draft labels a person must confirm before M1.5), -025 (done: 52 red-team and 24 harmful cases, the `safety` judge criterion), -051 |
-| Dashboard sections other than Inbox are placeholders naming their feature; inbox is a bare live list | `apps/dashboard` | per plan §4 |
+| Dashboard sections other than Inbox are placeholders naming their feature; inbox is a bare live list | `apps/dashboard` | per plan §4 (FEAT-009 done: the business profile at `/settings/business-profile` with the hours editor, SG holidays and closures, and the F&B suggested questions; `/setup` shows the same form as the wizard's first step until FEAT-035 adds the frame. Opening hours and holidays are now set there; the dev seed still sets the bakery's) |
 | Operator console is a static shell | `apps/operator` | FEAT-070 |
 
 ## 5. Pending first deployment (milestone MD)

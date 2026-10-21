@@ -1,6 +1,7 @@
 import {
   AssistantSettingsResponse,
   AuthOptions,
+  BusinessProfileResponse,
   ConversationList,
   CreateWorkspaceResponse,
   MagicLinkResponse,
@@ -9,6 +10,7 @@ import {
   FactResponse,
   Me,
   type AssistantSettingsBody,
+  type BusinessProfileBody,
   type CreateFactBody,
   type CreateWorkspaceBody,
   type FactListQuery,
@@ -103,4 +105,8 @@ export const api = {
   assistantSettings: () => getJson('/api/v1/settings/assistant', AssistantSettingsResponse),
   saveAssistantSettings: (body: AssistantSettingsBody) =>
     request('PUT', '/api/v1/settings/assistant', AssistantSettingsResponse, body),
+  /** FEAT-009 §3: SCR-APP-044 and the setup step. */
+  businessProfile: () => getJson('/api/v1/settings/business-profile', BusinessProfileResponse),
+  saveBusinessProfile: (body: BusinessProfileBody) =>
+    request('PUT', '/api/v1/settings/business-profile', BusinessProfileResponse, body),
 };

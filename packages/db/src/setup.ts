@@ -27,6 +27,14 @@ export interface SeedTenant {
   /** Weekly opening hours in SGT (AGT-09, FEAT-023); null: not set. */
   hours: Record<string, { open: string; close: string }[]> | null;
   openOnPublicHolidays: boolean;
+  /** The rest of the business profile (ONB-03, FEAT-009 §5.5); null: not set. */
+  profile: {
+    uen: string;
+    industry: string;
+    contactEmail: string;
+    contactPhone: string;
+    languages: string[];
+  } | null;
 }
 
 const weekday = [{ open: '08:00', close: '19:00' }];
@@ -61,6 +69,13 @@ export function devTenants(allowedOrigins: string[]): SeedTenant[] {
       ownerEmail: 'owner@kaki-bakery.test',
       hours: BAKERY_HOURS,
       openOnPublicHolidays: false,
+      profile: {
+        uen: '201912345K',
+        industry: 'fnb',
+        contactEmail: 'hello@kaki-bakery.test',
+        contactPhone: '+6591234567',
+        languages: ['en', 'zh'],
+      },
     },
     {
       id: '22222222-2222-4222-8222-222222222222',
@@ -72,6 +87,7 @@ export function devTenants(allowedOrigins: string[]): SeedTenant[] {
       ownerEmail: 'owner@second-tenant.test',
       hours: null,
       openOnPublicHolidays: false,
+      profile: null,
     },
   ];
 }
@@ -102,12 +118,25 @@ export async function seed(client: pg.ClientBase, tenants: SeedTenant[]): Promis
       [t.id, t.slug, t.name, t.widgetKey, t.allowedOrigins],
     );
     await client.query(
-      `insert into business_profiles (tenant_id, gst_registered, hours, open_on_public_holidays)
-       values ($1, $2, $3, $4)
+      `insert into business_profiles (tenant_id, gst_registered, hours, open_on_public_holidays,
+         uen, industry, contact_email, contact_phone, languages)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, coalesce($9, '{en}'::text[]))
        on conflict (tenant_id) do update set gst_registered = excluded.gst_registered,
          hours = excluded.hours, open_on_public_holidays = excluded.open_on_public_holidays,
+         uen = excluded.uen, industry = excluded.industry, contact_email = excluded.contact_email,
+         contact_phone = excluded.contact_phone, languages = excluded.languages,
          updated_at = now()`,
-      [t.id, t.gstRegistered, t.hours, t.openOnPublicHolidays],
+      [
+        t.id,
+        t.gstRegistered,
+        t.hours,
+        t.openOnPublicHolidays,
+        t.profile?.uen ?? null,
+        t.profile?.industry ?? null,
+        t.profile?.contactEmail ?? null,
+        t.profile?.contactPhone ?? null,
+        t.profile?.languages ?? null,
+      ],
     );
     const user = await client.query<{ id: string }>(
       `insert into users (email) values ($1)

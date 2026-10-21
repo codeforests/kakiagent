@@ -16,7 +16,7 @@ import {
   type GenerateRequest,
   type UsageEvent,
 } from '@kaki/llm-gateway';
-import { sgInstant } from '@kaki/tenancy';
+import { sgDay, sgInstant } from '@kaki/tenancy';
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { fakeTriage, fakeVisitorResponder, runVisitorTurn, textsFor } from '../src/index.js';
@@ -97,6 +97,7 @@ async function ask(
     }),
   );
   const models: GenerateRequest['model'][] = [];
+  const systems: string[] = [];
   // The usage sink is what the role writes to the ADR-021 ledger (FEAT-004 D11).
   const usage: UsageEvent['purpose'][] = [];
   const llm = createGateway(
@@ -104,6 +105,7 @@ async function ask(
     [
       createFakeProvider((req) => {
         models.push(req.model);
+        if (req.model !== 'triage') systems.push(req.system);
         return req.model === 'triage' ? (triage ?? fakeTriage)(req) : fakeVisitorResponder(req);
       }),
     ],
@@ -114,7 +116,7 @@ async function ask(
     { zdb: tdb.zone('visitor'), llm, publishSegment: async (s) => void segments.push(s.text) },
     { tenantId: TENANT_A, conversationId: c.conversationId, messageId: message.id },
   );
-  return { result, models, segments, usage };
+  return { result, models, segments, usage, systems };
 }
 
 async function decision(messageId: string) {
@@ -252,5 +254,37 @@ describe('after hours (FEAT-023 AC-7)', () => {
     await setHours(null);
     const none = await ask(await conversation(), 'how much is the chocolate fudge cake?');
     expect(none.result!.message.notice).toBeNull();
+  });
+});
+
+describe('holiday exceptions through the turn (FEAT-009 AC-6)', () => {
+  afterAll(async () => {
+    await owner.query(`delete from holidays where tenant_id = $1`, [TENANT_A]);
+  });
+
+  it('a closure today brings the notice and "closed today", and leaves system unchanged', async () => {
+    await owner.query(`delete from holidays where tenant_id = $1`, [TENANT_A]);
+    const before = await ask(await conversation(), 'what are your opening hours today?');
+    expect(before.result!.message.notice).toBeNull();
+
+    await owner.query(
+      `insert into holidays (tenant_id, day, kind, label) values ($1, $2, 'closed', 'Staff day off')`,
+      [TENANT_A, sgDay(new Date())],
+    );
+    const en = await ask(await conversation(), 'what are your opening hours today?');
+    expect(en.result).toMatchObject({ afterHours: true });
+    expect(en.result!.message.noticeKind).toBe('after_hours');
+    // Open all day every day, so the next opening is tomorrow's midnight start.
+    expect(en.result!.message.notice).toMatch(
+      /^We're closed right now\. The team will be back tomorrow/,
+    );
+    expect(en.result!.message.body).toContain('closed today');
+    expect(en.result!.message.body).not.toContain('Staff day off');
+
+    const zh = await ask(await conversation(), '今天几点营业？');
+    expect(zh.result!.message.body).toContain('今天休息');
+
+    // Exceptions never enter the cached prefix (D4).
+    expect(new Set([...before.systems, ...en.systems])).toHaveProperty('size', 1);
   });
 });

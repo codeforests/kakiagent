@@ -198,7 +198,14 @@ describe('the fake responder in Chinese and for hours (FEAT-023 T4)', () => {
     const hours = {
       hours: { mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] },
       openOnPublicHolidays: false,
-      status: { open: true, since: null, nextOpen: null, today: [], closedForHoliday: false },
+      status: {
+        open: true,
+        since: null,
+        nextOpen: null,
+        today: [],
+        closedForHoliday: false,
+        closedReason: null,
+      },
       now: new Date(),
     };
     const r = await compose('请问周末营业时间？', {

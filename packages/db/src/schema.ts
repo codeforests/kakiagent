@@ -4,6 +4,7 @@ import {
   boolean,
   check,
   customType,
+  date,
   foreignKey,
   index,
   integer,
@@ -81,6 +82,19 @@ export const businessProfiles = pgTable(
     hours: jsonb('hours'),
     /** False: closed on SG public holidays (SRS §1.4 "Business hours"). */
     openOnPublicHolidays: boolean('open_on_public_holidays').notNull().default(false),
+    /** Optimistic concurrency for the profile screen (FEAT-009 D7). */
+    version: integer('version').notNull().default(1),
+    /** ACRA UEN, upper case (FEAT-009 D2). */
+    uen: text('uen'),
+    industry: text('industry'),
+    contactEmail: text('contact_email'),
+    /** `+65XXXXXXXX` (FEAT-009 D3). */
+    contactPhone: text('contact_phone'),
+    /** Default languages (ONB-03); stored, not yet read by the agent (FEAT-009 D6). */
+    languages: text('languages')
+      .array()
+      .notNull()
+      .default(sql`'{en}'::text[]`),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -88,6 +102,52 @@ export const businessProfiles = pgTable(
     check(
       'business_profiles_hours_ck',
       sql`${t.hours} is null or jsonb_typeof(${t.hours}) = 'object'`,
+    ),
+    check(
+      'business_profiles_uen_ck',
+      sql`${t.uen} is null or ${t.uen} ~ '^([0-9]{8}[A-Z]|(18|19|20)[0-9]{7}[A-Z]|[TSR][0-9]{2}[A-Z]{2}[0-9]{4}[A-Z])$'`,
+    ),
+    check(
+      'business_profiles_industry_ck',
+      sql`${t.industry} is null or ${t.industry} in ('fnb', 'retail', 'beauty_wellness', 'education', 'professional_services', 'home_services', 'other')`,
+    ),
+    check(
+      'business_profiles_phone_ck',
+      sql`${t.contactPhone} is null or ${t.contactPhone} ~ '^[+]65[3689][0-9]{7}$'`,
+    ),
+    check(
+      'business_profiles_email_ck',
+      sql`${t.contactEmail} is null or (char_length(${t.contactEmail}) <= 254 and ${t.contactEmail} ~ '^[^@[:space:]]+@[^@[:space:]]+$')`,
+    ),
+    check(
+      'business_profiles_languages_ck',
+      sql`cardinality(${t.languages}) between 1 and 4 and ${t.languages} <@ '{en,zh,ms,ta}'::text[]`,
+    ),
+  ],
+);
+
+/**
+ * The tenant's exceptions to the SG public-holiday calendar and its own closures
+ * (ONB-03; FEAT-009 §4, D4): `open` = usual hours on a public holiday, `closed` = closed
+ * all day. The calendar itself is code data in @kaki/tenancy (FEAT-023 D3).
+ */
+export const holidays = pgTable(
+  'holidays',
+  {
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id),
+    day: date('day', { mode: 'string' }).notNull(),
+    kind: text('kind', { enum: ['open', 'closed'] }).notNull(),
+    label: text('label'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.day] }),
+    check('holidays_kind_ck', sql`${t.kind} in ('open', 'closed')`),
+    check(
+      'holidays_label_ck',
+      sql`${t.label} is null or (btrim(${t.label}) <> '' and char_length(${t.label}) <= 60)`,
     ),
   ],
 );
@@ -619,6 +679,7 @@ export const TENANT_SCOPED_TABLES = [
   'audit_heads',
   'audit_pii',
   'business_profiles',
+  'holidays',
   'assistant_settings',
   'facts',
   'fact_versions',

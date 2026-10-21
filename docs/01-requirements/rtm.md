@@ -21,10 +21,10 @@
 |---|---|---|---|---|---|---|---|---|
 | ONB-01 | Sign up with an email magic link or Google | Must | Active | Research P1 | UC-01 | ADR-020; SCR-APP-001, SCR-APP-003; features/FEAT-005-sign-in/technical-design.md; features/FEAT-005-sign-in/ui-design.md | FEAT-005 | features/FEAT-005-sign-in/acceptance-report.md |
 | ONB-02 | Guided wizard | Must | Active | Research P1 | UC-03 | SCR-APP-006 | FEAT-035 | _TBD_ |
-| ONB-03 | Business profile | Must | Active | Research P1; Appx A A15 | UC-03 | SCR-APP-006, SCR-APP-044 | FEAT-009 | _TBD_ |
+| ONB-03 | Business profile | Must | Active | Research P1; Appx A A15 | UC-03 | SCR-APP-006, SCR-APP-044; features/FEAT-009-business-profile/technical-design.md; features/FEAT-009-business-profile/ui-design.md | FEAT-009 | features/FEAT-009-business-profile/acceptance-report.md |
 | ONB-04 | "Paste your website URL" as the first and quickest path to a working bot | Must | Active | Research P1 | UC-03 | ADR-018; SCR-APP-007 | FEAT-012 | _TBD_ |
 | ONB-05 | Test-your-bot playground before going live, provided by owner coaching mode… | Must | Active | Research P1 | UC-04 | ADR-009; SCR-APP-010, SCR-APP-030 | FEAT-027 | _TBD_ |
-| ONB-06 | Industry templates (F&B, retail, beauty/wellness, education/tuition,… | Should | Active | Research P1 | UC-03, UC-29 | SCR-APP-006 | FEAT-009 | _TBD_ |
+| ONB-06 | Industry templates (F&B, retail, beauty/wellness, education/tuition,… | Should | Active | Research P1 | UC-03, UC-29 | SCR-APP-006; features/FEAT-009-business-profile/technical-design.md; features/FEAT-009-business-profile/ui-design.md | FEAT-009 | features/FEAT-009-business-profile/acceptance-report.md (partial) |
 | ONB-07 | Widget install | Must | Active | Research P1 | UC-05 | ADR-016; SCR-APP-011, SCR-APP-037, SCR-WGT-001, SCR-WGT-002 | FEAT-032 | _TBD_ |
 | ONB-08 | Median time from sign-up to going live is ≤ 15 minutes for a website-only… | Should | Active | Research P1 | UC-03 | SCR-APP-008 | FEAT-035 | _TBD_ |
 | ONB-09 | Go-live readiness check | Must | Active | Gap review v0.3; Appx A A21 | UC-03, UC-15 | ADR-010; SCR-APP-012 | FEAT-035 | _TBD_ |

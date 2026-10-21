@@ -54,6 +54,17 @@ export function sgInstant(day: string, time: string): Date {
   return new Date(Date.parse(`${day}T00:00:00Z`) - SGT_MS + minutes(time) * 60_000);
 }
 
+/**
+ * The tenant's exceptions to the SG calendar (FEAT-009 D4), day → kind: `open` = usual
+ * hours on a public holiday, `closed` = closed all day.
+ */
+export type HolidayExceptions = Readonly<Record<string, 'open' | 'closed'>>;
+
+const NO_EXCEPTIONS: HolidayExceptions = {};
+
+/** Why today is closed although its weekday has hours. */
+export type ClosedReason = 'public_holiday' | 'closure';
+
 export interface OpenStatus {
   open: boolean;
   /** Open: when this opening started. Closed: when the last one ended (null: none in the horizon). */
@@ -64,15 +75,30 @@ export interface OpenStatus {
   today: Interval[];
   /** Today is a public holiday on which the business is closed. */
   closedForHoliday: boolean;
+  /** Today's weekday has hours but the business is closed (null: not so). */
+  closedReason: ClosedReason | null;
 }
 
-/** One day's intervals after the holiday rule. */
+/** Why `day` is closed despite its weekday's hours, or null. */
+function closedBy(
+  openOnPublicHolidays: boolean,
+  day: string,
+  exceptions: HolidayExceptions,
+): ClosedReason | null {
+  const kind = exceptions[day];
+  if (kind === 'closed') return isSgPublicHoliday(day) ? 'public_holiday' : 'closure';
+  if (isSgPublicHoliday(day) && !openOnPublicHolidays && kind !== 'open') return 'public_holiday';
+  return null;
+}
+
+/** One day's intervals after the holiday rule and the tenant's exceptions (FEAT-009 D4). */
 export function hoursOn(
   hours: WeeklyHours,
   openOnPublicHolidays: boolean,
   day: string,
+  exceptions: HolidayExceptions = NO_EXCEPTIONS,
 ): Interval[] {
-  if (!openOnPublicHolidays && isSgPublicHoliday(day)) return [];
+  if (closedBy(openOnPublicHolidays, day, exceptions)) return [];
   return hours[sgWeekday(sgInstant(day, '12:00'))];
 }
 
@@ -81,12 +107,13 @@ export function openStatus(
   hours: WeeklyHours,
   openOnPublicHolidays: boolean,
   now: Date,
+  exceptions: HolidayExceptions = NO_EXCEPTIONS,
 ): OpenStatus {
   const today = sgDay(now);
   const spans: [number, number][] = [];
   for (let d = -HORIZON_DAYS; d <= HORIZON_DAYS; d++) {
     const day = sgDay(new Date(now.getTime() + d * DAY_MS));
-    for (const i of hoursOn(hours, openOnPublicHolidays, day)) {
+    for (const i of hoursOn(hours, openOnPublicHolidays, day, exceptions)) {
       const s = sgInstant(day, i.open).getTime();
       const e = sgInstant(day, i.close).getTime();
       const last = spans.at(-1);
@@ -96,9 +123,10 @@ export function openStatus(
     }
   }
   const t = now.getTime();
-  const todayHours = hoursOn(hours, openOnPublicHolidays, today);
-  const closedForHoliday =
-    !openOnPublicHolidays && isSgPublicHoliday(today) && hours[sgWeekday(now)].length > 0;
+  const todayHours = hoursOn(hours, openOnPublicHolidays, today, exceptions);
+  const closedReason =
+    hours[sgWeekday(now)].length > 0 ? closedBy(openOnPublicHolidays, today, exceptions) : null;
+  const closedForHoliday = closedReason === 'public_holiday';
   const current = spans.find(([s, e]) => s <= t && t < e);
   if (current)
     return {
@@ -107,6 +135,7 @@ export function openStatus(
       nextOpen: null,
       today: todayHours,
       closedForHoliday,
+      closedReason,
     };
   const before = spans.filter(([, e]) => e <= t).at(-1);
   const after = spans.find(([s]) => s > t);
@@ -116,5 +145,6 @@ export function openStatus(
     nextOpen: after ? new Date(after[0]) : null,
     today: todayHours,
     closedForHoliday,
+    closedReason,
   };
 }

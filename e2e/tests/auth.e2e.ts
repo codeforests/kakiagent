@@ -48,7 +48,7 @@ test('a new owner signs up, creates a workspace and reaches setup in under a min
   await page.getByRole('button', { name: 'Create workspace' }).click();
 
   await expect(page).toHaveURL(/\/setup$/);
-  await expect(page.getByRole('heading', { name: 'Set up your assistant' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Tell us about your business' })).toBeVisible();
   await expect(page.getByTestId('tenant-name')).toHaveText('Tanjong Pagar Florist');
   expect(Date.now() - started).toBeLessThan(60_000);
 

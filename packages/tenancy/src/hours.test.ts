@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { hoursOn, openStatus, sgDay, sgInstant, sgWeekday, WeeklyHours } from './hours.js';
-import { isSgPublicHoliday, SG_HOLIDAYS_COVER_THROUGH } from './sg-holidays.js';
+import {
+  isSgPublicHoliday,
+  SG_HOLIDAYS_COVER_THROUGH,
+  SG_PUBLIC_HOLIDAY_LIST,
+  sgHolidaysBetween,
+} from './sg-holidays.js';
 
 /** The bakery's seeded hours (FEAT-023 §5.7). */
 const BAKERY = WeeklyHours.parse({
@@ -149,5 +154,73 @@ describe('SG public holidays', () => {
       expect(isSgPublicHoliday(d)).toBe(true);
     expect(isSgPublicHoliday('2026-10-21')).toBe(false);
     expect(isSgPublicHoliday('2028-01-01')).toBe(false);
+  });
+
+  it('names every holiday, in date order, including the days in lieu (FEAT-009 AC-4)', () => {
+    expect(SG_PUBLIC_HOLIDAY_LIST).toHaveLength(26);
+    const days = SG_PUBLIC_HOLIDAY_LIST.map((h) => h.day);
+    expect([...days].sort()).toEqual(days);
+    expect(SG_PUBLIC_HOLIDAY_LIST.every((h) => h.name.length > 0)).toBe(true);
+    expect(SG_PUBLIC_HOLIDAY_LIST).toContainEqual({
+      day: '2026-11-09',
+      name: 'Day off for Deepavali',
+    });
+    expect(SG_PUBLIC_HOLIDAY_LIST).toContainEqual({
+      day: '2027-02-07',
+      name: 'Chinese New Year (second day)',
+    });
+  });
+
+  it('lists the holidays in a range, both ends included', () => {
+    expect(sgHolidaysBetween('2026-10-21', '2027-01-01')).toEqual([
+      { day: '2026-11-08', name: 'Deepavali' },
+      { day: '2026-11-09', name: 'Day off for Deepavali' },
+      { day: '2026-12-25', name: 'Christmas Day' },
+      { day: '2027-01-01', name: "New Year's Day" },
+    ]);
+    expect(sgHolidaysBetween('2027-12-26', '2028-12-31')).toEqual([]);
+  });
+});
+
+describe('holiday exceptions (FEAT-009 AC-5)', () => {
+  it('closes a closure day and reopens on the next open day', () => {
+    // Wednesday 21 Oct 2026 is a normal weekday; the bakery closes for a staff day.
+    const s = openStatus(BAKERY, false, at('2026-10-21T11:00'), { '2026-10-21': 'closed' });
+    expect(s).toMatchObject({ open: false, closedForHoliday: false, closedReason: 'closure' });
+    expect(s.today).toEqual([]);
+    expect(s.since).toEqual(at('2026-10-20T19:00'));
+    expect(s.nextOpen).toEqual(at('2026-10-22T08:00'));
+  });
+
+  it('opens with the usual hours on a public holiday marked open', () => {
+    const s = openStatus(BAKERY, false, at('2026-11-09T10:00'), { '2026-11-09': 'open' });
+    expect(s).toMatchObject({ open: true, closedForHoliday: false, closedReason: null });
+    expect(s.today).toEqual([{ open: '08:00', close: '19:00' }]);
+    // Deepavali itself (Sunday) stays closed.
+    expect(hoursOn(BAKERY, false, '2026-11-08', { '2026-11-09': 'open' })).toEqual([]);
+  });
+
+  it('closes a public holiday marked closed when the business opens on public holidays', () => {
+    const s = openStatus(BAKERY, true, at('2026-12-25T10:00'), { '2026-12-25': 'closed' });
+    expect(s).toMatchObject({
+      open: false,
+      closedForHoliday: true,
+      closedReason: 'public_holiday',
+    });
+    expect(s.nextOpen).toEqual(at('2026-12-26T09:00'));
+  });
+
+  it('ignores an open exception on a normal day and changes nothing without exceptions', () => {
+    expect(hoursOn(BAKERY, false, '2026-10-21', { '2026-10-21': 'open' })).toEqual(BAKERY.wed);
+    for (const t of ['2026-10-21T11:00', '2026-11-08T10:00', '2026-12-31T22:00']) {
+      expect(openStatus(BAKERY, false, at(t), {})).toEqual(openStatus(BAKERY, false, at(t)));
+    }
+  });
+
+  it('gives no closed reason on a day that has no hours anyway', () => {
+    const noSun = { ...BAKERY, sun: [] };
+    expect(
+      openStatus(noSun, false, at('2026-11-08T10:00'), { '2026-11-08': 'closed' }).closedReason,
+    ).toBeNull();
   });
 });

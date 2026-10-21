@@ -98,7 +98,7 @@ export async function runVisitorTurn(
     // AGT-09: the business is closed now, and nobody has been told so this closed period.
     const tenant = gate.tenant;
     const status = tenant?.hours
-      ? openStatus(tenant.hours, tenant.openOnPublicHolidays, wall)
+      ? openStatus(tenant.hours, tenant.openOnPublicHolidays, wall, tenant.holidays)
       : null;
     const hours: HoursContext | null =
       tenant?.hours && status
