@@ -1,5 +1,18 @@
 import { sql, type Tx, type ZoneDb } from '@kaki/db';
+import { personaOf, type Persona } from './assistant.js';
 import { WeeklyHours } from './hours.js';
+
+export {
+  DEFAULT_PERSONA,
+  getAssistantSettings,
+  personaOf,
+  saveAssistantSettings,
+  SettingsConflictError,
+  type AssistantPersona,
+  type LocalText,
+  type Persona,
+  type Tone,
+} from './assistant.js';
 
 export {
   HORIZON_DAYS,
@@ -50,6 +63,8 @@ export interface VisitorTenantState {
   /** Weekly opening hours (AGT-09, FEAT-023); null when not set or not valid. */
   hours: WeeklyHours | null;
   openOnPublicHolidays: boolean;
+  /** Assistant persona and messages (AGT-08, AGT-11; FEAT-024), defaults applied. */
+  persona: Persona;
 }
 
 /**
@@ -68,9 +83,22 @@ export async function visitorTenantState(tx: Tx): Promise<VisitorTenantState | n
     cost_governor_step: number;
     hours: unknown;
     open_on_public_holidays: boolean;
+    bot_name: string | null;
+    tone: string | null;
+    emoji: boolean | null;
+    greeting_en: string | null;
+    greeting_zh: string | null;
+    disclosure_note_en: string | null;
+    disclosure_note_zh: string | null;
+    after_hours_en: string | null;
+    after_hours_zh: string | null;
+    fallback_en: string | null;
+    fallback_zh: string | null;
   }>(
     sql`select ai_paused, business_name, gst_registered, route_complexity_threshold,
-               route_min_confidence, cost_governor_step, hours, open_on_public_holidays
+               route_min_confidence, cost_governor_step, hours, open_on_public_holidays,
+               bot_name, tone, emoji, greeting_en, greeting_zh, disclosure_note_en,
+               disclosure_note_zh, after_hours_en, after_hours_zh, fallback_en, fallback_zh
         from visitor_tenant_state()`,
   );
   const row = res.rows[0];
@@ -88,6 +116,7 @@ export async function visitorTenantState(tx: Tx): Promise<VisitorTenantState | n
         // Invalid hours count as not set: no after-hours behaviour rather than a wrong one.
         hours: row.hours === null ? null : (WeeklyHours.safeParse(row.hours).data ?? null),
         openOnPublicHolidays: row.open_on_public_holidays,
+        persona: personaOf(row),
       }
     : null;
 }
