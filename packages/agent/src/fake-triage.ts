@@ -26,6 +26,10 @@ const RULES: [Exclude<TaskKind, 'answer'>, RegExp][] = [
     /\b(my (number|phone|email|contact) is|call me at|whatsapp me)\b|我的电话|我的号码/i,
   ],
   ['handoff_channel', /\b(on|via|through) (telegram|whatsapp|email)\b/i],
+  [
+    'out_of_scope',
+    /\b(homework|weather|election|politics|stock prices?|bitcoin|write (me )?(a |an )?(poem|essay|code|story)|football|lottery|toto|4d)\b|天气|作业|股票|选举|写一首诗/i,
+  ],
 ];
 
 /**

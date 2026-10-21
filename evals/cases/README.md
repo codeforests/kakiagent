@@ -20,3 +20,25 @@ case must also pass the dispatch check: each non-`answer` task is reported
 FEAT-022 prices and groundedness, FEAT-004 multi-task, FEAT-023 Singlish, Chinese and out-of-scope,
 FEAT-025 red-team and harmful content, FEAT-051 withdrawal). Mark a case `fast: true`
 to include it in the PR subset.
+
+FEAT-023 runs the turn's reply decision (`answerTurn`: the fixed out-of-scope and
+"unsure" texts, or the verified reply plus closing texts) in the reply language
+(`replyLanguage`) with the fixture's opening hours. A case's `at` (an ISO instant,
+default Wed 21 Oct 2026 11:00 SGT, when the bakery is open) is when the visitor writes,
+so the hours slots and the after-hours notice don't depend on when CI runs; each case is
+one conversation, so the notice is due whenever the business is closed. The dispatch
+check expects `done` for task kinds the visitor registry handles (`out_of_scope`) and
+`unhandled` for the rest. New expectations: `language` (`zh`: Han characters are at
+least 30% of the letters; `en`: none), `outcome` (`answered`, `escalated`,
+`out_of_scope`, `unsure`, `unavailable`), `notice` (`present`, with an optional
+`contains`), `retrieves` (fact IDs in the retrieved set) and `judge` (`language`,
+`register`, `out-of-scope` or `grounded`, scored by the LLM judge with a real model only;
+on the fake provider they are reported as pending). A case marked
+`needs: "semantic-embedder"` (pure-Chinese retrieval) is skipped and reported until the
+multilingual embedder is in (P3).
+
+The judge's agreement sample is `../labels/agreement-sample.json`, for the eval-set
+version in `../version.json`. Every run checks that the versions match and that the
+sample has at least 10% as many items as there are `judge` expectations; with a real
+model the judge must agree with at least 90% of the labels, and the run refuses a
+sample whose `labelledBy` starts with `draft` until a person has confirmed every label.

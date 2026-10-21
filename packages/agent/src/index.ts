@@ -5,6 +5,14 @@
  */
 export { runVisitorTurn, type TurnDeps, type TurnOutcome, type TurnResult } from './turn.js';
 export {
+  answerTurn,
+  replyPlan,
+  type AnswerInput,
+  type AnswerOutcome,
+  type AnswerResult,
+  type ReplyPlan,
+} from './answer.js';
+export {
   composeReply,
   MAX_REGENERATIONS,
   type ComposeOutcome,
@@ -25,6 +33,7 @@ export {
   createRegistry,
   dispatchPlan,
   dispatchToolCall,
+  outOfScopeHandler,
   PHASE,
   visitorRegistry,
   type BoundaryRules,
@@ -33,6 +42,7 @@ export {
   type DispatchReport,
   type Outcome,
   type RefusalReason,
+  type ReplyKey,
   type Registry,
   type Scope,
   type TaskHandler,
@@ -44,4 +54,19 @@ export { aiAllowed, type GateResult } from './gate.js';
 export { formatSgd, renderPrice, renderSegment, SG_GST_PERCENT, withGst } from './render.js';
 export { verifySegment, type Violation, type ViolationKind } from './verify.js';
 export { assignRefs } from './slots.js';
-export { texts } from './texts.js';
+export { texts, textsFor, type Texts } from './texts.js';
+export {
+  hasHan,
+  LANGUAGE_NAMES,
+  replyLanguage,
+  type Register,
+  type ReplyLanguage,
+} from './language.js';
+export {
+  formatDay,
+  formatNextOpen,
+  formatTime,
+  hoursLines,
+  systemSlots,
+  type HoursContext,
+} from './hours-text.js';

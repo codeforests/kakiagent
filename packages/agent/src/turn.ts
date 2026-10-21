@@ -4,12 +4,14 @@ import {
   appendAgentReply,
   getMessage,
   hasAssistantMessage,
+  noticeSince,
   recentMessages,
   replyExists,
 } from '@kaki/inbox';
 import { searchVisitorFacts, visitorKb, type VisitorFact } from '@kaki/kb';
 import { routeReply, type LlmGateway, type LogicalModel } from '@kaki/llm-gateway';
-import { composeReply, type ComposeOutcome, type ComposeResult } from './compose.js';
+import { openStatus } from '@kaki/tenancy';
+import { answerTurn, type AnswerOutcome, type AnswerResult } from './answer.js';
 import {
   dispatchPlan,
   visitorRegistry,
@@ -18,9 +20,11 @@ import {
   type Registry,
 } from './dispatch.js';
 import { aiAllowed } from './gate.js';
+import { systemSlots, type HoursContext } from './hours-text.js';
+import { replyLanguage, type ReplyLanguage } from './language.js';
 import { routeSignals, triage, type TurnPlan } from './plan.js';
 import { HISTORY_LIMIT } from './prompt.js';
-import { texts } from './texts.js';
+import { textsFor } from './texts.js';
 
 export interface TurnDeps {
   /** The visitor trust zone (ADR-009): it can read only what a visitor conversation may see. */
@@ -30,7 +34,10 @@ export interface TurnDeps {
   publishSegment?: (segment: { turnId: string; seq: number; text: string }) => Promise<void>;
   /** The visitor scope's task handlers (ADR-025); the production registry by default. */
   registry?: Registry;
+  /** Latency timer (ms). */
   now?: () => number;
+  /** Wall time, for opening hours and the prompt's SGT time (FEAT-023). */
+  clock?: () => Date;
 }
 
 export interface TurnJobInput {
@@ -40,13 +47,16 @@ export interface TurnJobInput {
 }
 
 /** `ended`: a safety task ended the turn with its own text (ADR-025 decision 6). */
-export type TurnOutcome = ComposeOutcome | 'paused' | 'ended';
+export type TurnOutcome = AnswerOutcome | 'paused' | 'ended';
 
 type Stored = NonNullable<Awaited<ReturnType<typeof appendAgentReply>>>;
 
 export type TurnResult = Stored & {
   outcome: TurnOutcome;
-  timings: (ComposeResult['timings'] & { triageMs: number | null }) | null;
+  timings: (AnswerResult['timings'] & { triageMs: number | null }) | null;
+  /** The reply language (AGT-03) and whether the after-hours notice went with it (AGT-09). */
+  language: ReplyLanguage;
+  afterHours: boolean;
   /** The triaged plan and what the dispatcher did with it (FEAT-004). Null when the gate was closed. */
   plan: TurnPlan | null;
   dispatched: DispatchReport[];
@@ -68,6 +78,7 @@ export async function runVisitorTurn(
   const { zdb, llm } = deps;
   const { tenantId, conversationId } = job;
   const now = deps.now ?? (() => performance.now());
+  const wall = (deps.clock ?? (() => new Date()))();
 
   const prep = await withTenant(zdb, tenantId, async (tx) => {
     const message = await getMessage(tx, tenantId, job.messageId);
@@ -81,13 +92,33 @@ export async function runVisitorTurn(
       limit: HISTORY_LIMIT,
     });
     const disclosed = await hasAssistantMessage(tx, tenantId, conversationId);
-    return { message, gate, history, disclosed };
+    // AGT-09: the business is closed now, and nobody has been told so this closed period.
+    const tenant = gate.tenant;
+    const status = tenant?.hours
+      ? openStatus(tenant.hours, tenant.openOnPublicHolidays, wall)
+      : null;
+    const hours: HoursContext | null =
+      tenant?.hours && status
+        ? {
+            hours: tenant.hours,
+            openOnPublicHolidays: tenant.openOnPublicHolidays,
+            status,
+            now: wall,
+          }
+        : null;
+    const noticeDue =
+      status !== null &&
+      !status.open &&
+      !(await noticeSince(tx, tenantId, conversationId, 'after_hours', status.since));
+    return { message, gate, history, disclosed, hours, noticeDue };
   });
   if (!prep) return null;
-  const { message, gate } = prep;
+  const { message, gate, hours } = prep;
   const businessName = gate.tenant?.businessName ?? '';
-  const disclosure = prep.disclosed ? null : texts.disclosure(businessName);
   const meta = { tenantId, conversationId, turnId: message.id };
+  // Until triage answers, the visitor's script decides (FEAT-023 D4).
+  let language: ReplyLanguage = replyLanguage(null, message.body);
+  let slotValues = systemSlots(hours, language);
   let plan: TurnPlan | null = null;
   let dispatched: DispatchReport[] = [];
   let route: LogicalModel | null = null;
@@ -97,8 +128,14 @@ export async function runVisitorTurn(
     outcome: TurnOutcome,
     author: 'agent' | 'system',
     text: string,
-    composed: ComposeResult | null,
+    composed: AnswerResult | null,
   ): Promise<TurnResult | null> {
+    const t = textsFor(language);
+    const disclosure = prep!.disclosed ? null : t.disclosure(businessName);
+    // FEAT-023 D6: the return time is rendered, never written by the model.
+    const notice = prep!.noticeDue
+      ? { kind: 'after_hours' as const, text: t.afterHours(slotValues.get('next_open') ?? null) }
+      : null;
     const stored = await withTenant(zdb, tenantId, async (tx) => {
       const reply = await appendAgentReply(tx, {
         tenantId,
@@ -108,6 +145,7 @@ export async function runVisitorTurn(
         author,
         factIds: composed?.factIds ?? [],
         disclosure,
+        notice,
       });
       if (!reply) return null;
       const entry = (action: string, payload?: AuditPayload) =>
@@ -136,6 +174,11 @@ export async function runVisitorTurn(
         models: (composed?.models ?? []).map(auditCode),
         tasks: (plan?.tasks ?? []).map((t) => auditCode(t.kind)),
         planFallback: plan?.fallback ?? null,
+        // FEAT-023: language, register, the system slots rendered and the notice (codes only).
+        language: auditCode(language),
+        register: plan ? auditCode(plan.register) : null,
+        slots: (composed?.slots ?? []).map(auditCode),
+        afterHours: notice !== null,
       });
       return reply;
     });
@@ -147,6 +190,8 @@ export async function runVisitorTurn(
           plan,
           dispatched,
           route,
+          language,
+          afterHours: notice !== null,
         }
       : null;
   }
@@ -154,7 +199,9 @@ export async function runVisitorTurn(
   if (!gate.open) {
     // UC-20 5e. Paused: the visitor gets the fallback (architecture §6.5). A human
     // owner or a closed conversation: the AI says nothing.
-    return gate.reason === 'paused' ? store('paused', 'system', texts.fallback, null) : null;
+    return gate.reason === 'paused'
+      ? store('paused', 'system', textsFor(language).fallback, null)
+      : null;
   }
 
   const history = prep.history.map((m) => ({
@@ -189,9 +236,12 @@ export async function runVisitorTurn(
   plan = planResult.status === 'fulfilled' ? planResult.value : null;
   if (factsResult.status === 'rejected' || !plan) {
     // NFR-04: no embedder, no grounded answer. The fallback closes the turn (FEAT-022 D6).
-    return store('unavailable', 'system', texts.fallback, null);
+    return store('unavailable', 'system', textsFor(language).fallback, null);
   }
   const facts = factsResult.value;
+  language = replyLanguage(plan, message.body);
+  slotValues = systemSlots(hours, language);
+  const t = textsFor(language);
 
   // ADR-025: the dispatcher turns the plan's tasks into side effects, or reports why not.
   const ctx: DispatchContext = {
@@ -227,7 +277,7 @@ export async function runVisitorTurn(
   if (dispatch.endTurn) return store('ended', 'agent', dispatch.endTurn.text, null);
 
   route = routeReply(routeSignals(plan, false), gate.tenant.routePolicy);
-  const composed = await composeReply(
+  const composed = await answerTurn(
     {
       facts,
       history,
@@ -235,6 +285,14 @@ export async function runVisitorTurn(
       gstRegistered: gate.tenant.gstRegistered,
       meta,
       model: route,
+      now: wall,
+      language,
+      register: plan.register,
+      hours,
+      systemSlots: slotValues,
+      plan,
+      replies: dispatch.replies,
+      minConfidence: gate.tenant.routePolicy.minConfidence,
     },
     {
       llm,
@@ -244,14 +302,18 @@ export async function runVisitorTurn(
     },
   );
 
+  // A fixed AGT-04 text used no reply model (FEAT-023 D1).
+  if (!composed.composed) route = null;
   switch (composed.outcome) {
     case 'answered':
     case 'escalated':
+    case 'out_of_scope':
+    case 'unsure':
       return store(composed.outcome, 'agent', composed.text, composed);
     case 'unavailable':
       return composed.text
-        ? store('unavailable', 'agent', `${composed.text} ${texts.fallback}`, composed)
-        : store('unavailable', 'system', texts.fallback, composed);
+        ? store('unavailable', 'agent', `${composed.text} ${t.fallback}`, composed)
+        : store('unavailable', 'system', t.fallback, composed);
     case 'gate_closed': {
       const now = await withTenant(zdb, tenantId, (tx) => aiAllowed(tx, tenantId, conversationId));
       const paused = !now.open && now.reason === 'paused';
@@ -259,7 +321,7 @@ export async function runVisitorTurn(
         return store(
           'paused',
           composed.text ? 'agent' : 'system',
-          [composed.text, texts.fallback].filter(Boolean).join(' '),
+          [composed.text, t.fallback].filter(Boolean).join(' '),
           composed,
         );
       return composed.text ? store('gate_closed', 'agent', composed.text, composed) : null;

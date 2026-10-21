@@ -1,10 +1,12 @@
 import type { VisitorFact } from '@kaki/kb';
 import type { GenerateRequest, LlmGateway, LogicalModel } from '@kaki/llm-gateway';
+import type { HoursContext } from './hours-text.js';
+import type { Register, ReplyLanguage } from './language.js';
 import { buildVisitorPrompt, type HistoryMessage } from './prompt.js';
 import { renderSegment } from './render.js';
 import { Segmenter } from './segment.js';
 import { assignRefs } from './slots.js';
-import { texts } from './texts.js';
+import { textsFor } from './texts.js';
 import { verifySegment, type Violation } from './verify.js';
 
 /** One regeneration from the released prefix, then escalate (ADR-008 decision 5; D2). */
@@ -24,6 +26,15 @@ export interface ComposeInput {
   model?: LogicalModel | undefined;
   /** For the tail's current SGT time. */
   now?: Date | undefined;
+  /** AGT-03 (FEAT-023): the reply language (default English) and the visitor's register. */
+  language?: ReplyLanguage | undefined;
+  register?: Register | undefined;
+  /** AGT-09: the tenant's hours and open status, when set. */
+  hours?: HoursContext | null | undefined;
+  /** This turn's system slot values (`systemSlots`), in the reply language. */
+  systemSlots?: ReadonlyMap<string, string> | undefined;
+  /** The plan also has an `out_of_scope` task: the tail says to answer only the business part. */
+  outOfScope?: boolean | undefined;
 }
 
 export interface ComposeDeps {
@@ -41,6 +52,8 @@ export interface ComposeResult {
   text: string;
   segments: string[];
   factIds: string[];
+  /** The system slots the released segments rendered (FEAT-023). */
+  slots: string[];
   /** Every guardrail failure, for the audit log (GOV-01). */
   violations: Violation[];
   attempts: number;
@@ -64,6 +77,8 @@ export async function composeReply(input: ComposeInput, deps: ComposeDeps): Prom
   const visitorTexts = input.history.filter((m) => m.role === 'user').map((m) => m.content);
   const released: string[] = [];
   const factIds = new Set<string>();
+  const slots = new Set<string>();
+  const system = input.systemSlots ?? new Map<string, string>();
   const violations: Violation[] = [];
   const models: LogicalModel[] = [];
 
@@ -72,6 +87,7 @@ export async function composeReply(input: ComposeInput, deps: ComposeDeps): Prom
     text: released.join(' '),
     segments: [...released],
     factIds: [...factIds],
+    slots: [...slots],
     violations,
     attempts,
     models: [...models],
@@ -90,12 +106,13 @@ export async function composeReply(input: ComposeInput, deps: ComposeDeps): Prom
   }
 
   async function handle(raw: string): Promise<Step> {
-    const rendered = renderSegment(raw, facts, input.gstRegistered);
+    const rendered = renderSegment(raw, facts, input.gstRegistered, system);
     if (!rendered.ok) return { kind: 'fail', violations: rendered.violations };
     const verdict = verifySegment(rendered.text, rendered.spans, visitorTexts);
     if (!verdict.ok) return { kind: 'fail', violations: verdict.violations };
     if (!(await release(rendered.text))) return { kind: 'closed' };
     for (const id of rendered.factIds) factIds.add(id);
+    for (const name of rendered.slots) slots.add(name);
     return { kind: 'ok' };
   }
 
@@ -119,6 +136,11 @@ export async function composeReply(input: ComposeInput, deps: ComposeDeps): Prom
       now: input.now ?? new Date(),
       meta: input.meta,
       model,
+      language: input.language,
+      register: input.register,
+      hours: input.hours,
+      systemSlots: system,
+      outOfScope: input.outOfScope,
     });
     const segmenter = new Segmenter();
     let step: Step = { kind: 'ok' };
@@ -148,6 +170,6 @@ export async function composeReply(input: ComposeInput, deps: ComposeDeps): Prom
     lastFailure = step.violations;
   }
   // UC-20 6a: verification failed twice. The visitor is told the team will confirm.
-  const shown = await release(texts.escalation);
+  const shown = await release(textsFor(input.language ?? 'en').escalation);
   return result(shown ? 'escalated' : 'gate_closed', MAX_REGENERATIONS + 1);
 }

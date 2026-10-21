@@ -1,4 +1,20 @@
 import { sql, type Tx, type ZoneDb } from '@kaki/db';
+import { WeeklyHours } from './hours.js';
+
+export {
+  HORIZON_DAYS,
+  hoursOn,
+  Interval,
+  openStatus,
+  sgDay,
+  sgInstant,
+  sgWeekday,
+  WEEKDAYS,
+  WeeklyHours,
+  type OpenStatus,
+  type Weekday,
+} from './hours.js';
+export { isSgPublicHoliday, SG_HOLIDAYS_COVER_THROUGH, SG_PUBLIC_HOLIDAYS } from './sg-holidays.js';
 
 export interface WidgetInstall {
   tenantId: string;
@@ -31,6 +47,9 @@ export interface VisitorTenantState {
   gstRegistered: boolean;
   /** Reply routing policy (ADR-007 decision 1, FEAT-004 D10); its shape is llm-gateway's `RoutePolicy`. */
   routePolicy: { complexityThreshold: number; minConfidence: number; governorStep: number };
+  /** Weekly opening hours (AGT-09, FEAT-023); null when not set or not valid. */
+  hours: WeeklyHours | null;
+  openOnPublicHolidays: boolean;
 }
 
 /**
@@ -47,9 +66,11 @@ export async function visitorTenantState(tx: Tx): Promise<VisitorTenantState | n
     route_complexity_threshold: number;
     route_min_confidence: number;
     cost_governor_step: number;
+    hours: unknown;
+    open_on_public_holidays: boolean;
   }>(
     sql`select ai_paused, business_name, gst_registered, route_complexity_threshold,
-               route_min_confidence, cost_governor_step
+               route_min_confidence, cost_governor_step, hours, open_on_public_holidays
         from visitor_tenant_state()`,
   );
   const row = res.rows[0];
@@ -64,6 +85,9 @@ export async function visitorTenantState(tx: Tx): Promise<VisitorTenantState | n
           minConfidence: Math.round(Number(row.route_min_confidence) * 1000) / 1000,
           governorStep: Number(row.cost_governor_step),
         },
+        // Invalid hours count as not set: no after-hours behaviour rather than a wrong one.
+        hours: row.hours === null ? null : (WeeklyHours.safeParse(row.hours).data ?? null),
+        openOnPublicHolidays: row.open_on_public_holidays,
       }
     : null;
 }

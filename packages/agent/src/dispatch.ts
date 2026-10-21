@@ -1,5 +1,5 @@
 import type { ToolCall } from '@kaki/llm-gateway';
-import type { z } from 'zod';
+import { z } from 'zod';
 import type { TaskKind, TurnPlan } from './plan.js';
 
 /**
@@ -55,9 +55,17 @@ export interface DispatchContext {
   audit(entry: DispatchAuditEntry): Promise<void>;
 }
 
+/** System texts a state task adds to the reply, rendered in the reply language (FEAT-023). */
+export type ReplyKey = 'out_of_scope';
+
 export interface TaskResult {
   /** A safety handler may end the turn with a fixed text (crisis contacts, FEAT-025). */
   endTurn?: { text: string };
+  /**
+   * A state task's visitor-facing system text (FEAT-023 §5.3). Handlers never see the
+   * visitor's text or language; the turn renders the key.
+   */
+  reply?: { key: ReplyKey };
 }
 
 export interface TaskHandler<A = unknown> {
@@ -99,8 +107,21 @@ export function createRegistry(handlers: TaskHandler[]): Registry {
   return { byKind, byTool };
 }
 
-/** The visitor scope's handlers. Empty in FEAT-004: every non-answer task is `unhandled`. */
-export const visitorRegistry: Registry = createRegistry([]);
+/**
+ * AGT-04 (ADR-025 decision 1, FEAT-023 D1): a question unrelated to the business gets
+ * the fixed refusal, in code, whatever the reply model would do.
+ */
+export const outOfScopeHandler: TaskHandler<Record<string, unknown>> = {
+  kind: 'out_of_scope',
+  scopes: ['visitor'],
+  args: z.record(z.string(), z.unknown()),
+  async run() {
+    return { reply: { key: 'out_of_scope' } };
+  },
+};
+
+/** The visitor scope's handlers (ADR-025). Kinds without one are reported `unhandled`. */
+export const visitorRegistry: Registry = createRegistry([outOfScopeHandler]);
 
 type Checked = { ok: true; args: unknown } | { ok: false; reason: RefusalReason };
 
@@ -140,7 +161,7 @@ export async function dispatchPlan(
   reg: Registry,
   plan: TurnPlan,
   ctx: DispatchContext,
-): Promise<{ reports: DispatchReport[]; endTurn?: { text: string } }> {
+): Promise<{ reports: DispatchReport[]; replies: ReplyKey[]; endTurn?: { text: string } }> {
   const queue = plan.tasks
     .flatMap((task, index) =>
       task.kind === 'answer' ? [] : [{ kind: task.kind, args: task.args as unknown, index }],
@@ -149,6 +170,7 @@ export async function dispatchPlan(
       PHASE[a.kind] === PHASE[b.kind] ? a.index - b.index : PHASE[a.kind] === 'safety' ? -1 : 1,
     );
   const reports: DispatchReport[] = [];
+  const replies: ReplyKey[] = [];
   for (const { kind, args, index } of queue) {
     const h = reg.byKind.get(kind);
     const r = h ? await runOne(h, args, index, ctx) : { outcome: 'unhandled' as const };
@@ -164,10 +186,13 @@ export async function dispatchPlan(
       outcome: report.outcome,
       ...(report.reason ? { reason: report.reason } : {}),
     });
-    const endTurn = 'result' in r ? r.result?.endTurn : undefined;
-    if (endTurn && PHASE[kind] === 'safety') return { reports, endTurn };
+    const result = 'result' in r ? r.result : undefined;
+    if (result?.endTurn && PHASE[kind] === 'safety')
+      return { reports, replies, endTurn: result.endTurn };
+    if (result?.reply && PHASE[kind] === 'state' && !replies.includes(result.reply.key))
+      replies.push(result.reply.key);
   }
-  return { reports };
+  return { reports, replies };
 }
 
 /**

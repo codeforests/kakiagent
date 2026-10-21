@@ -87,7 +87,7 @@ describe('dispatchPlan (ADR-025 decisions 2 and 6, AC-7)', () => {
     ]);
   });
 
-  it('reports every task unhandled with the empty production registry, and never the answer', async () => {
+  it('reports every task without a handler unhandled in the production registry, and never the answer', async () => {
     const { ctx, audits } = context();
     const { reports, endTurn } = await dispatchPlan(
       visitorRegistry,
@@ -224,5 +224,35 @@ describe('dispatchToolCall (ADR-025 decision 3, AC-7)', () => {
       { task: 'answer', tool: 'unknown', outcome: 'refused', reason: 'scope' },
       { task: 'capture_lead', tool: 'capture_lead', outcome: 'refused', reason: 'not_in_plan' },
     ]);
+  });
+});
+
+describe('the out_of_scope handler (FEAT-023 AC-4)', () => {
+  it('is done in visitor scope and adds the refusal key once, after safety', async () => {
+    const { ctx, audits } = context();
+    const { reports, replies } = await dispatchPlan(
+      visitorRegistry,
+      planOf([['out_of_scope'], ['answer'], ['escalate'], ['out_of_scope']]),
+      ctx,
+    );
+    expect(reports).toEqual([
+      { task: 'out_of_scope', index: 0, outcome: 'done' },
+      { task: 'escalate', index: 2, outcome: 'unhandled' },
+      { task: 'out_of_scope', index: 3, outcome: 'done' },
+    ]);
+    expect(replies).toEqual(['out_of_scope']);
+    expect(audits[0]).toEqual({ task: 'out_of_scope', outcome: 'done' });
+  });
+
+  it('is refused in coaching scope and with the gate closed', async () => {
+    const coaching = context();
+    const r1 = await dispatchPlan(visitorRegistry, planOf([['out_of_scope']]), {
+      ...coaching.ctx,
+      scope: 'coaching',
+    });
+    expect(r1).toMatchObject({ replies: [], reports: [{ outcome: 'refused', reason: 'scope' }] });
+    const closed = context({ gateOpen: async () => false });
+    const r2 = await dispatchPlan(visitorRegistry, planOf([['out_of_scope']]), closed.ctx);
+    expect(r2.replies).toEqual([]);
   });
 });

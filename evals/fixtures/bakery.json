@@ -1,8 +1,53 @@
 {
-  "$comment": "Fixture tenant for evals (FEAT-022 §5): the bakery is GST-registered. Fixed IDs, so recorded outputs can name slot refs (the ID's first 8 hex characters). FEAT-011 adds a refund policy and a promotion (ends 31 Oct 2099, so it never expires in CI).",
+  "$comment": "Fixture tenant for evals (FEAT-022 §5): the bakery is GST-registered. Fixed IDs, so recorded outputs can name slot refs (the ID's first 8 hex characters). FEAT-011 adds a refund policy and a promotion (ends 31 Oct 2099, so it never expires in CI). FEAT-023 adds the seeded opening hours (Mon–Fri 8 am–7 pm, Sat 9 am–5 pm, Sun 9 am–1 pm, closed on public holidays), equal to BAKERY_HOURS.",
   "tenantId": "11111111-1111-4111-8111-111111111111",
   "businessName": "Kaki Bakery",
   "gstRegistered": true,
+  "hours": {
+    "mon": [
+      {
+        "open": "08:00",
+        "close": "19:00"
+      }
+    ],
+    "tue": [
+      {
+        "open": "08:00",
+        "close": "19:00"
+      }
+    ],
+    "wed": [
+      {
+        "open": "08:00",
+        "close": "19:00"
+      }
+    ],
+    "thu": [
+      {
+        "open": "08:00",
+        "close": "19:00"
+      }
+    ],
+    "fri": [
+      {
+        "open": "08:00",
+        "close": "19:00"
+      }
+    ],
+    "sat": [
+      {
+        "open": "09:00",
+        "close": "17:00"
+      }
+    ],
+    "sun": [
+      {
+        "open": "09:00",
+        "close": "13:00"
+      }
+    ]
+  },
+  "openOnPublicHolidays": false,
   "facts": [
     {
       "id": "b1000001-0000-4000-8000-000000000001",

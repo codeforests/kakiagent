@@ -6,6 +6,7 @@
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { TENANT_SCOPED_TABLES } from '../src/schema.js';
+import { BAKERY_HOURS } from '../src/setup.js';
 import { startTestDatabase, TENANT_A, TENANT_B, type TestDatabase } from '../src/testing.js';
 
 let tdb: TestDatabase;
@@ -354,6 +355,8 @@ describe('facts and the visitor views', () => {
         route_complexity_threshold: 0.6,
         route_min_confidence: 0.5,
         cost_governor_step: 0,
+        hours: BAKERY_HOURS,
+        open_on_public_holidays: false,
       },
     ]);
     const none = await asRole(
@@ -362,6 +365,87 @@ describe('facts and the visitor views', () => {
       async (c) => (await c.query(`select * from visitor_tenant_state()`)).rows,
     );
     expect(none).toEqual([]);
+  });
+});
+
+// ---- FEAT-023: opening hours and message notices (FEAT-023 §4; AC-10) ---------------
+
+describe('opening hours and message notices (FEAT-023)', () => {
+  const HOURS = { mon: [{ open: '08:00', close: '19:00' }], sun: [] };
+
+  it("visitor_tenant_state returns the current tenant's hours only", async () => {
+    await owner.query(
+      `update business_profiles set hours = $2, open_on_public_holidays = true where tenant_id = $1`,
+      [TENANT_B, HOURS],
+    );
+    try {
+      const b = await asRole(
+        'app_agent_visitor',
+        TENANT_B,
+        async (c) =>
+          (await c.query(`select hours, open_on_public_holidays from visitor_tenant_state()`)).rows,
+      );
+      expect(b).toEqual([{ hours: HOURS, open_on_public_holidays: true }]);
+      const a = await asRole(
+        'app_agent_visitor',
+        TENANT_A,
+        async (c) =>
+          (await c.query(`select hours, open_on_public_holidays from visitor_tenant_state()`)).rows,
+      );
+      expect(a[0].hours).not.toEqual(HOURS);
+    } finally {
+      await owner.query(
+        `update business_profiles set hours = null, open_on_public_holidays = false where tenant_id = $1`,
+        [TENANT_B],
+      );
+    }
+  });
+
+  it('the visitor role still cannot read business_profiles directly', async () => {
+    await expect(
+      asRole('app_agent_visitor', TENANT_A, (c) => c.query(`select hours from business_profiles`)),
+    ).rejects.toThrow(/permission denied/);
+  });
+
+  it('rejects hours that are not an object', async () => {
+    await expect(
+      owner.query(`update business_profiles set hours = '[]' where tenant_id = $1`, [TENANT_A]),
+    ).rejects.toThrow(/business_profiles_hours_ck/);
+  });
+
+  it('a notice needs a known kind, and a kind needs a notice', async () => {
+    const insert = (notice: string | null, kind: string | null) =>
+      asRole('app_agent_visitor', TENANT_A, async (c) => {
+        const conv = (await c.query(`select id from conversations limit 1`)).rows[0].id;
+        return c.query(
+          `insert into messages (tenant_id, conversation_id, author, body, notice, notice_kind)
+           values ($1, $2, 'agent', 'hi', $3, $4)`,
+          [TENANT_A, conv, notice, kind],
+        );
+      });
+    await expect(insert('We are closed', null)).rejects.toThrow(/messages_notice_ck/);
+    await expect(insert(null, 'after_hours')).rejects.toThrow(/messages_notice_ck/);
+    await expect(insert('We are closed', 'rate_limited')).rejects.toThrow(/messages_notice_ck/);
+    await expect(insert('We are closed', 'after_hours')).resolves.toBeTruthy();
+  });
+
+  it("tenant B cannot see tenant A's notices", async () => {
+    const convA = (
+      await owner.query(`select id from conversations where tenant_id = $1 limit 1`, [TENANT_A])
+    ).rows[0].id;
+    await owner.query(
+      `insert into messages (tenant_id, conversation_id, author, body, notice, notice_kind)
+       values ($1, $2, 'agent', 'hi', 'closed notice of A', 'after_hours')`,
+      [TENANT_A, convA],
+    );
+    for (const role of ['app_agent_visitor', 'app_dashboard'] as const) {
+      const seen = await asRole(
+        role,
+        TENANT_B,
+        async (c) => (await c.query(`select notice from messages where notice is not null`)).rows,
+      );
+      expect(seen).toEqual([]);
+    }
   });
 });
 

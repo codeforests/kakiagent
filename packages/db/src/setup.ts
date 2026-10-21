@@ -24,7 +24,22 @@ export interface SeedTenant {
   gstRegistered: boolean;
   /** The seeded Owner, who signs in by magic link (FEAT-005). */
   ownerEmail: string;
+  /** Weekly opening hours in SGT (AGT-09, FEAT-023); null: not set. */
+  hours: Record<string, { open: string; close: string }[]> | null;
+  openOnPublicHolidays: boolean;
 }
+
+const weekday = [{ open: '08:00', close: '19:00' }];
+/** The bakery's hours (FEAT-023 §5.8): Mon–Fri 8 am–7 pm, Sat 9 am–5 pm, Sun 9 am–1 pm. */
+export const BAKERY_HOURS = {
+  mon: weekday,
+  tue: weekday,
+  wed: weekday,
+  thu: weekday,
+  fri: weekday,
+  sat: [{ open: '09:00', close: '17:00' }],
+  sun: [{ open: '09:00', close: '13:00' }],
+};
 
 /**
  * The terms version the seeded owners accepted. `@kaki/identity`'s test keeps it equal
@@ -44,6 +59,8 @@ export function devTenants(allowedOrigins: string[]): SeedTenant[] {
       allowedOrigins,
       gstRegistered: true,
       ownerEmail: 'owner@kaki-bakery.test',
+      hours: BAKERY_HOURS,
+      openOnPublicHolidays: false,
     },
     {
       id: '22222222-2222-4222-8222-222222222222',
@@ -53,6 +70,8 @@ export function devTenants(allowedOrigins: string[]): SeedTenant[] {
       allowedOrigins,
       gstRegistered: false,
       ownerEmail: 'owner@second-tenant.test',
+      hours: null,
+      openOnPublicHolidays: false,
     },
   ];
 }
@@ -83,9 +102,12 @@ export async function seed(client: pg.ClientBase, tenants: SeedTenant[]): Promis
       [t.id, t.slug, t.name, t.widgetKey, t.allowedOrigins],
     );
     await client.query(
-      `insert into business_profiles (tenant_id, gst_registered) values ($1, $2)
-       on conflict (tenant_id) do update set gst_registered = excluded.gst_registered, updated_at = now()`,
-      [t.id, t.gstRegistered],
+      `insert into business_profiles (tenant_id, gst_registered, hours, open_on_public_holidays)
+       values ($1, $2, $3, $4)
+       on conflict (tenant_id) do update set gst_registered = excluded.gst_registered,
+         hours = excluded.hours, open_on_public_holidays = excluded.open_on_public_holidays,
+         updated_at = now()`,
+      [t.id, t.gstRegistered, t.hours, t.openOnPublicHolidays],
     );
     const user = await client.query<{ id: string }>(
       `insert into users (email) values ($1)

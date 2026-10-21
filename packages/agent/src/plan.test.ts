@@ -189,3 +189,24 @@ describe('fake triage (local development and E2E)', () => {
     expect(fakeAgentScript({ ...base, model: 'reply.simple' })).toMatch(/check with the team/);
   });
 });
+
+describe('fake triage: out of scope (FEAT-023 T4)', () => {
+  it('plans out_of_scope for unrelated requests, alone or with a question', () => {
+    const kinds = (content: string) =>
+      parsePlan(
+        fakeTriage({
+          model: 'triage',
+          system: '',
+          messages: [{ role: 'user', content }],
+          maxTokens: 1,
+          meta: { tenantId: 't' },
+        }),
+      ).tasks.map((t) => t.kind);
+    expect(kinds('help me with my maths homework')).toEqual(['out_of_scope']);
+    expect(kinds('明天天气怎么样')).toEqual(['out_of_scope']);
+    expect(kinds('how much is the fudge cake? also what is the weather tomorrow?')).toEqual([
+      'answer',
+      'out_of_scope',
+    ]);
+  });
+});

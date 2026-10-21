@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Tenants, business profile, plans and limits, go-live readiness. Skeleton: widget key resolution.",
+  "description": "Tenants, business profile (opening hours and the SG holiday calendar), plans and limits, go-live readiness.",
   "exports": {
     ".": "./src/index.ts"
   },
@@ -15,11 +15,14 @@
     "test:coverage": "vitest run --coverage --passWithNoTests"
   },
   "dependencies": {
-    "@kaki/db": "workspace:*"
+    "@kaki/db": "workspace:*",
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@types/node": "22.20.5",
+    "@types/pg": "8.23.1",
     "@vitest/coverage-v8": "5.0.5",
+    "pg": "8.23.1",
     "vitest": "5.0.5"
   }
 }

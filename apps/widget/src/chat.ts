@@ -52,3 +52,26 @@ export function awaitingTurn(c: Chat): string | null {
   }
   return null;
 }
+
+const HAN = /\p{Script=Han}/u;
+
+/** WCAG 3.1.2 language of parts (FEAT-023): Chinese text is marked; the rest inherits the panel's. */
+export function langOf(text: string): 'zh-Hans' | undefined {
+  return HAN.test(text) ? 'zh-Hans' : undefined;
+}
+
+export interface Row {
+  kind: 'disclosure' | 'notice' | 'message';
+  key: string;
+  text: string;
+}
+
+/** A stored message's rows in the log: the disclosure, the after-hours notice, then the bubble (ui-design.md). */
+export function rowsOf(m: Message): Row[] {
+  const rows: Row[] = [];
+  if (m.disclosure)
+    rows.push({ kind: 'disclosure', key: `${m.id}-disclosure`, text: m.disclosure });
+  if (m.notice) rows.push({ kind: 'notice', key: `${m.id}-notice`, text: m.notice });
+  rows.push({ kind: 'message', key: m.id, text: m.body });
+  return rows;
+}

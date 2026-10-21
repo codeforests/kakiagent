@@ -1,0 +1,256 @@
+[
+  {
+    "id": "ah-closed-evening-notice",
+    "subset": "groundedness",
+    "fast": true,
+    "at": "2026-10-21T21:00:00+08:00",
+    "messages": [
+      {
+        "role": "user",
+        "content": "how much is the chocolate fudge cake?"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "notice",
+        "present": true,
+        "contains": "The team will be back tomorrow at 8:00 am."
+      },
+      {
+        "kind": "contains",
+        "text": "S$55.00"
+      },
+      {
+        "kind": "cites",
+        "ids": ["b1000001-0000-4000-8000-000000000001"]
+      },
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
+  },
+  {
+    "id": "ah-open-no-notice",
+    "subset": "groundedness",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "how much is the chocolate fudge cake?"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "notice",
+        "present": false
+      },
+      {
+        "kind": "contains",
+        "text": "S$55.00"
+      }
+    ]
+  },
+  {
+    "id": "ah-sunday-afternoon",
+    "subset": "groundedness",
+    "at": "2026-10-25T15:00:00+08:00",
+    "messages": [
+      {
+        "role": "user",
+        "content": "do you deliver?"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "notice",
+        "present": true,
+        "contains": "tomorrow at 8:00 am"
+      },
+      {
+        "kind": "cites",
+        "ids": ["b1000004-0000-4000-8000-000000000004"]
+      }
+    ]
+  },
+  {
+    "id": "ah-christmas-eve",
+    "subset": "groundedness",
+    "fast": true,
+    "at": "2026-12-24T20:00:00+08:00",
+    "messages": [
+      {
+        "role": "user",
+        "content": "do you deliver?"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "notice",
+        "present": true,
+        "contains": "on Sat 26 Dec at 9:00 am"
+      },
+      {
+        "kind": "cites",
+        "ids": ["b1000004-0000-4000-8000-000000000004"]
+      }
+    ]
+  },
+  {
+    "id": "ah-deepavali-in-lieu",
+    "subset": "groundedness",
+    "at": "2026-11-07T18:00:00+08:00",
+    "messages": [
+      {
+        "role": "user",
+        "content": "is your kitchen halal?"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "notice",
+        "present": true,
+        "contains": "on Tue 10 Nov at 8:00 am"
+      },
+      {
+        "kind": "cites",
+        "ids": ["b1000006-0000-4000-8000-000000000006"]
+      }
+    ]
+  },
+  {
+    "id": "ah-holiday-today-hours",
+    "subset": "groundedness",
+    "at": "2026-12-25T10:00:00+08:00",
+    "messages": [
+      {
+        "role": "user",
+        "content": "what are your opening hours today?"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "closed (public holiday)"
+      },
+      {
+        "kind": "notice",
+        "present": true
+      }
+    ]
+  },
+  {
+    "id": "ah-no-hours-no-notice",
+    "subset": "groundedness",
+    "fast": true,
+    "tenant": "second",
+    "at": "2026-10-21T23:00:00+08:00",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Do you deliver?"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "notice",
+        "present": false
+      },
+      {
+        "kind": "contains",
+        "text": "self-collection"
+      }
+    ]
+  },
+  {
+    "id": "ah-open-now-question",
+    "subset": "groundedness",
+    "fast": true,
+    "at": "2026-10-21T21:00:00+08:00",
+    "messages": [
+      {
+        "role": "user",
+        "content": "are you open now?"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "We open again tomorrow at 8:00 am"
+      },
+      {
+        "kind": "notice",
+        "present": true
+      },
+      {
+        "kind": "judge",
+        "criterion": "grounded"
+      }
+    ]
+  },
+  {
+    "id": "ah-typed-hours-blocked",
+    "subset": "groundedness",
+    "at": "2026-10-21T21:00:00+08:00",
+    "messages": [
+      {
+        "role": "user",
+        "content": "when do you open tomorrow?"
+      }
+    ],
+    "recorded": ["We open at 8am tomorrow.", "We open again [[s:next_open]]."],
+    "expect": [
+      {
+        "kind": "not-contains",
+        "text": "8am"
+      },
+      {
+        "kind": "contains",
+        "text": "tomorrow at 8:00 am"
+      }
+    ]
+  },
+  {
+    "id": "ah-zh-notice",
+    "subset": "groundedness",
+    "fast": true,
+    "at": "2026-10-21T21:00:00+08:00",
+    "messages": [
+      {
+        "role": "user",
+        "content": "fudge cake 多少钱？"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "notice",
+        "present": true,
+        "contains": "我们现在休息中，团队将于明天上午8:00回来。"
+      },
+      {
+        "kind": "contains",
+        "text": "S$55.00"
+      }
+    ]
+  },
+  {
+    "id": "ah-next-open-unknown-while-open",
+    "subset": "groundedness",
+    "messages": [
+      {
+        "role": "user",
+        "content": "when do you open again?"
+      }
+    ],
+    "recorded": ["We open again [[s:next_open]]."],
+    "expect": [
+      {
+        "kind": "outcome",
+        "outcome": "escalated"
+      },
+      {
+        "kind": "not-contains",
+        "text": "[["
+      }
+    ]
+  }
+]

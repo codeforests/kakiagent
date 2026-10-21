@@ -1,11 +1,13 @@
 import type { VisitorFact } from '@kaki/kb';
 
 /**
- * Fact slots (ADR-008 decision 1): the model writes `[[f:<ref>.<field>]]` and the
+ * Slots (ADR-008 decision 1): the model writes `[[f:<ref>.<field>]]` for a fact and the
  * renderer fills in the value. `<ref>` is the fact ID's first 8 hex characters,
- * lengthened when two facts in the same turn share a prefix.
+ * lengthened when two facts in the same turn share a prefix. System slots
+ * `[[s:<name>]]` carry values the turn computed, such as opening hours and the next
+ * opening time (ADR-025 decision 5, FEAT-023).
  */
-export const SLOT_RE = /\[\[f:([0-9a-f-]{4,36})\.([a-z_]+)\]\]/g;
+export const SLOT_RE = /\[\[(?:f:([0-9a-f-]{4,36})\.([a-z_]+)|s:([a-z_]+(?:\.[a-z_]+)?))\]\]/g;
 
 export const SLOT_FIELDS = {
   product: ['name', 'price', 'unit'],

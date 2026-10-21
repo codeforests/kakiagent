@@ -1,0 +1,559 @@
+[
+  {
+    "id": "sg-fudge-how-much-ah",
+    "subset": "singlish",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "fudge cake how much ah"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "S$55.00"
+      },
+      {
+        "kind": "prices-from-facts"
+      },
+      {
+        "kind": "cites",
+        "ids": ["b1000001-0000-4000-8000-000000000001"]
+      },
+      {
+        "kind": "language",
+        "lang": "en"
+      }
+    ]
+  },
+  {
+    "id": "sg-can-or-not-eggless",
+    "subset": "singlish",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "eggless cake can order or not?"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "cites",
+        "ids": ["b1000003-0000-4000-8000-000000000003"]
+      },
+      {
+        "kind": "prices-from-facts"
+      },
+      {
+        "kind": "language",
+        "lang": "en"
+      },
+      {
+        "kind": "judge",
+        "criterion": "register"
+      }
+    ]
+  },
+  {
+    "id": "sg-got-or-not-pandan",
+    "subset": "singlish",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "got pandan chiffon or not? how much"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "S$30.52 incl. GST"
+      },
+      {
+        "kind": "not-contains",
+        "text": "S$28.00"
+      },
+      {
+        "kind": "prices-from-facts"
+      },
+      {
+        "kind": "cites",
+        "ids": ["b1000002-0000-4000-8000-000000000002"]
+      }
+    ]
+  },
+  {
+    "id": "sg-tapau-fudge",
+    "subset": "singlish",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "can tapau the chocolate fudge cake? how much leh"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "S$55.00"
+      },
+      {
+        "kind": "prices-from-facts"
+      },
+      {
+        "kind": "cites",
+        "ids": ["b1000001-0000-4000-8000-000000000001"]
+      }
+    ]
+  },
+  {
+    "id": "sg-chope-cake",
+    "subset": "singlish",
+    "messages": [
+      {
+        "role": "user",
+        "content": "want to chope one fudge cake for sat, how much ah"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "S$55.00"
+      },
+      {
+        "kind": "prices-from-facts"
+      },
+      {
+        "kind": "cites",
+        "ids": ["b1000001-0000-4000-8000-000000000001"]
+      },
+      {
+        "kind": "judge",
+        "criterion": "register"
+      }
+    ]
+  },
+  {
+    "id": "sg-hdb-deliver",
+    "subset": "singlish",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "u all deliver to HDB or not?"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "cites",
+        "ids": ["b1000004-0000-4000-8000-000000000004"]
+      },
+      {
+        "kind": "contains",
+        "text": "deliver islandwide"
+      },
+      {
+        "kind": "language",
+        "lang": "en"
+      }
+    ]
+  },
+  {
+    "id": "sg-mrt-collect-hours",
+    "subset": "singlish",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "near MRT got shop? sat open what time ah"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "9:00 am – 5:00 pm"
+      },
+      {
+        "kind": "cites",
+        "ids": [],
+        "exact": true
+      },
+      {
+        "kind": "language",
+        "lang": "en"
+      }
+    ]
+  },
+  {
+    "id": "sg-halal-or-not",
+    "subset": "singlish",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "halal or not ah?"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "cites",
+        "ids": ["b1000006-0000-4000-8000-000000000006"]
+      },
+      {
+        "kind": "contains",
+        "text": "halal-certified"
+      },
+      {
+        "kind": "judge",
+        "criterion": "register"
+      }
+    ]
+  },
+  {
+    "id": "sg-refund-how",
+    "subset": "singlish",
+    "messages": [
+      {
+        "role": "user",
+        "content": "if cancel the cake can refund or not?"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "cites",
+        "ids": ["b1000010-0000-4000-8000-000000000010"]
+      },
+      {
+        "kind": "contains",
+        "text": "full refund"
+      },
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
+  },
+  {
+    "id": "sg-kueh-bundle-lor",
+    "subset": "singlish",
+    "messages": [
+      {
+        "role": "user",
+        "content": "the deepavali kueh bundle still got lor? how much"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "S$21.80"
+      },
+      {
+        "kind": "prices-from-facts"
+      },
+      {
+        "kind": "cites",
+        "ids": ["b1000011-0000-4000-8000-000000000011"]
+      }
+    ]
+  },
+  {
+    "id": "sg-today-open-meh",
+    "subset": "singlish",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "today open until what time meh?"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "8:00 am – 7:00 pm"
+      },
+      {
+        "kind": "language",
+        "lang": "en"
+      }
+    ]
+  },
+  {
+    "id": "sg-code-switch-lah",
+    "subset": "singlish",
+    "messages": [
+      {
+        "role": "user",
+        "content": "aiyo the pandan chiffon very nice lah, price how much ah"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "S$30.52 incl. GST"
+      },
+      {
+        "kind": "prices-from-facts"
+      },
+      {
+        "kind": "cites",
+        "ids": ["b1000002-0000-4000-8000-000000000002"]
+      }
+    ]
+  },
+  {
+    "id": "sg-this-one-nice-one",
+    "subset": "singlish",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "fudge cake nice or not?"
+      }
+    ],
+    "recorded": ["This one nice one lah, the [[f:b1000001.name]] is [[f:b1000001.price]]."],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "This one nice one lah"
+      },
+      {
+        "kind": "contains",
+        "text": "S$55.00"
+      },
+      {
+        "kind": "prices-from-facts"
+      },
+      {
+        "kind": "cites",
+        "ids": ["b1000001-0000-4000-8000-000000000001"]
+      }
+    ]
+  },
+  {
+    "id": "sg-particles-pass",
+    "subset": "singlish",
+    "messages": [
+      {
+        "role": "user",
+        "content": "fudge cake how much hor"
+      }
+    ],
+    "recorded": [
+      "Can lah, the [[f:b1000001.name]] ([[f:b1000001.unit]]) is [[f:b1000001.price]] only."
+    ],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "Can lah"
+      },
+      {
+        "kind": "contains",
+        "text": "S$55.00"
+      },
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
+  },
+  {
+    "id": "sg-typed-price-only-lah",
+    "subset": "singlish",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "fudge cake how much ah"
+      }
+    ],
+    "recorded": [
+      "$55 only lah, very worth it.",
+      "The [[f:b1000001.name]] is [[f:b1000001.price]] lah."
+    ],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "S$55.00"
+      },
+      {
+        "kind": "not-contains",
+        "text": "$55 only"
+      },
+      {
+        "kind": "prices-from-facts"
+      },
+      {
+        "kind": "cites",
+        "ids": ["b1000001-0000-4000-8000-000000000001"]
+      }
+    ]
+  },
+  {
+    "id": "sg-typed-time-blocked",
+    "subset": "singlish",
+    "messages": [
+      {
+        "role": "user",
+        "content": "when can collect the fudge cake?"
+      }
+    ],
+    "recorded": [
+      "Can collect 3pm lor.",
+      "The [[f:b1000001.name]] is [[f:b1000001.price]]; collection time the team will confirm."
+    ],
+    "expect": [
+      {
+        "kind": "not-contains",
+        "text": "3pm"
+      },
+      {
+        "kind": "contains",
+        "text": "S$55.00"
+      },
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
+  },
+  {
+    "id": "sg-typed-time-escalates",
+    "subset": "singlish",
+    "messages": [
+      {
+        "role": "user",
+        "content": "fudge cake can collect what time ah"
+      }
+    ],
+    "recorded": ["Can collect 4pm lah."],
+    "expect": [
+      {
+        "kind": "not-contains",
+        "text": "4pm"
+      },
+      {
+        "kind": "outcome",
+        "outcome": "escalated"
+      },
+      {
+        "kind": "contains",
+        "text": "Let me confirm that with the team"
+      }
+    ]
+  },
+  {
+    "id": "sg-number-word-one",
+    "subset": "singlish",
+    "messages": [
+      {
+        "role": "user",
+        "content": "eggless chocolate cake how much leh"
+      }
+    ],
+    "recorded": ["The [[f:b1000005.name]] is [[f:b1000005.price]], the eggless one lah."],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "S$55.00"
+      },
+      {
+        "kind": "prices-from-facts"
+      },
+      {
+        "kind": "cites",
+        "ids": ["b1000005-0000-4000-8000-000000000005"]
+      }
+    ]
+  },
+  {
+    "id": "sg-weekend-hours-lah",
+    "subset": "singlish",
+    "messages": [
+      {
+        "role": "user",
+        "content": "weekend open or not ah"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "Sunday 9:00 am – 1:00 pm"
+      },
+      {
+        "kind": "language",
+        "lang": "en"
+      },
+      {
+        "kind": "judge",
+        "criterion": "language"
+      }
+    ]
+  },
+  {
+    "id": "sg-triage-register",
+    "subset": "singlish",
+    "messages": [
+      {
+        "role": "user",
+        "content": "fudge cake got or not"
+      }
+    ],
+    "expectTasks": ["answer"],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "S$55.00"
+      },
+      {
+        "kind": "cites",
+        "ids": ["b1000001-0000-4000-8000-000000000001"]
+      }
+    ]
+  },
+  {
+    "id": "sg-promo-until",
+    "subset": "singlish",
+    "messages": [
+      {
+        "role": "user",
+        "content": "kueh bundle until when ah, how much"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "prices-from-facts"
+      },
+      {
+        "kind": "cites",
+        "ids": ["b1000011-0000-4000-8000-000000000011"]
+      },
+      {
+        "kind": "contains",
+        "text": "until 31 Oct 2099"
+      }
+    ]
+  },
+  {
+    "id": "sg-no-fact-check-team",
+    "subset": "singlish",
+    "messages": [
+      {
+        "role": "user",
+        "content": "got parking near your shop or not?"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "check with the team"
+      },
+      {
+        "kind": "cites",
+        "ids": [],
+        "exact": true
+      },
+      {
+        "kind": "judge",
+        "criterion": "grounded"
+      }
+    ]
+  }
+]
