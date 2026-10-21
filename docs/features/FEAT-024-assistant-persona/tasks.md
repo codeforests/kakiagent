@@ -15,7 +15,7 @@
       Done when: agent integration tests pass: a saved name and note appear in the first reply's disclosure (en and zh); a paused tenant's fallback and an unavailable turn's fallback are the tenant's; the after-hours notice keeps the return time and uses the tenant's message; emoji off stores no emoji; the decision payload has the new codes and no text; with no settings every existing turn test is unchanged.
 - [x] T6 — Contracts and api: the §3.1 shapes, `GET`/`PUT /api/v1/settings/assistant`, the 409 mapping, and the widget config's name and greeting (design §3, §5.5; AC-1, AC-2, AC-8)
       Done when: api integration tests pass for GET defaults, PUT success, 400 per invalid field, 403 for an Agent, 409 on a stale version, and the widget config returning the saved name and greeting (defaults with none); contract unit tests cover the schema rules (digits, length, blank → null).
-- [ ] T7 — Widget: the greeting in the empty state by locale (design §5.6; ui-design.md; AC-8 UI half)
+- [x] T7 — Widget: the greeting in the empty state by locale (design §5.6; ui-design.md; AC-8 UI half)
       Done when: widget unit tests pass for the greeting choice, `pnpm build && pnpm size` stays within budget, and the panel shows a custom greeting on the local stack.
 - [ ] T8 — Dashboard: the Settings index and SCR-APP-041 (design §5.7; ui-design.md; AC-11)
       Done when: the screen renders and conforms to ui-design.md on the local stack at 375 px and desktop (default, loading, validation, saving, saved, conflict, no-permission, error), and component tests cover validation messages, blank → default and the preview.
