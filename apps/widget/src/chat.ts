@@ -74,12 +74,25 @@ export interface Row {
   text: string;
 }
 
-/** A stored message's rows in the log: the disclosure, the after-hours notice, then the bubble (ui-design.md). */
+/**
+ * A stored message's rows in the log: the disclosure, the after-hours notice, then the
+ * bubble (FEAT-023 ui-design.md); a chat-ended notice closes the chat, so it follows the
+ * bubble (FEAT-025 ui-design.md).
+ */
 export function rowsOf(m: Message): Row[] {
   const rows: Row[] = [];
   if (m.disclosure)
     rows.push({ kind: 'disclosure', key: `${m.id}-disclosure`, text: m.disclosure });
-  if (m.notice) rows.push({ kind: 'notice', key: `${m.id}-notice`, text: m.notice });
+  const notice: Row | null = m.notice
+    ? { kind: 'notice', key: `${m.id}-notice`, text: m.notice }
+    : null;
+  if (notice && m.noticeKind !== 'chat_ended') rows.push(notice);
   rows.push({ kind: 'message', key: m.id, text: m.body });
+  if (notice && m.noticeKind === 'chat_ended') rows.push(notice);
   return rows;
+}
+
+/** The AI ended the chat (AGT-13 repeated abuse): the composer closes (FEAT-025). */
+export function chatEnded(c: Chat): boolean {
+  return c.messages.some((m) => m.noticeKind === 'chat_ended');
 }

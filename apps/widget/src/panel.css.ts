@@ -33,5 +33,6 @@ export const PANEL_CSS = `
 .send{min-width:64px;height:44px;border:0;border-radius:var(--kaki-radius);background:var(--kaki-accent);color:var(--kaki-on-accent);
   font-size:14px;font-weight:600;cursor:pointer;padding:0 16px}
 .send:disabled{opacity:.6;cursor:default}
+.composer textarea:disabled{background:var(--kaki-subtle);color:var(--kaki-muted);cursor:default}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 `;

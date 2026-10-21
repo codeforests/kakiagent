@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { createApi } from './api.js';
 import {
   awaitingTurn,
+  chatEnded,
   emptyChat,
   greetingFor,
   langOf,
@@ -105,6 +106,15 @@ function Panel({
   }, [conversationId]);
 
   const waitingFor = awaitingTurn(chat);
+  const ended = chatEnded(chat);
+  const closeRef = useRef<HTMLButtonElement>(null);
+
+  // FEAT-025: the chat ended; keyboard users aren't left on a disabled control.
+  useEffect(() => {
+    if (!ended) return;
+    const root = inputRef.current?.getRootNode() as ShadowRoot | Document | undefined;
+    if (root?.activeElement === inputRef.current) closeRef.current?.focus();
+  }, [ended]);
   const growing = waitingFor ? pendingText(chat, waitingFor) : null;
 
   // Typing until the first segment; the slow notice if nothing came within 30 s.
@@ -122,7 +132,7 @@ function Panel({
   async function submit(e: Event) {
     e.preventDefault();
     const body = text.trim();
-    if (!body || sending) return;
+    if (!body || sending || ended) return;
     setSending(true);
     setError(false);
     try {
@@ -144,7 +154,13 @@ function Panel({
       <header class="header">
         <h2 class="title">{ctx.config.botName}</h2>
         <span class="ai">{t.aiLabel}</span>
-        <button type="button" class="icon-btn" aria-label={t.close} onClick={ctx.close}>
+        <button
+          type="button"
+          class="icon-btn"
+          aria-label={t.close}
+          onClick={ctx.close}
+          ref={closeRef}
+        >
           {CLOSE_ICON}
         </button>
       </header>
@@ -214,14 +230,15 @@ function Panel({
           id="kaki-input"
           ref={inputRef}
           rows={1}
-          placeholder={t.placeholder}
+          placeholder={ended ? t.ended : t.placeholder}
+          disabled={ended}
           value={text}
           onInput={(e) => setText((e.target as HTMLTextAreaElement).value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) void submit(e);
           }}
         />
-        <button class="send" type="submit" disabled={sending || !text.trim()}>
+        <button class="send" type="submit" disabled={sending || ended || !text.trim()}>
           {t.send}
         </button>
       </form>
