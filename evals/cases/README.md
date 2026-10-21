@@ -37,6 +37,15 @@ on the fake provider they are reported as pending). A case marked
 `needs: "semantic-embedder"` (pure-Chinese retrieval) is skipped and reported until the
 multilingual embedder is in (P3).
 
+FEAT-024 runs every case with the tenant's assistant settings, as the worker reads them
+from `visitor_tenant_state()`: the defaults, then the fixture's `persona`, then the
+case's `persona` (any of `botName`, `tone`, `emoji`, `greeting`, `disclosureNote`,
+`afterHoursMessage`, `fallbackMessage`). `replyFails: true` makes the reply model fail,
+so the turn closes with the tenant's fallback text (outcome `unavailable`). New
+expectations: `emoji` (`present`: the reply has an emoji, or none) and `disclosure`
+(`contains`: the first reply's disclosure). The judge gains the `tone` criterion, which
+is given the tenant's tone; its agreement items carry a `tone`.
+
 The judge's agreement sample is `../labels/agreement-sample.json`, for the eval-set
 version in `../version.json`. Every run checks that the versions match and that the
 sample has at least 10% as many items as there are `judge` expectations; with a real

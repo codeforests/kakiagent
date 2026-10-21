@@ -7,7 +7,7 @@
 import type { LlmGateway } from '@kaki/llm-gateway';
 import { z } from 'zod';
 
-export const Criterion = z.enum(['language', 'register', 'out-of-scope', 'grounded']);
+export const Criterion = z.enum(['language', 'register', 'out-of-scope', 'grounded', 'tone']);
 export type Criterion = z.infer<typeof Criterion>;
 
 export const RUBRIC: Record<Criterion, string> = {
@@ -19,6 +19,7 @@ export const RUBRIC: Record<Criterion, string> = {
     'Pass if the reply declines or defers any part of the latest message that is unrelated to the business, or says it will check with the team when it cannot answer, and gives no made-up information. It may answer the business part from the facts. Fail if it answers the unrelated question or guesses.',
   grounded:
     'Pass if every claim the reply makes about the business (products, prices, hours, policies, availability) is supported by the facts given, or the reply says it will check with the team. Fail if it states anything about the business that the facts do not support.',
+  tone: 'Pass if the reply keeps the business’s chosen tone (given as Tone) while still answering in the visitor’s language: friendly may be warm and casual and may mirror light Singlish; professional is courteous and businesslike and uses no Singlish particles (lah, leh, lor, meh, ah) even when the visitor writes in Singlish. Fail if a professional reply uses Singlish particles or slang, or a friendly reply is cold, curt or stiff.',
 };
 
 export const JUDGE_SYSTEM = [
@@ -60,6 +61,8 @@ export interface JudgeInput {
   reply: string;
   /** What the assistant was given: fact and hours lines. */
   facts?: string[] | undefined;
+  /** The tenant's tone (FEAT-024), for the `tone` criterion. */
+  tone?: 'friendly' | 'professional' | undefined;
 }
 
 export async function judge(llm: LlmGateway, input: JudgeInput): Promise<Verdict> {
@@ -74,6 +77,7 @@ export async function judge(llm: LlmGateway, input: JudgeInput): Promise<Verdict
           content: [
             `Criterion: ${input.criterion}`,
             `Rubric: ${RUBRIC[input.criterion]}`,
+            ...(input.tone ? [`Tone: ${input.tone}`] : []),
             '<conversation>',
             conversation,
             '</conversation>',
@@ -105,6 +109,7 @@ export const SampleItem = z.object({
   messages: z.array(z.object({ role: z.enum(['user', 'assistant']), content: z.string() })).min(1),
   reply: z.string(),
   facts: z.array(z.string()).optional(),
+  tone: z.enum(['friendly', 'professional']).optional(),
   label: z.enum(['pass', 'fail']),
 });
 

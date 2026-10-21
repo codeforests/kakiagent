@@ -78,6 +78,8 @@ function validate(d: Draft): Partial<Record<FieldId, string>> {
 
 /** SCR-APP-041 Assistant (AGT-08, AGT-11; FEAT-024 ui-design). */
 export function AssistantPage() {
+  // Held here, not in the form: a save bumps the version, which remounts the form.
+  const [toast, setToast] = useToast();
   const loaded = useQuery({
     queryKey: ['assistant-settings'],
     queryFn: () => api.assistantSettings(),
@@ -141,7 +143,17 @@ export function AssistantPage() {
   return (
     <div className="assistant-page">
       {head}
-      <AssistantForm key={settings.version} settings={settings} defaults={defaults} />
+      <AssistantForm
+        key={settings.version}
+        settings={settings}
+        defaults={defaults}
+        onSaved={setToast}
+      />
+      {toast && (
+        <div className="toast" role="status">
+          {toast}
+        </div>
+      )}
     </div>
   );
 }
@@ -149,12 +161,13 @@ export function AssistantPage() {
 function AssistantForm({
   settings,
   defaults,
+  onSaved,
 }: {
   settings: AssistantSettings;
   defaults: AssistantDefaults;
+  onSaved: (message: string) => void;
 }) {
   const queryClient = useQueryClient();
-  const [toast, setToast] = useToast();
   const initial = fromSettings(settings);
   const [draft, setDraft] = useState<Draft>(initial);
   const [lang, setLang] = useState<Lang>('en');
@@ -171,7 +184,7 @@ function AssistantForm({
       api.saveAssistantSettings(AssistantSettingsBody.parse(bodyOf(draft, settings.version))),
     onSuccess: (res) => {
       queryClient.setQueryData(['assistant-settings'], res);
-      setToast('Assistant settings saved. Your assistant uses them from the next reply.');
+      onSaved('Assistant settings saved. Your assistant uses them from the next reply.');
     },
   });
   const failure =
@@ -472,12 +485,6 @@ function AssistantForm({
           </Button>
         </div>
       </form>
-
-      {toast && (
-        <div className="toast" role="status">
-          {toast}
-        </div>
-      )}
     </>
   );
 }
