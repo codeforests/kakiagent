@@ -89,7 +89,7 @@ The contract's messages are the screen's (NFR-19), e.g. "UEN must be 9 or 10 cha
 
 - Body `BusinessProfileBody`, the whole document (D7). Response 200 `BusinessProfileResponse` with `version + 1`.
 - 400 `bad_request` on any schema failure, including the refinements.
-- 409 `version_conflict` "This profile was changed by someone else" when the stored version is not `body.version`.
+- 409 `version_conflict` ("These settings were changed by someone else", the FEAT-024 mapping) when the stored version is not `body.version`.
 - Side effects in the same transaction: `tenants.name`, the profile row, the exception rows from today on replaced by the body's, and one audit entry `settings.profile_updated` (§5.1). No outbox event: the next visitor turn reads the state (as FEAT-024).
 
 ## 4. Schema changes

@@ -29,7 +29,12 @@ import {
 } from '@kaki/kb';
 import { channels, signToken, TokenError, verifyToken } from '@kaki/platform';
 import { DEFAULT_BOT_NAME, DEFAULT_GREETING } from '@kaki/agent';
-import { resolveWidgetKey, SettingsConflictError, visitorTenantState } from '@kaki/tenancy';
+import {
+  InvalidProfileError,
+  resolveWidgetKey,
+  SettingsConflictError,
+  visitorTenantState,
+} from '@kaki/tenancy';
 import { randomUUID } from 'node:crypto';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { ZodError } from 'zod';
@@ -70,7 +75,11 @@ export async function buildApp(deps: Deps) {
   app.setErrorHandler((err, req, reply) => {
     if (err instanceof ZodError)
       return reply.code(400).send({ error: 'bad_request', message: 'Invalid request' });
-    if (err instanceof InvalidFactError || err instanceof InvalidCursorError)
+    if (
+      err instanceof InvalidFactError ||
+      err instanceof InvalidCursorError ||
+      err instanceof InvalidProfileError
+    )
       return reply.code(400).send({ error: 'bad_request', message: err.message });
     if (
       err instanceof NotFoundError ||

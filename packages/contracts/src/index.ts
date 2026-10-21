@@ -383,6 +383,196 @@ export const AssistantSettingsResponse = z.object({
 });
 export type AssistantSettingsResponse = z.infer<typeof AssistantSettingsResponse>;
 
+// ---- Dashboard API: business profile (ONB-03, ONB-06; FEAT-009 §3) ----------------
+
+export const Industry = z.enum([
+  'fnb',
+  'retail',
+  'beauty_wellness',
+  'education',
+  'professional_services',
+  'home_services',
+  'other',
+]);
+export type Industry = z.infer<typeof Industry>;
+
+export const ProfileLanguage = z.enum(['en', 'zh', 'ms', 'ta']);
+export type ProfileLanguage = z.infer<typeof ProfileLanguage>;
+
+/** ACRA UEN formats (FEAT-009 D2): business, local company, other entity. */
+export const UEN_RE =
+  /^([0-9]{8}[A-Z]|(18|19|20)[0-9]{7}[A-Z]|[TSR][0-9]{2}[A-Z]{2}[0-9]{4}[A-Z])$/;
+export const Uen = z
+  .string()
+  .transform((s) => s.replace(/\s+/g, '').toUpperCase())
+  .refine((s) => s === '' || UEN_RE.test(s), 'UEN must be 9 or 10 characters, like 201912345K')
+  .nullable()
+  .transform((s) => (s ? s : null));
+
+/** Singapore numbers (FEAT-009 D3), stored as `+65XXXXXXXX`. */
+export const SgPhone = z
+  .string()
+  .transform((s) => s.replace(/[\s-]/g, ''))
+  .transform((s) => (s.startsWith('+65') ? s.slice(3) : s.startsWith('0065') ? s.slice(4) : s))
+  .refine(
+    (s) => s === '' || /^[3689][0-9]{7}$/.test(s),
+    'Enter a Singapore number with 8 digits, like 9123 4567',
+  )
+  .transform((s) => (s ? `+65${s}` : null))
+  .nullable()
+  .transform((s) => s ?? null);
+
+/** `+6591234567` → `+65 9123 4567`. */
+export const formatSgPhone = (p: string) => `+65 ${p.slice(3, 7)} ${p.slice(7)}`;
+
+export const ContactEmail = z
+  .string()
+  .trim()
+  .refine(
+    (s) => s === '' || (s.length <= 254 && z.email().safeParse(s).success),
+    'Enter an email address, like hello@example.com',
+  )
+  .nullable()
+  .transform((s) => (s ? s : null));
+
+const TIME_RE = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+/** `24:00` counts as 1440, the end of the day. */
+const minutes = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+
+export const WEEKDAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
+export type Weekday = (typeof WEEKDAYS)[number];
+export const WEEKDAY_NAMES: Record<Weekday, string> = {
+  mon: 'Monday',
+  tue: 'Tuesday',
+  wed: 'Wednesday',
+  thu: 'Thursday',
+  fri: 'Friday',
+  sat: 'Saturday',
+  sun: 'Sunday',
+};
+
+export const HoursInterval = z.object({
+  open: z.string().regex(TIME_RE, 'Enter an opening time'),
+  close: z.union([z.string().regex(TIME_RE), z.literal('24:00')], 'Enter a closing time'),
+});
+export type HoursInterval = z.infer<typeof HoursInterval>;
+
+/** One day's intervals; the message names the day (FEAT-009 ui-design). */
+const HoursDay = (day: Weekday) =>
+  z
+    .array(HoursInterval)
+    .max(4, `${WEEKDAY_NAMES[day]}: up to 4 time ranges`)
+    .superRefine((d, ctx) => {
+      d.forEach((i, k) => {
+        if (!TIME_RE.test(i.open)) return;
+        if (minutes(i.open) >= minutes(i.close))
+          ctx.addIssue({
+            code: 'custom',
+            path: [k],
+            message: `${WEEKDAY_NAMES[day]}: opening time must be before closing time`,
+          });
+        else if (k > 0 && minutes(d[k - 1]!.close) > minutes(i.open))
+          ctx.addIssue({
+            code: 'custom',
+            path: [k],
+            message: `${WEEKDAY_NAMES[day]}: hours overlap`,
+          });
+      });
+    });
+
+/** Weekly hours in SGT, the same rules as @kaki/tenancy's `WeeklyHours` (FEAT-023 §4). */
+export const WeeklyHoursInput = z.object(
+  Object.fromEntries(WEEKDAYS.map((d) => [d, HoursDay(d)])) as Record<
+    Weekday,
+    ReturnType<typeof HoursDay>
+  >,
+);
+export type WeeklyHoursInput = z.infer<typeof WeeklyHoursInput>;
+
+export const HolidayException = z.object({
+  day: SgDate.refine((s) => s !== '', 'Choose a date for each closure'),
+  kind: z.enum(['open', 'closed']),
+  label: z
+    .string()
+    .trim()
+    .max(60, 'A closure reason must be 60 characters or fewer')
+    .nullable()
+    .transform((s) => (s ? s : null)),
+});
+export type HolidayException = z.infer<typeof HolidayException>;
+
+export const BusinessProfileBody = z.object({
+  version: z.number().int().min(1),
+  name: z
+    .string()
+    .trim()
+    .min(1, 'Enter your business name')
+    .max(120, 'Business name must be 120 characters or fewer'),
+  uen: Uen,
+  industry: Industry.nullable(),
+  contactEmail: ContactEmail,
+  contactPhone: SgPhone,
+  languages: z
+    .array(ProfileLanguage)
+    .min(1, 'Choose at least one language')
+    .refine((l) => new Set(l).size === l.length, 'Choose each language once'),
+  gstRegistered: z.boolean(),
+  hours: WeeklyHoursInput.nullable(),
+  openOnPublicHolidays: z.boolean(),
+  exceptions: z
+    .array(HolidayException)
+    .max(60, 'Up to 60 holidays and closures')
+    .refine(
+      (e) => new Set(e.map((x) => x.day)).size === e.length,
+      'Each date can only be listed once',
+    ),
+});
+export type BusinessProfileBody = z.infer<typeof BusinessProfileBody>;
+/** What the form holds before parsing. */
+export type BusinessProfileInput = z.input<typeof BusinessProfileBody>;
+
+/**
+ * The exception rules that need the SG calendar and today's date (FEAT-009 §3.1), which
+ * this package doesn't hold: the api passes @kaki/tenancy's calendar, the dashboard the
+ * response's. Paths point into `exceptions`.
+ */
+export function exceptionIssues(
+  b: Pick<BusinessProfileBody, 'exceptions' | 'openOnPublicHolidays'>,
+  ctx: { isHoliday: (day: string) => boolean; today: string },
+): { path: (string | number)[]; message: string }[] {
+  const issues: { path: (string | number)[]; message: string }[] = [];
+  b.exceptions.forEach((e, i) => {
+    const at = ['exceptions', i, 'day'];
+    if (e.day < ctx.today) issues.push({ path: at, message: "A closure can't be in the past" });
+    else if (e.kind === 'open' && (!ctx.isHoliday(e.day) || b.openOnPublicHolidays))
+      issues.push({ path: at, message: 'Only a public holiday you close on can be marked open' });
+    else if (e.kind === 'closed' && ctx.isHoliday(e.day) && !b.openOnPublicHolidays)
+      issues.push({ path: at, message: "You're already closed on this public holiday" });
+  });
+  return issues;
+}
+
+export const BusinessProfile = BusinessProfileBody.extend({ updatedAt: z.iso.datetime() });
+export type BusinessProfile = z.infer<typeof BusinessProfile>;
+
+export const PublicHoliday = z.object({ day: z.string(), name: z.string() });
+export type PublicHoliday = z.infer<typeof PublicHoliday>;
+
+export const SuggestedFaq = z.object({
+  id: z.string(),
+  question: z.string(),
+  hint: z.string(),
+  added: z.boolean(),
+});
+export type SuggestedFaq = z.infer<typeof SuggestedFaq>;
+
+export const BusinessProfileResponse = z.object({
+  profile: BusinessProfile,
+  calendar: z.object({ holidays: z.array(PublicHoliday), coverThrough: z.int() }),
+  template: z.object({ industry: Industry, suggestedFaqs: z.array(SuggestedFaq) }).nullable(),
+});
+export type BusinessProfileResponse = z.infer<typeof BusinessProfileResponse>;
+
 // ---- Realtime events (Valkey pub/sub payloads, SSE and WebSocket frames; ADR-017) --
 
 export const MessageEvent = z.object({ type: z.literal('message'), message: Message });
