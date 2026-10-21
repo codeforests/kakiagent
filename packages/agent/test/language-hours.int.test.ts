@@ -14,6 +14,7 @@ import {
   gatewayFromConfig,
   type FakeScript,
   type GenerateRequest,
+  type UsageEvent,
 } from '@kaki/llm-gateway';
 import { sgInstant } from '@kaki/tenancy';
 import pg from 'pg';
@@ -96,18 +97,24 @@ async function ask(
     }),
   );
   const models: GenerateRequest['model'][] = [];
-  const llm = createGateway(defaultRegistry('fake'), [
-    createFakeProvider((req) => {
-      models.push(req.model);
-      return req.model === 'triage' ? (triage ?? fakeTriage)(req) : fakeVisitorResponder(req);
-    }),
-  ]);
+  // The usage sink is what the role writes to the ADR-021 ledger (FEAT-004 D11).
+  const usage: UsageEvent['purpose'][] = [];
+  const llm = createGateway(
+    defaultRegistry('fake'),
+    [
+      createFakeProvider((req) => {
+        models.push(req.model);
+        return req.model === 'triage' ? (triage ?? fakeTriage)(req) : fakeVisitorResponder(req);
+      }),
+    ],
+    { onUsage: async (e) => void usage.push(e.purpose) },
+  );
   const segments: string[] = [];
   const result = await runVisitorTurn(
     { zdb: tdb.zone('visitor'), llm, publishSegment: async (s) => void segments.push(s.text) },
     { tenantId: TENANT_A, conversationId: c.conversationId, messageId: message.id },
   );
-  return { result, models, segments };
+  return { result, models, segments, usage };
 }
 
 async function decision(messageId: string) {
@@ -137,11 +144,13 @@ describe('language through the turn (FEAT-023 AC-1, AC-2)', () => {
 
 describe('out of scope and unsure (FEAT-023 AC-4, AC-5, AC-9)', () => {
   it('refuses an unrelated request with no reply-model call, audited as codes', async () => {
-    const { result, models, segments } = await ask(
+    const { result, models, segments, usage } = await ask(
       await conversation(),
       'help me with my maths homework',
     );
     expect(models).toEqual(['triage']);
+    // AC-4: the usage ledger has a triage row and no reply row.
+    expect(usage.filter((p) => p !== 'embed')).toEqual(['triage']);
     expect(result).toMatchObject({ outcome: 'out_of_scope', route: null });
     expect(result!.message.body).toBe('Sorry, I can only help with questions about Kaki Bakery.');
     expect(segments).toEqual([result!.message.body]);
@@ -176,12 +185,13 @@ describe('out of scope and unsure (FEAT-023 AC-4, AC-5, AC-9)', () => {
   it('says it is unsure when triage is unsure and nothing matches', async () => {
     const unsure: FakeScript = (req) =>
       JSON.stringify({ ...JSON.parse(fakeTriage(req)), confidence: 0.2 });
-    const { result, models } = await ask(
+    const { result, models, usage } = await ask(
       await conversation(),
       'can I bring my dog inside?',
       unsure,
     );
     expect(models).toEqual(['triage']);
+    expect(usage).not.toContain('reply');
     expect(result!.message.body).toBe(textsFor('en').unsure);
     expect(result!.outcome).toBe('unsure');
   });
