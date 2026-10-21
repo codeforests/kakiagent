@@ -5,17 +5,20 @@
   "description": "The AI evaluation harness (AGT-14, ADR-007): cases run through the agent's verified-reply pipeline on fixture tenants (FEAT-022).",
   "scripts": {
     "eval": "tsx src/run.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --project unit --passWithNoTests"
   },
   "dependencies": {
     "@kaki/agent": "workspace:*",
     "@kaki/kb": "workspace:*",
     "@kaki/llm-gateway": "workspace:*",
+    "@kaki/tenancy": "workspace:*",
     "zod": "4.6.7"
   },
   "devDependencies": {
     "@types/node": "22.20.5",
     "tsx": "4.23.15",
-    "typescript": "6.0.3"
+    "typescript": "6.0.3",
+    "vitest": "5.0.5"
   }
 }

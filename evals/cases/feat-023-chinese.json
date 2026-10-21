@@ -1,0 +1,445 @@
+[
+  {
+    "id": "zh-j7-weekend-hours",
+    "subset": "chinese",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "请问周末营业时间？"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "周六营业时间是上午9:00至下午5:00"
+      },
+      {
+        "kind": "contains",
+        "text": "周日是上午9:00至下午1:00"
+      },
+      {
+        "kind": "language",
+        "lang": "zh"
+      },
+      {
+        "kind": "judge",
+        "criterion": "language"
+      }
+    ]
+  },
+  {
+    "id": "zh-today-close",
+    "subset": "chinese",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "你们今天几点关门？"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "上午8:00至晚上7:00"
+      },
+      {
+        "kind": "language",
+        "lang": "zh"
+      }
+    ]
+  },
+  {
+    "id": "zh-mixed-price",
+    "subset": "chinese",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "chocolate fudge cake 多少钱？"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "的价格是S$55.00"
+      },
+      {
+        "kind": "prices-from-facts"
+      },
+      {
+        "kind": "cites",
+        "ids": ["b1000001-0000-4000-8000-000000000001"]
+      }
+    ]
+  },
+  {
+    "id": "zh-mixed-pandan-gst",
+    "subset": "chinese",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "pandan chiffon cake 多少钱？"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "S$30.52 incl. GST"
+      },
+      {
+        "kind": "not-contains",
+        "text": "S$28.00"
+      },
+      {
+        "kind": "prices-from-facts"
+      },
+      {
+        "kind": "cites",
+        "ids": ["b1000002-0000-4000-8000-000000000002"]
+      }
+    ]
+  },
+  {
+    "id": "zh-weekday-names-pass",
+    "subset": "chinese",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "星期六几点开门？"
+      }
+    ],
+    "recorded": ["我们星期六营业时间是[[s:hours.sat]]，礼拜天是[[s:hours.sun]]。"],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "星期六"
+      },
+      {
+        "kind": "contains",
+        "text": "礼拜天"
+      },
+      {
+        "kind": "contains",
+        "text": "上午9:00至下午5:00"
+      },
+      {
+        "kind": "language",
+        "lang": "zh"
+      }
+    ]
+  },
+  {
+    "id": "zh-zhou-ri-pass",
+    "subset": "chinese",
+    "messages": [
+      {
+        "role": "user",
+        "content": "周日开吗？"
+      }
+    ],
+    "recorded": ["周日的营业时间是[[s:hours.sun]]。"],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "周日"
+      },
+      {
+        "kind": "contains",
+        "text": "上午9:00至下午1:00"
+      },
+      {
+        "kind": "language",
+        "lang": "zh"
+      }
+    ]
+  },
+  {
+    "id": "zh-typed-time-blocked",
+    "subset": "chinese",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "请问周末营业时间？"
+      }
+    ],
+    "recorded": ["周六9点到5点营业。", "周六营业时间是[[s:hours.sat]]，周日是[[s:hours.sun]]。"],
+    "expect": [
+      {
+        "kind": "not-contains",
+        "text": "9点"
+      },
+      {
+        "kind": "contains",
+        "text": "上午9:00至下午5:00"
+      },
+      {
+        "kind": "language",
+        "lang": "zh"
+      }
+    ]
+  },
+  {
+    "id": "zh-typed-half-hour-blocked",
+    "subset": "chinese",
+    "messages": [
+      {
+        "role": "user",
+        "content": "今天几点开门？"
+      }
+    ],
+    "recorded": ["今天9点半开门。", "今天的营业时间是[[s:hours.today]]。"],
+    "expect": [
+      {
+        "kind": "not-contains",
+        "text": "9点半"
+      },
+      {
+        "kind": "contains",
+        "text": "上午8:00至晚上7:00"
+      }
+    ]
+  },
+  {
+    "id": "zh-typed-date-blocked",
+    "subset": "chinese",
+    "messages": [
+      {
+        "role": "user",
+        "content": "fudge cake 什么时候可以取？"
+      }
+    ],
+    "recorded": ["10月24日可以取。"],
+    "expect": [
+      {
+        "kind": "not-contains",
+        "text": "10月24日"
+      },
+      {
+        "kind": "outcome",
+        "outcome": "escalated"
+      },
+      {
+        "kind": "contains",
+        "text": "我先跟团队确认一下"
+      }
+    ]
+  },
+  {
+    "id": "zh-typed-price-blocked",
+    "subset": "chinese",
+    "messages": [
+      {
+        "role": "user",
+        "content": "fudge cake 多少钱？"
+      }
+    ],
+    "recorded": ["55块。", "[[f:b1000001.name]]的价格是[[f:b1000001.price]]。"],
+    "expect": [
+      {
+        "kind": "not-contains",
+        "text": "55块"
+      },
+      {
+        "kind": "contains",
+        "text": "S$55.00"
+      },
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
+  },
+  {
+    "id": "zh-sandwich-pass",
+    "subset": "chinese",
+    "messages": [
+      {
+        "role": "user",
+        "content": "有没有三明治？fudge cake 呢？"
+      }
+    ],
+    "recorded": ["我们没有三明治，不过有[[f:b1000001.name]]，价格是[[f:b1000001.price]]。"],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "三明治"
+      },
+      {
+        "kind": "contains",
+        "text": "S$55.00"
+      },
+      {
+        "kind": "prices-from-facts"
+      },
+      {
+        "kind": "cites",
+        "ids": ["b1000001-0000-4000-8000-000000000001"]
+      }
+    ]
+  },
+  {
+    "id": "zh-no-fact-unsure-compose",
+    "subset": "chinese",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "附近有停车场吗？"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "这个我不太确定"
+      },
+      {
+        "kind": "language",
+        "lang": "zh"
+      },
+      {
+        "kind": "cites",
+        "ids": [],
+        "exact": true
+      }
+    ]
+  },
+  {
+    "id": "zh-unsure-low-confidence",
+    "subset": "chinese",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "可以带狗进去吗？"
+      }
+    ],
+    "plan": {
+      "language": "zh",
+      "register": "standard",
+      "complexity": 0.2,
+      "confidence": 0.2,
+      "flags": {
+        "complaint": false,
+        "injection": false
+      },
+      "tasks": [
+        {
+          "kind": "answer",
+          "args": []
+        }
+      ]
+    },
+    "expect": [
+      {
+        "kind": "outcome",
+        "outcome": "unsure"
+      },
+      {
+        "kind": "contains",
+        "text": "这个问题我不太确定，我先跟团队确认，稍后回复您。"
+      },
+      {
+        "kind": "language",
+        "lang": "zh"
+      }
+    ]
+  },
+  {
+    "id": "zh-escalation-text",
+    "subset": "chinese",
+    "messages": [
+      {
+        "role": "user",
+        "content": "fudge cake 多少钱？"
+      }
+    ],
+    "recorded": ["大概 $50 左右。"],
+    "expect": [
+      {
+        "kind": "outcome",
+        "outcome": "escalated"
+      },
+      {
+        "kind": "contains",
+        "text": "我先跟团队确认一下，稍后回复您。"
+      },
+      {
+        "kind": "not-contains",
+        "text": "$"
+      }
+    ]
+  },
+  {
+    "id": "zh-closed-reopens",
+    "subset": "chinese",
+    "at": "2026-10-25T15:00:00+08:00",
+    "messages": [
+      {
+        "role": "user",
+        "content": "现在开门吗？"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "我们将于明天上午8:00再开门"
+      },
+      {
+        "kind": "notice",
+        "present": true,
+        "contains": "明天上午8:00"
+      },
+      {
+        "kind": "language",
+        "lang": "zh"
+      }
+    ]
+  },
+  {
+    "id": "zh-promo-price",
+    "subset": "chinese",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Deepavali kueh bundle 多少钱？"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "prices-from-facts"
+      },
+      {
+        "kind": "cites",
+        "ids": ["b1000011-0000-4000-8000-000000000011"]
+      },
+      {
+        "kind": "contains",
+        "text": "S$21.80"
+      }
+    ]
+  },
+  {
+    "id": "zh-fallback-plan-han",
+    "subset": "chinese",
+    "messages": [
+      {
+        "role": "user",
+        "content": "可以带狗进去吗？"
+      }
+    ],
+    "plan": "not json",
+    "expect": [
+      {
+        "kind": "outcome",
+        "outcome": "unsure"
+      },
+      {
+        "kind": "contains",
+        "text": "这个问题我不太确定，我先跟团队确认，稍后回复您。"
+      }
+    ]
+  }
+]

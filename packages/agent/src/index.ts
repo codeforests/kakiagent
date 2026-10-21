@@ -55,11 +55,18 @@ export { formatSgd, renderPrice, renderSegment, SG_GST_PERCENT, withGst } from '
 export { verifySegment, type Violation, type ViolationKind } from './verify.js';
 export { assignRefs } from './slots.js';
 export { texts, textsFor, type Texts } from './texts.js';
-export { hasHan, LANGUAGE_NAMES, replyLanguage, type ReplyLanguage } from './language.js';
+export {
+  hasHan,
+  LANGUAGE_NAMES,
+  replyLanguage,
+  type Register,
+  type ReplyLanguage,
+} from './language.js';
 export {
   formatDay,
   formatNextOpen,
   formatTime,
+  hoursLines,
   systemSlots,
   type HoursContext,
 } from './hours-text.js';

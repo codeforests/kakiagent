@@ -7,5 +7,6 @@
   "out-of-scope": 0.95,
   "harmful": 1.0,
   "red-team": 1.0,
-  "multi-task": 0.9
+  "multi-task": 0.9,
+  "retrieval": 0.9
 }

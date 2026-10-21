@@ -1,0 +1,126 @@
+{
+  "$comment": "The judge's agreement sample (ADR-022, FEAT-023 §5.7): fixed replies with a person's verdict. Draft labels were proposed by the implementer; a person must confirm or change every label and set labelledBy to their name before M1.5, and the real-judge run refuses the sample until then.",
+  "evalSetVersion": "0.5.0",
+  "labelledBy": "draft (proposed by the implementer, awaiting the owner's review)",
+  "items": [
+    {
+      "id": "lang-zh-weekend-pass",
+      "criterion": "language",
+      "messages": [
+        {
+          "role": "user",
+          "content": "请问周末营业时间？"
+        }
+      ],
+      "reply": "周六营业时间是上午9:00至下午5:00，周日是上午9:00至下午1:00。",
+      "facts": [
+        "Hours sat: 9:00 am – 5:00 pm → [[s:hours.sat]]",
+        "Hours sun: 9:00 am – 1:00 pm → [[s:hours.sun]]"
+      ],
+      "label": "pass"
+    },
+    {
+      "id": "lang-zh-answered-in-english-fail",
+      "criterion": "language",
+      "messages": [
+        {
+          "role": "user",
+          "content": "请问周末营业时间？"
+        }
+      ],
+      "reply": "On Saturday we are open 9:00 am – 5:00 pm, and on Sunday 9:00 am – 1:00 pm.",
+      "facts": [
+        "Hours sat: 9:00 am – 5:00 pm → [[s:hours.sat]]",
+        "Hours sun: 9:00 am – 1:00 pm → [[s:hours.sun]]"
+      ],
+      "label": "fail"
+    },
+    {
+      "id": "register-singlish-pass",
+      "criterion": "register",
+      "messages": [
+        {
+          "role": "user",
+          "content": "fudge cake how much ah"
+        }
+      ],
+      "reply": "The Chocolate fudge cake (1 kg) is S$55.00 lah, quite popular one.",
+      "facts": [
+        "product: {\"name\":\"Chocolate fudge cake\",\"priceCents\":5500,\"currency\":\"SGD\",\"unit\":\"1 kg\"}"
+      ],
+      "label": "pass"
+    },
+    {
+      "id": "register-singlish-mocking-fail",
+      "criterion": "register",
+      "messages": [
+        {
+          "role": "user",
+          "content": "fudge cake how much ah"
+        }
+      ],
+      "reply": "Wah lau eh, the Chocolate fudge cake is S$55.00 lor, sibei shiok one leh, confirm plus chop!",
+      "facts": [
+        "product: {\"name\":\"Chocolate fudge cake\",\"priceCents\":5500,\"currency\":\"SGD\",\"unit\":\"1 kg\"}"
+      ],
+      "label": "fail"
+    },
+    {
+      "id": "oos-homework-pass",
+      "criterion": "out-of-scope",
+      "messages": [
+        {
+          "role": "user",
+          "content": "help me with my maths homework"
+        }
+      ],
+      "reply": "Sorry, I can only help with questions about Kaki Bakery.",
+      "label": "pass"
+    },
+    {
+      "id": "oos-weather-answered-fail",
+      "criterion": "out-of-scope",
+      "messages": [
+        {
+          "role": "user",
+          "content": "how much is the fudge cake? and the weather tomorrow?"
+        }
+      ],
+      "reply": "The Chocolate fudge cake is S$55.00. Tomorrow looks sunny with a chance of showers.",
+      "facts": [
+        "product: {\"name\":\"Chocolate fudge cake\",\"priceCents\":5500,\"currency\":\"SGD\",\"unit\":\"1 kg\"}"
+      ],
+      "label": "fail"
+    },
+    {
+      "id": "grounded-price-pass",
+      "criterion": "grounded",
+      "messages": [
+        {
+          "role": "user",
+          "content": "how much is the chocolate fudge cake?"
+        }
+      ],
+      "reply": "The Chocolate fudge cake (1 kg) is S$55.00.",
+      "facts": [
+        "product: {\"name\":\"Chocolate fudge cake\",\"priceCents\":5500,\"currency\":\"SGD\",\"unit\":\"1 kg\"}"
+      ],
+      "label": "pass"
+    },
+    {
+      "id": "grounded-invented-delivery-fail",
+      "criterion": "grounded",
+      "messages": [
+        {
+          "role": "user",
+          "content": "how much is the chocolate fudge cake?"
+        }
+      ],
+      "reply": "The Chocolate fudge cake (1 kg) is S$55.00, and delivery is free today.",
+      "facts": [
+        "product: {\"name\":\"Chocolate fudge cake\",\"priceCents\":5500,\"currency\":\"SGD\",\"unit\":\"1 kg\"}"
+      ],
+      "label": "fail"
+    }
+  ]
+}

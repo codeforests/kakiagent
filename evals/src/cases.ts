@@ -1,7 +1,9 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { TaskKind } from '@kaki/agent';
+import { WeeklyHours } from '@kaki/tenancy';
 import { z } from 'zod';
+import { Criterion } from './judge.js';
 
 export const Subset = z.enum([
   'groundedness',
@@ -13,10 +15,15 @@ export const Subset = z.enum([
   'red-team',
   /** Triage, routing and dispatch (FEAT-004, ADR-025 decision 8). */
   'multi-task',
+  /** Retrieval for Singlish and mixed or pure Chinese questions (FEAT-023; plan P3, R5). */
+  'retrieval',
 ]);
 export type Subset = z.infer<typeof Subset>;
 
-/** Deterministic scorers. The LLM judge arrives with FEAT-023 (plan §7). */
+/** The turn outcomes a case can expect (FEAT-023: AGT-04's fixed texts). */
+export const Outcome = z.enum(['answered', 'escalated', 'out_of_scope', 'unsure', 'unavailable']);
+
+/** Deterministic scorers, plus the LLM judge (`judge`, FEAT-023, ADR-022). */
 export const Expectation = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('contains'), text: z.string() }),
   z.object({ kind: z.literal('not-contains'), text: z.string() }),
@@ -32,6 +39,20 @@ export const Expectation = z.discriminatedUnion('kind', [
     ids: z.array(z.string()),
     exact: z.boolean().default(false),
   }),
+  /** AGT-03: `zh` when Han characters are at least 30% of the letters; `en` when there are none. */
+  z.object({ kind: z.literal('language'), lang: z.enum(['en', 'zh']) }),
+  /** AGT-04: the turn's outcome. */
+  z.object({ kind: z.literal('outcome'), outcome: Outcome }),
+  /** AGT-09: the after-hours notice is there (optionally with a text) or absent. */
+  z.object({
+    kind: z.literal('notice'),
+    present: z.boolean(),
+    contains: z.string().optional(),
+  }),
+  /** Retrieval: the retrieved facts include `ids`. */
+  z.object({ kind: z.literal('retrieves'), ids: z.array(z.string()).min(1) }),
+  /** The LLM judge on one criterion; only with a real model (D8). */
+  z.object({ kind: z.literal('judge'), criterion: Criterion }),
 ]);
 export type Expectation = z.infer<typeof Expectation>;
 
@@ -65,6 +86,13 @@ export const Case = z
     /** The reply model the router picks at the default policy (ADR-007). */
     expectRoute: Route.optional(),
     expect: z.array(Expectation).default([]),
+    /**
+     * When the visitor writes (FEAT-023), so hours and the after-hours notice don't
+     * depend on when CI runs. Default: Wednesday 21 Oct 2026, 11:00 SGT (the bakery is open).
+     */
+    at: z.iso.datetime({ offset: true }).default('2026-10-21T11:00:00+08:00'),
+    /** Skipped, and reported, until the embedder can do it (P3: Cohere at MD). */
+    needs: z.literal('semantic-embedder').optional(),
   })
   .refine((c) => c.expect.length > 0 || c.expectTasks || c.expectRoute, {
     message: 'a case needs expect, expectTasks or expectRoute',
@@ -93,6 +121,9 @@ export const Fixture = z.object({
   tenantId: z.uuid(),
   businessName: z.string(),
   gstRegistered: z.boolean(),
+  /** Opening hours (FEAT-023): the business profile's, as `visitor_tenant_state` returns them. */
+  hours: WeeklyHours.nullable().default(null),
+  openOnPublicHolidays: z.boolean().default(false),
   facts: z.array(
     z.discriminatedUnion('type', [
       ProductFact,
@@ -133,10 +164,13 @@ export const Fixture = z.object({
 });
 export type Fixture = z.infer<typeof Fixture>;
 
-/** What a case is scored on: the released reply and the facts it used. */
+/** What a case is scored on: the released reply, the facts it used and the turn around it. */
 export interface Reply {
   text: string;
   factIds: string[];
+  outcome: string;
+  notice: string | null;
+  retrieved: string[];
 }
 
 export interface ScoreContext {
@@ -149,10 +183,29 @@ export interface ScoreContext {
 const AMOUNT_RE =
   /(?:S\$|US\$|[$€£¥]|\b(?:sgd|usd|rm|myr)\s*)\s*\d[\d,]*(?:\.\d+)?|\d[\d,]*(?:\.\d+)?\s*(?:(?:singapore|sing|us)\s+)?(?:dollars?|bucks|cents?|ringgit|元|块)/giu;
 
+const HAN = /\p{Script=Han}/gu;
+const LETTER = /\p{L}/gu;
+
+/** Scores the deterministic expectations; `judge` expectations are scored by the runner. */
 export function score(reply: Reply, expectations: Expectation[], ctx: ScoreContext): boolean {
   const own = new Set(ctx.fixture.facts.map((f) => f.id));
   return expectations.every((e) => {
     switch (e.kind) {
+      case 'judge':
+        return true;
+      case 'language': {
+        const han = reply.text.match(HAN)?.length ?? 0;
+        const letters = reply.text.match(LETTER)?.length ?? 0;
+        return e.lang === 'zh' ? letters > 0 && han / letters >= 0.3 : han === 0;
+      }
+      case 'outcome':
+        return reply.outcome === e.outcome;
+      case 'notice':
+        return e.present
+          ? reply.notice !== null && (!e.contains || reply.notice.includes(e.contains))
+          : reply.notice === null;
+      case 'retrieves':
+        return e.ids.every((id) => reply.retrieved.includes(id));
       case 'contains':
         return reply.text.includes(e.text);
       case 'not-contains':

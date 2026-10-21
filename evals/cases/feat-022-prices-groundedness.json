@@ -542,6 +542,7 @@
     "id": "ground-no-fact",
     "subset": "groundedness",
     "fast": true,
+    "tenant": "second",
     "messages": [
       {
         "role": "user",

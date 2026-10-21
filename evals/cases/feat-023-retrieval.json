@@ -1,0 +1,219 @@
+[
+  {
+    "id": "rt-sg-eggless",
+    "subset": "retrieval",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "got eggless cake or not ah"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "retrieves",
+        "ids": ["b1000003-0000-4000-8000-000000000003"]
+      }
+    ]
+  },
+  {
+    "id": "rt-sg-hdb-deliver",
+    "subset": "retrieval",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "u all deliver to HDB or not"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "retrieves",
+        "ids": ["b1000004-0000-4000-8000-000000000004"]
+      }
+    ]
+  },
+  {
+    "id": "rt-sg-halal",
+    "subset": "retrieval",
+    "messages": [
+      {
+        "role": "user",
+        "content": "halal or not"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "retrieves",
+        "ids": ["b1000006-0000-4000-8000-000000000006"]
+      }
+    ]
+  },
+  {
+    "id": "rt-sg-tapau-fudge",
+    "subset": "retrieval",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "can tapau the fudge cake?"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "retrieves",
+        "ids": ["b1000001-0000-4000-8000-000000000001"]
+      }
+    ]
+  },
+  {
+    "id": "rt-sg-refund",
+    "subset": "retrieval",
+    "messages": [
+      {
+        "role": "user",
+        "content": "cancel cake can refund or not"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "retrieves",
+        "ids": ["b1000010-0000-4000-8000-000000000010"]
+      }
+    ]
+  },
+  {
+    "id": "rt-sg-kueh",
+    "subset": "retrieval",
+    "messages": [
+      {
+        "role": "user",
+        "content": "kueh bundle still got?"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "retrieves",
+        "ids": ["b1000011-0000-4000-8000-000000000011"]
+      }
+    ]
+  },
+  {
+    "id": "rt-mixed-pandan",
+    "subset": "retrieval",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "pandan chiffon 多少钱"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "retrieves",
+        "ids": ["b1000002-0000-4000-8000-000000000002"]
+      }
+    ]
+  },
+  {
+    "id": "rt-mixed-fudge",
+    "subset": "retrieval",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "fudge cake 有没有？"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "retrieves",
+        "ids": ["b1000001-0000-4000-8000-000000000001"]
+      }
+    ]
+  },
+  {
+    "id": "rt-mixed-deliver",
+    "subset": "retrieval",
+    "messages": [
+      {
+        "role": "user",
+        "content": "你们 deliver 吗？"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "retrieves",
+        "ids": ["b1000004-0000-4000-8000-000000000004"]
+      }
+    ]
+  },
+  {
+    "id": "rt-zh-eggless",
+    "subset": "retrieval",
+    "messages": [
+      {
+        "role": "user",
+        "content": "你们有无蛋蛋糕吗？"
+      }
+    ],
+    "needs": "semantic-embedder",
+    "expect": [
+      {
+        "kind": "retrieves",
+        "ids": ["b1000003-0000-4000-8000-000000000003"]
+      }
+    ]
+  },
+  {
+    "id": "rt-zh-deliver",
+    "subset": "retrieval",
+    "messages": [
+      {
+        "role": "user",
+        "content": "可以送货吗？"
+      }
+    ],
+    "needs": "semantic-embedder",
+    "expect": [
+      {
+        "kind": "retrieves",
+        "ids": ["b1000004-0000-4000-8000-000000000004"]
+      }
+    ]
+  },
+  {
+    "id": "rt-zh-halal",
+    "subset": "retrieval",
+    "messages": [
+      {
+        "role": "user",
+        "content": "你们的厨房是清真的吗？"
+      }
+    ],
+    "needs": "semantic-embedder",
+    "expect": [
+      {
+        "kind": "retrieves",
+        "ids": ["b1000006-0000-4000-8000-000000000006"]
+      }
+    ]
+  },
+  {
+    "id": "rt-zh-chocolate",
+    "subset": "retrieval",
+    "messages": [
+      {
+        "role": "user",
+        "content": "巧克力蛋糕多少钱？"
+      }
+    ],
+    "needs": "semantic-embedder",
+    "expect": [
+      {
+        "kind": "retrieves",
+        "ids": ["b1000001-0000-4000-8000-000000000001"]
+      }
+    ]
+  }
+]

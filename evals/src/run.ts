@@ -1,23 +1,31 @@
 /**
  * The eval runner (AGT-14, ADR-022). Usage: `pnpm eval [--fast]`.
- * Runs every case through the agent's own triage, routing, dispatch and verified-reply
- * pipeline (`triage`, `routeReply`, `dispatchPlan`, `composeReply`: the code the worker
- * runs) on a fixture tenant, with in-memory retrieval over its facts, scores the plan,
- * the route and the released reply deterministically, reports the cost per
- * conversation, and exits non-zero if any subset is below its threshold. The fake
- * provider plays each case's recorded output until M1.5; with
- * `LLM_PROVIDER=anthropic-dev` the real model answers instead.
+ * Runs every case through the agent's own triage, routing, dispatch and reply decision
+ * (`triage`, `routeReply`, `dispatchPlan`, `answerTurn`: the code the worker runs) on a
+ * fixture tenant, with in-memory retrieval over its facts and the fixture's opening
+ * hours at the case's `at` (FEAT-023), scores the plan, the route and the released reply
+ * deterministically, reports the cost per conversation, and exits non-zero if any
+ * subset is below its threshold. The fake provider plays each case's recorded output
+ * until M1.5; with `LLM_PROVIDER=anthropic-dev` the real model answers instead, and the
+ * LLM judge scores the `judge` expectations and its agreement sample (FEAT-023 D8).
  */
 import {
-  composeReply,
+  answerTurn,
   dispatchPlan,
   fakeTriage,
   fakeVisitorResponder,
+  hoursLines,
   renderPrice,
+  replyLanguage,
   routeSignals,
+  systemSlots,
+  textsFor,
   triage,
   visitorRegistry,
   type DispatchContext,
+  type HoursContext,
+  type ReplyKey,
+  type TaskKind,
   type TurnPlan,
 } from '@kaki/agent';
 import { chunkContent, DEFAULT_SEARCH, type VisitorFact } from '@kaki/kb';
@@ -32,10 +40,20 @@ import {
   type LlmGateway,
   type UsageEvent,
 } from '@kaki/llm-gateway';
+import { openStatus } from '@kaki/tenancy';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
-import { Fixture, loadCases, score, Subset, type Case, type ScoreContext } from './cases.js';
+import {
+  Fixture,
+  loadCases,
+  score,
+  Subset,
+  type Case,
+  type Reply,
+  type ScoreContext,
+} from './cases.js';
+import { agreement, AgreementSample, checkSample, isDraft, judge, MIN_AGREEMENT } from './judge.js';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const fast = process.argv.includes('--fast');
@@ -54,7 +72,14 @@ const realModel =
   provider === 'anthropic-dev'
     ? gatewayFromConfig({ provider, anthropicApiKey: process.env.ANTHROPIC_API_KEY, onUsage })
     : null;
-const cases = loadCases(`${root}cases`).filter((c) => !fast || c.fast);
+const allCases = loadCases(`${root}cases`);
+const cases = allCases.filter((c) => !fast || c.fast);
+const evalSetVersion = z
+  .object({ version: z.string() })
+  .parse(JSON.parse(readFileSync(`${root}version.json`, 'utf8'))).version;
+const sample = AgreementSample.parse(
+  JSON.parse(readFileSync(`${root}labels/agreement-sample.json`, 'utf8')),
+);
 
 const fixtures = Object.fromEntries(
   (['bakery', 'second'] as const).map((name) => {
@@ -109,10 +134,14 @@ function fakeScript(c: Case): FakeScript {
 }
 
 /**
- * ADR-025's dispatch check: with the empty visitor registry, every planned task other
- * than `answer` is reported and audited as `unhandled`, in phase order, none dropped.
+ * ADR-025's dispatch check: every planned task other than `answer` is reported and
+ * audited, in phase order, none dropped: `done` for kinds with a visitor handler
+ * (FEAT-023: `out_of_scope`), `unhandled` for the rest.
  */
-async function dispatchCheck(plan: TurnPlan, tenantId: string): Promise<string | null> {
+async function dispatchCheck(
+  plan: TurnPlan,
+  tenantId: string,
+): Promise<{ error: string | null; replies: ReplyKey[] }> {
   const audited: string[] = [];
   const ctx: DispatchContext = {
     scope: 'visitor',
@@ -124,19 +153,35 @@ async function dispatchCheck(plan: TurnPlan, tenantId: string): Promise<string |
     boundaryRules: async () => null,
     audit: async (e) => void audited.push(`${e.task}:${e.outcome}`),
   };
-  const { reports } = await dispatchPlan(visitorRegistry, plan, ctx);
+  const { reports, replies } = await dispatchPlan(visitorRegistry, plan, ctx);
   const planned = plan.tasks.filter((t) => t.kind !== 'answer').map((t) => t.kind);
   const reported = reports.map((r) => `${r.task}:${r.outcome}`);
+  const expected = (kind: TaskKind) =>
+    kind !== 'answer' && visitorRegistry.byKind.has(kind) ? 'done' : 'unhandled';
   const ok =
     reports.length === planned.length &&
-    reports.every((r) => r.outcome === 'unhandled') &&
+    reports.every((r) => r.outcome === expected(r.task)) &&
     [...planned].sort().join() ===
       reports
         .map((r) => r.task)
         .sort()
         .join() &&
     audited.join() === reported.join();
-  return ok ? null : `dispatch ${JSON.stringify(reported)} for ${JSON.stringify(planned)}`;
+  return {
+    error: ok ? null : `dispatch ${JSON.stringify(reported)} for ${JSON.stringify(planned)}`,
+    replies,
+  };
+}
+
+/** The fixture's hours at the case's instant, as the worker computes them (FEAT-023 §5.7). */
+function hoursAt(fixture: Fixture, at: Date): HoursContext | null {
+  if (!fixture.hours) return null;
+  return {
+    hours: fixture.hours,
+    openOnPublicHolidays: fixture.openOnPublicHolidays,
+    status: openStatus(fixture.hours, fixture.openOnPublicHolidays, at),
+    now: at,
+  };
 }
 
 async function runCase(c: Case) {
@@ -145,21 +190,46 @@ async function runCase(c: Case) {
     realModel ?? gatewayFromConfig({ provider: 'fake', fakeScript: fakeScript(c), onUsage });
   const meta = { tenantId: fixture.tenantId };
   const query = c.messages.filter((m) => m.role === 'user').at(-1)!.content;
+  const at = new Date(c.at);
   const plan = await triage(llm, { history: c.messages, meta });
-  const dispatchError = await dispatchCheck(plan, fixture.tenantId);
+  const dispatch = await dispatchCheck(plan, fixture.tenantId);
   const route = routeReply(routeSignals(plan, false), DEFAULT_ROUTE_POLICY);
-  const reply = await composeReply(
+  const language = replyLanguage(plan, query);
+  const hours = hoursAt(fixture, at);
+  const slots = systemSlots(hours, language);
+  const facts = retrieve(c.tenant, query);
+  const result = await answerTurn(
     {
-      facts: retrieve(c.tenant, query),
+      facts,
       history: c.messages,
       businessName: fixture.businessName,
       gstRegistered: fixture.gstRegistered,
       meta,
       model: route,
+      now: at,
+      language,
+      register: plan.register,
+      hours,
+      systemSlots: slots,
+      plan,
+      replies: dispatch.replies,
+      minConfidence: DEFAULT_ROUTE_POLICY.minConfidence,
     },
     { llm, gateOpen: async () => true, publish: async () => {} },
   );
-  return { reply, plan, route, dispatchError };
+  // Each case is one conversation, so the notice is due whenever the business is closed.
+  const notice =
+    hours && !hours.status.open
+      ? textsFor(language).afterHours(slots.get('next_open') ?? null)
+      : null;
+  const reply: Reply = {
+    text: result.text,
+    factIds: result.factIds,
+    outcome: result.outcome,
+    notice,
+    retrieved: facts.map((f) => f.id),
+  };
+  return { reply, plan, route, dispatchError: dispatch.error, facts, hours, llm };
 }
 
 /** Why a case failed, or null: the plan's kinds, the route, the dispatch check, the reply. */
@@ -171,26 +241,67 @@ function failure(c: Case, run: Awaited<ReturnType<typeof runCase>>): string | nu
     return `route ${run.route}, expected ${c.expectRoute}`;
   if (run.dispatchError) return run.dispatchError;
   if (!score(run.reply, c.expect, fixtures[c.tenant].ctx))
-    return `${JSON.stringify(run.reply.text)} (${run.reply.outcome})`;
+    return `${JSON.stringify(run.reply.text)} (${run.reply.outcome}${run.reply.notice ? ', notice' : ''})`;
+  return null;
+}
+
+/** What the reply model was given, for the judge: the retrieved facts and the hours. */
+function judgeFacts(run: Awaited<ReturnType<typeof runCase>>): string[] {
+  return [
+    ...run.facts.map((f) => `${f.type}: ${JSON.stringify(f.value)}`),
+    ...(run.hours ? hoursLines(run.hours.hours, run.hours.openOnPublicHolidays) : []),
+  ];
+}
+
+/** The judge expectations of a case: null when they pass, else why (real model only). */
+async function judged(c: Case, run: Awaited<ReturnType<typeof runCase>>): Promise<string | null> {
+  for (const e of c.expect) {
+    if (e.kind !== 'judge') continue;
+    const v = await judge(run.llm, {
+      criterion: e.criterion,
+      messages: c.messages,
+      reply: run.reply.text,
+      facts: judgeFacts(run),
+    });
+    if (!v.pass) return `judge ${e.criterion}: ${v.reason}`;
+  }
   return null;
 }
 
 const results = new Map<Subset, { passed: number; total: number }>();
 let totalCostUsd = 0;
+let skipped = 0;
+let pendingJudge = 0;
 for (const c of cases) {
+  // P3: pure-Chinese retrieval needs Cohere's multilingual embedder (MD), not the fake.
+  if (c.needs === 'semantic-embedder' && !realModel) {
+    skipped++;
+    continue;
+  }
   caseCostUsd = 0;
   const run = await runCase(c);
+  const judges = c.expect.filter((e) => e.kind === 'judge').length;
+  let why = failure(c, run);
+  if (why === null && judges) {
+    if (realModel) why = await judged(c, run);
+    else pendingJudge += judges;
+  }
   totalCostUsd += caseCostUsd;
   const r = results.get(c.subset) ?? { passed: 0, total: 0 };
   r.total++;
-  const why = failure(c, run);
   if (why === null) r.passed++;
   else console.log(`FAIL ${c.id}: ${why}`);
   results.set(c.subset, r);
 }
 
 let failed = false;
-console.log(`eval: ${cases.length} case(s)${fast ? ' (fast subset)' : ''}, provider ${provider}`);
+console.log(
+  `eval set ${evalSetVersion}: ${cases.length} case(s)${fast ? ' (fast subset)' : ''}, provider ${provider}`,
+);
+if (skipped)
+  console.log(`  ${skipped} case(s) skipped: they need the semantic embedder (P3, counted at MD)`);
+if (pendingJudge)
+  console.log(`  ${pendingJudge} judge expectation(s) pending the real judge (M1.5, D8)`);
 for (const subset of Subset.options) {
   const r = results.get(subset);
   const min = thresholds[subset];
@@ -212,4 +323,34 @@ const avgSgd = cases.length ? (totalCostUsd * USD_SGD) / cases.length : 0;
 console.log(
   `  cost: ${cases.length} conversations, US$${totalCostUsd.toFixed(6)}, S$${avgSgd.toFixed(5)} per conversation (target <= S$0.03)`,
 );
+
+// ADR-022 agreement: the sample's static checks fail every run; the judge's agreement
+// with the human labels is measured only with a real model, and never on draft labels.
+const judgeExpectations = allCases.reduce(
+  (n, c) => n + c.expect.filter((e) => e.kind === 'judge').length,
+  0,
+);
+const sampleError = checkSample(sample, evalSetVersion, judgeExpectations);
+if (sampleError) {
+  failed = true;
+  console.log(`  agreement: ${sampleError}`);
+} else if (!realModel) {
+  console.log(
+    `  agreement: ${sample.items.length} labelled item(s) for ${judgeExpectations} judge expectation(s); measured with the real judge`,
+  );
+} else if (isDraft(sample)) {
+  failed = true;
+  console.log(
+    `  agreement: the sample is labelled "${sample.labelledBy}"; a person must confirm every label before the real judge is checked against it`,
+  );
+} else if (realModel) {
+  const verdicts = [];
+  for (const item of sample.items) verdicts.push(await judge(realModel, item));
+  const rate = agreement(sample, verdicts);
+  const ok = rate >= MIN_AGREEMENT;
+  if (!ok) failed = true;
+  console.log(
+    `  agreement: ${rate.toFixed(3)} on ${sample.items.length} item(s) (minimum ${MIN_AGREEMENT}) ${ok ? 'ok' : 'BELOW'}`,
+  );
+}
 process.exit(failed ? 1 : 0);

@@ -1,0 +1,4 @@
+{
+  "$comment": "The eval-set version (ADR-022). Bump it when cases or labels change meaning; the agreement sample must name the same version.",
+  "version": "0.5.0"
+}
