@@ -1,6 +1,7 @@
 import type { ToolCall } from '@kaki/llm-gateway';
 import { z } from 'zod';
 import type { TaskKind, TurnPlan } from './plan.js';
+import type { SafetyKey } from './texts.js';
 
 /**
  * The dispatcher (ADR-025 decisions 2, 3 and 6): the only place a planned task or a
@@ -40,6 +41,20 @@ export interface DispatchAuditEntry {
   reason?: RefusalReason;
 }
 
+/**
+ * What a handler may do to its own conversation (ADR-025 d2: writes go through the
+ * owning module). The worker implements it with `@kaki/inbox` on the visitor zone, one
+ * transaction per call; the eval runner and tests keep it in memory (FEAT-025 §5.2).
+ */
+export interface ConversationPort {
+  /** Flags the conversation for staff; idempotent per reason (AGT-13). */
+  flag(reason: 'abuse' | 'crisis'): Promise<void>;
+  /** Records this turn as abuse; returns how many distinct abuse turns there are. */
+  recordAbuse(turnId: string): Promise<number>;
+  /** Ends the AI's part in the conversation: the send gate keeps it silent after. */
+  endAi(reason: 'abuse'): Promise<void>;
+}
+
 export interface DispatchContext {
   scope: Scope;
   tenantId: string;
@@ -53,14 +68,27 @@ export interface DispatchContext {
   boundaryRules(): Promise<BoundaryRules | null>;
   /** One entry per dispatched task: kinds and codes, never arguments or text (ADR-014). */
   audit(entry: DispatchAuditEntry): Promise<void>;
+  /** The conversation's own flags and AI state (FEAT-025). */
+  conversation: ConversationPort;
 }
 
-/** System texts a state task adds to the reply, rendered in the reply language (FEAT-023). */
-export type ReplyKey = 'out_of_scope';
+/**
+ * System texts that replace or close the reply, rendered in the reply language
+ * (FEAT-023): AGT-04's out-of-scope refusal and (FEAT-025) the advice and illegal
+ * declines from `out_of_scope`'s topic, and the triage flags' refusals.
+ */
+export type ReplyKey = 'out_of_scope' | 'advice' | 'illegal' | 'injection' | 'impersonation';
+
+export type { SafetyKey };
 
 export interface TaskResult {
-  /** A safety handler may end the turn with a fixed text (crisis contacts, FEAT-025). */
-  endTurn?: { text: string };
+  /** A safety handler may end the turn with a fixed text, rendered by the turn (FEAT-025 D7). */
+  endTurn?: { key: SafetyKey };
+  /**
+   * The handler did its visitor-facing part but a write failed (a crisis reply whose
+   * flag couldn't be stored): reported `failed`, and `endTurn` still applies.
+   */
+  partial?: boolean;
   /**
    * A state task's visitor-facing system text (FEAT-023 §5.3). Handlers never see the
    * visitor's text or language; the turn renders the key.
@@ -107,21 +135,71 @@ export function createRegistry(handlers: TaskHandler[]): Registry {
   return { byKind, byTool };
 }
 
+/** What an off-topic request is about (FEAT-025 D3); anything unknown reads as `other`. */
+export const OutOfScopeArgs = z
+  .object({
+    topic: z.enum(['medical', 'legal', 'financial', 'illegal', 'other']).catch('other'),
+  })
+  .catch({ topic: 'other' });
+
 /**
  * AGT-04 (ADR-025 decision 1, FEAT-023 D1): a question unrelated to the business gets
- * the fixed refusal, in code, whatever the reply model would do.
+ * the fixed refusal, in code, whatever the reply model would do. AGT-13 (FEAT-025 D3):
+ * medical, legal and financial advice and illegal requests get their own decline.
  */
-export const outOfScopeHandler: TaskHandler<Record<string, unknown>> = {
+export const outOfScopeHandler: TaskHandler<z.infer<typeof OutOfScopeArgs>> = {
   kind: 'out_of_scope',
   scopes: ['visitor'],
-  args: z.record(z.string(), z.unknown()),
-  async run() {
+  args: OutOfScopeArgs,
+  async run(_ctx, { topic }) {
+    if (topic === 'illegal') return { reply: { key: 'illegal' } };
+    if (topic === 'medical' || topic === 'legal' || topic === 'financial')
+      return { reply: { key: 'advice' } };
     return { reply: { key: 'out_of_scope' } };
   },
 };
 
+/**
+ * AGT-13 (FEAT-025 §5.2): self-harm or danger. The conversation is flagged for staff and
+ * the turn ends with the crisis contacts; the AI stays on. The reply never depends on
+ * the flag being stored: a failed write is reported, and the contacts still go out.
+ */
+export const crisisHandler: TaskHandler<Record<string, unknown>> = {
+  kind: 'crisis',
+  scopes: ['visitor'],
+  args: z.record(z.string(), z.unknown()).catch({}),
+  async run(ctx) {
+    const flagged = await ctx.conversation.flag('crisis').then(
+      () => true,
+      () => false,
+    );
+    return { endTurn: { key: 'crisis' }, ...(flagged ? {} : { partial: true }) };
+  },
+};
+
+/** "Repeated abuse" (AGT-13): the second abuse turn in a conversation ends it (FEAT-025 D2). */
+export const ABUSE_LIMIT = 2;
+
+/** AGT-13: warn once; on repeat, flag the conversation and end the AI's part in it. */
+export const abuseHandler: TaskHandler<Record<string, unknown>> = {
+  kind: 'abuse',
+  scopes: ['visitor'],
+  args: z.record(z.string(), z.unknown()).catch({}),
+  async run(ctx) {
+    const count = await ctx.conversation.recordAbuse(ctx.turnId);
+    if (count < ABUSE_LIMIT) return { endTurn: { key: 'abuse_warning' } };
+    await ctx.conversation.flag('abuse');
+    await ctx.conversation.endAi('abuse');
+    return { endTurn: { key: 'abuse_ended' } };
+  },
+};
+
 /** The visitor scope's handlers (ADR-025). Kinds without one are reported `unhandled`. */
-export const visitorRegistry: Registry = createRegistry([outOfScopeHandler]);
+export const visitorRegistry: Registry = createRegistry([
+  crisisHandler,
+  abuseHandler,
+  outOfScopeHandler,
+]);
 
 type Checked = { ok: true; args: unknown } | { ok: false; reason: RefusalReason };
 
@@ -146,7 +224,8 @@ async function runOne(
   const checked = await check(h, rawArgs, ctx);
   if (!checked.ok) return { outcome: 'refused', reason: checked.reason };
   try {
-    return { outcome: 'done', result: await h.run(ctx, checked.args, `${ctx.turnId}:${index}`) };
+    const result = await h.run(ctx, checked.args, `${ctx.turnId}:${index}`);
+    return { outcome: result.partial ? 'failed' : 'done', result };
   } catch {
     // One task failing does not drop the others (ADR-025 decision 6).
     return { outcome: 'failed' };
@@ -161,7 +240,7 @@ export async function dispatchPlan(
   reg: Registry,
   plan: TurnPlan,
   ctx: DispatchContext,
-): Promise<{ reports: DispatchReport[]; replies: ReplyKey[]; endTurn?: { text: string } }> {
+): Promise<{ reports: DispatchReport[]; replies: ReplyKey[]; endTurn?: { key: SafetyKey } }> {
   const queue = plan.tasks
     .flatMap((task, index) =>
       task.kind === 'answer' ? [] : [{ kind: task.kind, args: task.args as unknown, index }],

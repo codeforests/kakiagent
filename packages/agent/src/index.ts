@@ -30,13 +30,18 @@ export {
   type TurnPlan,
 } from './plan.js';
 export {
+  ABUSE_LIMIT,
+  abuseHandler,
   createRegistry,
+  crisisHandler,
   dispatchPlan,
   dispatchToolCall,
+  OutOfScopeArgs,
   outOfScopeHandler,
   PHASE,
   visitorRegistry,
   type BoundaryRules,
+  type ConversationPort,
   type DispatchAuditEntry,
   type DispatchContext,
   type DispatchReport,
@@ -44,6 +49,7 @@ export {
   type RefusalReason,
   type ReplyKey,
   type Registry,
+  type SafetyKey,
   type Scope,
   type TaskHandler,
   type TaskResult,
@@ -56,8 +62,10 @@ export { verifySegment, type Violation, type ViolationKind } from './verify.js';
 export { assignRefs } from './slots.js';
 export {
   assistantDefaults,
+  CRISIS_CONTACTS,
   DEFAULT_BOT_NAME,
   DEFAULT_GREETING,
+  safetyText,
   texts,
   textsFor,
   type AssistantDefaults,

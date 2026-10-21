@@ -684,7 +684,7 @@ describe('runVisitorTurn with triage, dispatch and routing (FEAT-004)', () => {
         args: z.unknown(),
         async run(_ctx, _args, key) {
           ran.push(key);
-          return { endTurn: { text: 'Please call SOS at 1767.' } };
+          return { endTurn: { key: 'crisis' as const } };
         },
       },
     ]);
@@ -692,7 +692,7 @@ describe('runVisitorTurn with triage, dispatch and routing (FEAT-004)', () => {
     const c = await conversationWith('i want to end my life');
     const result = await runVisitorTurn({ zdb: tdb.zone('visitor'), llm, registry }, job(c));
     expect(result?.outcome).toBe('ended');
-    expect(result?.message.body).toBe('Please call SOS at 1767.');
+    expect(result?.message.body).toContain('Samaritans of Singapore on 1767');
     expect(ran).toEqual([`${c.messageId}:0`]);
     expect(calls.models).toEqual(['triage']);
     expect(result?.route).toBeNull();

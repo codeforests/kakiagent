@@ -4,7 +4,9 @@ import {
   createRegistry,
   dispatchPlan,
   dispatchToolCall,
+  OutOfScopeArgs,
   visitorRegistry,
+  type ConversationPort,
   type DispatchAuditEntry,
   type DispatchContext,
   type TaskHandler,
@@ -12,6 +14,7 @@ import {
 import { parsePlan, type TaskKind, type TurnPlan } from './plan.js';
 
 function planOf(tasks: [TaskKind, Record<string, string>?][]): TurnPlan {
+  // A plan as triage writes it, without the FEAT-025 impersonation flag: it defaults to false.
   return parsePlan(
     JSON.stringify({
       language: 'en',
@@ -22,6 +25,25 @@ function planOf(tasks: [TaskKind, Record<string, string>?][]): TurnPlan {
       tasks: tasks.map(([kind, args]) => ({ kind, args: args ?? {} })),
     }),
   );
+}
+
+/** An in-memory conversation port that records what handlers did (FEAT-025 §5.2). */
+function memoryConversation(failFlag = false) {
+  const state = { flags: [] as string[], abuseTurns: new Set<string>(), ended: false };
+  const port: ConversationPort = {
+    async flag(reason) {
+      if (failFlag) throw new Error('db down');
+      if (!state.flags.includes(reason)) state.flags.push(reason);
+    },
+    async recordAbuse(turnId) {
+      state.abuseTurns.add(turnId);
+      return state.abuseTurns.size;
+    },
+    async endAi() {
+      state.ended = true;
+    },
+  };
+  return { state, port };
 }
 
 function context(over: Partial<DispatchContext> = {}) {
@@ -37,6 +59,7 @@ function context(over: Partial<DispatchContext> = {}) {
     audit: async (e) => {
       audits.push(e);
     },
+    conversation: memoryConversation().port,
     ...over,
   };
   return { ctx, audits };
@@ -145,12 +168,12 @@ describe('dispatchPlan (ADR-025 decisions 2 and 6, AC-7)', () => {
   it('a safety task can end the turn; later tasks are neither run nor audited', async () => {
     const ran: string[] = [];
     const reg = createRegistry([
-      handler('crisis', ran, { run: async () => ({ endTurn: { text: 'crisis contacts' } }) }),
+      handler('crisis', ran, { run: async () => ({ endTurn: { key: 'crisis' } }) }),
       handler('capture_lead', ran),
     ]);
     const { ctx, audits } = context();
     const out = await dispatchPlan(reg, planOf([['capture_lead'], ['crisis']]), ctx);
-    expect(out.endTurn).toEqual({ text: 'crisis contacts' });
+    expect(out.endTurn).toEqual({ key: 'crisis' });
     expect(ran).toEqual([]);
     expect(audits).toEqual([{ task: 'crisis', outcome: 'done' }]);
   });
@@ -254,5 +277,69 @@ describe('the out_of_scope handler (FEAT-023 AC-4)', () => {
     const closed = context({ gateOpen: async () => false });
     const r2 = await dispatchPlan(visitorRegistry, planOf([['out_of_scope']]), closed.ctx);
     expect(r2.replies).toEqual([]);
+  });
+});
+
+describe('the safety handlers (FEAT-025 AC-6, AC-7; ADR-025 decision 6)', () => {
+  it('crisis flags the conversation and ends the turn before any state task or answer', async () => {
+    const conv = memoryConversation();
+    const { ctx, audits } = context({ conversation: conv.port });
+    const out = await dispatchPlan(
+      visitorRegistry,
+      planOf([['answer'], ['out_of_scope'], ['crisis']]),
+      ctx,
+    );
+    expect(out.endTurn).toEqual({ key: 'crisis' });
+    expect(out.replies).toEqual([]);
+    expect(conv.state).toMatchObject({ flags: ['crisis'], ended: false });
+    expect(audits).toEqual([{ task: 'crisis', outcome: 'done' }]);
+  });
+
+  it('crisis still ends the turn with the contacts when the flag cannot be stored', async () => {
+    const { ctx, audits } = context({ conversation: memoryConversation(true).port });
+    const out = await dispatchPlan(visitorRegistry, planOf([['crisis']]), ctx);
+    expect(out.endTurn).toEqual({ key: 'crisis' });
+    expect(out.reports).toEqual([{ task: 'crisis', index: 0, outcome: 'failed' }]);
+    expect(audits).toEqual([{ task: 'crisis', outcome: 'failed' }]);
+  });
+
+  it('abuse warns on the first turn, then flags and ends the AI on the second; a redelivered turn counts once', async () => {
+    const conv = memoryConversation();
+    const first = context({ conversation: conv.port, turnId: 'm1' });
+    const out1 = await dispatchPlan(visitorRegistry, planOf([['abuse'], ['answer']]), first.ctx);
+    expect(out1.endTurn).toEqual({ key: 'abuse_warning' });
+    const again = await dispatchPlan(visitorRegistry, planOf([['abuse']]), first.ctx);
+    expect(again.endTurn).toEqual({ key: 'abuse_warning' });
+    expect(conv.state).toMatchObject({ flags: [], ended: false });
+    const second = context({ conversation: conv.port, turnId: 'm2' });
+    const out2 = await dispatchPlan(visitorRegistry, planOf([['abuse']]), second.ctx);
+    expect(out2.endTurn).toEqual({ key: 'abuse_ended' });
+    expect(conv.state).toMatchObject({ flags: ['abuse'], ended: true });
+  });
+
+  it('the visitor registry has no owner function (AC-5; ADR-009)', () => {
+    expect([...visitorRegistry.byKind.keys()].sort()).toEqual(['abuse', 'crisis', 'out_of_scope']);
+    expect([...visitorRegistry.byTool.keys()]).toEqual([]);
+  });
+});
+
+describe('out_of_scope topics (FEAT-025 AC-8, D3)', () => {
+  it.each([
+    ['medical', 'advice'],
+    ['legal', 'advice'],
+    ['financial', 'advice'],
+    ['illegal', 'illegal'],
+    ['other', 'out_of_scope'],
+    ['astrology', 'out_of_scope'],
+  ])('topic %s gets the %s text', async (topic, key) => {
+    const { ctx } = context();
+    const out = await dispatchPlan(visitorRegistry, planOf([['out_of_scope', { topic }]]), ctx);
+    expect(out.reports).toEqual([{ task: 'out_of_scope', index: 0, outcome: 'done' }]);
+    expect(out.replies).toEqual([key]);
+  });
+
+  it('never refuses the task over its arguments', () => {
+    expect(OutOfScopeArgs.parse(42)).toEqual({ topic: 'other' });
+    expect(OutOfScopeArgs.parse({})).toEqual({ topic: 'other' });
   });
 });

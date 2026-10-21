@@ -4,7 +4,14 @@ import type { TaskKind } from './plan.js';
 
 /** Keyword rules for the fake triager, first match per kind. */
 const RULES: [Exclude<TaskKind, 'answer'>, RegExp][] = [
-  ['crisis', /\b(kill myself|suicide|end my life)\b|自杀|不想活/i],
+  [
+    'crisis',
+    /\b(kill myself|killing myself|suicid\w*|end my life|hurt myself|want to die|self[- ]harm)\b|自杀|不想活|想死|轻生/i,
+  ],
+  [
+    'abuse',
+    /\b(idiot|stupid|useless (bot|thing)|shut up|f+u+c+k\w*|bitch|moron|dumb bot)\b|笨蛋|白痴|垃圾|去你的/i,
+  ],
   [
     'withdraw_consent',
     /\b(stop (contacting|messaging|calling)|unsubscribe|don'?t contact)\b|别再联系|不要再联系/i,
@@ -32,6 +39,26 @@ const RULES: [Exclude<TaskKind, 'answer'>, RegExp][] = [
   ],
 ];
 
+/** `out_of_scope` topics (FEAT-025 D3), first match wins. */
+const TOPICS: [string, RegExp][] = [
+  [
+    'illegal',
+    /\b(fake (receipt|invoice|mc|medical certificate)|forge\w*|drugs?|weed|hack\w*|steal|launder\w*)\b|假发票|假收据|毒品/i,
+  ],
+  [
+    'medical',
+    /\b(doctor|medicine|medication|panadol|diagnos\w*|symptoms?|dosage|prescription)\b|看医生|吃药|药物|症状/i,
+  ],
+  ['legal', /\b(lawyer|sue|lawsuit|legal advice|contract dispute)\b|律师|起诉/i],
+  ['financial', /\b(invest\w*|crypto\w*|loan|which stocks?|retirement fund|cpf)\b|投资|理财|贷款/i],
+];
+
+/** Flags (FEAT-025): an attempt to change or reveal the instructions; a claim to be staff. */
+const INJECTION =
+  /\b(ignore (all |your |the )?(previous |prior |above )?(instructions|rules)|system prompt|your (instructions|rules|prompt)|developer mode|jailbreak|pretend (you are|to be)|you are now|act as|DAN)\b|忽略(之前|以上|所有)?的?(指令|规则)|系统提示/i;
+const IMPERSONATION =
+  /\b(i'?m|i am|this is) (the )?(owner|boss|manager|admin|staff|developer)\b|\b(show|give|list|send) me (the |all |today'?s )?(leads|customers|customer list|contacts|orders of others|settings|costs?)\b|我是老板|我是(这里的)?员工|客户名单/i;
+
 /**
  * What the fake triage model returns in local development and E2E (plan §2, P10): a
  * deterministic plan from keywords, in the wire shape the real model writes. It is not
@@ -41,12 +68,18 @@ export function fakeTriage(req: GenerateRequest): string {
   const text = [...req.messages].reverse().find((m) => m.role === 'user')?.content ?? '';
   const tasks: { kind: TaskKind; args: { name: string; value: string }[] }[] = [];
   const kinds = RULES.filter(([, re]) => re.test(text)).map(([k]) => k);
+  const topic = TOPICS.find(([, re]) => re.test(text))?.[0];
+  if (topic && !kinds.includes('out_of_scope')) kinds.push('out_of_scope');
   if (
     !kinds.includes('crisis') &&
     /[?？]|\b(how much|got|what|when|where|price|open)\b|多少|几点|有没有/i.test(text)
   )
     tasks.push({ kind: 'answer', args: [] });
-  for (const kind of kinds) tasks.push({ kind, args: [] });
+  for (const kind of kinds)
+    tasks.push({
+      kind,
+      args: kind === 'out_of_scope' && topic ? [{ name: 'topic', value: topic }] : [],
+    });
   if (!tasks.length) tasks.push({ kind: 'answer', args: [] });
   const complex = kinds.includes('request_commitment') || (text.match(/\d+/g)?.length ?? 0) >= 3;
   const complaint = /\b(complain|terrible|disappointed|refund|worst)\b|投诉|太差/i.test(text);
@@ -55,10 +88,7 @@ export function fakeTriage(req: GenerateRequest): string {
     register: /\b(lah|leh|lor|can or not|got or not|meh)\b/i.test(text) ? 'singlish' : 'standard',
     complexity: complex ? 0.8 : 0.2,
     confidence: 0.9,
-    flags: {
-      complaint,
-      injection: /ignore (all |your )?(previous |prior )?instructions/i.test(text),
-    },
+    flags: { complaint, injection: INJECTION.test(text), impersonation: IMPERSONATION.test(text) },
     tasks,
   });
 }

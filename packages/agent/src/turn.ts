@@ -2,10 +2,13 @@ import { withTenant, type ZoneDb } from '@kaki/db';
 import { audit, auditCode, auditId, type AuditPayload } from '@kaki/governance';
 import {
   appendAgentReply,
+  endAiConversation,
+  flagConversation,
   getMessage,
   hasAssistantMessage,
   noticeSince,
   recentMessages,
+  recordAbuse,
   replyExists,
 } from '@kaki/inbox';
 import { searchVisitorFacts, visitorKb, type VisitorFact } from '@kaki/kb';
@@ -24,7 +27,7 @@ import { systemSlots, type HoursContext } from './hours-text.js';
 import { replyLanguage, type ReplyLanguage } from './language.js';
 import { routeSignals, triage, type TurnPlan } from './plan.js';
 import { HISTORY_LIMIT } from './prompt.js';
-import { textsFor } from './texts.js';
+import { safetyText, textsFor } from './texts.js';
 
 export interface TurnDeps {
   /** The visitor trust zone (ADR-009): it can read only what a visitor conversation may see. */
@@ -276,10 +279,26 @@ export async function runVisitorTurn(
         }),
       );
     },
+    // AGT-13 (FEAT-025 §5.4): the conversation's own flags and AI state, one transaction each.
+    conversation: {
+      flag: async (reason) => {
+        await withTenant(zdb, tenantId, (tx) =>
+          flagConversation(tx, tenantId, conversationId, reason),
+        );
+      },
+      recordAbuse: (turnId) =>
+        withTenant(zdb, tenantId, (tx) => recordAbuse(tx, tenantId, conversationId, turnId)),
+      endAi: async (reason) => {
+        await withTenant(zdb, tenantId, (tx) =>
+          endAiConversation(tx, tenantId, conversationId, reason),
+        );
+      },
+    },
   };
   const dispatch = await dispatchPlan(deps.registry ?? visitorRegistry, plan, ctx);
   dispatched = dispatch.reports;
-  if (dispatch.endTurn) return store('ended', 'agent', dispatch.endTurn.text, null);
+  if (dispatch.endTurn)
+    return store('ended', 'agent', safetyText(t, dispatch.endTurn.key, businessName), null);
 
   route = routeReply(routeSignals(plan, false), gate.tenant.routePolicy);
   const composed = await answerTurn(
