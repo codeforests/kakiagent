@@ -99,6 +99,7 @@ export {
   EXTRACTION_SCHEMA,
   EXTRACTION_SYSTEM,
   ExtractionUnavailableError,
+  extractPage,
   extractSource,
   locateQuote,
   parseExtraction,

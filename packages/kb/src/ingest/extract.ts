@@ -295,6 +295,32 @@ export function parseExtraction(
   return { facts, dropped };
 }
 
+/**
+ * One page through the `extract` model and the checks (FEAT-012 §5.3): the request every
+ * page gets, the same for every tenant (cacheable, ADR-007), and `parseExtraction` on the
+ * answer. The extraction evals run this too (AC-6). A provider error throws
+ * `ExtractionUnavailableError`.
+ */
+export async function extractPage(
+  llm: LlmGateway,
+  page: { tenantId: string; url: string; title: string | null; content: string },
+): Promise<{ facts: StagedFact[]; dropped: Partial<Record<DropReason, number>> }> {
+  const result = await llm
+    .generate({
+      model: 'extract',
+      system: EXTRACTION_SYSTEM,
+      messages: [{ role: 'user', content: page.content }],
+      tail: `Page: ${page.url}\nTitle: ${page.title ?? ''}`,
+      outputSchema: EXTRACTION_SCHEMA,
+      maxTokens: 4096,
+      meta: { tenantId: page.tenantId },
+    })
+    .catch((err: unknown) => {
+      throw new ExtractionUnavailableError('extraction failed', { cause: err });
+    });
+  return parseExtraction(result.text, page.content);
+}
+
 export interface ExtractOptions {
   concurrency?: number;
   onDropped?: (pageId: string, dropped: Partial<Record<DropReason, number>>) => void;
@@ -365,20 +391,12 @@ export async function extractSource(
       const page = queue.shift();
       if (!page) return;
       try {
-        const result = await llm
-          .generate({
-            model: 'extract',
-            system: EXTRACTION_SYSTEM,
-            messages: [{ role: 'user', content: page.content ?? '' }],
-            tail: `Page: ${page.url}\nTitle: ${page.title ?? ''}`,
-            outputSchema: EXTRACTION_SCHEMA,
-            maxTokens: 4096,
-            meta: { tenantId },
-          })
-          .catch((err: unknown) => {
-            throw new ExtractionUnavailableError('extraction failed', { cause: err });
-          });
-        const { facts, dropped } = parseExtraction(result.text, page.content ?? '');
+        const { facts, dropped } = await extractPage(llm, {
+          tenantId,
+          url: page.url,
+          title: page.title,
+          content: page.content ?? '',
+        });
         if (Object.keys(dropped).length) opts.onDropped?.(page.id, dropped);
         await withTenant(zdb, tenantId, async (tx) => {
           const [row] = await tx

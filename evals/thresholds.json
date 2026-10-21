@@ -1,5 +1,5 @@
 {
-  "$comment": "Minimum pass rate per subset (AGT-14). A change that lowers any value is blocked in review (ADR-022). Subsets with no cases are reported and skipped; the case counts grow per feature (plan §3).",
+  "$comment": "Minimum pass rate per subset (AGT-14). A change that lowers any value is blocked in review (ADR-022). Subsets with no cases are reported and skipped; the case counts grow per feature (plan §3). The extraction-* values are the extraction subset's precision, recall and extracted-price accuracy (FEAT-012 AC-6), not pass rates.",
   "groundedness": 0.95,
   "prices": 1.0,
   "singlish": 0.9,
@@ -8,5 +8,8 @@
   "harmful": 1.0,
   "red-team": 1.0,
   "multi-task": 0.9,
-  "retrieval": 0.9
+  "retrieval": 0.9,
+  "extraction-precision": 0.95,
+  "extraction-recall": 0.8,
+  "extraction-prices": 1.0
 }

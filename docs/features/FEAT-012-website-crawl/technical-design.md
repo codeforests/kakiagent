@@ -10,6 +10,8 @@
 
 Plan §5 puts the M1.5 real-model gate before M2, and the owner's decision of 2026-10-21 (FEAT-009 design §0) is that it **must run before FEAT-012**, the first feature that adds a model prompt (extraction). On 2026-10-21 the gate's two owner inputs were requested in the project thread: sign-off of the 14 draft judge labels in `evals/labels/agreement-sample.json`, and an Anthropic developer key for `LLM_PROVIDER=anthropic-dev`. Neither is in this environment yet.
 
+**Owner decisions, 2026-10-21 (project thread):** Ken confirmed all 14 draft labels (recorded as `labelledBy` in the sample), then decided to **skip the gate for FEAT-012** and supply the key later. The local command for the run is `LLM_PROVIDER=anthropic-dev ANTHROPIC_API_KEY=… pnpm eval`. It runs every case plus the extraction subset, and measures the judge against the confirmed labels.
+
 Design and implementation do not depend on the gate: like every M1 agent feature, FEAT-012 is built and tested on the fake provider, with adversarial fake outputs (P10). What the gate decides is acceptance: if it has not run when acceptance verification starts, the extraction-quality criterion (AC-6, real-model half) is reported as "real-model check pending" and the RTM Test ref for KB-05 stays partial, per plan §3. The acceptance report records which happened.
 
 ## 1. Intent
@@ -226,7 +228,7 @@ Dashboard scope: `createWebsiteSource(ctx, input, { pageLimit })`, `listSources`
 ## 8. Escalations and open items
 
 - **No architecture amendment.** `kb_sources` is KB_SOURCE; pages and staged facts are its parts and FACT's staging (D1); `app_ingest` is ADR-005's role.
-- **M1.5 gate (§0):** owner inputs requested 2026-10-21. AC-6's real-model half depends on it.
+- **M1.5 gate (§0):** labels confirmed 2026-10-21; the gate was skipped by the owner's decision on the same day until a key is available. AC-6's real-model half is "real-model check pending".
 - **KB-12 owner alert (partial):** the failure is shown on SCR-APP-023 and as a count on the Sources nav entry. The e-mail alert needs FEAT-052's notification queue. **Plan correction suggested:** credit KB-12's alert to FEAT-052.
 - **KB-05 Business hours/location:** hours and location belong to BUSINESS_PROFILE (FEAT-011 D2), not facts. Extracting them into a profile suggestion for the owner fits the wizard (FEAT-035). KB-05 stays partial until then. **Plan correction suggested:** add "suggest profile hours and location from the crawl" to FEAT-035.
 - **Embeddings:** still the local fake embedder; Cohere Embed Multilingual v3 arrives at MD (P3).
