@@ -207,6 +207,9 @@ describe('runVisitorTurn (UC-20)', () => {
       register: 'standard',
       slots: [],
       afterHours: false,
+      // FEAT-024: the tenant's tone (the default) and no emoji removed.
+      tone: 'friendly',
+      emojiRemoved: false,
     });
     expect((decision.payload.factIds as string[]).sort()).toEqual(result!.message.factIds.sort());
   });
