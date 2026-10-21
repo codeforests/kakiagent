@@ -58,7 +58,7 @@ describe('transactional outbox (ADR-012)', () => {
     const dispatcher = createDispatcher({
       zdb: tdb.zone('outbox'),
       queue,
-      queueUrls: { 'conversation-turns': 'q://turns' },
+      queueUrls: { 'conversation-turns': 'q://turns', ingest: 'q://ingest' },
       logger: createLogger('test', 'silent'),
     });
     expect(await dispatcher.dispatchPending()).toBe(2);
@@ -84,7 +84,7 @@ describe('transactional outbox (ADR-012)', () => {
     const dispatcher = createDispatcher({
       zdb: tdb.zone('outbox'),
       queue,
-      queueUrls: { 'conversation-turns': 'q://turns' },
+      queueUrls: { 'conversation-turns': 'q://turns', ingest: 'q://ingest' },
       logger: createLogger('test', 'silent'),
     });
     expect(await dispatcher.dispatchPending()).toBe(0);
@@ -92,12 +92,34 @@ describe('transactional outbox (ADR-012)', () => {
     expect(sent.map((s) => s.id)).toEqual([id]);
   });
 
+  it('routes each topic to its own queue: ingest jobs from the ingest zone (FEAT-012)', async () => {
+    const id = await withTenant(tdb.zone('ingest'), TENANT_B, (tx) =>
+      enqueue(tx, {
+        tenantId: TENANT_B,
+        topic: 'ingest',
+        groupKey: 'source-1',
+        payload: { stage: 'extract' },
+      }),
+    );
+    const { queue, sent } = fakeQueue();
+    const dispatcher = createDispatcher({
+      zdb: tdb.zone('outbox'),
+      queue,
+      queueUrls: { 'conversation-turns': 'q://turns', ingest: 'q://ingest' },
+      logger: createLogger('test', 'silent'),
+    });
+    expect(await dispatcher.dispatchPending()).toBe(1);
+    expect(sent).toEqual([
+      { url: 'q://ingest', id, groupId: 'source-1', body: { stage: 'extract' } },
+    ]);
+  });
+
   it('wakes on NOTIFY when a row commits', async () => {
     const { queue, sent } = fakeQueue();
     const dispatcher = createDispatcher({
       zdb: tdb.zone('outbox'),
       queue,
-      queueUrls: { 'conversation-turns': 'q://turns' },
+      queueUrls: { 'conversation-turns': 'q://turns', ingest: 'q://ingest' },
       logger: createLogger('test', 'silent'),
       sweepIntervalMs: 60_000,
     });

@@ -44,7 +44,7 @@ services:
       test:
         [
           'CMD-SHELL',
-          'awslocal sqs get-queue-url --queue-name conversation-turns.fifo >/dev/null 2>&1 && awslocal s3api head-bucket --bucket kaki-local-audit-anchors >/dev/null 2>&1',
+          'awslocal sqs get-queue-url --queue-name ingest.fifo >/dev/null 2>&1 && awslocal s3api head-bucket --bucket kaki-local-audit-anchors >/dev/null 2>&1',
         ]
       interval: 3s
       timeout: 5s

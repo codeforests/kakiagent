@@ -607,3 +607,12 @@ export const TurnJob = z.object({
   messageId: z.uuid(),
 });
 export type TurnJob = z.infer<typeof TurnJob>;
+
+/** One stage of a source's ingestion run (ADR-018 decision 1; FEAT-012 §5.1). */
+export const IngestJob = z.object({
+  tenantId: z.uuid(),
+  sourceId: z.uuid(),
+  attempt: z.number().int().min(1),
+  stage: z.enum(['crawl', 'extract', 'promote']),
+});
+export type IngestJob = z.infer<typeof IngestJob>;

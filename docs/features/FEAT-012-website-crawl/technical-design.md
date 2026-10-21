@@ -184,7 +184,7 @@ Dashboard scope: `createWebsiteSource(ctx, input, { pageLimit })`, `listSources`
 ### 5.7 Roles and wiring
 
 - `packages/db`: schema, migrations, `createZoneDb('ingest', …)` (`TrustZone` gains `ingest`), `LOGIN_ROLES` gains `app_ingest`; `gen-local-env.mjs` writes `APP_INGEST_PASSWORD` and `INGEST_DATABASE_URL` for ingest-worker.
-- `packages/platform`: `envSchemas.aws` gains `SQS_INGEST_QUEUE_URL`; the outbox topic type follows the schema.
+- `packages/platform`: `envSchemas.ingestQueue` (`SQS_INGEST_QUEUE_URL`) for the two roles that use it; the outbox topic type follows the schema.
 - `apps/scheduler-worker`: `queueUrls.ingest`.
 - `apps/ingest-worker/src/main.ts`: config (`INGEST_DATABASE_URL`, `SQS_INGEST_QUEUE_URL`, `LLM_PROVIDER`, `ANTHROPIC_API_KEY`, `CRAWL_CONCURRENCY`, `EXTRACT_CONCURRENCY`, `INGEST_MAX_ATTEMPTS`, `CRAWL_ALLOW_PRIVATE_HOSTS`), the gateway with the fake extractor and the usage sink (purpose `extract`/`embed`, no conversation), the Chromium fetcher, `queue.consume` on the ingest queue, health check (database and browser). `.env.example` lists every variable. Logs carry IDs and codes only (source ID, stage, attempt, counts, reasons).
 - Infra: `01-queues.sh` creates `ingest.fifo` (visibility 1,800 s, DLQ after 6 receives); `infra/terraform` adds `ingest` to `var.queues` with the same values and the queue URL to the ingest-worker task's environment; the ingest-worker image gains Chromium (`Dockerfile` note; built at MD).

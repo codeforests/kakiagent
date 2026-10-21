@@ -15,39 +15,42 @@ import { createDispatcher } from '@kaki/platform/outbox';
 import { z } from 'zod';
 
 const config = loadConfig(
-  envSchemas.base.extend(envSchemas.aws.shape).extend({
-    HEALTH_PORT: envSchemas.port.default(3004),
-    OUTBOX_DATABASE_URL: z.string().startsWith('postgres'),
-    OUTBOX_SWEEP_MS: z.coerce.number().int().positive().default(5000),
-    /** The S3 Object Lock bucket for audit chain heads (ADR-014 decision 5). */
-    AUDIT_ANCHOR_BUCKET: z.string().min(3),
-    AUDIT_ANCHOR_INTERVAL_MS: z.coerce
-      .number()
-      .int()
-      .positive()
-      .default(15 * 60_000),
-    /** Sign-in links whose first send failed are retried from here (FEAT-005, NFR-17). */
-    IDENTITY_DATABASE_URL: z.string().startsWith('postgres'),
-    MAGIC_LINK_SECRET: envSchemas.secret,
-    PUBLIC_APP_URL: envSchemas.url,
-    SMTP_URL: z.string().regex(/^smtps?:\/\//),
-    EMAIL_FROM: z.string().min(3).default('KakiAgent <no-reply@kakiagent.local>'),
-    MAGIC_LINK_SWEEP_MS: z.coerce.number().int().positive().default(5000),
-    /** The cost governor (ADR-007 decision 3, FEAT-004 D9): hourly, on the 7-day average. */
-    COST_GOVERNOR_INTERVAL_MS: z.coerce
-      .number()
-      .int()
-      .positive()
-      .default(60 * 60_000),
-    COST_GOVERNOR_TARGET_SGD: z.coerce.number().positive().default(DEFAULT_GOVERNOR.targetSgd),
-    COST_GOVERNOR_RELAX_SGD: z.coerce.number().positive().default(DEFAULT_GOVERNOR.relaxSgd),
-    USD_SGD_RATE: z.coerce.number().positive().default(DEFAULT_GOVERNOR.usdToSgd),
-    COST_GOVERNOR_MIN_CONVERSATIONS: z.coerce
-      .number()
-      .int()
-      .positive()
-      .default(DEFAULT_GOVERNOR.minConversations),
-  }),
+  envSchemas.base
+    .extend(envSchemas.aws.shape)
+    .extend(envSchemas.ingestQueue.shape)
+    .extend({
+      HEALTH_PORT: envSchemas.port.default(3004),
+      OUTBOX_DATABASE_URL: z.string().startsWith('postgres'),
+      OUTBOX_SWEEP_MS: z.coerce.number().int().positive().default(5000),
+      /** The S3 Object Lock bucket for audit chain heads (ADR-014 decision 5). */
+      AUDIT_ANCHOR_BUCKET: z.string().min(3),
+      AUDIT_ANCHOR_INTERVAL_MS: z.coerce
+        .number()
+        .int()
+        .positive()
+        .default(15 * 60_000),
+      /** Sign-in links whose first send failed are retried from here (FEAT-005, NFR-17). */
+      IDENTITY_DATABASE_URL: z.string().startsWith('postgres'),
+      MAGIC_LINK_SECRET: envSchemas.secret,
+      PUBLIC_APP_URL: envSchemas.url,
+      SMTP_URL: z.string().regex(/^smtps?:\/\//),
+      EMAIL_FROM: z.string().min(3).default('KakiAgent <no-reply@kakiagent.local>'),
+      MAGIC_LINK_SWEEP_MS: z.coerce.number().int().positive().default(5000),
+      /** The cost governor (ADR-007 decision 3, FEAT-004 D9): hourly, on the 7-day average. */
+      COST_GOVERNOR_INTERVAL_MS: z.coerce
+        .number()
+        .int()
+        .positive()
+        .default(60 * 60_000),
+      COST_GOVERNOR_TARGET_SGD: z.coerce.number().positive().default(DEFAULT_GOVERNOR.targetSgd),
+      COST_GOVERNOR_RELAX_SGD: z.coerce.number().positive().default(DEFAULT_GOVERNOR.relaxSgd),
+      USD_SGD_RATE: z.coerce.number().positive().default(DEFAULT_GOVERNOR.usdToSgd),
+      COST_GOVERNOR_MIN_CONVERSATIONS: z.coerce
+        .number()
+        .int()
+        .positive()
+        .default(DEFAULT_GOVERNOR.minConversations),
+    }),
 );
 const stopTelemetry = startTelemetry('scheduler-worker', config.OTEL_EXPORTER_OTLP_ENDPOINT);
 const logger = createLogger('scheduler-worker', config.LOG_LEVEL);
@@ -63,7 +66,10 @@ const abort = new AbortController();
 const dispatcher = createDispatcher({
   zdb: outboxDb,
   queue,
-  queueUrls: { 'conversation-turns': config.SQS_TURNS_QUEUE_URL },
+  queueUrls: {
+    'conversation-turns': config.SQS_TURNS_QUEUE_URL,
+    ingest: config.SQS_INGEST_QUEUE_URL,
+  },
   logger,
   sweepIntervalMs: config.OUTBOX_SWEEP_MS,
 });
