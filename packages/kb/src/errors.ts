@@ -9,3 +9,11 @@ export class EmbeddingUnavailableError extends Error {}
 export class InvalidFactError extends Error {}
 /** A list cursor that doesn't decode (FEAT-011 D5). */
 export class InvalidCursorError extends Error {}
+/** No such source for this tenant (FEAT-012). */
+export class SourceNotFoundError extends Error {}
+/** A website source for this domain already exists (FEAT-012 §3.2). */
+export class SourceExistsError extends Error {
+  constructor(readonly sourceId: string) {
+    super('source exists');
+  }
+}
