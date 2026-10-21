@@ -2,6 +2,7 @@
  * Assistant settings endpoints (FEAT-024 §3; AC-1, AC-2, AC-8, AC-9) and the widget
  * config's name and greeting.
  */
+import { textsFor } from '@kaki/agent';
 import { startTestDatabase, TENANT_A, type TestDatabase } from '@kaki/db/testing';
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -144,6 +145,29 @@ describe('PUT /api/v1/settings/assistant', () => {
     expect(res.statusCode).toBe(400);
     expect(res.json().error).toBe('bad_request');
     expect((await call('GET', asA)).json().settings.version).toBe(0);
+  });
+
+  it('has no field for the disclosure core: a body that tries to set it still leaves the core (AC-5)', async () => {
+    const res = await call(
+      'PUT',
+      asA,
+      body({
+        disclosure: { en: 'Hi there!', zh: '你好！' },
+        disclosureCore: { en: 'Hi there!', zh: '你好！' },
+        disclosureNote: { en: 'Our team reads every chat.', zh: null },
+      }),
+    );
+    expect(res.statusCode).toBe(200);
+    const { settings } = (await call('GET', asA)).json();
+    expect(Object.keys(settings)).not.toContain('disclosure');
+    expect(Object.keys(settings)).not.toContain('disclosureCore');
+    const { updatedAt: _u, version: _v, ...persona } = settings;
+    for (const lang of ['en', 'zh'] as const)
+      expect(textsFor(lang, persona).disclosure('Kaki Bakery')).toMatch(
+        lang === 'en'
+          ? /^You're chatting with Kaki, an AI assistant for Kaki Bakery\./
+          : /^您正在与 Kaki 对话，这是 Kaki Bakery 的 AI 助手。/,
+      );
   });
 
   it('accepts names in other scripts and with apostrophes', async () => {
