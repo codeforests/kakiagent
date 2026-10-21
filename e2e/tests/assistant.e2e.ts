@@ -39,6 +39,8 @@ async function openSettings(page: Page) {
   await page.getByRole('link', { name: 'Settings' }).first().click();
   await page.getByRole('link', { name: /^Assistant/ }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Assistant' })).toBeVisible();
+  // The heading shows while loading; the form, with the version it read, after.
+  await expect(page.getByLabel('Assistant name')).toBeVisible();
 }
 
 test('the owner names the assistant and the widget introduces itself that way', async ({
