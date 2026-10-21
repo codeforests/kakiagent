@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   awaitingTurn,
   emptyChat,
+  greetingFor,
   langOf,
   pendingText,
   rowsOf,
@@ -84,5 +85,15 @@ describe('after-hours notice and language of parts (FEAT-023; SCR-WGT-002)', () 
     expect(langOf('Chocolate fudge cake（1 kg）的价格是S$55.00。')).toBe('zh-Hans');
     expect(langOf('The fudge cake is S$55.00 lah.')).toBeUndefined();
     expect(langOf('')).toBeUndefined();
+  });
+});
+
+describe('greeting (FEAT-024; SCR-WGT-002 greeting)', () => {
+  const greeting = { en: 'Hi! Ask me about our cakes.', zh: '你好！欢迎问我蛋糕的问题。' };
+
+  it("shows the tenant's greeting in the panel locale", () => {
+    expect(greetingFor(greeting, 'en')).toBe('Hi! Ask me about our cakes.');
+    expect(greetingFor(greeting, 'zh-Hans')).toBe('你好！欢迎问我蛋糕的问题。');
+    expect(langOf(greetingFor(greeting, 'zh-Hans'))).toBe('zh-Hans');
   });
 });

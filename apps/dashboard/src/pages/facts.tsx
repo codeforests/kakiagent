@@ -3,8 +3,9 @@ import { Button, EmptyState, ErrorState } from '@kaki/ui';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router';
+import { Link } from 'react-router';
 import { api, ApiError } from '../lib/api.ts';
+import { useToast } from '../lib/form.ts';
 import {
   factTitle,
   factValue,
@@ -49,23 +50,6 @@ export function StatusBadge({ status, busy }: { status: FactStatus; busy?: boole
       {busy ? 'Updating…' : STATUS_LABEL[status]}
     </span>
   );
-}
-
-/** The toast (design.md §4.3): `role="status"`, gone after 5 s. Router state seeds it. */
-function useToast() {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const [toast, setToast] = useState<string | null>(
-    () => (location.state as { toast?: string } | null)?.toast ?? null,
-  );
-  useEffect(() => {
-    if (!toast) return;
-    // Drop the router state so a reload doesn't show the toast again.
-    if (location.state) void navigate(location.pathname, { replace: true, state: null });
-    const timer = setTimeout(() => setToast(null), 5000);
-    return () => clearTimeout(timer);
-  }, [toast, navigate, location.pathname, location.state]);
-  return [toast, setToast] as const;
 }
 
 const DELETE_TOAST: Record<DeleteOutcome, string> = {

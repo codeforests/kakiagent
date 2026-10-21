@@ -357,6 +357,18 @@ describe('facts and the visitor views', () => {
         cost_governor_step: 0,
         hours: BAKERY_HOURS,
         open_on_public_holidays: false,
+        // FEAT-024: no saved assistant settings, so the defaults.
+        bot_name: null,
+        tone: 'friendly',
+        emoji: false,
+        greeting_en: null,
+        greeting_zh: null,
+        disclosure_note_en: null,
+        disclosure_note_zh: null,
+        after_hours_en: null,
+        after_hours_zh: null,
+        fallback_en: null,
+        fallback_zh: null,
       },
     ]);
     const none = await asRole(
@@ -446,6 +458,108 @@ describe('opening hours and message notices (FEAT-023)', () => {
       );
       expect(seen).toEqual([]);
     }
+  });
+});
+
+// ---- FEAT-024: assistant settings (FEAT-024 §4; AC-2, AC-10) ---------------------------
+
+describe('assistant settings (FEAT-024)', () => {
+  const PERSONA = `select bot_name, tone, emoji, greeting_en, disclosure_note_zh, fallback_en
+                   from visitor_tenant_state()`;
+
+  it('visitor_tenant_state returns defaults without a row', async () => {
+    const rows = await asRole(
+      'app_agent_visitor',
+      TENANT_A,
+      async (c) => (await c.query(PERSONA)).rows,
+    );
+    expect(rows).toEqual([
+      {
+        bot_name: null,
+        tone: 'friendly',
+        emoji: false,
+        greeting_en: null,
+        disclosure_note_zh: null,
+        fallback_en: null,
+      },
+    ]);
+  });
+
+  it("the dashboard writes its own tenant's row; the function returns that tenant's only", async () => {
+    await asRole('app_dashboard', TENANT_B, async (c) => {
+      await c.query(
+        `insert into assistant_settings (tenant_id, bot_name, tone, emoji, fallback_en)
+         values ($1, 'Mei', 'professional', true, 'We will reply soon.')`,
+        [TENANT_B],
+      );
+      await c.query(`update assistant_settings set disclosure_note_zh = '我们会阅读每条消息。'`);
+      expect((await c.query(`select bot_name from assistant_settings`)).rows).toEqual([
+        { bot_name: 'Mei' },
+      ]);
+    });
+    await owner.query(
+      `insert into assistant_settings (tenant_id, bot_name, emoji) values ($1, 'Kaki', true)`,
+      [TENANT_B],
+    );
+    try {
+      const b = await asRole(
+        'app_agent_visitor',
+        TENANT_B,
+        async (c) => (await c.query(PERSONA)).rows,
+      );
+      expect(b[0]).toMatchObject({ bot_name: 'Kaki', emoji: true, tone: 'friendly' });
+      const a = await asRole(
+        'app_agent_visitor',
+        TENANT_A,
+        async (c) => (await c.query(PERSONA)).rows,
+      );
+      expect(a[0].bot_name).toBeNull();
+    } finally {
+      await owner.query(`delete from assistant_settings where tenant_id = $1`, [TENANT_B]);
+    }
+  });
+
+  it("tenant B can't read or write tenant A's row", async () => {
+    await owner.query(
+      `insert into assistant_settings (tenant_id, bot_name) values ($1, 'Ah Boy')`,
+      [TENANT_A],
+    );
+    try {
+      await asRole('app_dashboard', TENANT_B, async (c) => {
+        expect((await c.query(`select * from assistant_settings`)).rows).toEqual([]);
+        const upd = await c.query(`update assistant_settings set bot_name = 'Hacked'`);
+        expect(upd.rowCount).toBe(0);
+        await expect(
+          c.query(`insert into assistant_settings (tenant_id) values ($1)`, [TENANT_A]),
+        ).rejects.toThrow(/row-level security/);
+      });
+    } finally {
+      await owner.query(`delete from assistant_settings where tenant_id = $1`, [TENANT_A]);
+    }
+  });
+
+  it('the visitor role cannot read assistant_settings directly', async () => {
+    await expect(
+      asRole('app_agent_visitor', TENANT_A, (c) => c.query(`select * from assistant_settings`)),
+    ).rejects.toThrow(/permission denied/);
+  });
+
+  it('the checks reject digits in the name, blank texts, long texts and unknown tones', async () => {
+    const ins = (cols: string, vals: unknown[]) =>
+      owner.query(
+        `insert into assistant_settings (tenant_id, ${cols}) values ($1, ${vals.map((_, i) => `$${i + 2}`).join(', ')})`,
+        [TENANT_A, ...vals],
+      );
+    await expect(ins('bot_name', ['Kaki 2'])).rejects.toThrow(/assistant_settings_bot_name_ck/);
+    await expect(ins('bot_name', [' Kaki'])).rejects.toThrow(/assistant_settings_bot_name_ck/);
+    await expect(ins('bot_name', ['x'.repeat(31)])).rejects.toThrow(
+      /assistant_settings_bot_name_ck/,
+    );
+    await expect(ins('greeting_en', ['  '])).rejects.toThrow(/assistant_settings_texts_ck/);
+    await expect(ins('fallback_zh', ['好'.repeat(301)])).rejects.toThrow(
+      /assistant_settings_texts_ck/,
+    );
+    await expect(ins('tone', ['sassy'])).rejects.toThrow(/assistant_settings_tone_ck/);
   });
 });
 

@@ -1,5 +1,6 @@
 import type { GenerateRequest } from '@kaki/llm-gateway';
 import type { VisitorFact } from '@kaki/kb';
+import type { Persona } from '@kaki/tenancy';
 import { hoursLines, type HoursContext } from './hours-text.js';
 import { LANGUAGE_NAMES, type Register, type ReplyLanguage } from './language.js';
 import { renderPrice, renderValidUntil } from './render.js';
@@ -58,6 +59,28 @@ export function sgtNow(now: Date): string {
 }
 
 /**
+ * The tenant's persona (AGT-08; FEAT-024 §5.3, D5): settings only, so `system` changes
+ * only when the owner saves (ADR-007 decision 2).
+ */
+export function assistantLines(persona: Persona | undefined): string[] {
+  if (!persona) return [];
+  return [
+    '<assistant>',
+    ...(persona.botName
+      ? [
+          `Name: ${persona.botName}`,
+          `Call yourself ${persona.botName} if you introduce yourself; never claim to be a person.`,
+        ]
+      : []),
+    persona.tone === 'professional'
+      ? 'Tone: professional. Be courteous and businesslike, in complete sentences. Use no slang and no Singlish particles, even when the visitor uses them; answer a Singlish visitor in plain, natural English.'
+      : 'Tone: friendly. Be warm and casual, like a helpful shop assistant.',
+    persona.emoji ? 'Emoji: allowed, at most one, only where it fits.' : 'Emoji: never.',
+    '</assistant>',
+  ];
+}
+
+/**
  * The visitor-scope prompt (ADR-008, ADR-009), laid out for caching (ADR-007 decision
  * 2; FEAT-004 §5.2): `system` holds the platform rules and the tenant block and is
  * byte-stable for a tenant; the history is append-only; this turn's facts, the time
@@ -82,6 +105,8 @@ export function buildVisitorPrompt(input: {
   systemSlots?: ReadonlyMap<string, string> | undefined;
   /** The plan also has an `out_of_scope` task (AGT-04, FEAT-023 §5.2). */
   outOfScope?: boolean | undefined;
+  /** AGT-08 (FEAT-024): name, tone and emoji, in the cached tenant block. */
+  persona?: Persona | undefined;
 }): GenerateRequest {
   const lines = input.ordered.map((f) =>
     factLine(input.facts.refOf.get(f.id)!, f, input.gstRegistered),
@@ -92,7 +117,7 @@ export function buildVisitorPrompt(input: {
   const system = [
     'You are the customer assistant on the website of a business in Singapore.',
     'Answer the visitor briefly and warmly, in the reply language named in the latest message.',
-    'Match the visitor register named there: singlish means friendly, natural Singapore English in short sentences, where a particle such as "lah" or "ah" is fine if it reads naturally (never mock it or overdo it); formal means polite and complete; standard means warm and plain.',
+    'Match the visitor register named there, within the tone set in the assistant block, if there is one: singlish means friendly, natural Singapore English in short sentences, where a particle such as "lah" or "ah" is fine if it reads naturally (never mock it or overdo it); formal means polite and complete; standard means warm and plain.',
     'Use only the facts listed in the <facts> block of the latest message. If they do not answer the question, say you will check with the team and get back to them. Never guess.',
     'SLOT RULE: never type a number, price, stock level, date, time, duration, percentage or policy term yourself, in digits or in words, in any language; the only exception is repeating a count the visitor typed, exactly as they typed it (like "for 8 people"). Write the slot token shown after each fact value instead, exactly as shown, for example [[f:1a2b3c4d.price]]. The system replaces each slot with the verified value; text with a typed value is blocked.',
     `Protected fields that must always be written as slots: ${protectedList}.`,
@@ -105,6 +130,7 @@ export function buildVisitorPrompt(input: {
     `GST registered: ${input.gstRegistered ? 'yes' : 'no'}`,
     ...(input.hours ? hoursLines(input.hours.hours, input.hours.openOnPublicHolidays) : []),
     '</business>',
+    ...assistantLines(input.persona),
   ];
   const tail = [
     '<facts>',

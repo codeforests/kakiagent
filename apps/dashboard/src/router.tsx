@@ -1,10 +1,12 @@
 import { createBrowserRouter } from 'react-router';
+import { AssistantPage } from './pages/assistant.tsx';
 import { Placeholder } from './pages/placeholder.tsx';
 import { FactPage } from './pages/fact.tsx';
 import { FactsPage } from './pages/facts.tsx';
 import { HomePage } from './pages/home.tsx';
 import { InboxPage } from './pages/inbox.tsx';
 import { LegalPage } from './pages/legal.tsx';
+import { SettingsPage } from './pages/settings.tsx';
 import { SignInPage } from './pages/sign-in.tsx';
 import { NoPermission, NotFound, SessionExpired } from './pages/system.tsx';
 import { VerifyPage } from './pages/verify.tsx';
@@ -40,7 +42,9 @@ export const router = createBrowserRouter([
       { path: 'coach', element: <Placeholder title="Coach" feature="FEAT-027" /> },
       { path: 'leads', element: <Placeholder title="Leads" feature="FEAT-049" /> },
       { path: 'insights', element: <Placeholder title="Insights" feature="FEAT-066" /> },
-      { path: 'settings', element: <Placeholder title="Settings" feature="FEAT-009" /> },
+      // Settings index and Assistant (FEAT-024); the other sections link as they are built.
+      { path: 'settings', element: <SettingsPage /> },
+      { path: 'settings/assistant', element: <AssistantPage /> },
       { path: 'more', element: <MorePage /> },
       { path: 'no-permission', element: <NoPermission /> },
       { path: '*', element: <NotFound /> },

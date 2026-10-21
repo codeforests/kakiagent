@@ -51,10 +51,32 @@ export const Expectation = z.discriminatedUnion('kind', [
   }),
   /** Retrieval: the retrieved facts include `ids`. */
   z.object({ kind: z.literal('retrieves'), ids: z.array(z.string()).min(1) }),
+  /** AGT-08 (FEAT-024): the reply has an emoji, or has none. */
+  z.object({ kind: z.literal('emoji'), present: z.boolean() }),
+  /** AGT-11 (FEAT-024): the first reply's disclosure contains `text`. */
+  z.object({ kind: z.literal('disclosure'), contains: z.string() }),
   /** The LLM judge on one criterion; only with a real model (D8). */
   z.object({ kind: z.literal('judge'), criterion: Criterion }),
 ]);
 export type Expectation = z.infer<typeof Expectation>;
+
+const LocalText = z.object({ en: z.string().nullable(), zh: z.string().nullable() });
+/**
+ * The tenant's assistant settings (FEAT-024 §5.8), as `visitor_tenant_state` returns
+ * them; unset fields take the defaults, and a case's fields win over its fixture's.
+ */
+export const PersonaPatch = z
+  .object({
+    botName: z.string().nullable(),
+    tone: z.enum(['friendly', 'professional']),
+    emoji: z.boolean(),
+    greeting: LocalText,
+    disclosureNote: LocalText,
+    afterHoursMessage: LocalText,
+    fallbackMessage: LocalText,
+  })
+  .partial()
+  .strict();
 
 /** The routed reply model (ADR-007). */
 const Route = z.enum(['reply.simple', 'reply.complex']);
@@ -81,6 +103,13 @@ export const Case = z
      * is (for a broken output). Without it the fake triager plans from keywords.
      */
     plan: z.union([z.record(z.string(), z.unknown()), z.string()]).optional(),
+    /** The tenant's assistant settings for this case, over the fixture's (FEAT-024). */
+    persona: PersonaPatch.optional(),
+    /**
+     * The reply model fails (NFR-04): the turn closes with the tenant's fallback text,
+     * as the worker sends it (FEAT-024 AC-6).
+     */
+    replyFails: z.boolean().default(false),
     /** The plan's task kinds, in any order (ADR-025). */
     expectTasks: z.array(TaskKind).min(1).optional(),
     /** The reply model the router picks at the default policy (ADR-007). */
@@ -124,6 +153,8 @@ export const Fixture = z.object({
   /** Opening hours (FEAT-023): the business profile's, as `visitor_tenant_state` returns them. */
   hours: WeeklyHours.nullable().default(null),
   openOnPublicHolidays: z.boolean().default(false),
+  /** The assistant settings (FEAT-024); absent = never saved, the defaults. */
+  persona: PersonaPatch.optional(),
   facts: z.array(
     z.discriminatedUnion('type', [
       ProductFact,
@@ -170,6 +201,8 @@ export interface Reply {
   factIds: string[];
   outcome: string;
   notice: string | null;
+  /** The disclosure the conversation's first reply carries (AGT-11). */
+  disclosure: string;
   retrieved: string[];
 }
 
@@ -184,6 +217,7 @@ const AMOUNT_RE =
   /(?:S\$|US\$|[$€£¥]|\b(?:sgd|usd|rm|myr)\s*)\s*\d[\d,]*(?:\.\d+)?|\d[\d,]*(?:\.\d+)?\s*(?:(?:singapore|sing|us)\s+)?(?:dollars?|bucks|cents?|ringgit|元|块)/giu;
 
 const HAN = /\p{Script=Han}/gu;
+const EMOJI = /\p{Extended_Pictographic}/u;
 const LETTER = /\p{L}/gu;
 
 /** Scores the deterministic expectations; `judge` expectations are scored by the runner. */
@@ -204,6 +238,10 @@ export function score(reply: Reply, expectations: Expectation[], ctx: ScoreConte
         return e.present
           ? reply.notice !== null && (!e.contains || reply.notice.includes(e.contains))
           : reply.notice === null;
+      case 'emoji':
+        return EMOJI.test(reply.text) === e.present;
+      case 'disclosure':
+        return reply.disclosure.includes(e.contains);
       case 'retrieves':
         return e.ids.every((id) => reply.retrieved.includes(id));
       case 'contains':

@@ -11,10 +11,25 @@ const WEEKEND_Q = /\b(weekends?|saturday|sunday|sat|sun)\b|周末|星期六|星�
  * (FEAT-023) answers an hours question with the hours slots, so it stays in this module.
  */
 export function fakeVisitorResponder(req: GenerateRequest): string {
+  const answer = answerOf(req);
+  // FEAT-024: a friendly tenant that allows emoji gets one, so the setting shows locally.
+  const system = req.system ?? '';
+  const friendlyEmoji = /^Tone: friendly\b/m.test(system) && /^Emoji: allowed\b/m.test(system);
+  return friendlyEmoji ? `${answer} 🙂` : answer;
+}
+
+const NAME_Q = /\b(who are you|what('s| is) your name)\b|你是谁|你叫什么/i;
+
+function answerOf(req: GenerateRequest): string {
   const tail = req.tail ?? '';
   const zh = /^Reply language: Chinese/m.test(tail);
   const question =
     [...(req.messages ?? [])].reverse().find((m) => m.role === 'user')?.content ?? '';
+  const name = /^<assistant>\nName: (.+)$/m.exec(req.system ?? '')?.[1];
+  if (name && NAME_Q.test(question))
+    return zh
+      ? `我是${name}，这里的 AI 助手。有什么可以帮您？`
+      : `I'm ${name}, the AI assistant here. How can I help?`;
   if (HOURS_Q.test(question) && /\[\[s:hours\.today\]\]/.test(tail))
     return hoursAnswer(question, tail, zh);
   const facts = [

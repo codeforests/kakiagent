@@ -54,7 +54,15 @@ export { aiAllowed, type GateResult } from './gate.js';
 export { formatSgd, renderPrice, renderSegment, SG_GST_PERCENT, withGst } from './render.js';
 export { verifySegment, type Violation, type ViolationKind } from './verify.js';
 export { assignRefs } from './slots.js';
-export { texts, textsFor, type Texts } from './texts.js';
+export {
+  assistantDefaults,
+  DEFAULT_BOT_NAME,
+  DEFAULT_GREETING,
+  texts,
+  textsFor,
+  type AssistantDefaults,
+  type Texts,
+} from './texts.js';
 export {
   hasHan,
   LANGUAGE_NAMES,

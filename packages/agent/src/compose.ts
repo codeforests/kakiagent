@@ -1,5 +1,7 @@
 import type { VisitorFact } from '@kaki/kb';
 import type { GenerateRequest, LlmGateway, LogicalModel } from '@kaki/llm-gateway';
+import type { Persona } from '@kaki/tenancy';
+import { stripEmoji } from './emoji.js';
 import type { HoursContext } from './hours-text.js';
 import type { Register, ReplyLanguage } from './language.js';
 import { buildVisitorPrompt, type HistoryMessage } from './prompt.js';
@@ -35,6 +37,12 @@ export interface ComposeInput {
   systemSlots?: ReadonlyMap<string, string> | undefined;
   /** The plan also has an `out_of_scope` task: the tail says to answer only the business part. */
   outOfScope?: boolean | undefined;
+  /**
+   * AGT-08 (FEAT-024): the tenant's persona, for the prompt and the texts. With emoji
+   * off, model-typed emoji are stripped before render and verify (D4). No persona: as
+   * before FEAT-024.
+   */
+  persona?: Persona | undefined;
 }
 
 export interface ComposeDeps {
@@ -57,6 +65,8 @@ export interface ComposeResult {
   /** Every guardrail failure, for the audit log (GOV-01). */
   violations: Violation[];
   attempts: number;
+  /** A released segment lost emoji to the tenant's emoji-off setting (FEAT-024). */
+  emojiRemoved: boolean;
   /** The model of each attempt, in order. */
   models: LogicalModel[];
   timings: { firstSegmentMs: number | null; totalMs: number };
@@ -81,6 +91,8 @@ export async function composeReply(input: ComposeInput, deps: ComposeDeps): Prom
   const system = input.systemSlots ?? new Map<string, string>();
   const violations: Violation[] = [];
   const models: LogicalModel[] = [];
+  const noEmoji = input.persona?.emoji === false;
+  let emojiRemoved = false;
 
   const result = (outcome: ComposeOutcome, attempts: number): ComposeResult => ({
     outcome,
@@ -90,6 +102,7 @@ export async function composeReply(input: ComposeInput, deps: ComposeDeps): Prom
     slots: [...slots],
     violations,
     attempts,
+    emojiRemoved,
     models: [...models],
     timings: {
       firstSegmentMs: firstSegmentAt === null ? null : Math.round(firstSegmentAt - start),
@@ -105,7 +118,10 @@ export async function composeReply(input: ComposeInput, deps: ComposeDeps): Prom
     return true;
   }
 
-  async function handle(raw: string): Promise<Step> {
+  async function handle(typed: string): Promise<Step> {
+    const raw = noEmoji ? stripEmoji(typed) : typed;
+    // Emoji alone is nothing to release.
+    if (!raw.trim()) return { kind: 'ok' };
     const rendered = renderSegment(raw, facts, input.gstRegistered, system);
     if (!rendered.ok) return { kind: 'fail', violations: rendered.violations };
     const verdict = verifySegment(rendered.text, rendered.spans, visitorTexts);
@@ -113,6 +129,7 @@ export async function composeReply(input: ComposeInput, deps: ComposeDeps): Prom
     if (!(await release(rendered.text))) return { kind: 'closed' };
     for (const id of rendered.factIds) factIds.add(id);
     for (const name of rendered.slots) slots.add(name);
+    if (raw !== typed) emojiRemoved = true;
     return { kind: 'ok' };
   }
 
@@ -141,6 +158,7 @@ export async function composeReply(input: ComposeInput, deps: ComposeDeps): Prom
       hours: input.hours,
       systemSlots: system,
       outOfScope: input.outOfScope,
+      persona: input.persona,
     });
     const segmenter = new Segmenter();
     let step: Step = { kind: 'ok' };
@@ -170,6 +188,6 @@ export async function composeReply(input: ComposeInput, deps: ComposeDeps): Prom
     lastFailure = step.violations;
   }
   // UC-20 6a: verification failed twice. The visitor is told the team will confirm.
-  const shown = await release(textsFor(input.language ?? 'en').escalation);
+  const shown = await release(textsFor(input.language ?? 'en', input.persona).escalation);
   return result(shown ? 'escalated' : 'gate_closed', MAX_REGENERATIONS + 1);
 }

@@ -11,6 +11,7 @@ import { createApi } from './api.js';
 import {
   awaitingTurn,
   emptyChat,
+  greetingFor,
   langOf,
   pendingText,
   rowsOf,
@@ -64,10 +65,12 @@ function newId(): string {
 function Panel({
   ctx,
   t,
+  greeting,
   inputRef,
 }: {
   ctx: PanelContext;
   t: Strings;
+  greeting: string;
   inputRef: { current: HTMLTextAreaElement | null };
 }) {
   const api = useRef(createApi(ctx.apiUrl, ctx.config.token)).current;
@@ -146,7 +149,11 @@ function Panel({
         </button>
       </header>
       <ol class="log" ref={logRef} aria-live="polite" aria-relevant="additions">
-        {chat.messages.length === 0 && <li class="empty">{t.empty}</li>}
+        {chat.messages.length === 0 && (
+          <li class="empty" lang={langOf(greeting)}>
+            {greeting}
+          </li>
+        )}
         {chat.messages.map((m) => [
           ...rowsOf(m).map((r) =>
             r.kind === 'disclosure' ? (
@@ -230,6 +237,14 @@ export function mountPanel(ctx: PanelContext) {
   ctx.mount.addEventListener('keydown', (e) => {
     if ((e as KeyboardEvent).key === 'Escape') ctx.close();
   });
-  render(<Panel ctx={ctx} t={strings(locale)} inputRef={inputRef} />, ctx.mount);
+  render(
+    <Panel
+      ctx={ctx}
+      t={strings(locale)}
+      greeting={greetingFor(ctx.config.greeting, locale)}
+      inputRef={inputRef}
+    />,
+    ctx.mount,
+  );
   return { focus: () => inputRef.current?.focus() };
 }

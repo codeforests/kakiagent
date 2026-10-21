@@ -115,6 +115,8 @@ export async function runVisitorTurn(
   if (!prep) return null;
   const { message, gate, hours } = prep;
   const businessName = gate.tenant?.businessName ?? '';
+  // AGT-08, AGT-11 (FEAT-024): the tenant's persona and wording; defaults when unset.
+  const persona = gate.tenant?.persona;
   const meta = { tenantId, conversationId, turnId: message.id };
   // Until triage answers, the visitor's script decides (FEAT-023 D4).
   let language: ReplyLanguage = replyLanguage(null, message.body);
@@ -130,7 +132,7 @@ export async function runVisitorTurn(
     text: string,
     composed: AnswerResult | null,
   ): Promise<TurnResult | null> {
-    const t = textsFor(language);
+    const t = textsFor(language, persona);
     const disclosure = prep!.disclosed ? null : t.disclosure(businessName);
     // FEAT-023 D6: the return time is rendered, never written by the model.
     const notice = prep!.noticeDue
@@ -179,6 +181,9 @@ export async function runVisitorTurn(
         register: plan ? auditCode(plan.register) : null,
         slots: (composed?.slots ?? []).map(auditCode),
         afterHours: notice !== null,
+        // FEAT-024: the tone and whether emoji were removed (codes only).
+        tone: persona ? auditCode(persona.tone) : null,
+        emojiRemoved: composed?.emojiRemoved ?? false,
       });
       return reply;
     });
@@ -200,7 +205,7 @@ export async function runVisitorTurn(
     // UC-20 5e. Paused: the visitor gets the fallback (architecture §6.5). A human
     // owner or a closed conversation: the AI says nothing.
     return gate.reason === 'paused'
-      ? store('paused', 'system', textsFor(language).fallback, null)
+      ? store('paused', 'system', textsFor(language, persona).fallback, null)
       : null;
   }
 
@@ -236,12 +241,12 @@ export async function runVisitorTurn(
   plan = planResult.status === 'fulfilled' ? planResult.value : null;
   if (factsResult.status === 'rejected' || !plan) {
     // NFR-04: no embedder, no grounded answer. The fallback closes the turn (FEAT-022 D6).
-    return store('unavailable', 'system', textsFor(language).fallback, null);
+    return store('unavailable', 'system', textsFor(language, persona).fallback, null);
   }
   const facts = factsResult.value;
   language = replyLanguage(plan, message.body);
   slotValues = systemSlots(hours, language);
-  const t = textsFor(language);
+  const t = textsFor(language, persona);
 
   // ADR-025: the dispatcher turns the plan's tasks into side effects, or reports why not.
   const ctx: DispatchContext = {
@@ -293,6 +298,7 @@ export async function runVisitorTurn(
       plan,
       replies: dispatch.replies,
       minConfidence: gate.tenant.routePolicy.minConfidence,
+      persona,
     },
     {
       llm,

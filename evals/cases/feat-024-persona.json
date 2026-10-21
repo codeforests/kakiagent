@@ -1,0 +1,407 @@
+[
+  {
+    "id": "persona-emoji-off-strips-recorded-emoji",
+    "subset": "groundedness",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "how much is the chocolate fudge cake?"
+      }
+    ],
+    "recorded": ["The chocolate fudge cake is [[f:b1000001.price]] 🎂😊 Great for birthdays! 🎉"],
+    "expect": [
+      {
+        "kind": "emoji",
+        "present": false
+      },
+      {
+        "kind": "contains",
+        "text": "S$55.00"
+      },
+      {
+        "kind": "contains",
+        "text": "Great for birthdays!"
+      },
+      {
+        "kind": "cites",
+        "ids": ["b1000001-0000-4000-8000-000000000001"]
+      },
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
+  },
+  {
+    "id": "persona-emoji-off-skips-emoji-only-segment",
+    "subset": "groundedness",
+    "messages": [
+      {
+        "role": "user",
+        "content": "how much is the chocolate fudge cake?"
+      }
+    ],
+    "recorded": ["The chocolate fudge cake is [[f:b1000001.price]]. 🎂"],
+    "expect": [
+      {
+        "kind": "emoji",
+        "present": false
+      },
+      {
+        "kind": "contains",
+        "text": "S$55.00"
+      },
+      {
+        "kind": "outcome",
+        "outcome": "answered"
+      },
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
+  },
+  {
+    "id": "persona-emoji-on-friendly",
+    "subset": "groundedness",
+    "fast": true,
+    "persona": {
+      "emoji": true
+    },
+    "messages": [
+      {
+        "role": "user",
+        "content": "how much is the chocolate fudge cake?"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "emoji",
+        "present": true
+      },
+      {
+        "kind": "contains",
+        "text": "S$55.00"
+      },
+      {
+        "kind": "cites",
+        "ids": ["b1000001-0000-4000-8000-000000000001"]
+      },
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
+  },
+  {
+    "id": "persona-emoji-on-professional-none",
+    "subset": "groundedness",
+    "persona": {
+      "emoji": true,
+      "tone": "professional"
+    },
+    "messages": [
+      {
+        "role": "user",
+        "content": "how much is the chocolate fudge cake?"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "emoji",
+        "present": false
+      },
+      {
+        "kind": "contains",
+        "text": "S$55.00"
+      },
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
+  },
+  {
+    "id": "persona-professional-singlish",
+    "subset": "singlish",
+    "fast": true,
+    "persona": {
+      "tone": "professional"
+    },
+    "messages": [
+      {
+        "role": "user",
+        "content": "fudge cake how much ah"
+      }
+    ],
+    "recorded": ["The Chocolate fudge cake is [[f:b1000001.price]]."],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "S$55.00"
+      },
+      {
+        "kind": "matches",
+        "pattern": "^(?![\\s\\S]*\\b(lah|leh|lor|meh)\\b)"
+      },
+      {
+        "kind": "language",
+        "lang": "en"
+      },
+      {
+        "kind": "prices-from-facts"
+      },
+      {
+        "kind": "judge",
+        "criterion": "tone"
+      }
+    ]
+  },
+  {
+    "id": "persona-friendly-singlish-emoji",
+    "subset": "singlish",
+    "persona": {
+      "tone": "friendly",
+      "emoji": true
+    },
+    "messages": [
+      {
+        "role": "user",
+        "content": "fudge cake how much ah"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "S$55.00"
+      },
+      {
+        "kind": "emoji",
+        "present": true
+      },
+      {
+        "kind": "language",
+        "lang": "en"
+      },
+      {
+        "kind": "judge",
+        "criterion": "tone"
+      }
+    ]
+  },
+  {
+    "id": "persona-fallback-custom-en",
+    "subset": "groundedness",
+    "fast": true,
+    "persona": {
+      "fallbackMessage": {
+        "en": "Sorry, we're having a hiccup. Ms Tan will message you back shortly.",
+        "zh": null
+      }
+    },
+    "replyFails": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "how much is the chocolate fudge cake?"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "outcome",
+        "outcome": "unavailable"
+      },
+      {
+        "kind": "contains",
+        "text": "Sorry, we're having a hiccup. Ms Tan will message you back shortly."
+      },
+      {
+        "kind": "not-contains",
+        "text": "Our team will get back to you soon."
+      }
+    ]
+  },
+  {
+    "id": "persona-fallback-zh-uses-chinese-default",
+    "subset": "chinese",
+    "persona": {
+      "fallbackMessage": {
+        "en": "Sorry, we're having a hiccup.",
+        "zh": null
+      }
+    },
+    "replyFails": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "请问巧克力蛋糕多少钱？"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "outcome",
+        "outcome": "unavailable"
+      },
+      {
+        "kind": "contains",
+        "text": "感谢您的留言，我们的团队会尽快回复您。"
+      },
+      {
+        "kind": "not-contains",
+        "text": "hiccup"
+      },
+      {
+        "kind": "language",
+        "lang": "zh"
+      }
+    ]
+  },
+  {
+    "id": "persona-after-hours-custom-keeps-return-time",
+    "subset": "groundedness",
+    "fast": true,
+    "at": "2026-10-21T21:00:00+08:00",
+    "persona": {
+      "afterHoursMessage": {
+        "en": "Leave your number and we'll call you first thing.",
+        "zh": null
+      }
+    },
+    "messages": [
+      {
+        "role": "user",
+        "content": "how much is the chocolate fudge cake?"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "notice",
+        "present": true,
+        "contains": "The team will be back tomorrow at 8:00 am. Leave your number and we'll call you first thing."
+      },
+      {
+        "kind": "contains",
+        "text": "S$55.00"
+      },
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
+  },
+  {
+    "id": "persona-disclosure-named-with-note-en",
+    "subset": "groundedness",
+    "fast": true,
+    "persona": {
+      "botName": "Kaki",
+      "disclosureNote": {
+        "en": "Our team reads every chat.",
+        "zh": "我们的团队会查看每一段对话。"
+      }
+    },
+    "messages": [
+      {
+        "role": "user",
+        "content": "do you deliver?"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "disclosure",
+        "contains": "You're chatting with Kaki, an AI assistant for Kaki Bakery. Our team reads every chat."
+      }
+    ]
+  },
+  {
+    "id": "persona-disclosure-named-with-note-zh",
+    "subset": "chinese",
+    "fast": true,
+    "persona": {
+      "botName": "小卡",
+      "disclosureNote": {
+        "en": "Our team reads every chat.",
+        "zh": "我们的团队会查看每一段对话。"
+      }
+    },
+    "messages": [
+      {
+        "role": "user",
+        "content": "请问巧克力蛋糕多少钱？"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "disclosure",
+        "contains": "您正在与 小卡 对话，这是 Kaki Bakery 的 AI 助手。 我们的团队会查看每一段对话。"
+      },
+      {
+        "kind": "language",
+        "lang": "zh"
+      }
+    ]
+  },
+  {
+    "id": "persona-disclosure-default-unchanged",
+    "subset": "groundedness",
+    "messages": [
+      {
+        "role": "user",
+        "content": "do you deliver?"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "disclosure",
+        "contains": "You're chatting with an AI assistant for Kaki Bakery."
+      },
+      {
+        "kind": "not-contains",
+        "text": "Kaki,"
+      }
+    ]
+  },
+  {
+    "id": "persona-name-question-en",
+    "subset": "groundedness",
+    "fast": true,
+    "persona": {
+      "botName": "Kaki"
+    },
+    "messages": [
+      {
+        "role": "user",
+        "content": "what's your name?"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "I'm Kaki, the AI assistant here."
+      },
+      {
+        "kind": "emoji",
+        "present": false
+      }
+    ]
+  },
+  {
+    "id": "persona-name-question-zh",
+    "subset": "chinese",
+    "persona": {
+      "botName": "小卡"
+    },
+    "messages": [
+      {
+        "role": "user",
+        "content": "你叫什么名字？"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "我是小卡"
+      },
+      {
+        "kind": "language",
+        "lang": "zh"
+      }
+    ]
+  }
+]

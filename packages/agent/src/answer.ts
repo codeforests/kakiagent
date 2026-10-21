@@ -58,7 +58,7 @@ export type AnswerResult = Omit<ComposeResult, 'outcome'> & {
 };
 
 function render(key: ReplyKey | 'unsure', input: AnswerInput): string {
-  const t = textsFor(input.language ?? 'en');
+  const t = textsFor(input.language ?? 'en', input.persona);
   return key === 'unsure' ? t.unsure : t.outOfScope(input.businessName);
 }
 
@@ -86,6 +86,7 @@ export async function answerTurn(input: AnswerInput, deps: ComposeDeps): Promise
       slots: [],
       violations: [],
       attempts: 0,
+      emojiRemoved: false,
       models: [],
       timings: { firstSegmentMs: open ? ms : null, totalMs: ms },
     };

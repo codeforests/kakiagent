@@ -1,4 +1,5 @@
 import {
+  AssistantSettingsResponse,
   AuthOptions,
   ConversationList,
   CreateWorkspaceResponse,
@@ -7,6 +8,7 @@ import {
   FactList,
   FactResponse,
   Me,
+  type AssistantSettingsBody,
   type CreateFactBody,
   type CreateWorkspaceBody,
   type FactListQuery,
@@ -37,7 +39,11 @@ export class ApiError extends Error {
   }
 }
 
-async function send(method: 'GET' | 'POST' | 'PATCH' | 'DELETE', path: string, body?: unknown) {
+async function send(
+  method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE',
+  path: string,
+  body?: unknown,
+) {
   const res = await fetch(path, {
     method,
     credentials: 'same-origin',
@@ -56,7 +62,7 @@ async function send(method: 'GET' | 'POST' | 'PATCH' | 'DELETE', path: string, b
 }
 
 async function request<S extends z.ZodType>(
-  method: 'GET' | 'POST' | 'PATCH',
+  method: 'GET' | 'POST' | 'PATCH' | 'PUT',
   path: string,
   schema: S,
   body?: unknown,
@@ -93,4 +99,8 @@ export const api = {
   /** FEAT-011 §3.2: conditional on the version the owner saw; 204 on success. */
   deleteFact: async (id: string, version: number) =>
     void (await send('DELETE', `/api/v1/kb/facts/${encodeURIComponent(id)}?version=${version}`)),
+  /** FEAT-024 §3: SCR-APP-041. */
+  assistantSettings: () => getJson('/api/v1/settings/assistant', AssistantSettingsResponse),
+  saveAssistantSettings: (body: AssistantSettingsBody) =>
+    request('PUT', '/api/v1/settings/assistant', AssistantSettingsResponse, body),
 };

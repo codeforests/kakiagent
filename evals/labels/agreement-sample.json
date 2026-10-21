@@ -1,6 +1,6 @@
 {
   "$comment": "The judge's agreement sample (ADR-022, FEAT-023 §5.7): fixed replies with a person's verdict. Draft labels were proposed by the implementer; a person must confirm or change every label and set labelledBy to their name before M1.5, and the real-judge run refuses the sample until then.",
-  "evalSetVersion": "0.5.0",
+  "evalSetVersion": "0.6.0",
   "labelledBy": "draft (proposed by the implementer, awaiting the owner's review)",
   "items": [
     {
@@ -121,6 +121,54 @@
         "product: {\"name\":\"Chocolate fudge cake\",\"priceCents\":5500,\"currency\":\"SGD\",\"unit\":\"1 kg\"}"
       ],
       "label": "fail"
+    },
+    {
+      "id": "tone-professional-singlish-pass",
+      "criterion": "tone",
+      "tone": "professional",
+      "messages": [
+        {
+          "role": "user",
+          "content": "fudge cake how much ah"
+        }
+      ],
+      "reply": "The Chocolate fudge cake is S$55.00.",
+      "facts": [
+        "product: {\"name\":\"Chocolate fudge cake\",\"priceCents\":5500,\"currency\":\"SGD\"}"
+      ],
+      "label": "pass"
+    },
+    {
+      "id": "tone-professional-with-particle-fail",
+      "criterion": "tone",
+      "tone": "professional",
+      "messages": [
+        {
+          "role": "user",
+          "content": "fudge cake how much ah"
+        }
+      ],
+      "reply": "Fudge cake is S$55.00 lah, very shiok one!",
+      "facts": [
+        "product: {\"name\":\"Chocolate fudge cake\",\"priceCents\":5500,\"currency\":\"SGD\"}"
+      ],
+      "label": "fail"
+    },
+    {
+      "id": "tone-friendly-warm-pass",
+      "criterion": "tone",
+      "tone": "friendly",
+      "messages": [
+        {
+          "role": "user",
+          "content": "got eggless cake or not?"
+        }
+      ],
+      "reply": "Yes, we do! Our eggless chocolate cake is a favourite. 🙂",
+      "facts": [
+        "faq: {\"question\":\"Do you have eggless cakes?\",\"answer\":\"Yes, our eggless chocolate cake.\"}"
+      ],
+      "label": "pass"
     }
   ]
 }

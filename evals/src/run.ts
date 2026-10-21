@@ -5,7 +5,8 @@
  * fixture tenant, with in-memory retrieval over its facts and the fixture's opening
  * hours at the case's `at` (FEAT-023), scores the plan, the route and the released reply
  * deterministically, reports the cost per conversation, and exits non-zero if any
- * subset is below its threshold. The fake provider plays each case's recorded output
+ * subset is below its threshold. Every case runs with the tenant's assistant settings
+ * (FEAT-024), the defaults unless its fixture or the case sets them, as the worker does. The fake provider plays each case's recorded output
  * until M1.5; with `LLM_PROVIDER=anthropic-dev` the real model answers instead, and the
  * LLM judge scores the `judge` expectations and its agreement sample (FEAT-023 D8).
  */
@@ -40,7 +41,7 @@ import {
   type LlmGateway,
   type UsageEvent,
 } from '@kaki/llm-gateway';
-import { openStatus } from '@kaki/tenancy';
+import { DEFAULT_PERSONA, openStatus, type Persona } from '@kaki/tenancy';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
@@ -122,9 +123,21 @@ function retrieve(tenant: Case['tenant'], query: string): VisitorFact[] {
     .map((c) => c.fact);
 }
 
+/** The persona the worker reads from `visitor_tenant_state()`: defaults, the fixture's, the case's. */
+function personaOf(c: Case): Persona {
+  const { version: _v, updatedAt: _u, ...defaults } = DEFAULT_PERSONA;
+  return { ...defaults, ...fixtures[c.tenant].fixture.persona, ...c.persona };
+}
+
 /** The fake model for a case: its recorded plan for triage, its recorded reply otherwise. */
 function fakeScript(c: Case): FakeScript {
-  const reply = c.recorded ? scriptedOutputs(c.recorded) : fakeVisitorResponder;
+  const reply: FakeScript = c.replyFails
+    ? () => {
+        throw new Error('provider unavailable (eval case)');
+      }
+    : c.recorded
+      ? scriptedOutputs(c.recorded)
+      : fakeVisitorResponder;
   const plan = c.plan;
   const triageOutput: FakeScript =
     plan === undefined
@@ -198,6 +211,8 @@ async function runCase(c: Case) {
   const hours = hoursAt(fixture, at);
   const slots = systemSlots(hours, language);
   const facts = retrieve(c.tenant, query);
+  const persona = personaOf(c);
+  const texts = textsFor(language, persona);
   const result = await answerTurn(
     {
       facts,
@@ -214,22 +229,29 @@ async function runCase(c: Case) {
       plan,
       replies: dispatch.replies,
       minConfidence: DEFAULT_ROUTE_POLICY.minConfidence,
+      persona,
     },
     { llm, gateOpen: async () => true, publish: async () => {} },
   );
   // Each case is one conversation, so the notice is due whenever the business is closed.
   const notice =
-    hours && !hours.status.open
-      ? textsFor(language).afterHours(slots.get('next_open') ?? null)
-      : null;
+    hours && !hours.status.open ? texts.afterHours(slots.get('next_open') ?? null) : null;
+  // A failed reply closes with the fallback text, after anything already verified (turn.ts).
+  const text =
+    result.outcome === 'unavailable'
+      ? result.text
+        ? `${result.text} ${texts.fallback}`
+        : texts.fallback
+      : result.text;
   const reply: Reply = {
-    text: result.text,
+    text,
     factIds: result.factIds,
     outcome: result.outcome,
     notice,
+    disclosure: texts.disclosure(fixture.businessName),
     retrieved: facts.map((f) => f.id),
   };
-  return { reply, plan, route, dispatchError: dispatch.error, facts, hours, llm };
+  return { reply, plan, route, dispatchError: dispatch.error, facts, hours, llm, persona };
 }
 
 /** Why a case failed, or null: the plan's kinds, the route, the dispatch check, the reply. */
@@ -262,6 +284,7 @@ async function judged(c: Case, run: Awaited<ReturnType<typeof runCase>>): Promis
       messages: c.messages,
       reply: run.reply.text,
       facts: judgeFacts(run),
+      tone: e.criterion === 'tone' ? run.persona.tone : undefined,
     });
     if (!v.pass) return `judge ${e.criterion}: ${v.reason}`;
   }

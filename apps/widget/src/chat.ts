@@ -60,6 +60,14 @@ export function langOf(text: string): 'zh-Hans' | undefined {
   return HAN.test(text) ? 'zh-Hans' : undefined;
 }
 
+/** The tenant's greeting for the empty chat in the panel's locale (FEAT-024; SCR-WGT-002 greeting). */
+export function greetingFor(
+  greeting: { en: string; zh: string },
+  locale: 'en' | 'zh-Hans',
+): string {
+  return locale === 'zh-Hans' ? greeting.zh : greeting.en;
+}
+
 export interface Row {
   kind: 'disclosure' | 'notice' | 'message';
   key: string;

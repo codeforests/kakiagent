@@ -76,6 +76,22 @@ describe('judge', () => {
     expect(content).toContain('<reply>\nThe Chocolate fudge cake is S$55.00.\n</reply>');
   });
 
+  it("gives the tone criterion the tenant's tone, and other criteria none (FEAT-024)", async () => {
+    const { llm, calls } = gateway(() => '{"verdict":"fail","reason":"particle"}');
+    const input = {
+      messages: [{ role: 'user' as const, content: 'fudge cake how much ah' }],
+      reply: 'Fudge cake is S$55.00 lah.',
+    };
+    expect((await judge(llm, { ...input, criterion: 'tone', tone: 'professional' })).pass).toBe(
+      false,
+    );
+    await judge(llm, { ...input, criterion: 'register' });
+    expect(calls[0]!.messages[0]!.content).toContain('Criterion: tone');
+    expect(calls[0]!.messages[0]!.content).toContain('\nTone: professional\n');
+    expect(calls[0]!.messages[0]!.content).toContain('no Singlish particles');
+    expect(calls[1]!.messages[0]!.content).not.toContain('Tone:');
+  });
+
   it('counts a broken verdict or a failing provider as a fail', async () => {
     const broken = gateway(() => 'I think it passes');
     expect((await judge(broken.llm, { ...item('x', 'pass'), criterion: 'language' })).pass).toBe(

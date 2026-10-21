@@ -1,9 +1,11 @@
 import type { CreateFactBody, Fact, FactType, PolicyKind, UpdateFactBody } from '@kaki/contracts';
 import { Button, ErrorState } from '@kaki/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { api, ApiError } from '../lib/api.ts';
+import { Field } from '../lib/field.tsx';
+import { describedBy } from '../lib/form.ts';
 import { dayLabel, factTitle, POLICY_KIND_LABEL, promotionWindow, sgToday } from '../lib/facts.ts';
 import { DeleteFactDialog, type DeleteOutcome } from './delete-fact.tsx';
 import { StatusBadge } from './facts.tsx';
@@ -197,42 +199,6 @@ const DELETE_TOAST: Record<DeleteOutcome, string> = {
   deleted: 'Fact deleted.',
   'already-deleted': 'This fact was already deleted.',
 };
-
-function Field({
-  id,
-  label,
-  error,
-  help,
-  children,
-}: {
-  id: string;
-  label: string;
-  error?: string | undefined;
-  help?: ReactNode;
-  children: ReactNode;
-}) {
-  return (
-    <div className="field">
-      <label className="field__label" htmlFor={id}>
-        {label}
-      </label>
-      {children}
-      {help && (
-        <p className="field__help" id={`${id}-help`}>
-          {help}
-        </p>
-      )}
-      {error && (
-        <p className="field__error" id={`${id}-error`}>
-          <span aria-hidden="true">!</span> {error}
-        </p>
-      )}
-    </div>
-  );
-}
-
-const describedBy = (id: string, error?: string, help?: boolean) =>
-  [help && `${id}-help`, error && `${id}-error`].filter(Boolean).join(' ') || undefined;
 
 /** SCR-APP-028 Fact: create at `/knowledge/facts/new`, edit at `/knowledge/facts/:id` (KB-07, KB-15). */
 export function FactPage() {

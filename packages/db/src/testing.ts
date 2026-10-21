@@ -75,6 +75,9 @@ export async function startTestDatabase(): Promise<TestDatabase> {
     return u.toString();
   };
   const zones = new Map<TrustZone, ZoneDb>();
+  // `pool.end()` resolves before its clients have closed; stopping the container then
+  // terminates them mid-close, which surfaces as an unhandled 57P01 in the test run.
+  const open = new Set<pg.Client>();
   return {
     container,
     ownerUrl,
@@ -83,12 +86,18 @@ export async function startTestDatabase(): Promise<TestDatabase> {
       let z = zones.get(zone);
       if (!z) {
         z = createZoneDb(zone, urlFor(ZONE_ROLE[zone]), 4);
+        z.pool.on('connect', (client) => {
+          open.add(client);
+          client.once('end', () => open.delete(client));
+        });
         zones.set(zone, z);
       }
       return z;
     },
     async stop() {
+      const closing = [...open].map((c) => new Promise((r) => c.once('end', r)));
       await Promise.all([...zones.values()].map((z) => z.pool.end()));
+      await Promise.all(closing);
       if (container) await container.stop();
       else await ext!.stop();
     },
