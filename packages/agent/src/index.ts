@@ -26,6 +26,7 @@ export {
   TaskKind,
   triage,
   TRIAGE_OUTPUT_SCHEMA,
+  TRIAGE_SYSTEM,
   TurnPlanSchema,
   type TurnPlan,
 } from './plan.js';
@@ -55,6 +56,8 @@ export {
   type TaskResult,
 } from './dispatch.js';
 export { fakeVisitorResponder } from './fake-responder.js';
+export { leakGuard, LEAK_MARKERS, ruleText, WINDOW, type LeakGuard } from './guard.js';
+export { asData, buildVisitorPrompt } from './prompt.js';
 export { fakeAgentScript, fakeTriage } from './fake-triage.js';
 export { aiAllowed, type GateResult } from './gate.js';
 export { formatSgd, renderPrice, renderSegment, SG_GST_PERCENT, withGst } from './render.js';

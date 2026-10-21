@@ -12,20 +12,27 @@
  */
 import {
   answerTurn,
+  buildVisitorPrompt,
   dispatchPlan,
   fakeTriage,
   fakeVisitorResponder,
   hoursLines,
+  leakGuard,
   renderPrice,
+  assignRefs,
   replyLanguage,
   routeSignals,
+  safetyText,
   systemSlots,
   textsFor,
   triage,
+  TRIAGE_SYSTEM,
   visitorRegistry,
+  type ConversationPort,
   type DispatchContext,
   type HoursContext,
   type ReplyKey,
+  type SafetyKey,
   type TaskKind,
   type TurnPlan,
 } from '@kaki/agent';
@@ -101,16 +108,53 @@ const fixtures = Object.fromEntries(
           : [],
       ),
     );
-    return [name, { fixture, chunks, ctx: { fixture, renderedPrices } satisfies ScoreContext }];
+    // FEAT-025 `no-leak`: the rules of this tenant's reply prompt and of triage.
+    const sample = buildVisitorPrompt({
+      businessName: fixture.businessName,
+      gstRegistered: fixture.gstRegistered,
+      facts: assignRefs(fixture.facts),
+      ordered: fixture.facts,
+      history: [{ role: 'user', content: '?' }],
+      now: new Date('2026-10-21T03:00:00Z'),
+      meta: { tenantId: fixture.tenantId },
+      model: 'reply.simple',
+      language: 'en',
+      register: 'standard',
+      injection: true,
+      impersonation: true,
+      outOfScope: true,
+    });
+    const leak = leakGuard({ system: `${TRIAGE_SYSTEM}\n${sample.system}`, tail: sample.tail });
+    return [name, { fixture, chunks, renderedPrices, leak }];
   }),
 ) as Record<
   Case['tenant'],
   {
     fixture: Fixture & { facts: VisitorFact[] };
     chunks: { fact: VisitorFact; vector: number[] }[];
+    renderedPrices: Set<string>;
+    leak: ScoreContext['leak'];
     ctx: ScoreContext;
   }
 >;
+// What only the other fixture tenant has: its name, its texts and its own prices (GOV-03).
+for (const [name, f] of Object.entries(fixtures)) {
+  const other = Object.entries(fixtures).find(([n]) => n !== name)![1];
+  const foreign = [
+    other.fixture.businessName,
+    ...other.fixture.facts.flatMap((x) =>
+      x.type === 'faq'
+        ? [x.value.answer]
+        : x.type === 'policy'
+          ? [x.value.details]
+          : x.type === 'promotion'
+            ? [x.value.title]
+            : [],
+    ),
+    ...[...other.renderedPrices].filter((p) => !f.renderedPrices.has(p)),
+  ];
+  f.ctx = { fixture: f.fixture, renderedPrices: f.renderedPrices, leak: f.leak, foreign };
+}
 
 /** `lookup_kb` in memory: the same embedder, distance and limits as `visitor_chunks` (D1). */
 function retrieve(tenant: Case['tenant'], query: string): VisitorFact[] {
@@ -154,7 +198,8 @@ function fakeScript(c: Case): FakeScript {
 async function dispatchCheck(
   plan: TurnPlan,
   tenantId: string,
-): Promise<{ error: string | null; replies: ReplyKey[] }> {
+  conversation: ConversationPort,
+): Promise<{ error: string | null; replies: ReplyKey[]; endTurn: SafetyKey | null }> {
   const audited: string[] = [];
   const ctx: DispatchContext = {
     scope: 'visitor',
@@ -165,25 +210,54 @@ async function dispatchCheck(
     consentGiven: async () => false,
     boundaryRules: async () => null,
     audit: async (e) => void audited.push(`${e.task}:${e.outcome}`),
+    conversation,
   };
-  const { reports, replies } = await dispatchPlan(visitorRegistry, plan, ctx);
+  const { reports, replies, endTurn } = await dispatchPlan(visitorRegistry, plan, ctx);
   const planned = plan.tasks.filter((t) => t.kind !== 'answer').map((t) => t.kind);
   const reported = reports.map((r) => `${r.task}:${r.outcome}`);
   const expected = (kind: TaskKind) =>
     kind !== 'answer' && visitorRegistry.byKind.has(kind) ? 'done' : 'unhandled';
+  // A safety task ends the dispatch (ADR-025 decision 6): the rest are never run.
   const ok =
-    reports.length === planned.length &&
+    (endTurn !== undefined || reports.length === planned.length) &&
     reports.every((r) => r.outcome === expected(r.task)) &&
-    [...planned].sort().join() ===
-      reports
-        .map((r) => r.task)
-        .sort()
-        .join() &&
+    (endTurn !== undefined ||
+      [...planned].sort().join() ===
+        reports
+          .map((r) => r.task)
+          .sort()
+          .join()) &&
     audited.join() === reported.join();
   return {
     error: ok ? null : `dispatch ${JSON.stringify(reported)} for ${JSON.stringify(planned)}`,
     replies,
+    endTurn: endTurn?.key ?? null,
   };
+}
+
+/**
+ * The conversation port in memory (FEAT-025 §5.7): each case is one conversation, with
+ * `priorAbuse` earlier abuse turns.
+ */
+function memoryConversation(priorAbuse: number) {
+  const state = {
+    flags: [] as string[],
+    abuseTurns: new Set(Array.from({ length: priorAbuse }, (_, i) => `earlier-${i}`)),
+    aiEnded: false,
+  };
+  const port: ConversationPort = {
+    async flag(reason) {
+      if (!state.flags.includes(reason)) state.flags.push(reason);
+    },
+    async recordAbuse(turnId) {
+      state.abuseTurns.add(turnId);
+      return state.abuseTurns.size;
+    },
+    async endAi() {
+      state.aiEnded = true;
+    },
+  };
+  return { state, port };
 }
 
 /** The fixture's hours at the case's instant, as the worker computes them (FEAT-023 §5.7). */
@@ -205,7 +279,8 @@ async function runCase(c: Case) {
   const query = c.messages.filter((m) => m.role === 'user').at(-1)!.content;
   const at = new Date(c.at);
   const plan = await triage(llm, { history: c.messages, meta });
-  const dispatch = await dispatchCheck(plan, fixture.tenantId);
+  const conversation = memoryConversation(c.priorAbuse);
+  const dispatch = await dispatchCheck(plan, fixture.tenantId, conversation.port);
   const route = routeReply(routeSignals(plan, false), DEFAULT_ROUTE_POLICY);
   const language = replyLanguage(plan, query);
   const hours = hoursAt(fixture, at);
@@ -213,6 +288,24 @@ async function runCase(c: Case) {
   const facts = retrieve(c.tenant, query);
   const persona = personaOf(c);
   const texts = textsFor(language, persona);
+  const turnState = {
+    safety: dispatch.endTurn,
+    flags: conversation.state.flags,
+    aiEnded: conversation.state.aiEnded,
+  };
+  // A safety task ended the turn: its fixed text is the reply, as the worker stores it.
+  if (dispatch.endTurn) {
+    const reply: Reply = {
+      text: safetyText(texts, dispatch.endTurn, fixture.businessName),
+      factIds: [],
+      outcome: 'ended',
+      notice: dispatch.endTurn === 'abuse_ended' ? texts.chatEnded : null,
+      disclosure: texts.disclosure(fixture.businessName),
+      retrieved: facts.map((f) => f.id),
+      ...turnState,
+    };
+    return { reply, plan, route: null, dispatchError: dispatch.error, facts, hours, llm, persona };
+  }
   const result = await answerTurn(
     {
       facts,
@@ -250,6 +343,7 @@ async function runCase(c: Case) {
     notice,
     disclosure: texts.disclosure(fixture.businessName),
     retrieved: facts.map((f) => f.id),
+    ...turnState,
   };
   return { reply, plan, route, dispatchError: dispatch.error, facts, hours, llm, persona };
 }

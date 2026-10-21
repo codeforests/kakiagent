@@ -256,6 +256,8 @@ describe('the leak guard (FEAT-025 AC-3; D5)', () => {
 
   it('never scans slot renderings, fact values or the platform’s own texts', () => {
     const rules = ruleText(req);
+    expect(rules).toContain('never discuss other customers, leads, costs, settings');
+    expect(rules).not.toContain('Name: Kaki Bakery');
     expect(rules).not.toContain('Chocolate fudge cake');
     expect(rules).not.toContain('Cancel at least');
     const rendered = 'Reply language: English';

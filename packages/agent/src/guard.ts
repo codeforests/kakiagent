@@ -48,7 +48,8 @@ export function windows(text: string): Set<string> {
  */
 export function ruleText(req: Pick<GenerateRequest, 'system' | 'tail'>): string {
   const system = req.system ?? '';
-  const cut = system.indexOf('<business>');
+  // The block opens on a line of its own; the rules also name it in passing.
+  const cut = system.search(/^<business>$/m);
   const tail = (req.tail ?? '').replace(/<facts>[\s\S]*?<\/facts>/u, ' ');
   return `${cut === -1 ? system : system.slice(0, cut)}\n${tail}`;
 }

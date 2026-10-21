@@ -57,7 +57,7 @@ const TOPICS: [string, RegExp][] = [
 const INJECTION =
   /\b(ignore (all |your |the )?(previous |prior |above )?(instructions|rules)|system prompt|your (instructions|rules|prompt)|developer mode|jailbreak|pretend (you are|to be)|you are now|act as|DAN)\b|忽略(之前|以上|所有)?的?(指令|规则)|系统提示/i;
 const IMPERSONATION =
-  /\b(i'?m|i am|this is) (the )?(owner|boss|manager|admin|staff|developer)\b|\b(show|give|list|send) me (the |all |today'?s )?(leads|customers|customer list|contacts|orders of others|settings|costs?)\b|我是老板|我是(这里的)?员工|客户名单/i;
+  /\b(i'?m|i am|this is) (the )?(owner|boss|manager|admin|staff|developer)\b|\b(show|give|list|send)( me)? (the |all |today'?s )?(leads|customers|customer list|contacts|orders of others|settings|costs?)\b|我是老板|我是(这里的)?员工|客户名单/i;
 
 /**
  * What the fake triage model returns in local development and E2E (plan §2, P10): a
@@ -70,11 +70,12 @@ export function fakeTriage(req: GenerateRequest): string {
   const kinds = RULES.filter(([, re]) => re.test(text)).map(([k]) => k);
   const topic = TOPICS.find(([, re]) => re.test(text))?.[0];
   if (topic && !kinds.includes('out_of_scope')) kinds.push('out_of_scope');
-  if (
-    !kinds.includes('crisis') &&
-    /[?？]|\b(how much|got|what|when|where|price|open)\b|多少|几点|有没有/i.test(text)
-  )
-    tasks.push({ kind: 'answer', args: [] });
+  // A question goes with an answer task; beside an advice or illegal topic, only a
+  // question about the business does (FEAT-025).
+  const question = topic
+    ? /\b(how much|price|got|open|cake|kueh|deliver)\b|多少|几点|有没有|蛋糕/i
+    : /[?？]|\b(how much|got|what|when|where|price|open)\b|多少|几点|有没有/i;
+  if (!kinds.includes('crisis') && question.test(text)) tasks.push({ kind: 'answer', args: [] });
   for (const kind of kinds)
     tasks.push({
       kind,
