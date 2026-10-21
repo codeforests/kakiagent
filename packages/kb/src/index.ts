@@ -81,3 +81,34 @@ export {
   type WebsiteScope,
 } from './ingest/scope.js';
 export { DEFAULT_SEARCH, searchVisitorFacts, type SearchOptions } from './visitor.js';
+export {
+  crawlSource,
+  MAX_PAGE_TEXT,
+  StaleRunError,
+  type CrawlOptions,
+  type CrawlOutcome,
+  type FetchedPage,
+  type PageFetcher,
+} from './ingest/crawl.js';
+export { BOT_USER_AGENT, parseRobots, robotsPolicy, type RobotsPolicy } from './ingest/robots.js';
+export {
+  EXTRACTION_SCHEMA,
+  EXTRACTION_SYSTEM,
+  ExtractionUnavailableError,
+  extractSource,
+  locateQuote,
+  parseExtraction,
+  priceCents,
+  type DropReason,
+  type ExtractOptions,
+  type StagedFact,
+} from './ingest/extract.js';
+export { fakeExtractScript } from './ingest/fake-extract.js';
+export { promoteSource } from './ingest/promote.js';
+export {
+  DEFAULT_MAX_ATTEMPTS,
+  runIngestJob,
+  type IngestDeps,
+  type IngestJobBody,
+  type IngestOutcome,
+} from './ingest/job.js';
