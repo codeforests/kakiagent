@@ -6,6 +6,7 @@
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { TENANT_SCOPED_TABLES } from '../src/schema.js';
+import { BAKERY_HOURS } from '../src/setup.js';
 import { startTestDatabase, TENANT_A, TENANT_B, type TestDatabase } from '../src/testing.js';
 
 let tdb: TestDatabase;
@@ -354,7 +355,7 @@ describe('facts and the visitor views', () => {
         route_complexity_threshold: 0.6,
         route_min_confidence: 0.5,
         cost_governor_step: 0,
-        hours: null,
+        hours: BAKERY_HOURS,
         open_on_public_holidays: false,
       },
     ]);
