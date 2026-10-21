@@ -1136,3 +1136,100 @@ a.settings-row:hover {
     top: var(--space-5);
   }
 }
+
+/* FEAT-009: business profile, the hours editor, holidays and suggestions (ui-design SCR-APP-044). */
+.profile-page {
+  max-width: var(--size-reading-max);
+}
+.subsection-title {
+  margin: 0;
+  font-size: var(--type-body-size);
+  font-weight: var(--font-weight-semibold);
+}
+.hours-grid,
+.holiday-list,
+.closure-list,
+.suggestion-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.hours-grid,
+.closure-list {
+  gap: var(--space-4);
+}
+.hours-day {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--color-border-default);
+}
+.hours-day__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+.hours-day__name {
+  min-width: var(--space-11);
+  font-weight: var(--font-weight-medium);
+}
+.hours-day__closed {
+  color: var(--color-text-secondary);
+}
+.hours-day__ranges {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.hours-range {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+.hours-range .input {
+  width: auto;
+  flex: 1 1 calc(var(--space-11) * 1.5);
+  max-width: calc(var(--space-11) * 2);
+}
+.hours-day__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.holiday-list__row,
+.suggestion-list__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border-default);
+}
+.holiday-list__day {
+  font-weight: var(--font-weight-medium);
+}
+.closure-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: end;
+  gap: var(--space-3);
+}
+@media (min-width: 768px) {
+  .closure-row {
+    grid-template-columns: 1fr 2fr auto;
+  }
+}
+.suggestion-list__text {
+  display: flex;
+  flex: 1 1 calc(var(--space-11) * 3);
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.suggestion-list__question {
+  font-weight: var(--font-weight-medium);
+}

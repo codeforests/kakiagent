@@ -1,5 +1,6 @@
 import { createBrowserRouter } from 'react-router';
 import { AssistantPage } from './pages/assistant.tsx';
+import { BusinessProfilePage, SetupProfilePage } from './pages/business-profile.tsx';
 import { Placeholder } from './pages/placeholder.tsx';
 import { FactPage } from './pages/fact.tsx';
 import { FactsPage } from './pages/facts.tsx';
@@ -30,8 +31,8 @@ export const router = createBrowserRouter([
     element: <AppShell />,
     children: [
       { index: true, element: <HomePage /> },
-      // The setup wizard's entry (UC-03 step 1); FEAT-009 builds it.
-      { path: 'setup', element: <Placeholder title="Set up your assistant" feature="FEAT-009" /> },
+      // The setup wizard's first step (UC-03 1–3; FEAT-009); FEAT-035 adds the wizard frame.
+      { path: 'setup', element: <SetupProfilePage /> },
       { path: 'inbox', element: <InboxPage /> },
       { path: 'approvals', element: <Placeholder title="Approvals" feature="FEAT-055" /> },
       { path: 'review', element: <Placeholder title="Review" feature="FEAT-013" /> },
@@ -42,9 +43,11 @@ export const router = createBrowserRouter([
       { path: 'coach', element: <Placeholder title="Coach" feature="FEAT-027" /> },
       { path: 'leads', element: <Placeholder title="Leads" feature="FEAT-049" /> },
       { path: 'insights', element: <Placeholder title="Insights" feature="FEAT-066" /> },
-      // Settings index and Assistant (FEAT-024); the other sections link as they are built.
+      // Settings index and Assistant (FEAT-024), Business profile (FEAT-009); the other
+      // sections link as they are built.
       { path: 'settings', element: <SettingsPage /> },
       { path: 'settings/assistant', element: <AssistantPage /> },
+      { path: 'settings/business-profile', element: <BusinessProfilePage /> },
       { path: 'more', element: <MorePage /> },
       { path: 'no-permission', element: <NoPermission /> },
       { path: '*', element: <NotFound /> },

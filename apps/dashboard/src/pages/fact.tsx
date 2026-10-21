@@ -2,7 +2,7 @@ import type { CreateFactBody, Fact, FactType, PolicyKind, UpdateFactBody } from 
 import { Button, ErrorState } from '@kaki/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { api, ApiError } from '../lib/api.ts';
 import { Field } from '../lib/field.tsx';
 import { describedBy } from '../lib/form.ts';
@@ -203,6 +203,7 @@ const DELETE_TOAST: Record<DeleteOutcome, string> = {
 /** SCR-APP-028 Fact: create at `/knowledge/facts/new`, edit at `/knowledge/facts/:id` (KB-07, KB-15). */
 export function FactPage() {
   const { id } = useParams();
+  const [search] = useSearchParams();
   const editing = id !== undefined;
   const loaded = useQuery({
     queryKey: ['fact', id],
@@ -211,7 +212,7 @@ export function FactPage() {
     retry: (n, err) => !(err instanceof ApiError) && n < 1,
   });
 
-  if (!editing) return <FactForm fact={null} />;
+  if (!editing) return <FactForm fact={null} prefill={prefillOf(search)} />;
   if (loaded.error instanceof ApiError && loaded.error.status === 404) return <NotFound />;
   if (loaded.isError)
     return (
@@ -237,10 +238,19 @@ export function FactPage() {
   );
 }
 
-function FactForm({ fact }: { fact: Fact | null }) {
+/**
+ * A new fact started elsewhere: `?type=faq&question=…` from the business profile's
+ * suggested questions (FEAT-009 ui-design). Both stay editable.
+ */
+function prefillOf(search: URLSearchParams): Draft {
+  const type = TYPE_OPTIONS.find((o) => o.value === search.get('type'))?.value ?? BLANK.type;
+  return { ...BLANK, type, question: (search.get('question') ?? '').slice(0, 300) };
+}
+
+function FactForm({ fact, prefill = BLANK }: { fact: Fact | null; prefill?: Draft }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [draft, setDraft] = useState<Draft>(fact ? fromFact(fact) : BLANK);
+  const [draft, setDraft] = useState<Draft>(fact ? fromFact(fact) : prefill);
   const [touched, setTouched] = useState<Partial<Record<FieldName, boolean>>>({});
   const [submitted, setSubmitted] = useState(false);
   const [deleting, setDeleting] = useState(false);

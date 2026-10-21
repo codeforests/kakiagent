@@ -490,7 +490,7 @@ export const WeeklyHoursInput = z.object(
 export type WeeklyHoursInput = z.infer<typeof WeeklyHoursInput>;
 
 export const HolidayException = z.object({
-  day: SgDate.refine((s) => s !== '', 'Choose a date for each closure'),
+  day: z.string().min(1, 'Choose a date for each closure').pipe(SgDate),
   kind: z.enum(['open', 'closed']),
   label: z
     .string()
