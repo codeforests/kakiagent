@@ -1,6 +1,13 @@
 import type { Persona } from '@kaki/tenancy';
 import { describe, expect, it } from 'vitest';
-import { assistantDefaults, DEFAULT_GREETING, texts, textsFor } from './texts.js';
+import {
+  assistantDefaults,
+  CRISIS_CONTACTS,
+  DEFAULT_GREETING,
+  safetyText,
+  texts,
+  textsFor,
+} from './texts.js';
 
 const NONE = { en: null, zh: null };
 const persona = (p: Partial<Persona> = {}): Persona => ({
@@ -94,5 +101,37 @@ describe('system texts with a persona (FEAT-024 §5.2; AC-5, AC-6, AC-7)', () =>
     expect(d.afterHoursLead.en).toBe("We're closed right now. The team will be back {when}.");
     expect(d.fallbackMessage.en).toBe(texts.fallback);
     expect(d.afterHoursMessage.zh).toBe('在此期间，我仍可以为您解答问题。');
+  });
+});
+
+describe('safety texts (FEAT-025 §5.3, D6)', () => {
+  it('has every safety text in both languages, with the business name where it belongs', () => {
+    for (const lang of ['en', 'zh'] as const) {
+      const t = textsFor(lang, persona({ fallbackMessage: { en: 'x', zh: 'y' } }));
+      for (const f of [t.injection, t.impersonation, t.advice, t.illegal, t.abuseWarning])
+        expect(f('Kaki Bakery')).toContain('Kaki Bakery');
+      for (const s of [t.crisis, t.abuseEnded, t.chatEnded]) expect(s.length).toBeGreaterThan(5);
+    }
+  });
+
+  it('the crisis text carries the SG contacts in both languages; Chinese adds the Mandarin line', () => {
+    const { emergency, sos, sosWhatsApp, mindline, careCornerMandarin } = CRISIS_CONTACTS;
+    for (const lang of ['en', 'zh'] as const)
+      for (const n of [emergency, sos, sosWhatsApp, mindline])
+        expect(textsFor(lang).crisis).toContain(n);
+    expect(textsFor('zh').crisis).toContain(careCornerMandarin);
+    expect(textsFor('zh').crisis).toMatch(/\p{Script=Han}/u);
+    expect(textsFor('en').crisis).not.toMatch(/\p{Script=Han}/u);
+  });
+
+  it('safetyText renders each key, and tenant wording never replaces a safety text', () => {
+    const t = textsFor('en', persona({ fallbackMessage: { en: 'Custom', zh: null } }));
+    expect(safetyText(t, 'crisis', 'Kaki Bakery')).toBe(textsFor('en').crisis);
+    expect(safetyText(t, 'abuse_warning', 'Kaki Bakery')).toBe(
+      "I'm here to help with questions about Kaki Bakery. Please keep the conversation respectful.",
+    );
+    expect(safetyText(textsFor('zh'), 'abuse_ended', 'Kaki Bakery')).toBe(
+      '我现在结束这次对话。我们的团队可以看到这段对话。',
+    );
   });
 });

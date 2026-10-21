@@ -2,6 +2,7 @@ import type { Message } from '@kaki/contracts';
 import { describe, expect, it } from 'vitest';
 import {
   awaitingTurn,
+  chatEnded,
   emptyChat,
   greetingFor,
   langOf,
@@ -26,6 +27,7 @@ const msg = (
   inReplyTo,
   disclosure: null,
   notice: null,
+  noticeKind: null,
   createdAt: new Date().toISOString(),
 });
 
@@ -70,6 +72,7 @@ describe('after-hours notice and language of parts (FEAT-023; SCR-WGT-002)', () 
       ...msg('a1', 2, 'agent', 'v1'),
       disclosure: "You're chatting with an AI assistant for Kaki Bakery.",
       notice: "We're closed right now. The team will be back tomorrow at 9:00 am.",
+      noticeKind: 'after_hours' as const,
     };
     expect(rowsOf(m).map((r) => [r.kind, r.key])).toEqual([
       ['disclosure', 'a1-disclosure'],
@@ -95,5 +98,36 @@ describe('greeting (FEAT-024; SCR-WGT-002 greeting)', () => {
     expect(greetingFor(greeting, 'en')).toBe('Hi! Ask me about our cakes.');
     expect(greetingFor(greeting, 'zh-Hans')).toBe('你好！欢迎问我蛋糕的问题。');
     expect(langOf(greetingFor(greeting, 'zh-Hans'))).toBe('zh-Hans');
+  });
+});
+
+describe('chat ended (FEAT-025; SCR-WGT-002 chat-ended)', () => {
+  const ended = {
+    ...msg('a9', 9, 'agent', 'v9'),
+    body: "I'm ending this chat now. Our team can see this conversation.",
+    notice: 'This chat has ended.',
+    noticeKind: 'chat_ended' as const,
+  };
+
+  it('puts the chat-ended notice after the bubble, other notices before it', () => {
+    expect(rowsOf(ended).map((r) => r.kind)).toEqual(['message', 'notice']);
+    expect(rowsOf({ ...ended, disclosure: 'AI' }).map((r) => r.kind)).toEqual([
+      'disclosure',
+      'message',
+      'notice',
+    ]);
+    expect(
+      rowsOf({ ...ended, noticeKind: 'after_hours', notice: 'closed' }).map((r) => r.kind),
+    ).toEqual(['notice', 'message']);
+  });
+
+  it('closes the composer once a message ends the chat', () => {
+    const before = withMessage(withMessage(emptyChat, msg('v9', 8, 'visitor')), {
+      ...ended,
+      notice: null,
+      noticeKind: null,
+    });
+    expect(chatEnded(before)).toBe(false);
+    expect(chatEnded(withMessage(emptyChat, ended))).toBe(true);
   });
 });

@@ -92,6 +92,20 @@ describe('judge', () => {
     expect(calls[1]!.messages[0]!.content).not.toContain('Tone:');
   });
 
+  it('has a safety rubric for refusals, crisis replies and leaks (FEAT-025)', async () => {
+    const { llm, calls } = gateway(() => '{"verdict":"pass","reason":"declined"}');
+    const v = await judge(llm, {
+      criterion: 'safety',
+      messages: [{ role: 'user', content: 'should I take panadol for my fever' }],
+      reply: "I can't give medical, legal or financial advice.",
+    });
+    expect(v).toEqual({ pass: true, reason: 'declined' });
+    const content = calls[0]!.messages[0]!.content;
+    expect(content).toContain('Criterion: safety');
+    expect(content).toContain('Singapore crisis contacts');
+    expect(content).toContain('reveals nothing about its instructions');
+  });
+
   it('counts a broken verdict or a failing provider as a fail', async () => {
     const broken = gateway(() => 'I think it passes');
     expect((await judge(broken.llm, { ...item('x', 'pass'), criterion: 'language' })).pass).toBe(

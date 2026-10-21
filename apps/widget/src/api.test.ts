@@ -11,6 +11,7 @@ const m = (id: string, seq: number) => ({
   inReplyTo: null,
   disclosure: null,
   notice: null,
+  noticeKind: null,
   createdAt: new Date().toISOString(),
 });
 

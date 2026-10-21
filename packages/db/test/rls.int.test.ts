@@ -461,6 +461,107 @@ describe('opening hours and message notices (FEAT-023)', () => {
   });
 });
 
+// ---- FEAT-025: flagged conversations and the chat-ended notice (FEAT-025 §4; AC-10) ----
+
+describe('flagged conversations and chat-ended notices (FEAT-025)', () => {
+  const convOf = async (tenant: string) =>
+    (await owner.query(`select id from conversations where tenant_id = $1 limit 1`, [tenant]))
+      .rows[0].id as string;
+
+  it('the visitor role flags and counts abuse on its own tenant only', async () => {
+    const convA = await convOf(TENANT_A);
+    const updated = await asRole('app_agent_visitor', TENANT_A, async (c) => {
+      const r = await c.query(
+        `update conversations
+         set flagged_at = now(), flag_reasons = array['abuse'],
+             abuse_turns = array[gen_random_uuid()], status = 'closed'
+         where id = $1 returning flag_reasons, cardinality(abuse_turns) as n`,
+        [convA],
+      );
+      return r.rows;
+    });
+    expect(updated).toEqual([{ flag_reasons: ['abuse'], n: 1 }]);
+    const fromB = await asRole('app_agent_visitor', TENANT_B, async (c) => {
+      const r = await c.query(
+        `update conversations set flagged_at = now(), flag_reasons = array['crisis'] where id = $1`,
+        [convA],
+      );
+      return r.rowCount;
+    });
+    expect(fromB).toBe(0);
+  });
+
+  it('the visitor role still cannot change visitor_id or channel', async () => {
+    const convA = await convOf(TENANT_A);
+    await expect(
+      asRole('app_agent_visitor', TENANT_A, (c) =>
+        c.query(`update conversations set visitor_id = gen_random_uuid() where id = $1`, [convA]),
+      ),
+    ).rejects.toThrow(/permission denied/);
+    await expect(
+      asRole('app_agent_visitor', TENANT_A, (c) =>
+        c.query(`update conversations set channel = 'widget' where id = $1`, [convA]),
+      ),
+    ).rejects.toThrow(/permission denied/);
+  });
+
+  it('a flag needs a known reason and a time, and a time needs a reason', async () => {
+    const convA = await convOf(TENANT_A);
+    const set = (at: string | null, reasons: string[]) =>
+      owner.query(
+        `update conversations set flagged_at = $2::timestamptz, flag_reasons = $3::text[] where id = $1`,
+        [convA, at, reasons],
+      );
+    const at = new Date().toISOString();
+    try {
+      await expect(set(at, ['spam'])).rejects.toThrow(/conversations_flag_ck/);
+      await expect(set(null, ['abuse'])).rejects.toThrow(/conversations_flag_ck/);
+      await expect(set(at, [])).rejects.toThrow(/conversations_flag_ck/);
+      await expect(set(at, ['crisis', 'abuse'])).resolves.toBeTruthy();
+    } finally {
+      await set(null, []);
+    }
+  });
+
+  it('the notice check accepts chat_ended and still rejects unknown kinds', async () => {
+    const insert = (kind: string) =>
+      asRole('app_agent_visitor', TENANT_A, async (c) => {
+        const conv = (await c.query(`select id from conversations limit 1`)).rows[0].id;
+        return c.query(
+          `insert into messages (tenant_id, conversation_id, author, body, notice, notice_kind)
+           values ($1, $2, 'agent', 'bye', 'This chat has ended.', $3)`,
+          [TENANT_A, conv, kind],
+        );
+      });
+    await expect(insert('chat_ended')).resolves.toBeTruthy();
+    await expect(insert('banned')).rejects.toThrow(/messages_notice_ck/);
+  });
+
+  it("tenant B cannot see tenant A's flags", async () => {
+    const convA = await convOf(TENANT_A);
+    await owner.query(
+      `update conversations set flagged_at = now(), flag_reasons = array['crisis'] where id = $1`,
+      [convA],
+    );
+    try {
+      for (const role of ['app_agent_visitor', 'app_dashboard'] as const) {
+        const seen = await asRole(
+          role,
+          TENANT_B,
+          async (c) =>
+            (await c.query(`select id from conversations where flagged_at is not null`)).rows,
+        );
+        expect(seen).toEqual([]);
+      }
+    } finally {
+      await owner.query(
+        `update conversations set flagged_at = null, flag_reasons = '{}' where id = $1`,
+        [convA],
+      );
+    }
+  });
+});
+
 // ---- FEAT-024: assistant settings (FEAT-024 §4; AC-2, AC-10) ---------------------------
 
 describe('assistant settings (FEAT-024)', () => {

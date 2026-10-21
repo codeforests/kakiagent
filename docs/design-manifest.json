@@ -338,7 +338,8 @@
           "host-pale-brand-clamped",
           "typing",
           "error",
-          "after-hours"
+          "after-hours",
+          "chat-ended"
         ],
         "gaps": [
           "rate-limited",
@@ -380,6 +381,11 @@
             "state": "greeting",
             "strategy": "code-native",
             "source": "features/FEAT-024-assistant-persona/ui-design.md#greeting"
+          },
+          {
+            "state": "chat-ended",
+            "strategy": "code-native",
+            "source": "features/FEAT-025-safety/ui-design.md#chat-ended"
           }
         ]
       },
@@ -388,7 +394,8 @@
         "SSE event: message",
         "SSE event: segment",
         "Message.notice (FEAT-023)",
-        "GET /widget/v1/config (botName, greeting; FEAT-024)"
+        "GET /widget/v1/config (botName, greeting; FEAT-024)",
+        "Message.noticeKind (FEAT-025)"
       ],
       "conformance": {
         "result": "pass",

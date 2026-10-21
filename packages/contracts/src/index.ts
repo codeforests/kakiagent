@@ -16,6 +16,8 @@ export const Message = z.object({
   disclosure: z.string().nullable(),
   /** A system notice shown with this message, server-rendered (AGT-09 after hours, FEAT-023). */
   notice: z.string().nullable(),
+  /** What the notice is (FEAT-025): `chat_ended` closes the widget's composer. */
+  noticeKind: z.enum(['after_hours', 'chat_ended']).nullable(),
   createdAt: z.iso.datetime({ offset: true }),
 });
 export type Message = z.infer<typeof Message>;
@@ -26,6 +28,9 @@ export const ConversationSummary = z.object({
   status: z.enum(['ai', 'human', 'closed']),
   lastMessageAt: z.iso.datetime({ offset: true }),
   lastMessage: z.string().nullable(),
+  /** When the conversation was first flagged for staff, and why (AGT-13, FEAT-025). */
+  flaggedAt: z.iso.datetime({ offset: true }).nullable(),
+  flagReasons: z.array(z.enum(['abuse', 'crisis'])),
 });
 export type ConversationSummary = z.infer<typeof ConversationSummary>;
 

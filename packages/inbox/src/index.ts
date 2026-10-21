@@ -1,6 +1,6 @@
 import type { ConversationSummary, Message } from '@kaki/contracts';
 import { and, asc, desc, eq, gt, gte, lte, schema, sql, type Tx } from '@kaki/db';
-import { audit } from '@kaki/governance';
+import { audit, auditCode } from '@kaki/governance';
 import { piiMask } from '@kaki/platform';
 import { enqueue } from '@kaki/platform/outbox';
 
@@ -15,6 +15,7 @@ export class NotFoundError extends Error {}
 
 type MessageRow = typeof schema.messages.$inferSelect;
 export type NoticeKind = (typeof schema.NOTICE_KINDS)[number];
+export type FlagReason = (typeof schema.FLAG_REASONS)[number];
 type ConversationRow = typeof schema.conversations.$inferSelect;
 
 export function toMessage(row: MessageRow): Message {
@@ -27,6 +28,7 @@ export function toMessage(row: MessageRow): Message {
     inReplyTo: row.inReplyTo,
     disclosure: row.disclosure,
     notice: row.notice,
+    noticeKind: row.noticeKind,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -38,6 +40,8 @@ export function toSummary(row: ConversationRow, lastMessage: string | null): Con
     status: row.status,
     lastMessageAt: row.lastMessageAt.toISOString(),
     lastMessage,
+    flaggedAt: row.flaggedAt?.toISOString() ?? null,
+    flagReasons: row.flagReasons,
   };
 }
 
@@ -360,4 +364,93 @@ export async function noticeSince(
     )
     .limit(1);
   return Boolean(row);
+}
+
+/**
+ * Flags the conversation for staff (AGT-13; FEAT-025 §5.5): the first flag sets
+ * `flagged_at`, and each reason is kept once. Audited only when the reason is new, so a
+ * repeated crisis message or a redelivered turn doesn't add entries.
+ */
+export async function flagConversation(
+  tx: Tx,
+  tenantId: string,
+  conversationId: string,
+  reason: FlagReason,
+): Promise<ConversationRow | null> {
+  const c = schema.conversations;
+  const [row] = await tx
+    .update(c)
+    .set({
+      flaggedAt: sql`coalesce(${c.flaggedAt}, now())`,
+      flagReasons: sql`array_append(${c.flagReasons}, ${reason}::text)`,
+    })
+    .where(
+      and(
+        eq(c.tenantId, tenantId),
+        eq(c.id, conversationId),
+        sql`not (${reason}::text = any(${c.flagReasons}))`,
+      ),
+    )
+    .returning();
+  if (!row) return getConversation(tx, tenantId, conversationId);
+  await audit.append(tx, tenantId, {
+    action: 'conversation.flagged',
+    actorType: 'agent',
+    subjectType: 'conversation',
+    subjectId: conversationId,
+    payload: { reason: auditCode(reason) },
+  });
+  return row;
+}
+
+/**
+ * Records that triage tagged this turn (the visitor message `turnId`) as abuse and
+ * returns how many distinct abuse turns the conversation has (FEAT-025 D2). Counting
+ * turn IDs keeps a redelivered turn from counting twice.
+ */
+export async function recordAbuse(
+  tx: Tx,
+  tenantId: string,
+  conversationId: string,
+  turnId: string,
+): Promise<number> {
+  const c = schema.conversations;
+  const [row] = await tx
+    .update(c)
+    .set({
+      abuseTurns: sql`case when ${turnId}::uuid = any(${c.abuseTurns}) then ${c.abuseTurns}
+                      else array_append(${c.abuseTurns}, ${turnId}::uuid) end`,
+    })
+    .where(and(eq(c.tenantId, tenantId), eq(c.id, conversationId)))
+    .returning({ n: sql<number>`cardinality(${c.abuseTurns})::int` });
+  if (!row) throw new NotFoundError('conversation not found');
+  return row.n;
+}
+
+/**
+ * Ends the AI's part in the conversation (AGT-13 repeated abuse; FEAT-025 D2): an AI
+ * conversation becomes `closed`, so the send gate keeps the AI silent (ADR-013 d3).
+ * FEAT-042's INB-08 transitions replace this with the state machine.
+ */
+export async function endAiConversation(
+  tx: Tx,
+  tenantId: string,
+  conversationId: string,
+  reason: FlagReason,
+): Promise<boolean> {
+  const c = schema.conversations;
+  const [row] = await tx
+    .update(c)
+    .set({ status: 'closed' })
+    .where(and(eq(c.tenantId, tenantId), eq(c.id, conversationId), eq(c.status, 'ai')))
+    .returning({ id: c.id });
+  if (!row) return false;
+  await audit.append(tx, tenantId, {
+    action: 'conversation.ai_ended',
+    actorType: 'agent',
+    subjectType: 'conversation',
+    subjectId: conversationId,
+    payload: { reason: auditCode(reason) },
+  });
+  return true;
 }

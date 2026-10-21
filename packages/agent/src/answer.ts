@@ -14,15 +14,24 @@ import { textsFor } from './texts.js';
  * by the worker and the eval runner so both run the same code.
  */
 
-export type AnswerOutcome = ComposeOutcome | 'out_of_scope' | 'unsure';
+/** `refused` (FEAT-025): an injection, impersonation, advice or illegal-request text. */
+export type AnswerOutcome = ComposeOutcome | 'out_of_scope' | 'unsure' | 'refused';
 
 export interface ReplyPlan {
   /** Call the reply model. */
   compose: boolean;
   /** The fixed text that replaces the model's reply, if any. */
-  lead: 'out_of_scope' | 'unsure' | null;
+  lead: ReplyKey | 'unsure' | null;
   /** System texts released after the verified reply (or after `lead`). */
   closing: ReplyKey[];
+}
+
+/** The triage flags' refusals (FEAT-025 §5.3), ahead of any task's text. */
+function flagKeys(plan: TurnPlan): ReplyKey[] {
+  return [
+    ...(plan.flags.injection ? (['injection'] as const) : []),
+    ...(plan.flags.impersonation ? (['impersonation'] as const) : []),
+  ];
 }
 
 export function replyPlan(input: {
@@ -34,15 +43,27 @@ export function replyPlan(input: {
 }): ReplyPlan {
   const { plan, replies } = input;
   const hasAnswer = plan.tasks.some((t) => t.kind === 'answer');
-  // 1. Nothing to answer, and a task said what to say: no model call.
+  const flags = flagKeys(plan);
+  // 1. Nothing to answer, and a task or a flag said what to say: no model call. A task's
+  // text leads (FEAT-023 kept); a flag's text, which already offers help with the
+  // business, stands alone.
   if (!hasAnswer && replies.length)
-    return { compose: false, lead: 'out_of_scope', closing: replies.slice(1) };
-  // 2. Unsure and nothing in the KB: say so rather than guess.
+    return { compose: false, lead: replies[0]!, closing: replies.slice(1) };
+  if (!hasAnswer && flags.length) return { compose: false, lead: flags[0]!, closing: [] };
+  // 2. A flagged message with nothing public to give (UC-20 3d): the flag's text (FEAT-025).
+  if (hasAnswer && flags.length && input.factCount === 0)
+    return { compose: false, lead: flags[0]!, closing: [] };
+  // 3. Unsure and nothing in the KB: say so rather than guess.
   const lowConfidence = plan.fallback || plan.confidence < input.minConfidence;
   if (hasAnswer && input.factCount === 0 && lowConfidence)
     return { compose: false, lead: 'unsure', closing: replies };
-  // 3. A grounded, verified reply, then any task texts.
+  // 4. A grounded, verified reply, then any task texts. The flags reach the model's tail.
   return { compose: true, lead: null, closing: replies };
+}
+
+/** The outcome of a fixed lead text (FEAT-023, FEAT-025). */
+function leadOutcome(lead: ReplyKey | 'unsure'): AnswerOutcome {
+  return lead === 'out_of_scope' || lead === 'unsure' ? lead : 'refused';
 }
 
 export interface AnswerInput extends ComposeInput {
@@ -59,7 +80,21 @@ export type AnswerResult = Omit<ComposeResult, 'outcome'> & {
 
 function render(key: ReplyKey | 'unsure', input: AnswerInput): string {
   const t = textsFor(input.language ?? 'en', input.persona);
-  return key === 'unsure' ? t.unsure : t.outOfScope(input.businessName);
+  const b = input.businessName;
+  switch (key) {
+    case 'unsure':
+      return t.unsure;
+    case 'out_of_scope':
+      return t.outOfScope(b);
+    case 'advice':
+      return t.advice(b);
+    case 'illegal':
+      return t.illegal(b);
+    case 'injection':
+      return t.injection(b);
+    case 'impersonation':
+      return t.impersonation(b);
+  }
 }
 
 /** Runs `replyPlan`, then a fixed text or the verified-segment pipeline, plus the closing texts. */
@@ -78,7 +113,7 @@ export async function answerTurn(input: AnswerInput, deps: ComposeDeps): Promise
     if (open) await deps.publish({ seq: 0, text });
     const ms = Math.round(now() - start);
     return {
-      outcome: open ? decided.lead! : 'gate_closed',
+      outcome: open ? leadOutcome(decided.lead!) : 'gate_closed',
       composed: false,
       text: open ? text : '',
       segments: open ? [text] : [],
@@ -92,7 +127,12 @@ export async function answerTurn(input: AnswerInput, deps: ComposeDeps): Promise
     };
   }
   const composed = await composeReply(
-    { ...input, outOfScope: input.replies.includes('out_of_scope') },
+    {
+      ...input,
+      outOfScope: input.replies.some((k) => k !== 'injection' && k !== 'impersonation'),
+      injection: input.plan.flags.injection,
+      impersonation: input.plan.flags.impersonation,
+    },
     deps,
   );
   const result: AnswerResult = { ...composed, composed: true };

@@ -218,6 +218,24 @@ describe('sessions and workspaces', () => {
     });
   });
 
+  it('lists a flagged conversation with its flag (FEAT-025 AC-11)', async () => {
+    const conv = (
+      await owner.query(
+        `insert into conversations (tenant_id, channel, visitor_id, flagged_at, flag_reasons)
+         values ($1, 'widget', gen_random_uuid(), now(), array['crisis']) returning id, flagged_at`,
+        [TENANT_A],
+      )
+    ).rows[0];
+    const cookie = await sessionCookie(tdb, 'owner@kaki-bakery.test');
+    const res = await get(app, '/api/v1/conversations', cookie);
+    expect(res.statusCode).toBe(200);
+    const listed = res.json().conversations.find((c: { id: string }) => c.id === conv.id);
+    expect(listed).toMatchObject({
+      flaggedAt: conv.flagged_at.toISOString(),
+      flagReasons: ['crisis'],
+    });
+  });
+
   it('sign out ends this session; sign out everywhere ends all of them (AC-10)', async () => {
     const a = await sessionCookie(tdb, 'owner@kaki-bakery.test');
     const b = await sessionCookie(tdb, 'owner@kaki-bakery.test');

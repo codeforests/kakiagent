@@ -20,7 +20,7 @@ function plan(kinds: TaskKind[], confidence = 0.9): TurnPlan {
     register: 'standard',
     complexity: 0.2,
     confidence,
-    flags: { complaint: false, injection: false },
+    flags: { complaint: false, injection: false, impersonation: false },
     tasks: kinds.map((kind) => ({ kind, args: {} })),
     fallback: false,
   };

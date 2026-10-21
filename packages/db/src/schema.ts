@@ -140,7 +140,9 @@ export const assistantSettings = pgTable(
 );
 
 /** System notice kinds on a message (FEAT-023 §4); later kinds extend `messages_notice_ck`. */
-export const NOTICE_KINDS = ['after_hours'] as const;
+export const NOTICE_KINDS = ['after_hours', 'chat_ended'] as const;
+/** Why a conversation is flagged for staff (AGT-13, FEAT-025 §4); the inbox filters on it (FEAT-042). */
+export const FLAG_REASONS = ['abuse', 'crisis'] as const;
 
 export const conversations = pgTable(
   'conversations',
@@ -156,10 +158,30 @@ export const conversations = pgTable(
       .default('ai'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     lastMessageAt: timestamp('last_message_at', { withTimezone: true }).notNull().defaultNow(),
+    /** When the conversation was first flagged for staff (AGT-13). */
+    flaggedAt: timestamp('flagged_at', { withTimezone: true }),
+    /** Why, distinct and in the order flagged. */
+    flagReasons: text('flag_reasons', { enum: FLAG_REASONS })
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    /** The visitor messages triage tagged as abuse: counting turns keeps redelivery idempotent. */
+    abuseTurns: uuid('abuse_turns')
+      .array()
+      .notNull()
+      .default(sql`'{}'::uuid[]`),
   },
   (t) => [
     primaryKey({ columns: [t.tenantId, t.id] }),
     index('conversations_tenant_last_message_idx').on(t.tenantId, t.lastMessageAt.desc()),
+    index('conversations_tenant_flagged_idx')
+      .on(t.tenantId, t.flaggedAt.desc())
+      .where(sql`${t.flaggedAt} is not null`),
+    check(
+      'conversations_flag_ck',
+      sql`${t.flagReasons} <@ array['abuse', 'crisis']::text[] and (${t.flaggedAt} is null) = (cardinality(${t.flagReasons}) = 0)`,
+    ),
+    check('conversations_abuse_turns_ck', sql`cardinality(${t.abuseTurns}) <= 20`),
   ],
 );
 
@@ -204,7 +226,7 @@ export const messages = pgTable(
     uniqueIndex('messages_in_reply_to_uq').on(t.tenantId, t.inReplyTo),
     check(
       'messages_notice_ck',
-      sql`(${t.notice} is null) = (${t.noticeKind} is null) and (${t.noticeKind} is null or ${t.noticeKind} in ('after_hours'))`,
+      sql`(${t.notice} is null) = (${t.noticeKind} is null) and (${t.noticeKind} is null or ${t.noticeKind} in ('after_hours', 'chat_ended'))`,
     ),
   ],
 );
