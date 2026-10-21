@@ -1,6 +1,6 @@
 import { sql, type Tx, type ZoneDb } from '@kaki/db';
 import { personaOf, type Persona } from './assistant.js';
-import { WeeklyHours } from './hours.js';
+import { WeeklyHours, type HolidayExceptions } from './hours.js';
 
 export {
   DEFAULT_PERSONA,
@@ -16,6 +16,8 @@ export {
 
 export {
   HORIZON_DAYS,
+  type ClosedReason,
+  type HolidayExceptions,
   hoursOn,
   Interval,
   openStatus,
@@ -27,7 +29,14 @@ export {
   type OpenStatus,
   type Weekday,
 } from './hours.js';
-export { isSgPublicHoliday, SG_HOLIDAYS_COVER_THROUGH, SG_PUBLIC_HOLIDAYS } from './sg-holidays.js';
+export {
+  isSgPublicHoliday,
+  SG_HOLIDAYS_COVER_THROUGH,
+  SG_PUBLIC_HOLIDAY_LIST,
+  SG_PUBLIC_HOLIDAYS,
+  sgHolidaysBetween,
+  type PublicHoliday,
+} from './sg-holidays.js';
 
 export interface WidgetInstall {
   tenantId: string;
@@ -63,6 +72,8 @@ export interface VisitorTenantState {
   /** Weekly opening hours (AGT-09, FEAT-023); null when not set or not valid. */
   hours: WeeklyHours | null;
   openOnPublicHolidays: boolean;
+  /** The tenant's holiday exceptions within the `openStatus` horizon (FEAT-009 D4). */
+  holidays: HolidayExceptions;
   /** Assistant persona and messages (AGT-08, AGT-11; FEAT-024), defaults applied. */
   persona: Persona;
 }
@@ -94,11 +105,13 @@ export async function visitorTenantState(tx: Tx): Promise<VisitorTenantState | n
     after_hours_zh: string | null;
     fallback_en: string | null;
     fallback_zh: string | null;
+    holidays: unknown;
   }>(
     sql`select ai_paused, business_name, gst_registered, route_complexity_threshold,
                route_min_confidence, cost_governor_step, hours, open_on_public_holidays,
                bot_name, tone, emoji, greeting_en, greeting_zh, disclosure_note_en,
-               disclosure_note_zh, after_hours_en, after_hours_zh, fallback_en, fallback_zh
+               disclosure_note_zh, after_hours_en, after_hours_zh, fallback_en, fallback_zh,
+               holidays
         from visitor_tenant_state()`,
   );
   const row = res.rows[0];
@@ -116,7 +129,38 @@ export async function visitorTenantState(tx: Tx): Promise<VisitorTenantState | n
         // Invalid hours count as not set: no after-hours behaviour rather than a wrong one.
         hours: row.hours === null ? null : (WeeklyHours.safeParse(row.hours).data ?? null),
         openOnPublicHolidays: row.open_on_public_holidays,
+        holidays: exceptionsOf(row.holidays),
         persona: personaOf(row),
       }
     : null;
 }
+
+/** The function's `holidays` object; anything malformed counts as no exceptions. */
+function exceptionsOf(raw: unknown): HolidayExceptions {
+  if (!raw || typeof raw !== 'object') return {};
+  return Object.fromEntries(
+    Object.entries(raw).filter(
+      ([day, kind]) => /^\d{4}-\d{2}-\d{2}$/.test(day) && (kind === 'open' || kind === 'closed'),
+    ),
+  ) as HolidayExceptions;
+}
+
+export {
+  effectiveExceptions,
+  getBusinessProfile,
+  INDUSTRIES,
+  InvalidProfileError,
+  PROFILE_LANGUAGES,
+  saveBusinessProfile,
+  type BusinessProfile,
+  type HolidayException,
+  type Industry,
+  type ProfileInput,
+  type ProfileLanguage,
+} from './profile.js';
+export {
+  INDUSTRY_TEMPLATES,
+  questionKey,
+  type IndustryTemplate,
+  type SuggestedFaq,
+} from './templates.js';
