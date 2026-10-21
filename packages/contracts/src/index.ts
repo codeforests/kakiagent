@@ -41,7 +41,10 @@ export const WidgetConfigResponse = z.object({
   realtimeUrl: z.url(),
   /** Lazy panel chunk to load on first open. */
   panelUrl: z.url(),
+  /** The tenant's assistant name, or "Assistant" (FEAT-024). */
   botName: z.string(),
+  /** The empty-chat greeting per panel language, already resolved to the default (FEAT-024). */
+  greeting: z.object({ en: z.string(), zh: z.string() }),
 });
 export type WidgetConfigResponse = z.infer<typeof WidgetConfigResponse>;
 
@@ -305,6 +308,75 @@ export const FactListQuery = z.object({
 export type FactListQuery = z.infer<typeof FactListQuery>;
 export const FactList = z.object({ facts: z.array(Fact), nextCursor: z.string().nullable() });
 export const FactResponse = z.object({ fact: Fact });
+
+// ---- Dashboard API: assistant settings (AGT-08, AGT-11; FEAT-024 §3) ----------------
+
+/** A tenant text per language; null (or blank, read as null) = the default (FEAT-024 D3). */
+const tenantText = (max: number, label: string) =>
+  z
+    .string()
+    .trim()
+    .max(max, `${label} must be ${max} characters or fewer`)
+    .nullable()
+    .transform((s) => (s ? s : null));
+const LocalText = (max: number, label: string) =>
+  z.object({ en: tenantText(max, label), zh: tenantText(max, label) });
+
+export const Tone = z.enum(['friendly', 'professional']);
+export type Tone = z.infer<typeof Tone>;
+
+/** Letters in any script, marks, spaces, apostrophes, hyphens and full stops; no digits (D6). */
+export const BotName = z
+  .string()
+  .trim()
+  .max(30, 'Assistant name must be 30 characters or fewer')
+  .refine((s) => !/\d/.test(s), "Assistant name can't contain numbers")
+  .refine(
+    (s) => s === '' || /^[\p{L}\p{M}][\p{L}\p{M} '’.-]*$/u.test(s),
+    'Use letters, spaces, apostrophes, hyphens or full stops in the assistant name',
+  )
+  .nullable()
+  .transform((s) => (s ? s : null));
+
+export const AssistantSettingsBody = z.object({
+  /** The version read; 0 = never saved. */
+  version: z.number().int().min(0),
+  botName: BotName,
+  tone: Tone,
+  emoji: z.boolean(),
+  greeting: LocalText(200, 'Greeting'),
+  disclosureNote: LocalText(200, 'Disclosure addition'),
+  afterHoursMessage: LocalText(300, 'After-hours message'),
+  fallbackMessage: LocalText(300, 'Fallback message'),
+});
+export type AssistantSettingsBody = z.infer<typeof AssistantSettingsBody>;
+/** What the form holds before parsing (texts may be blank). */
+export type AssistantSettingsInput = z.input<typeof AssistantSettingsBody>;
+
+const PerLang = <T extends z.ZodType>(t: T) => z.object({ en: t, zh: t });
+
+export const AssistantSettings = AssistantSettingsBody.extend({
+  updatedAt: z.iso.datetime().nullable(),
+});
+export type AssistantSettings = z.infer<typeof AssistantSettings>;
+
+export const AssistantDefaults = z.object({
+  botName: z.string(),
+  greeting: PerLang(z.string()),
+  afterHoursMessage: PerLang(z.string()),
+  fallbackMessage: PerLang(z.string()),
+  /** The fixed core with the business name; `{name}` is replaced by the bot name. */
+  disclosureCore: PerLang(z.object({ named: z.string(), unnamed: z.string() })),
+  /** The return-time sentence, with `{when}` for the next opening. */
+  afterHoursLead: PerLang(z.string()),
+});
+export type AssistantDefaults = z.infer<typeof AssistantDefaults>;
+
+export const AssistantSettingsResponse = z.object({
+  settings: AssistantSettings,
+  defaults: AssistantDefaults,
+});
+export type AssistantSettingsResponse = z.infer<typeof AssistantSettingsResponse>;
 
 // ---- Realtime events (Valkey pub/sub payloads, SSE and WebSocket frames; ADR-017) --
 

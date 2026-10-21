@@ -87,6 +87,9 @@ importers:
       '@fastify/cookie':
         specifier: 11.1.3
         version: 11.1.3
+      '@kaki/agent':
+        specifier: workspace:*
+        version: link:../../packages/agent
       '@kaki/analytics':
         specifier: workspace:*
         version: link:../../packages/analytics

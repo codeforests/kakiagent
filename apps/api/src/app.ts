@@ -28,7 +28,8 @@ import {
   VersionConflictError,
 } from '@kaki/kb';
 import { channels, signToken, TokenError, verifyToken } from '@kaki/platform';
-import { resolveWidgetKey } from '@kaki/tenancy';
+import { DEFAULT_BOT_NAME, DEFAULT_GREETING } from '@kaki/agent';
+import { resolveWidgetKey, SettingsConflictError, visitorTenantState } from '@kaki/tenancy';
 import { randomUUID } from 'node:crypto';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { ZodError } from 'zod';
@@ -41,6 +42,7 @@ import {
 } from './auth.js';
 import { FactNotFound, ForbiddenError, registerFactRoutes } from './facts.js';
 import { createServer, type Deps } from './server.js';
+import { registerSettingsRoutes } from './settings.js';
 
 export type { App, Deps } from './server.js';
 
@@ -110,6 +112,11 @@ export async function buildApp(deps: Deps) {
       return reply
         .code(409)
         .send({ error: 'version_conflict', message: 'This fact was changed by someone else' });
+    if (err instanceof SettingsConflictError)
+      return reply.code(409).send({
+        error: 'version_conflict',
+        message: 'These settings were changed by someone else',
+      });
     if (err instanceof InvalidStateError)
       return reply.code(409).send({ error: 'invalid_state', message: err.message });
     if (err instanceof EmbeddingUnavailableError)
@@ -194,13 +201,19 @@ export async function buildApp(deps: Deps) {
       },
       config.VISITOR_TOKEN_SECRET,
     );
+    // FEAT-024: the tenant's name and greeting, through the visitor zone's function only.
+    const persona = (await withTenant(visitorDb, install.tenantId, visitorTenantState))?.persona;
     reply.header('access-control-allow-origin', origin).header('vary', 'origin');
     return WidgetConfigResponse.parse({
       token,
       visitorId,
       realtimeUrl: config.PUBLIC_REALTIME_URL,
       panelUrl: config.PUBLIC_WIDGET_PANEL_URL,
-      botName: 'Assistant',
+      botName: persona?.botName ?? DEFAULT_BOT_NAME,
+      greeting: {
+        en: persona?.greeting.en ?? DEFAULT_GREETING.en,
+        zh: persona?.greeting.zh ?? DEFAULT_GREETING.zh,
+      },
     });
   });
 
@@ -257,6 +270,7 @@ export async function buildApp(deps: Deps) {
   });
 
   registerFactRoutes(app, deps, sessionFrom);
+  registerSettingsRoutes(app, deps, sessionFrom);
 
   return app;
 }
