@@ -128,6 +128,9 @@ const consuming = queue.consume<unknown>(
         route: reply.route,
         tasks: reply.plan?.tasks.map((t) => t.kind) ?? [],
         planFallback: reply.plan?.fallback ?? null,
+        // FEAT-023: the reply language and whether the after-hours notice went out.
+        language: reply.language,
+        afterHours: reply.afterHours,
         triageMs: reply.timings?.triageMs ?? null,
         costUsd: Number(usage.costUsd.toFixed(6)),
         cacheReadTokens: usage.cacheReadTokens,

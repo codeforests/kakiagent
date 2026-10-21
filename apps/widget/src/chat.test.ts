@@ -16,6 +16,7 @@ const msg = (
   body: `${id} body`,
   inReplyTo,
   disclosure: null,
+  notice: null,
   createdAt: new Date().toISOString(),
 });
 

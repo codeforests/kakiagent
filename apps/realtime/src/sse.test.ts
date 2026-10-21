@@ -11,6 +11,7 @@ const message: Message = {
   createdAt: '2026-10-19T00:00:00.000Z',
   inReplyTo: '00000000-0000-4000-8000-000000000003',
   disclosure: null,
+  notice: null,
 };
 
 describe('sseFrame', () => {

@@ -94,6 +94,9 @@ beforeEach(async () => {
     `update tenants set ai_paused = false, route_complexity_threshold = 0.6,
        route_min_confidence = 0.5, cost_governor_step = 0`,
   );
+  // These turns don't depend on the wall clock: no opening hours (FEAT-023's own suite
+  // covers them, in language-hours.int.test.ts).
+  await owner.query(`update business_profiles set hours = null`);
 });
 
 async function conversationWith(text: string) {
@@ -199,6 +202,11 @@ describe('runVisitorTurn (UC-20)', () => {
       models: ['reply.simple'],
       tasks: ['answer'],
       planFallback: false,
+      // FEAT-023: the reply language and register, system slots and the after-hours notice.
+      language: 'en',
+      register: 'standard',
+      slots: [],
+      afterHours: false,
     });
     expect((decision.payload.factIds as string[]).sort()).toEqual(result!.message.factIds.sort());
   });

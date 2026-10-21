@@ -1,8 +1,7 @@
 import type { VisitorFact } from '@kaki/kb';
 import type { GenerateRequest, LlmGateway, LogicalModel } from '@kaki/llm-gateway';
 import type { HoursContext } from './hours-text.js';
-import type { ReplyLanguage } from './language.js';
-import type { TurnPlan } from './plan.js';
+import type { Register, ReplyLanguage } from './language.js';
 import { buildVisitorPrompt, type HistoryMessage } from './prompt.js';
 import { renderSegment } from './render.js';
 import { Segmenter } from './segment.js';
@@ -29,7 +28,7 @@ export interface ComposeInput {
   now?: Date | undefined;
   /** AGT-03 (FEAT-023): the reply language (default English) and the visitor's register. */
   language?: ReplyLanguage | undefined;
-  register?: TurnPlan['register'] | undefined;
+  register?: Register | undefined;
   /** AGT-09: the tenant's hours and open status, when set. */
   hours?: HoursContext | null | undefined;
   /** This turn's system slot values (`systemSlots`), in the reply language. */

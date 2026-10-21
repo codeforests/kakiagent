@@ -14,6 +14,8 @@ export const Message = z.object({
   inReplyTo: z.uuid().nullable(),
   /** The AI disclosure carried by the first agent or system message (AGT-11). */
   disclosure: z.string().nullable(),
+  /** A system notice shown with this message, server-rendered (AGT-09 after hours, FEAT-023). */
+  notice: z.string().nullable(),
   createdAt: z.iso.datetime({ offset: true }),
 });
 export type Message = z.infer<typeof Message>;

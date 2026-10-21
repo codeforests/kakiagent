@@ -10,6 +10,7 @@ const m = (id: string, seq: number) => ({
   body: id,
   inReplyTo: null,
   disclosure: null,
+  notice: null,
   createdAt: new Date().toISOString(),
 });
 

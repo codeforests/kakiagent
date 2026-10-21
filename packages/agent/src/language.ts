@@ -1,7 +1,8 @@
-import type { TurnPlan } from './plan.js';
-
 /** The languages the agent replies in (AGT-03, NFR-10; FEAT-023 D4). */
 export type ReplyLanguage = 'en' | 'zh';
+
+/** The visitor's register as triage reports it (`TurnPlan.register`). */
+export type Register = 'standard' | 'singlish' | 'formal';
 
 export const LANGUAGE_NAMES: Record<ReplyLanguage, string> = {
   en: 'English',
@@ -15,7 +16,7 @@ const HAN = /\p{Script=Han}/u;
  * plan, Chinese if the visitor wrote Han characters, else English (D4).
  */
 export function replyLanguage(
-  plan: Pick<TurnPlan, 'language' | 'fallback'> | null,
+  plan: { language: string; fallback: boolean } | null,
   visitorText: string,
 ): ReplyLanguage {
   if (plan && !plan.fallback) {

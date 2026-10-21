@@ -1,5 +1,5 @@
 import type { ConversationSummary, Message } from '@kaki/contracts';
-import { and, asc, desc, eq, gt, lte, schema, sql, type Tx } from '@kaki/db';
+import { and, asc, desc, eq, gt, gte, lte, schema, sql, type Tx } from '@kaki/db';
 import { audit } from '@kaki/governance';
 import { piiMask } from '@kaki/platform';
 import { enqueue } from '@kaki/platform/outbox';
@@ -14,6 +14,7 @@ import { enqueue } from '@kaki/platform/outbox';
 export class NotFoundError extends Error {}
 
 type MessageRow = typeof schema.messages.$inferSelect;
+export type NoticeKind = (typeof schema.NOTICE_KINDS)[number];
 type ConversationRow = typeof schema.conversations.$inferSelect;
 
 export function toMessage(row: MessageRow): Message {
@@ -25,6 +26,7 @@ export function toMessage(row: MessageRow): Message {
     body: row.body,
     inReplyTo: row.inReplyTo,
     disclosure: row.disclosure,
+    notice: row.notice,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -185,6 +187,8 @@ export async function appendAgentReply(
     factIds?: string[];
     /** Set on the first agent or system message of the conversation (AGT-11). */
     disclosure?: string | null;
+    /** A system notice shown with the reply (AGT-09 after hours; FEAT-023 D6). */
+    notice?: { kind: NoticeKind; text: string } | null;
   },
 ): Promise<{ message: MessageRow; conversation: ConversationRow } | null> {
   const [inserted] = await tx
@@ -197,6 +201,8 @@ export async function appendAgentReply(
       inReplyTo: input.inReplyTo,
       factIds: input.factIds ?? [],
       disclosure: input.disclosure ?? null,
+      notice: input.notice?.text ?? null,
+      noticeKind: input.notice?.kind ?? null,
     })
     .onConflictDoNothing()
     .returning();
@@ -326,4 +332,32 @@ export async function listConversations(
     .orderBy(desc(schema.conversations.lastMessageAt))
     .limit(limit);
   return rows.map((r) => toSummary(r.conversation, r.lastMessage));
+}
+
+/**
+ * Whether an agent or system message in the conversation carried a notice of `kind` at
+ * or after `since` (any time, when `since` is null): the after-hours notice is shown once
+ * per closed period (FEAT-023 D6).
+ */
+export async function noticeSince(
+  tx: Tx,
+  tenantId: string,
+  conversationId: string,
+  kind: NoticeKind,
+  since: Date | null,
+): Promise<boolean> {
+  const m = schema.messages;
+  const [row] = await tx
+    .select({ id: m.id })
+    .from(m)
+    .where(
+      and(
+        eq(m.tenantId, tenantId),
+        eq(m.conversationId, conversationId),
+        eq(m.noticeKind, kind),
+        since ? gte(m.createdAt, since) : undefined,
+      ),
+    )
+    .limit(1);
+  return Boolean(row);
 }

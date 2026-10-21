@@ -1,8 +1,7 @@
 import type { GenerateRequest } from '@kaki/llm-gateway';
 import type { VisitorFact } from '@kaki/kb';
 import { hoursLines, type HoursContext } from './hours-text.js';
-import { LANGUAGE_NAMES, type ReplyLanguage } from './language.js';
-import type { TurnPlan } from './plan.js';
+import { LANGUAGE_NAMES, type Register, type ReplyLanguage } from './language.js';
 import { renderPrice, renderValidUntil } from './render.js';
 import { PROTECTED_FIELDS, type TurnFacts } from './slots.js';
 
@@ -76,7 +75,7 @@ export function buildVisitorPrompt(input: {
   model: GenerateRequest['model'];
   /** AGT-03 (FEAT-023): the reply language and the visitor's register. */
   language?: ReplyLanguage | undefined;
-  register?: TurnPlan['register'] | undefined;
+  register?: Register | undefined;
   /** AGT-09: the tenant's hours and whether it is open now; null when not set. */
   hours?: HoursContext | null | undefined;
   /** This turn's system slot values, in the reply language (`systemSlots`). */
