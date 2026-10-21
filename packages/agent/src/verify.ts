@@ -16,7 +16,9 @@ export type ViolationKind =
   | 'number'
   | 'slot_syntax'
   | 'unknown_fact'
-  | 'unknown_field';
+  | 'unknown_field'
+  /** FEAT-025: the model repeated the platform's own instructions (`guard.ts`). */
+  | 'prompt_leak';
 
 export interface Violation {
   kind: ViolationKind;

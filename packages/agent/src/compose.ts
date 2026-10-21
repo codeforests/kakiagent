@@ -2,6 +2,7 @@ import type { VisitorFact } from '@kaki/kb';
 import type { GenerateRequest, LlmGateway, LogicalModel } from '@kaki/llm-gateway';
 import type { Persona } from '@kaki/tenancy';
 import { stripEmoji } from './emoji.js';
+import { leakGuard, type LeakGuard } from './guard.js';
 import type { HoursContext } from './hours-text.js';
 import type { Register, ReplyLanguage } from './language.js';
 import { buildVisitorPrompt, type HistoryMessage } from './prompt.js';
@@ -43,6 +44,9 @@ export interface ComposeInput {
    * before FEAT-024.
    */
   persona?: Persona | undefined;
+  /** AGT-07, AGT-16 (FEAT-025): triage's flags, for the tail. */
+  injection?: boolean | undefined;
+  impersonation?: boolean | undefined;
 }
 
 export interface ComposeDeps {
@@ -93,6 +97,7 @@ export async function composeReply(input: ComposeInput, deps: ComposeDeps): Prom
   const models: LogicalModel[] = [];
   const noEmoji = input.persona?.emoji === false;
   let emojiRemoved = false;
+  let guard: LeakGuard = leakGuard({ system: '' });
 
   const result = (outcome: ComposeOutcome, attempts: number): ComposeResult => ({
     outcome,
@@ -126,6 +131,9 @@ export async function composeReply(input: ComposeInput, deps: ComposeDeps): Prom
     if (!rendered.ok) return { kind: 'fail', violations: rendered.violations };
     const verdict = verifySegment(rendered.text, rendered.spans, visitorTexts);
     if (!verdict.ok) return { kind: 'fail', violations: verdict.violations };
+    // FEAT-025: nothing of the platform's instructions reaches a visitor (AGT-07).
+    const leaks = guard.check(rendered.text, rendered.spans);
+    if (leaks.length) return { kind: 'fail', violations: leaks };
     if (!(await release(rendered.text))) return { kind: 'closed' };
     for (const id of rendered.factIds) factIds.add(id);
     for (const name of rendered.slots) slots.add(name);
@@ -159,7 +167,10 @@ export async function composeReply(input: ComposeInput, deps: ComposeDeps): Prom
       systemSlots: system,
       outOfScope: input.outOfScope,
       persona: input.persona,
+      injection: input.injection,
+      impersonation: input.impersonation,
     });
+    guard = leakGuard(req);
     const segmenter = new Segmenter();
     let step: Step = { kind: 'ok' };
     try {

@@ -334,6 +334,7 @@ export async function runVisitorTurn(
     case 'escalated':
     case 'out_of_scope':
     case 'unsure':
+    case 'refused':
       return store(composed.outcome, 'agent', composed.text, composed);
     case 'unavailable':
       return composed.text
