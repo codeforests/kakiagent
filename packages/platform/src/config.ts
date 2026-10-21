@@ -45,6 +45,8 @@ export const envSchemas = {
     AWS_ENDPOINT_URL: optionalUrl,
     SQS_TURNS_QUEUE_URL: url,
   }),
+  /** The ingestion queue (ADR-018, FEAT-012): scheduler-worker sends, ingest-worker consumes. */
+  ingestQueue: z.object({ SQS_INGEST_QUEUE_URL: url }),
   valkey: z.object({ VALKEY_URL: z.string().startsWith('redis') }),
 };
 

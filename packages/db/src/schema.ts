@@ -291,6 +291,127 @@ export const messages = pgTable(
   ],
 );
 
+export const SOURCE_KINDS = ['website'] as const;
+export const SOURCE_STATUSES = ['queued', 'processing', 'ready', 'failed'] as const;
+export const SOURCE_STAGES = ['crawl', 'extract', 'promote'] as const;
+export const SOURCE_FAILURES = [
+  'no_pages',
+  'site_unreachable',
+  'extraction_unavailable',
+  'internal',
+] as const;
+export const PAGE_STATUSES = ['included', 'excluded', 'failed', 'skipped'] as const;
+export const PAGE_REASONS = [
+  'robots',
+  'off_domain_redirect',
+  'not_html',
+  'duplicate',
+  'timeout',
+  'http_error',
+  'blocked_address',
+  'load_error',
+  'plan_limit',
+] as const;
+
+const inList = (values: readonly string[]) => sql.raw(values.map((v) => `'${v}'`).join(', '));
+
+/**
+ * Knowledge sources (KB_SOURCE, ADR-018 decision 1): one row per website (FEAT-012);
+ * files, spreadsheets and chat exports join with FEAT-015..017. `attempt` keys the
+ * idempotent stage jobs; `version` is the dashboard's optimistic-concurrency token.
+ */
+export const kbSources = pgTable(
+  'kb_sources',
+  {
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id),
+    id: uuid('id').notNull().defaultRandom(),
+    kind: text('kind', { enum: SOURCE_KINDS }).notNull(),
+    status: text('status', { enum: SOURCE_STATUSES }).notNull().default('queued'),
+    stage: text('stage', { enum: SOURCE_STAGES }),
+    attempt: integer('attempt').notNull().default(1),
+    version: integer('version').notNull().default(1),
+    url: text('url').notNull(),
+    domain: text('domain').notNull(),
+    subdomains: text('subdomains')
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    pageLimit: integer('page_limit').notNull(),
+    failure: text('failure', { enum: SOURCE_FAILURES }),
+    pagesFound: integer('pages_found').notNull().default(0),
+    pagesIncluded: integer('pages_included').notNull().default(0),
+    pagesExcluded: integer('pages_excluded').notNull().default(0),
+    pagesFailed: integer('pages_failed').notNull().default(0),
+    pagesSkipped: integer('pages_skipped').notNull().default(0),
+    pagesExtracted: integer('pages_extracted').notNull().default(0),
+    factsCount: integer('facts_count').notNull().default(0),
+    /** KB-13: who confirmed they own or may use the domain, and when (also audited). */
+    attestedBy: text('attested_by').notNull(),
+    attestedAt: timestamp('attested_at', { withTimezone: true }).notNull(),
+    createdBy: text('created_by').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    finishedAt: timestamp('finished_at', { withTimezone: true }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.id] }),
+    uniqueIndex('kb_sources_domain_uq').on(t.tenantId, t.kind, t.domain),
+    check('kb_sources_kind_ck', sql`${t.kind} in (${inList(SOURCE_KINDS)})`),
+    check('kb_sources_status_ck', sql`${t.status} in (${inList(SOURCE_STATUSES)})`),
+    check(
+      'kb_sources_stage_ck',
+      sql`${t.stage} is null or ${t.stage} in (${inList(SOURCE_STAGES)})`,
+    ),
+    check(
+      'kb_sources_failure_ck',
+      sql`(${t.status} = 'failed') = (${t.failure} is not null) and (${t.failure} is null or ${t.failure} in (${inList(SOURCE_FAILURES)}))`,
+    ),
+    check(
+      'kb_sources_counts_ck',
+      sql`${t.pageLimit} > 0 and ${t.attempt} >= 1 and least(${t.pagesFound}, ${t.pagesIncluded}, ${t.pagesExcluded}, ${t.pagesFailed}, ${t.pagesSkipped}, ${t.pagesExtracted}, ${t.factsCount}) >= 0`,
+    ),
+  ],
+);
+
+/** A crawl's page list (KB-01), per attempt. `content` is masked visible text (ADR-015). */
+export const kbSourcePages = pgTable(
+  'kb_source_pages',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    id: uuid('id').notNull().defaultRandom(),
+    sourceId: uuid('source_id').notNull(),
+    attempt: integer('attempt').notNull(),
+    seq: integer('seq').notNull(),
+    url: text('url').notNull(),
+    title: text('title'),
+    status: text('status', { enum: PAGE_STATUSES }).notNull(),
+    reason: text('reason', { enum: PAGE_REASONS }),
+    httpStatus: smallint('http_status'),
+    content: text('content'),
+    /** SHA-256 of `content`, for duplicates now and the re-crawl diff (FEAT-020). */
+    contentHash: text('content_hash'),
+    extractedAt: timestamp('extracted_at', { withTimezone: true }),
+    factsCount: integer('facts_count').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.id] }),
+    uniqueIndex('kb_source_pages_url_uq').on(t.tenantId, t.sourceId, t.attempt, t.url),
+    index('kb_source_pages_seq_idx').on(t.tenantId, t.sourceId, t.attempt, t.seq),
+    foreignKey({
+      columns: [t.tenantId, t.sourceId],
+      foreignColumns: [kbSources.tenantId, kbSources.id],
+    }),
+    check('kb_source_pages_status_ck', sql`${t.status} in (${inList(PAGE_STATUSES)})`),
+    check(
+      'kb_source_pages_reason_ck',
+      sql`(${t.status} = 'included') = (${t.reason} is null) and (${t.reason} is null or ${t.reason} in (${inList(PAGE_REASONS)}))`,
+    ),
+  ],
+);
+
 export const FACT_TYPES = ['product', 'faq', 'policy', 'promotion'] as const;
 export const FACT_STATUSES = [
   'needs_review',
@@ -326,6 +447,11 @@ export const facts = pgTable(
     validFrom: timestamp('valid_from', { withTimezone: true }),
     validUntil: timestamp('valid_until', { withTimezone: true }),
     lastConfirmedAt: timestamp('last_confirmed_at', { withTimezone: true }).notNull().defaultNow(),
+    /** Extracted facts (FEAT-012): the source, the extraction confidence and the passage. */
+    sourceId: uuid('source_id'),
+    confidence: real('confidence'),
+    /** `{ url, title, quote, start, end }`: where on the page the fact was found (KB-05). */
+    provenance: jsonb('provenance'),
     createdBy: text('created_by'),
     updatedBy: text('updated_by'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -333,6 +459,15 @@ export const facts = pgTable(
   },
   (t) => [
     primaryKey({ columns: [t.tenantId, t.id] }),
+    index('facts_tenant_source_idx').on(t.tenantId, t.sourceId),
+    foreignKey({
+      columns: [t.tenantId, t.sourceId],
+      foreignColumns: [kbSources.tenantId, kbSources.id],
+    }),
+    check(
+      'facts_provenance_ck',
+      sql`${t.sourceId} is null or (${t.provenance} is not null and ${t.confidence} between 0 and 1)`,
+    ),
     index('facts_tenant_status_updated_idx').on(t.tenantId, t.status, t.updatedAt.desc()),
     index('facts_tenant_updated_idx').on(t.tenantId, t.updatedAt.desc(), t.id.desc()),
     check('facts_type_ck', sql`${t.type} in ('product', 'faq', 'policy', 'promotion')`),
@@ -394,13 +529,53 @@ export const kbChunks = pgTable(
   ],
 );
 
+/**
+ * Facts found by extraction, waiting for the source's promote stage (ADR-018 decision 7).
+ * Rows live only between extract and promote; promote moves them into `facts` in one
+ * transaction, so a failed run leaves no fact behind (KB-12).
+ */
+export const kbStagedFacts = pgTable(
+  'kb_staged_facts',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    id: uuid('id').notNull().defaultRandom(),
+    sourceId: uuid('source_id').notNull(),
+    attempt: integer('attempt').notNull(),
+    pageId: uuid('page_id').notNull(),
+    type: text('type', { enum: FACT_TYPES }).notNull(),
+    value: jsonb('value').notNull(),
+    gstTreatment: text('gst_treatment', { enum: GST_TREATMENTS }),
+    validFrom: timestamp('valid_from', { withTimezone: true }),
+    validUntil: timestamp('valid_until', { withTimezone: true }),
+    quote: text('quote').notNull(),
+    quoteStart: integer('quote_start').notNull(),
+    quoteEnd: integer('quote_end').notNull(),
+    confidence: real('confidence').notNull(),
+    dedupeKey: text('dedupe_key').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.id] }),
+    index('kb_staged_facts_source_idx').on(t.tenantId, t.sourceId, t.attempt),
+    foreignKey({
+      columns: [t.tenantId, t.pageId],
+      foreignColumns: [kbSourcePages.tenantId, kbSourcePages.id],
+    }),
+    check('kb_staged_facts_type_ck', sql`${t.type} in (${inList(FACT_TYPES)})`),
+    check(
+      'kb_staged_facts_quote_ck',
+      sql`${t.confidence} between 0 and 1 and ${t.quoteStart} >= 0 and ${t.quoteEnd} > ${t.quoteStart}`,
+    ),
+  ],
+);
+
 /** Transactional outbox (ADR-012): written in the same transaction as the state change. */
 export const outbox = pgTable(
   'outbox',
   {
     tenantId: uuid('tenant_id').notNull(),
     id: uuid('id').notNull().defaultRandom(),
-    topic: text('topic', { enum: ['conversation-turns'] }).notNull(),
+    topic: text('topic', { enum: ['conversation-turns', 'ingest'] }).notNull(),
     /** FIFO message group (the conversation ID for turns). */
     groupKey: text('group_key').notNull(),
     payload: jsonb('payload').notNull(),
@@ -684,6 +859,9 @@ export const TENANT_SCOPED_TABLES = [
   'facts',
   'fact_versions',
   'kb_chunks',
+  'kb_sources',
+  'kb_source_pages',
+  'kb_staged_facts',
   'memberships',
   'terms_acceptances',
   'usage_events',
