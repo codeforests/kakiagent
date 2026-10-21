@@ -392,7 +392,16 @@ function ProfileForm({
           <ul>
             {errorList.map(([f, msg]) => (
               <li key={f}>
-                <a href={`#profile-${f}`}>{msg}</a>
+                <a
+                  href={`#profile-${f}`}
+                  onClick={(e) => {
+                    // Some browsers don't move focus to a time input on hash navigation.
+                    e.preventDefault();
+                    document.getElementById(`profile-${f}`)?.focus();
+                  }}
+                >
+                  {msg}
+                </a>
               </li>
             ))}
           </ul>
