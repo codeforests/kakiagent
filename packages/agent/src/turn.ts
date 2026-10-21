@@ -27,7 +27,7 @@ import { systemSlots, type HoursContext } from './hours-text.js';
 import { replyLanguage, type ReplyLanguage } from './language.js';
 import { routeSignals, triage, type TurnPlan } from './plan.js';
 import { HISTORY_LIMIT } from './prompt.js';
-import { safetyText, textsFor } from './texts.js';
+import { safetyText, textsFor, type SafetyKey } from './texts.js';
 
 export interface TurnDeps {
   /** The visitor trust zone (ADR-009): it can read only what a visitor conversation may see. */
@@ -134,13 +134,22 @@ export async function runVisitorTurn(
     author: 'agent' | 'system',
     text: string,
     composed: AnswerResult | null,
+    safety: SafetyKey | null = null,
   ): Promise<TurnResult | null> {
     const t = textsFor(language, persona);
     const disclosure = prep!.disclosed ? null : t.disclosure(businessName);
+    // FEAT-025 §5.4: an abuse-ended chat says so; a crisis or warning reply carries no
+    // notice, so the after-hours notice waits for the next reply of the closed period.
     // FEAT-023 D6: the return time is rendered, never written by the model.
-    const notice = prep!.noticeDue
-      ? { kind: 'after_hours' as const, text: t.afterHours(slotValues.get('next_open') ?? null) }
-      : null;
+    const notice =
+      safety === 'abuse_ended'
+        ? { kind: 'chat_ended' as const, text: t.chatEnded }
+        : prep!.noticeDue && safety === null
+          ? {
+              kind: 'after_hours' as const,
+              text: t.afterHours(slotValues.get('next_open') ?? null),
+            }
+          : null;
     const stored = await withTenant(zdb, tenantId, async (tx) => {
       const reply = await appendAgentReply(tx, {
         tenantId,
@@ -167,6 +176,9 @@ export async function runVisitorTurn(
         await entry('guardrail.segment_blocked', { kind: auditCode(v.kind) });
       if (outcome === 'escalated') await entry('guardrail.escalated');
       if (outcome === 'unavailable' || outcome === 'paused') await entry('agent.fallback_sent');
+      // UC-20 3a and 3d (ADR-009): the attempt is audit-logged, as codes only (FEAT-025).
+      if (plan?.flags.injection) await entry('guardrail.injection_detected');
+      if (plan?.flags.impersonation) await entry('guardrail.impersonation_detected');
       // The decision's structured rationale (GOV-01, architecture OI-8): what happened and
       // which facts it rests on.
       await entry('agent.decision', {
@@ -183,10 +195,14 @@ export async function runVisitorTurn(
         language: auditCode(language),
         register: plan ? auditCode(plan.register) : null,
         slots: (composed?.slots ?? []).map(auditCode),
-        afterHours: notice !== null,
+        afterHours: notice?.kind === 'after_hours',
         // FEAT-024: the tone and whether emoji were removed (codes only).
         tone: persona ? auditCode(persona.tone) : null,
         emojiRemoved: composed?.emojiRemoved ?? false,
+        // FEAT-025: the safety text that ended the turn and triage's flags (codes only).
+        safety: safety ? auditCode(safety) : null,
+        injection: plan?.flags.injection ?? false,
+        impersonation: plan?.flags.impersonation ?? false,
       });
       return reply;
     });
@@ -199,7 +215,7 @@ export async function runVisitorTurn(
           dispatched,
           route,
           language,
-          afterHours: notice !== null,
+          afterHours: notice?.kind === 'after_hours',
         }
       : null;
   }
@@ -297,8 +313,10 @@ export async function runVisitorTurn(
   };
   const dispatch = await dispatchPlan(deps.registry ?? visitorRegistry, plan, ctx);
   dispatched = dispatch.reports;
-  if (dispatch.endTurn)
-    return store('ended', 'agent', safetyText(t, dispatch.endTurn.key, businessName), null);
+  if (dispatch.endTurn) {
+    const key = dispatch.endTurn.key;
+    return store('ended', 'agent', safetyText(t, key, businessName), null, key);
+  }
 
   route = routeReply(routeSignals(plan, false), gate.tenant.routePolicy);
   const composed = await answerTurn(

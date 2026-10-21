@@ -210,6 +210,10 @@ describe('runVisitorTurn (UC-20)', () => {
       // FEAT-024: the tenant's tone (the default) and no emoji removed.
       tone: 'friendly',
       emojiRemoved: false,
+      // FEAT-025: no safety text ended the turn, and triage flagged nothing.
+      safety: null,
+      injection: false,
+      impersonation: false,
     });
     expect((decision.payload.factIds as string[]).sort()).toEqual(result!.message.factIds.sort());
   });
