@@ -26,6 +26,7 @@ const msg = (
   inReplyTo,
   disclosure: null,
   notice: null,
+  noticeKind: null,
   createdAt: new Date().toISOString(),
 });
 
@@ -70,6 +71,7 @@ describe('after-hours notice and language of parts (FEAT-023; SCR-WGT-002)', () 
       ...msg('a1', 2, 'agent', 'v1'),
       disclosure: "You're chatting with an AI assistant for Kaki Bakery.",
       notice: "We're closed right now. The team will be back tomorrow at 9:00 am.",
+      noticeKind: 'after_hours' as const,
     };
     expect(rowsOf(m).map((r) => [r.kind, r.key])).toEqual([
       ['disclosure', 'a1-disclosure'],

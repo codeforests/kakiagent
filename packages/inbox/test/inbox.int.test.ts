@@ -6,11 +6,16 @@ import {
   appendAgentReply,
   appendVisitorMessage,
   createConversation,
+  endAiConversation,
+  flagConversation,
+  getConversation,
   getMessage,
   listConversations,
   messagesSince,
   NotFoundError,
+  recordAbuse,
   toMessage,
+  toSummary,
 } from '../src/index.js';
 
 let tdb: TestDatabase;
@@ -153,5 +158,65 @@ describe('inbox repository (visitor trust zone)', () => {
       tx.select({ n: sql<number>`count(*)::int` }).from(schema.messages),
     );
     expect(count[0]!.n).toBe(0);
+  });
+
+  it('flags a conversation once per reason, audited once, and lists the flags (FEAT-025)', async () => {
+    const visitor = tdb.zone('visitor');
+    const conv = await withTenant(visitor, TENANT_A, (tx) =>
+      createConversation(tx, TENANT_A, randomUUID()),
+    );
+    const flag = (reason: 'abuse' | 'crisis') =>
+      withTenant(visitor, TENANT_A, (tx) => flagConversation(tx, TENANT_A, conv.id, reason));
+    const first = await flag('crisis');
+    const again = await flag('crisis');
+    const both = await flag('abuse');
+    expect(first?.flagReasons).toEqual(['crisis']);
+    expect(again?.flaggedAt?.toISOString()).toBe(first?.flaggedAt?.toISOString());
+    expect(both?.flagReasons).toEqual(['crisis', 'abuse']);
+    expect(toSummary(both!, null)).toMatchObject({
+      flaggedAt: first!.flaggedAt!.toISOString(),
+      flagReasons: ['crisis', 'abuse'],
+    });
+    const listed = await withTenant(tdb.zone('dashboard'), TENANT_A, (tx) =>
+      listConversations(tx, TENANT_A),
+    );
+    expect(listed.find((c) => c.id === conv.id)?.flagReasons).toEqual(['crisis', 'abuse']);
+    // Another tenant's context can't flag it.
+    expect(
+      await withTenant(visitor, TENANT_B, (tx) => flagConversation(tx, TENANT_B, conv.id, 'abuse')),
+    ).toBeNull();
+
+    const { default: pg } = await import('pg');
+    const c = new pg.Client({ connectionString: tdb.ownerUrl });
+    await c.connect();
+    const audit = await c.query(
+      `select payload from audit_entries where tenant_id = $1 and event_type = 'conversation.flagged' and split_part(subject_refs[1], ':', 2) = $2 order by seq`,
+      [TENANT_A, conv.id],
+    );
+    await c.end();
+    expect(audit.rows.map((r) => r.payload)).toEqual([{ reason: 'crisis' }, { reason: 'abuse' }]);
+  });
+
+  it('counts distinct abuse turns and ends the AI once (FEAT-025 D2)', async () => {
+    const visitor = tdb.zone('visitor');
+    const conv = await withTenant(visitor, TENANT_A, (tx) =>
+      createConversation(tx, TENANT_A, randomUUID()),
+    );
+    const turn1 = randomUUID();
+    const count = (turn: string) =>
+      withTenant(visitor, TENANT_A, (tx) => recordAbuse(tx, TENANT_A, conv.id, turn));
+    expect(await count(turn1)).toBe(1);
+    expect(await count(turn1)).toBe(1);
+    expect(await count(randomUUID())).toBe(2);
+    const end = () =>
+      withTenant(visitor, TENANT_A, (tx) => endAiConversation(tx, TENANT_A, conv.id, 'abuse'));
+    expect(await end()).toBe(true);
+    expect(await end()).toBe(false);
+    expect(
+      (await withTenant(visitor, TENANT_A, (tx) => getConversation(tx, TENANT_A, conv.id)))?.status,
+    ).toBe('closed');
+    await expect(
+      withTenant(visitor, TENANT_B, (tx) => recordAbuse(tx, TENANT_B, conv.id, turn1)),
+    ).rejects.toBeInstanceOf(NotFoundError);
   });
 });
