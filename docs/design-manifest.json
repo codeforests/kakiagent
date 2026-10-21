@@ -251,6 +251,40 @@
       "status": "designed",
       "designed_at": "2026-10-19"
     },
+    "SCR-APP-041": {
+      "name": "Assistant",
+      "surface": "APP",
+      "feature": "FEAT-024",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-024-assistant-persona/ui-design.md#scr-app-041--assistant"
+      },
+      "states": {
+        "covered": [
+          "default",
+          "loading",
+          "validation",
+          "saving",
+          "saved",
+          "conflict",
+          "error",
+          "permission"
+        ],
+        "gaps": [],
+        "supplements": []
+      },
+      "contract_bindings": [
+        "GET /api/v1/settings/assistant",
+        "PUT /api/v1/settings/assistant"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-10-21"
+    },
     "SCR-APP-059": {
       "name": "System pages",
       "surface": "APP",
@@ -341,6 +375,11 @@
             "state": "language",
             "strategy": "code-native",
             "source": "features/FEAT-023-language-scope-hours/ui-design.md#language"
+          },
+          {
+            "state": "greeting",
+            "strategy": "code-native",
+            "source": "features/FEAT-024-assistant-persona/ui-design.md#greeting"
           }
         ]
       },
@@ -348,7 +387,8 @@
         "POST /widget/v1/conversations/:id/messages",
         "SSE event: message",
         "SSE event: segment",
-        "Message.notice (FEAT-023)"
+        "Message.notice (FEAT-023)",
+        "GET /widget/v1/config (botName, greeting; FEAT-024)"
       ],
       "conformance": {
         "result": "pass",

@@ -1,0 +1,25 @@
+# Tasks: FEAT-024 — Assistant persona and disclosure settings
+
+> Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
+> Status: pending · Last updated: 2026-10-21
+
+- [ ] T1 — Schema: `assistant_settings` with its checks (drizzle schema + `0014`), `0015` with forced RLS, policy, grants and `visitor_tenant_state()` recreated with the persona columns; `TENANT_SCOPED_TABLES` (design §4)
+      Done when: `pnpm db:setup` applies 0014–0015 on the running stack; the RLS suite passes with new cases: tenant B can't read or write tenant A's row, the visitor role can't select the table, the function returns the current tenant's persona only (defaults with no row), and the checks reject a digit in the name, a blank text and an unknown tone.
+- [ ] T2 — Tenancy: `AssistantPersona`, `DEFAULT_PERSONA`, `getAssistantSettings`, `saveAssistantSettings` with version and audit, `SettingsConflictError`, and `visitorTenantState().persona` (design §5.1; AC-1, AC-9)
+      Done when: tenancy integration tests pass: defaults with no row; first save (version 0) and later save (version n) bump the version; stale and racing first saves raise `SettingsConflictError` and change nothing; the audit entry carries the changed field codes and no text; `visitorTenantState` returns the saved persona.
+- [ ] T3 — Agent texts: `textsFor(lang, persona)` (core + note, fallback, after-hours lead + message), `DEFAULT_GREETING`, `assistantDefaults` (design §5.2; D2, D3, D7; AC-5, AC-6, AC-7)
+      Done when: unit tests pass: no persona → FEAT-023 texts byte for byte; named and unnamed cores in en and zh; a note appended; custom fallback and after-hours message per language; a Chinese text falls back to the Chinese default when only `en` is set; `assistantDefaults` renders the business name.
+- [ ] T4 — Agent prompt, emoji and fake: the `<assistant>` block and register-within-tone rule, `stripEmoji`, `ComposeInput.emoji`, the fake responder's tone/emoji/name behaviour (design §5.3; D4, D5; AC-3, AC-4)
+      Done when: unit tests pass: `system` byte-identical across languages, registers and times for one persona and different after each persona change; professional lines forbid particles; `stripEmoji` cases (ZWJ families, flags, skin tones, keycaps, spacing, © kept); compose strips before render with slot values intact and reports it; the fake adds 🙂 only for friendly + emoji and answers the name question.
+- [ ] T5 — Agent turn: persona through the turn (disclosure, fallbacks, notice, compose), audit `tone` and `emojiRemoved` (design §5.4; AC-4, AC-5, AC-6, AC-9)
+      Done when: agent integration tests pass: a saved name and note appear in the first reply's disclosure (en and zh); a paused tenant's fallback and an unavailable turn's fallback are the tenant's; the after-hours notice keeps the return time and uses the tenant's message; emoji off stores no emoji; the decision payload has the new codes and no text; with no settings every existing turn test is unchanged.
+- [ ] T6 — Contracts and api: the §3.1 shapes, `GET`/`PUT /api/v1/settings/assistant`, the 409 mapping, and the widget config's name and greeting (design §3, §5.5; AC-1, AC-2, AC-8)
+      Done when: api integration tests pass for GET defaults, PUT success, 400 per invalid field, 403 for an Agent, 409 on a stale version, and the widget config returning the saved name and greeting (defaults with none); contract unit tests cover the schema rules (digits, length, blank → null).
+- [ ] T7 — Widget: the greeting in the empty state by locale (design §5.6; ui-design.md; AC-8 UI half)
+      Done when: widget unit tests pass for the greeting choice, `pnpm build && pnpm size` stays within budget, and the panel shows a custom greeting on the local stack.
+- [ ] T8 — Dashboard: the Settings index and SCR-APP-041 (design §5.7; ui-design.md; AC-11)
+      Done when: the screen renders and conforms to ui-design.md on the local stack at 375 px and desktop (default, loading, validation, saving, saved, conflict, no-permission, error), and component tests cover validation messages, blank → default and the preview.
+- [ ] T9 — E2E and evals: `e2e/tests/assistant.e2e.ts` (AC-12, with axe on the screen) and `feat-024-persona.json`, the `persona` fixture/case field, the `emoji` expectation, the `tone` criterion, `version.json` 0.6.0 and the draft agreement items (design §5.8; AC-11, AC-12, AC-13)
+      Done when: the new spec and the existing E2E suite pass on Chromium against the local stack; `pnpm eval` and `--fast` pass every threshold with existing cases unchanged; a deliberately wrong recorded output in a new case drops its subset below threshold (then restored).
+- [ ] T10 — Verify: every AC in design §6 demonstrably passes; format, lint and boundaries, typecheck, unit, integration with coverage, build and size, E2E, evals and audit green; scaffold notes, RTM design ref and the manifest updated
+      Done when: all of the above pass in one fresh run, with the evidence recorded here.
