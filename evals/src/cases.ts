@@ -129,6 +129,10 @@ export const Case = z
     plan: z.union([z.record(z.string(), z.unknown()), z.string()]).optional(),
     /** The tenant's assistant settings for this case, over the fixture's (FEAT-024). */
     persona: PersonaPatch.optional(),
+    /** The tenant's holiday exceptions for this case, over the fixture's (FEAT-009 D4). */
+    holidays: z
+      .record(z.string().regex(/^\d{4}-\d{2}-\d{2}$/), z.enum(['open', 'closed']))
+      .default({}),
     /**
      * The reply model fails (NFR-04): the turn closes with the tenant's fallback text,
      * as the worker sends it (FEAT-024 AC-6).
@@ -179,6 +183,10 @@ export const Fixture = z.object({
   /** Opening hours (FEAT-023): the business profile's, as `visitor_tenant_state` returns them. */
   hours: WeeklyHours.nullable().default(null),
   openOnPublicHolidays: z.boolean().default(false),
+  /** Holiday exceptions (FEAT-009), day → kind, as `visitor_tenant_state` returns them. */
+  holidays: z
+    .record(z.string().regex(/^\d{4}-\d{2}-\d{2}$/), z.enum(['open', 'closed']))
+    .default({}),
   /** The assistant settings (FEAT-024); absent = never saved, the defaults. */
   persona: PersonaPatch.optional(),
   facts: z.array(

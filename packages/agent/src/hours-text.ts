@@ -97,11 +97,15 @@ export function systemSlots(ctx: HoursContext | null, lang: ReplyLanguage): Map<
   for (const d of WEEKDAYS) slots.set(`hours.${d}`, formatDay(ctx.hours[d], lang));
   slots.set(
     'hours.today',
-    ctx.status.closedForHoliday
+    ctx.status.closedReason === 'public_holiday'
       ? lang === 'en'
         ? 'closed (public holiday)'
         : '公共假期休息'
-      : formatDay(ctx.status.today, lang),
+      : ctx.status.closedReason === 'closure'
+        ? lang === 'en'
+          ? 'closed today'
+          : '今天休息'
+        : formatDay(ctx.status.today, lang),
   );
   slots.set(
     'hours.ph',

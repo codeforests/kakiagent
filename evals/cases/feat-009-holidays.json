@@ -1,0 +1,57 @@
+[
+  {
+    "id": "hol-closure-today-notice",
+    "subset": "groundedness",
+    "fast": true,
+    "at": "2026-10-21T11:00:00+08:00",
+    "holidays": { "2026-10-21": "closed" },
+    "messages": [{ "role": "user", "content": "how much is the chocolate fudge cake?" }],
+    "expect": [
+      {
+        "kind": "notice",
+        "present": true,
+        "contains": "The team will be back tomorrow at 8:00 am."
+      },
+      { "kind": "contains", "text": "S$55.00" },
+      { "kind": "cites", "ids": ["b1000001-0000-4000-8000-000000000001"] },
+      { "kind": "prices-from-facts" }
+    ]
+  },
+  {
+    "id": "hol-closure-today-hours",
+    "subset": "groundedness",
+    "at": "2026-10-21T11:00:00+08:00",
+    "holidays": { "2026-10-21": "closed" },
+    "messages": [{ "role": "user", "content": "what are your opening hours today?" }],
+    "expect": [
+      { "kind": "contains", "text": "closed today" },
+      { "kind": "notice", "present": true }
+    ]
+  },
+  {
+    "id": "hol-public-holiday-marked-open",
+    "subset": "groundedness",
+    "fast": true,
+    "at": "2026-12-25T10:00:00+08:00",
+    "holidays": { "2026-12-25": "open" },
+    "messages": [{ "role": "user", "content": "how much is the chocolate fudge cake?" }],
+    "expect": [
+      { "kind": "notice", "present": false },
+      { "kind": "contains", "text": "S$55.00" }
+    ]
+  },
+  {
+    "id": "hol-public-holiday-closed",
+    "subset": "groundedness",
+    "at": "2026-12-25T10:00:00+08:00",
+    "messages": [{ "role": "user", "content": "how much is the chocolate fudge cake?" }],
+    "expect": [
+      {
+        "kind": "notice",
+        "present": true,
+        "contains": "The team will be back tomorrow at 9:00 am."
+      },
+      { "kind": "contains", "text": "S$55.00" }
+    ]
+  }
+]

@@ -261,12 +261,13 @@ function memoryConversation(priorAbuse: number) {
 }
 
 /** The fixture's hours at the case's instant, as the worker computes them (FEAT-023 §5.7). */
-function hoursAt(fixture: Fixture, at: Date): HoursContext | null {
+function hoursAt(fixture: Fixture, c: Case, at: Date): HoursContext | null {
   if (!fixture.hours) return null;
+  const exceptions = { ...fixture.holidays, ...c.holidays };
   return {
     hours: fixture.hours,
     openOnPublicHolidays: fixture.openOnPublicHolidays,
-    status: openStatus(fixture.hours, fixture.openOnPublicHolidays, at),
+    status: openStatus(fixture.hours, fixture.openOnPublicHolidays, at, exceptions),
     now: at,
   };
 }
@@ -283,7 +284,7 @@ async function runCase(c: Case) {
   const dispatch = await dispatchCheck(plan, fixture.tenantId, conversation.port);
   const route = routeReply(routeSignals(plan, false), DEFAULT_ROUTE_POLICY);
   const language = replyLanguage(plan, query);
-  const hours = hoursAt(fixture, at);
+  const hours = hoursAt(fixture, c, at);
   const slots = systemSlots(hours, language);
   const facts = retrieve(c.tenant, query);
   const persona = personaOf(c);
