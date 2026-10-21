@@ -11,7 +11,9 @@ import { createApi } from './api.js';
 import {
   awaitingTurn,
   emptyChat,
+  langOf,
   pendingText,
+  rowsOf,
   withMessage,
   withSegment,
   type Chat,
@@ -146,17 +148,35 @@ function Panel({
       <ol class="log" ref={logRef} aria-live="polite" aria-relevant="additions">
         {chat.messages.length === 0 && <li class="empty">{t.empty}</li>}
         {chat.messages.map((m) => [
-          m.disclosure && (
-            <li key={`${m.id}-disclosure`} class="disc">
-              {INFO_ICON} {m.disclosure}
-            </li>
+          ...rowsOf(m).map((r) =>
+            r.kind === 'disclosure' ? (
+              <li key={r.key} class="disc" lang={langOf(r.text)}>
+                {INFO_ICON} {r.text}
+              </li>
+            ) : r.kind === 'notice' ? (
+              <li key={r.key} class="notice" lang={langOf(r.text)}>
+                {r.text}
+              </li>
+            ) : (
+              <li
+                key={r.key}
+                class={`msg ${m.author}`}
+                data-author={m.author}
+                lang={langOf(r.text)}
+              >
+                {m.author === 'visitor' && <span class="sr-only">{t.you}: </span>}
+                {r.text}
+              </li>
+            ),
           ),
-          <li key={m.id} class={`msg ${m.author}`} data-author={m.author}>
-            {m.author === 'visitor' && <span class="sr-only">{t.you}: </span>}
-            {m.body}
-          </li>,
           m.id === waitingFor && growing && (
-            <li key={`${m.id}-reply`} class="msg agent" data-author="agent" data-pending="true">
+            <li
+              key={`${m.id}-reply`}
+              class="msg agent"
+              data-author="agent"
+              data-pending="true"
+              lang={langOf(growing)}
+            >
               {growing}
             </li>
           ),

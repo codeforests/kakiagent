@@ -1,6 +1,14 @@
 import type { Message } from '@kaki/contracts';
 import { describe, expect, it } from 'vitest';
-import { awaitingTurn, emptyChat, pendingText, withMessage, withSegment } from './chat.js';
+import {
+  awaitingTurn,
+  emptyChat,
+  langOf,
+  pendingText,
+  rowsOf,
+  withMessage,
+  withSegment,
+} from './chat.js';
 
 const CONV = '00000000-0000-4000-8000-000000000000';
 const msg = (
@@ -52,5 +60,29 @@ describe('chat state (SCR-WGT-002 replying)', () => {
     c = withMessage(c, msg('v2', 3, 'visitor'));
     expect(awaitingTurn(c)).toBe('v2');
     expect(awaitingTurn(emptyChat)).toBeNull();
+  });
+});
+
+describe('after-hours notice and language of parts (FEAT-023; SCR-WGT-002)', () => {
+  it('orders the disclosure, the notice, then the bubble', () => {
+    const m = {
+      ...msg('a1', 2, 'agent', 'v1'),
+      disclosure: "You're chatting with an AI assistant for Kaki Bakery.",
+      notice: "We're closed right now. The team will be back tomorrow at 9:00 am.",
+    };
+    expect(rowsOf(m).map((r) => [r.kind, r.key])).toEqual([
+      ['disclosure', 'a1-disclosure'],
+      ['notice', 'a1-notice'],
+      ['message', 'a1'],
+    ]);
+    expect(rowsOf({ ...m, disclosure: null }).map((r) => r.kind)).toEqual(['notice', 'message']);
+    expect(rowsOf(msg('a2', 3, 'agent', 'v2')).map((r) => r.kind)).toEqual(['message']);
+  });
+
+  it('marks text with Chinese characters as zh-Hans and leaves the rest to the panel', () => {
+    expect(langOf('周六营业时间是上午9:00至下午5:00。')).toBe('zh-Hans');
+    expect(langOf('Chocolate fudge cake（1 kg）的价格是S$55.00。')).toBe('zh-Hans');
+    expect(langOf('The fudge cake is S$55.00 lah.')).toBeUndefined();
+    expect(langOf('')).toBeUndefined();
   });
 });
