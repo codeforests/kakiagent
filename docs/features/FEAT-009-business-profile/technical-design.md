@@ -4,7 +4,7 @@
 > Implements: ONB-03, ONB-06 (p: the F&B template's suggested FAQs only; FEAT-054 adds its boundary rules and FEAT-049 its lead fields; other industries are M7) · Also serves: AGT-09 (p: the owner's hours and closures drive the after-hours behaviour FEAT-023 built), KB-15 (p: the GST flag is now set by the owner) · Binding NFRs: NFR-10 (SG time zone, holidays, phone and UEN formats; plan §7), NFR-11 (codes only in audit and logs), NFR-09 (WCAG 2.1 AA), NFR-19 (validation and data-view states)
 > Realizes: UC-03 main flow steps 1–3 (profile, UEN check, SG holidays preloaded, the industry template's suggested FAQs) and alternate 1a in part (the profile is saved on every Save)
 > Screens: SCR-APP-044 (Business profile), SCR-APP-006 (p: the profile step at `/setup`, without the wizard frame), designed in [ui-design.md](ui-design.md)
-> Status: Verified (self-check §9) · Date: 2026-10-21
+> Status: Verified (self-check §9); accepted ([acceptance-report.md](acceptance-report.md)) · Date: 2026-10-21
 
 ## 0. Sequencing note: M1.5 deferred (owner decision, 2026-10-21)
 
