@@ -95,7 +95,7 @@ sequenceDiagram
 ### 5.2 `@kaki/agent`: language, register and system texts
 
 - `language.ts` (new): `replyLanguage(plan, visitorText) → 'en' | 'zh'`. `plan.language` `zh` → `zh`, `en` → `en`; for `ms`, `ta`, `other` and the fallback plan, `zh` if the visitor's text contains Han characters, otherwise `en` (D4).
-- `texts.ts` becomes `texts(lang)`: `{ disclosure(business), fallback, escalation, outOfScope(business), unsure, afterHours(when | null) }` in `en` and `zh` (D5):
+- `texts.ts` gains `textsFor(lang)`: `{ disclosure(business), fallback, escalation, outOfScope(business), unsure, afterHours(when | null) }` in `en` and `zh` (D5); `texts` stays the English set:
 
   | Key | en | zh |
   |---|---|---|
@@ -198,4 +198,4 @@ AC-1 to AC-11 are verified in M1 on the fake provider with recorded and adversar
 
 ## 9. Self-check
 
-Requirement coverage: AGT-03 → AC-1, AC-2, AC-3, AC-12 (tasks T3, T4, T6, T8, T10); AGT-04 → AC-4, AC-5, AC-12 (T5, T6, T8, T10), offers partial (§8); AGT-09 → AC-6, AC-7, AC-8, AC-12 (T1, T2, T4, T6, T9, T10), lead capture partial (§8). UC-20 5, 5a, 5b → AC-1/3, AC-4/5, AC-7. NFR-10 → AC-2, AC-6 (SGT, formats); NFR-11 → AC-9; NFR-13 → AC-4 (no reply call), the eval cost line; NFR-02 → T9 size check. Plan §7 judge and agreement → AC-11 (T8). E2E obligation: UC-20 is a critical flow (J2, J7; architecture §8.7) → T10 adds `language.e2e.ts`. IDs checked: AGT-01/03/04/08/09/11, ONB-03, APR-04, GOV-01/03/13, NFR-02/09/10/11/13, UC-20, SCR-WGT-002, SCR-APP-041, ADR-007/008/013/014/016/022/025, FEAT-009/024/033/044/049 all resolve. Schema changes are on BUSINESS_PROFILE and MESSAGE only. The contract change is additive (`Message.notice`). Breaking change inside the codebase: `texts` becomes a function of the language, and `dispatchPlan`'s result gains `replies`; all callers are in this repo and change in the same PR.
+Requirement coverage: AGT-03 → AC-1, AC-2, AC-3, AC-12 (tasks T3, T4, T6, T8, T10); AGT-04 → AC-4, AC-5, AC-12 (T5, T6, T8, T10), offers partial (§8); AGT-09 → AC-6, AC-7, AC-8, AC-12 (T1, T2, T4, T6, T9, T10), lead capture partial (§8). UC-20 5, 5a, 5b → AC-1/3, AC-4/5, AC-7. NFR-10 → AC-2, AC-6 (SGT, formats); NFR-11 → AC-9; NFR-13 → AC-4 (no reply call), the eval cost line; NFR-02 → T9 size check. Plan §7 judge and agreement → AC-11 (T8). E2E obligation: UC-20 is a critical flow (J2, J7; architecture §8.7) → T10 adds `language.e2e.ts`. IDs checked: AGT-01/03/04/08/09/11, ONB-03, APR-04, GOV-01/03/13, NFR-02/09/10/11/13, UC-20, SCR-WGT-002, SCR-APP-041, ADR-007/008/013/014/016/022/025, FEAT-009/024/033/044/049 all resolve. Schema changes are on BUSINESS_PROFILE and MESSAGE only. The contract change is additive (`Message.notice`). Change inside the codebase: `dispatchPlan`'s result gains `replies`; callers are in this repo and change in the same PR. (Implementation note: `texts` was kept as the English set beside the new `textsFor(lang)`, so existing callers and tests needed no change.)
