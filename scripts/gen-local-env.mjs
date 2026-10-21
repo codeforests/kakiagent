@@ -98,6 +98,8 @@ const files = {
     AWS_SECRET_ACCESS_KEY: 'test',
     // The local fixture site and dev pages run on 127.0.0.1 (FEAT-012 §5.6, dev-only).
     CRAWL_ALLOW_PRIVATE_HOSTS: 'true',
+    // `https://kakibakery.test` is the fixture site (`pnpm fixtures:site`, FEAT-012 §5.8).
+    CRAWL_HOST_MAP: 'kakibakery.test=http://127.0.0.1:5176',
   },
   'apps/widget/.env': {},
   'apps/dashboard/.env': {},
@@ -108,7 +110,8 @@ for (const [file, overrides] of Object.entries(files)) {
   if (existsSync(file) && !force && file !== '.env') {
     // Keep the file, but add variables a newer feature introduced (e.g. app_ingest).
     const have = read(file);
-    const missing = Object.entries(overrides).filter(([k]) => !(k in have));
+    const example = file === '.env' ? {} : read(file.replace(/\.env$/, '.env.example'));
+    const missing = Object.entries({ ...example, ...overrides }).filter(([k]) => !(k in have));
     if (missing.length) {
       const text = readFileSync(file, 'utf8').replace(/\n*$/, '\n');
       writeFileSync(file, text + missing.map(([k, v]) => `${k}=${v}`).join('\n') + '\n');

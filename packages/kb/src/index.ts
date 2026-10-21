@@ -70,6 +70,7 @@ export {
 export {
   assertPublicHost,
   isPublicAddress,
+  dnsResolver,
   NonPublicHostError,
   type Resolver,
 } from './ingest/address.js';
@@ -83,12 +84,14 @@ export {
 export { DEFAULT_SEARCH, searchVisitorFacts, type SearchOptions } from './visitor.js';
 export {
   crawlSource,
+  hostsOf,
   MAX_PAGE_TEXT,
   StaleRunError,
   type CrawlOptions,
   type CrawlOutcome,
   type FetchedPage,
   type PageFetcher,
+  type PageFetcherFactory,
 } from './ingest/crawl.js';
 export { BOT_USER_AGENT, parseRobots, robotsPolicy, type RobotsPolicy } from './ingest/robots.js';
 export {

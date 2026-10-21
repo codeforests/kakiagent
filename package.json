@@ -26,7 +26,8 @@
     "db:setup": "pnpm --filter @kaki/db run setup && pnpm --filter @kaki/kb run seed:dev",
     "db:generate": "pnpm --filter @kaki/db run generate",
     "audit:verify": "pnpm --filter @kaki/governance run verify",
-    "tokens": "pnpm --filter @kaki/design-tokens run build"
+    "tokens": "pnpm --filter @kaki/design-tokens run build",
+    "fixtures:site": "pnpm --filter @kaki/ingest-worker run fixtures:site"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

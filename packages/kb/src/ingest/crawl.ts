@@ -10,7 +10,19 @@ export interface PageFetcher {
   /** A plain GET of `<origin>/robots.txt`; null when the host can't be reached. */
   robots(origin: string): Promise<{ status: number; body: string } | null>;
   page(url: string): Promise<FetchedPage>;
+  /** Releases what the fetcher holds (the worker's browser context for the source). */
+  close?(): Promise<void>;
 }
+
+/** Opens a fetcher for one source's crawl, scoped to the hosts its pages may be on. */
+export type PageFetcherFactory = (scope: { hosts: readonly string[] }) => Promise<PageFetcher>;
+
+/** The hosts a source's pages may be on (KB-13): the domain, its www host, listed subdomains. */
+export const hostsOf = (source: Pick<SourceRecord, 'domain' | 'subdomains'>): string[] => [
+  source.domain,
+  `www.${source.domain}`,
+  ...source.subdomains,
+];
 
 export type FetchedPage =
   | {
@@ -77,7 +89,7 @@ export async function crawlSource(
 ): Promise<CrawlOutcome> {
   const concurrency = opts.concurrency ?? 4;
   const sleep = opts.sleep ?? ((ms) => new Promise<void>((r) => setTimeout(r, ms)));
-  const hosts = [source.domain, `www.${source.domain}`, ...source.subdomains];
+  const hosts = hostsOf(source);
   const { tenantId, id: sourceId, attempt } = source;
 
   // A redelivered crawl starts again: the attempt's pages from a crashed run go first.

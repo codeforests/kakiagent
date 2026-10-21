@@ -7,7 +7,14 @@ import {
   type SourceRecord,
   type SourceStage,
 } from '../sources.js';
-import { crawlSource, StaleRunError, type CrawlOptions, type PageFetcher } from './crawl.js';
+import {
+  crawlSource,
+  hostsOf,
+  StaleRunError,
+  type CrawlOptions,
+  type PageFetcher,
+  type PageFetcherFactory,
+} from './crawl.js';
 import { ExtractionUnavailableError, extractSource, type ExtractOptions } from './extract.js';
 import { promoteSource } from './promote.js';
 
@@ -22,7 +29,8 @@ export interface IngestDeps {
   /** The ingest trust zone (FEAT-012 §4). */
   zdb: ZoneDb;
   llm: LlmGateway;
-  fetcher: PageFetcher;
+  /** A fetcher, or a factory opening one per crawl (the worker's browser context). */
+  fetcher: PageFetcher | PageFetcherFactory;
   crawl?: CrawlOptions;
   extract?: ExtractOptions;
   /**
@@ -107,7 +115,16 @@ export async function runIngestJob(
   try {
     switch (job.stage) {
       case 'crawl': {
-        const outcome = await crawlSource(zdb, source, deps.fetcher, deps.crawl);
+        const fetcher =
+          typeof deps.fetcher === 'function'
+            ? await deps.fetcher({ hosts: hostsOf(source) })
+            : deps.fetcher;
+        let outcome;
+        try {
+          outcome = await crawlSource(zdb, source, fetcher, deps.crawl);
+        } finally {
+          await fetcher.close?.();
+        }
         if (outcome.next === 'failed') {
           await fail(zdb, job, outcome.failure);
           return { result: 'failed', failure: outcome.failure };

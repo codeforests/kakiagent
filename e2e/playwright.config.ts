@@ -6,7 +6,7 @@ import { defineConfig, devices } from '@playwright/test';
  * `--project=chromium`.
  *
  * The stack (compose, `pnpm db:setup`) must be up first. `pnpm dev` is started here
- * unless E2E_REUSE_SERVERS=true and it is already running.
+ * unless E2E_REUSE_SERVERS=true and it is already running, with the crawler's fixture site.
  */
 const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE;
 
@@ -36,15 +36,26 @@ export default defineConfig({
     { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
     { name: 'webkit', use: { ...devices['Desktop Safari'] } },
   ],
-  webServer: {
-    command: 'pnpm dev',
-    cwd: '..',
-    url: 'http://localhost:3000/readyz',
-    reuseExistingServer: process.env.E2E_REUSE_SERVERS === 'true' || !process.env.CI,
-    timeout: 180_000,
-    stdout: 'ignore',
-    stderr: 'pipe',
-    // SIGTERM lets turbo stop every dev server; the default kill leaves them orphaned.
-    gracefulShutdown: { signal: 'SIGTERM', timeout: 10_000 },
-  },
+  webServer: [
+    {
+      // The crawler's fixture site, `https://kakibakery.test` to the worker (FEAT-012 §5.8).
+      command: 'pnpm fixtures:site',
+      cwd: '..',
+      url: 'http://127.0.0.1:5176/robots.txt',
+      reuseExistingServer: true,
+      stdout: 'ignore',
+      stderr: 'pipe',
+    },
+    {
+      command: 'pnpm dev',
+      cwd: '..',
+      url: 'http://localhost:3000/readyz',
+      reuseExistingServer: process.env.E2E_REUSE_SERVERS === 'true' || !process.env.CI,
+      timeout: 180_000,
+      stdout: 'ignore',
+      stderr: 'pipe',
+      // SIGTERM lets turbo stop every dev server; the default kill leaves them orphaned.
+      gracefulShutdown: { signal: 'SIGTERM', timeout: 10_000 },
+    },
+  ],
 });
