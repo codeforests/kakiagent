@@ -5,7 +5,7 @@
 
 - [x] T1 — Schema: `business_profiles.hours` and `open_on_public_holidays`, `messages.notice` and `notice_kind` with their checks (drizzle schema + `0012`), and `0013` recreating `visitor_tenant_state()` with the hours (design §4)
       Done when: `pnpm db:setup` applies 0012–0013 on the running stack; the RLS suite passes with new cases: the function returns the current tenant's hours only, the visitor role still can't select `business_profiles`, the notice check rejects a notice without a kind and an unknown kind, and tenant B can't read tenant A's notices.
-- [ ] T2 — Tenancy: `WeeklyHours`, SGT day helpers, `openStatus`, the SG holiday calendar, and `visitorTenantState` with hours (design §5.1; AC-6)
+- [x] T2 — Tenancy: `WeeklyHours`, SGT day helpers, `openStatus`, the SG holiday calendar, and `visitorTenantState` with hours (design §5.1; AC-6)
       Done when: unit tests for every AC-6 case pass (open, overnight, weekend, split day, 24:00 merge, holiday closed and open, the Monday in lieu, SGT midnight and the year end, nothing in 14 days, invalid hours → null), and a tenancy integration test reads hours through `visitorTenantState`.
 - [ ] T3 — Agent language: `replyLanguage`, `texts(lang)` in en and zh, the prompt's language and register lines and the hours lines (design §5.2; D4, D5; AC-1)
       Done when: unit tests pass for `replyLanguage` on every plan language and the fallback plan, both text tables, and the prompt: tail names language and register, `system` byte-identical across languages, registers and times, and different when the hours change.
