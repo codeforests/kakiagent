@@ -3,7 +3,7 @@
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
 > Status: pending · Last updated: 2026-10-21
 
-- [ ] T1 — Schema: `assistant_settings` with its checks (drizzle schema + `0014`), `0015` with forced RLS, policy, grants and `visitor_tenant_state()` recreated with the persona columns; `TENANT_SCOPED_TABLES` (design §4)
+- [x] T1 — Schema: `assistant_settings` with its checks (drizzle schema + `0014`), `0015` with forced RLS, policy, grants and `visitor_tenant_state()` recreated with the persona columns; `TENANT_SCOPED_TABLES` (design §4)
       Done when: `pnpm db:setup` applies 0014–0015 on the running stack; the RLS suite passes with new cases: tenant B can't read or write tenant A's row, the visitor role can't select the table, the function returns the current tenant's persona only (defaults with no row), and the checks reject a digit in the name, a blank text and an unknown tone.
 - [ ] T2 — Tenancy: `AssistantPersona`, `DEFAULT_PERSONA`, `getAssistantSettings`, `saveAssistantSettings` with version and audit, `SettingsConflictError`, and `visitorTenantState().persona` (design §5.1; AC-1, AC-9)
       Done when: tenancy integration tests pass: defaults with no row; first save (version 0) and later save (version n) bump the version; stale and racing first saves raise `SettingsConflictError` and change nothing; the audit entry carries the changed field codes and no text; `visitorTenantState` returns the saved persona.

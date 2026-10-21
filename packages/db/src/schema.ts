@@ -92,6 +92,53 @@ export const businessProfiles = pgTable(
   ],
 );
 
+/** Assistant tones (AGT-08; FEAT-024 §4). */
+export const ASSISTANT_TONES = ['friendly', 'professional'] as const;
+
+/** A tenant text: null (the default) or non-blank and at most `max` characters. */
+const tenantText = (column: unknown, max: number) =>
+  sql`(${column} is null or (btrim(${column}) <> '' and char_length(${column}) <= ${sql.raw(String(max))}))`;
+
+/**
+ * Assistant persona and messages (AGT-08, AGT-11; FEAT-024 §4, D1): one row per tenant,
+ * absent until the first save (defaults). Texts are per language, null = the default
+ * (D3). The visitor zone reads it only through `visitor_tenant_state()`.
+ */
+export const assistantSettings = pgTable(
+  'assistant_settings',
+  {
+    tenantId: uuid('tenant_id')
+      .primaryKey()
+      .references(() => tenants.id),
+    version: integer('version').notNull().default(1),
+    botName: text('bot_name'),
+    tone: text('tone', { enum: ASSISTANT_TONES }).notNull().default('friendly'),
+    emoji: boolean('emoji').notNull().default(false),
+    greetingEn: text('greeting_en'),
+    greetingZh: text('greeting_zh'),
+    disclosureNoteEn: text('disclosure_note_en'),
+    disclosureNoteZh: text('disclosure_note_zh'),
+    afterHoursEn: text('after_hours_en'),
+    afterHoursZh: text('after_hours_zh'),
+    fallbackEn: text('fallback_en'),
+    fallbackZh: text('fallback_zh'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check('assistant_settings_tone_ck', sql`${t.tone} in ('friendly', 'professional')`),
+    // D6: no digits, because the verifier blocks every number the model types.
+    check(
+      'assistant_settings_bot_name_ck',
+      sql`${t.botName} is null or (char_length(${t.botName}) between 1 and 30 and ${t.botName} !~ '[0-9]' and btrim(${t.botName}) = ${t.botName})`,
+    ),
+    check(
+      'assistant_settings_texts_ck',
+      sql`${tenantText(t.greetingEn, 200)} and ${tenantText(t.greetingZh, 200)} and ${tenantText(t.disclosureNoteEn, 200)} and ${tenantText(t.disclosureNoteZh, 200)} and ${tenantText(t.afterHoursEn, 300)} and ${tenantText(t.afterHoursZh, 300)} and ${tenantText(t.fallbackEn, 300)} and ${tenantText(t.fallbackZh, 300)}`,
+    ),
+  ],
+);
+
 /** System notice kinds on a message (FEAT-023 §4); later kinds extend `messages_notice_ck`. */
 export const NOTICE_KINDS = ['after_hours'] as const;
 
@@ -550,6 +597,7 @@ export const TENANT_SCOPED_TABLES = [
   'audit_heads',
   'audit_pii',
   'business_profiles',
+  'assistant_settings',
   'facts',
   'fact_versions',
   'kb_chunks',
