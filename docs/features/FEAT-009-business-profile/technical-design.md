@@ -148,7 +148,7 @@ sequenceDiagram
 
 - `turn.ts`: `openStatus(tenant.hours, tenant.openOnPublicHolidays, wall, tenant.holidays)`.
 - `hours-text.ts`: `hours.today` when `closedReason === 'closure'` → `closed today` / `今天休息`; `public_holiday` keeps FEAT-023's texts. `HoursContext` is unchanged otherwise. The cached hours lines stay the weekly hours and the public-holiday rule only, so `system` does not change from day to day (FEAT-004 AC-3; D4).
-- `evals/src/run.ts` and the case schema: `Fixture` and `Case` gain optional `holidays` (an exceptions map), passed to `openStatus` as the worker does; two cases in `feat-009-holidays.json` (a closure today: notice with the next opening, `hours.today` "closed today"; an `open` exception on a public holiday: no notice). Fake provider only; no model behaviour is involved.
+- `evals/src/run.ts` and the case schema: `Fixture` and `Case` gain optional `holidays` (an exceptions map), passed to `openStatus` as the worker does; cases in `feat-009-holidays.json` (four, see tasks.md T4) (a closure today: notice with the next opening, `hours.today` "closed today"; an `open` exception on a public holiday: no notice). Fake provider only; no model behaviour is involved.
 
 ### 5.3 api
 

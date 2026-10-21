@@ -102,6 +102,35 @@
       "status": "designed",
       "designed_at": "2026-10-20"
     },
+    "SCR-APP-006": {
+      "name": "Wizard · Business profile",
+      "surface": "APP",
+      "feature": "FEAT-009",
+      "strategy": "code-native",
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      },
+      "source": {
+        "spec": "features/FEAT-009-business-profile/ui-design.md#scr-app-006--wizard--business-profile-p"
+      },
+      "states": {
+        "covered": [
+          "default",
+          "validation",
+          "saved"
+        ],
+        "gaps": [
+          "wizard frame (FEAT-035)"
+        ],
+        "supplements": []
+      },
+      "contract_bindings": [
+        "GET /api/v1/settings/business-profile",
+        "PUT /api/v1/settings/business-profile"
+      ]
+    },
     "SCR-APP-015": {
       "name": "Conversation",
       "surface": "APP",
@@ -284,6 +313,38 @@
       },
       "status": "designed",
       "designed_at": "2026-10-21"
+    },
+    "SCR-APP-044": {
+      "name": "Business profile",
+      "surface": "APP",
+      "feature": "FEAT-009",
+      "strategy": "code-native",
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      },
+      "source": {
+        "spec": "features/FEAT-009-business-profile/ui-design.md#scr-app-044--business-profile"
+      },
+      "states": {
+        "covered": [
+          "default",
+          "loading",
+          "validation",
+          "saving",
+          "saved",
+          "conflict",
+          "error",
+          "permission"
+        ],
+        "gaps": [],
+        "supplements": []
+      },
+      "contract_bindings": [
+        "GET /api/v1/settings/business-profile",
+        "PUT /api/v1/settings/business-profile"
+      ]
     },
     "SCR-APP-059": {
       "name": "System pages",
