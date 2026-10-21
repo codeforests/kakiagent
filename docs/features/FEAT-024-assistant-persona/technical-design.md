@@ -146,15 +146,15 @@ sequenceDiagram
 - `prompt.ts`: `buildVisitorPrompt` gains `persona?`. The tenant block gains an `<assistant>` section after `<business>`:
   - `Name: {botName}` (only when set) with the rule "Call yourself {name} if you introduce yourself; never claim to be a person.",
   - `Tone: friendly` → "warm and casual, like a helpful shop assistant", `professional` → "courteous and businesslike; complete sentences; no slang and no Singlish particles, even when the visitor uses them" (AGT-08: register matching stays within the chosen tone),
-  - `Emoji: at most one, only where it fits a friendly reply` / `Emoji: never`.
-  The static register rule line gains "within the tone set in <assistant>". All of it depends only on settings, so `system` stays byte-stable per tenant and changes only when the owner saves (ADR-007 decision 2; FEAT-004 AC-3 extended).
+  - `Emoji: allowed, at most one, only where it fits.` / `Emoji: never.`
+  The static register rule line gains "within the tone set in the assistant block, if there is one". Without a persona there is no `<assistant>` block, so callers that pass none keep FEAT-023's prompt byte for byte; the worker always passes one (the defaults when nothing is saved). All of it depends only on settings, so `system` stays byte-stable per tenant and changes only when the owner saves (ADR-007 decision 2; FEAT-004 AC-3 extended).
 - `emoji.ts` (new): `stripEmoji(text)` removes emoji sequences (`\p{Extended_Pictographic}` and regional-indicator pairs, with their ZWJ joins, `U+FE0F` and skin-tone modifiers, and keycap sequences), then tidies the spaces it left (no doubled spaces, no space before `.,!?，。！？`). `©`, `®` and `™` are kept.
-- `compose.ts`: `ComposeInput.emoji?: boolean` (default true, the pre-FEAT-024 behaviour). With `emoji === false`, each raw segment is passed through `stripEmoji` before rendering, so fact values (rendered after) are never touched and the verifier sees the stripped text (D4).
+- `compose.ts`: `ComposeInput.persona?` (absent: the pre-FEAT-024 behaviour). With `persona.emoji === false`, each raw segment is passed through `stripEmoji` before rendering, so fact values (rendered after) are never touched and the verifier sees the stripped text (D4).
 - `fake-responder.ts`: reads `Tone:` and `Emoji:` from `system`: a friendly tone with emoji allowed ends its answer with ` 🙂`; with a name set, a "who are you / what's your name / 你是谁 / 你叫什么" question gets `I'm {name}, the AI assistant here. How can I help?` (zh `我是{name}，这里的 AI 助手。有什么可以帮您？`). Professional or emoji never: unchanged. So the local stack and E2E show the settings on the fake model.
 
 ### 5.4 `@kaki/agent`: the turn
 
-`runVisitorTurn` takes `persona = gate.tenant?.persona` and passes it to every `textsFor(language, persona)` (disclosure, fallback for paused and unavailable, after-hours notice), to `answerTurn`/`composeReply` (`persona`, `emoji: persona.emoji`), and so to the prompt. The `agent.decision` audit payload gains `tone` (code) and `emojiRemoved` (boolean: a segment changed when stripped). Still no text.
+`runVisitorTurn` takes `persona = gate.tenant?.persona` and passes it to every `textsFor(language, persona)` (disclosure, fallback for paused and unavailable, after-hours notice), to `answerTurn`/`composeReply` (`persona`), and so to the prompt. The `agent.decision` audit payload gains `tone` (code) and `emojiRemoved` (boolean: a segment changed when stripped). Still no text.
 
 ### 5.5 api
 
@@ -167,18 +167,19 @@ sequenceDiagram
 
 ### 5.7 Dashboard (SCR-APP-041)
 
-`/settings` becomes the Settings index (ui-design.md) and `/settings/assistant` the Assistant screen: `GET` on load, a form bound to `AssistantSettingsBody` validated with the contract schema on blur and submit, a live preview of the widget's header, greeting and first reply disclosure, `PUT` on Save, the 409 alert with Reload, and the 403 no-permission state for an Agent. `apps/dashboard/src/lib/settings.ts` holds the fetchers.
+`/settings` becomes the Settings index (ui-design.md) and `/settings/assistant` the Assistant screen: `GET` on load, a form bound to `AssistantSettingsBody` validated with the contract schema on blur and submit, a live preview of the widget's header, greeting and first reply disclosure, `PUT` on Save, the 409 alert with Reload, and the 403 no-permission state for an Agent. The fetchers are in `apps/dashboard/src/lib/api.ts` with the others; `Field`, `describedBy` and `useToast` move to `src/lib/` so both forms share them. The "saved" toast is held by the page, since a save bumps the version that keys (remounts) the form.
 
 ### 5.8 Evals
 
 - `Fixture` and `Case` gain `persona?: Partial<Persona>` (the case's wins); the runner passes it into `answerTurn` and the texts exactly as the worker does.
 - New expectation `{ kind: 'emoji', present: boolean }`; new judge criterion `tone` (the reply matches the tenant's tone, within the visitor's register; professional replies use no particles), pending on the fake provider as before (FEAT-023 D8).
 - `feat-024-persona.json` (≥ 12 cases, about half `fast`): emoji off with a recorded emoji answer (stripped, price still cited), emoji on with the fake (present), professional tone + Singlish question (no particle in a recorded professional answer; `tone` judge pending), friendly + Singlish, a custom fallback (`unavailable` triage), the custom after-hours message with the system return time, a named disclosure in en and zh, the name question. Subsets: `groundedness`, `singlish`, `chinese`.
+- Added in implementation (T9), both mirroring `turn.ts`: a `disclosure` expectation (`contains`; the turn adds the disclosure, not the reply) and a case flag `replyFails` (the reply model throws, so the turn closes with the tenant's fallback).
 - `evals/version.json` → `0.6.0`; the agreement sample gains draft-labelled `tone` items so it stays ≥ 10% of the judge expectations.
 
 ### 5.9 Dev data
 
-The seed leaves both dev tenants without a saved row (defaults), so earlier E2E tests see FEAT-023's texts; the E2E for this feature saves and then restores the settings through the API.
+The seed leaves both dev tenants without a saved row (defaults), so earlier E2E tests see FEAT-023's texts; the E2E for this feature saves through the screen and clears the row through the owner connection after each test, as `language.e2e.ts` restores the hours.
 
 ## 6. Acceptance criteria
 
