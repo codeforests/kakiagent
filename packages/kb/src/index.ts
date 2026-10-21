@@ -59,6 +59,7 @@ export {
   getSource,
   listSources,
   retrySource,
+  sourceFactCounts,
   type PageReason,
   type PageRecord,
   type PageStatus,

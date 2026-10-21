@@ -66,6 +66,8 @@ const files = {
     VISITOR_DATABASE_URL: pg('app_agent_visitor', s.APP_AGENT_VISITOR_PASSWORD),
     VISITOR_TOKEN_SECRET: s.VISITOR_TOKEN_SECRET,
     SESSION_SECRET: s.SESSION_SECRET,
+    // `https://kakibakery.test` (the fixture site) is accepted locally (FEAT-012 §5.6).
+    CRAWL_ALLOW_PRIVATE_HOSTS: 'true',
   },
   'apps/realtime/.env': {
     DASHBOARD_DATABASE_URL: pg('app_dashboard', s.APP_DASHBOARD_PASSWORD),

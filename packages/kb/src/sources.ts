@@ -248,3 +248,23 @@ export async function deleteSource(
   });
   return ids.length;
 }
+
+/**
+ * Each source's facts now, and how many still need review (SCR-APP-023 "N facts · N need
+ * review"; the delete confirm's count). Live, so facts the owner deleted aren't counted.
+ */
+export async function sourceFactCounts(
+  ctx: DashboardKbContext,
+): Promise<Map<string, { facts: number; needsReview: number }>> {
+  const f = schema.facts;
+  const rows = await ctx.tx
+    .select({
+      sourceId: f.sourceId,
+      facts: sql<number>`count(*)::int`,
+      needsReview: sql<number>`(count(*) filter (where ${f.status} = 'needs_review'))::int`,
+    })
+    .from(f)
+    .where(and(eq(f.tenantId, ctx.tenantId), sql`${f.sourceId} is not null`))
+    .groupBy(f.sourceId);
+  return new Map(rows.map((r) => [r.sourceId!, { facts: r.facts, needsReview: r.needsReview }]));
+}

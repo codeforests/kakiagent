@@ -1,6 +1,7 @@
 import { sql } from '@kaki/db';
 import type { TestDatabase } from '@kaki/db/testing';
 import { SESSION_COOKIE, startSession, type GoogleSignIn } from '@kaki/identity';
+import type { Resolver } from '@kaki/kb';
 import { gatewayFromConfig } from '@kaki/llm-gateway';
 import {
   createLogger,
@@ -57,6 +58,7 @@ export async function testApp(
     publisher?: Publisher;
     mailer?: Mailer;
     google?: GoogleSignIn | null;
+    resolve?: Resolver;
   } = {},
 ) {
   return buildApp({
@@ -70,6 +72,7 @@ export async function testApp(
     mailer: opts.mailer ?? fakeMailer(),
     rateLimiter: memoryRateLimiter(),
     google: opts.google ?? null,
+    ...(opts.resolve ? { resolve: opts.resolve } : {}),
   });
 }
 
