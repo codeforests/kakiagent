@@ -87,7 +87,11 @@ describe('GET /api/v1/settings/business-profile', () => {
     const res = await call('GET', asA);
     expect(res.statusCode).toBe(200);
     const json = res.json();
-    expect(json.profile).toMatchObject({ name: 'Kaki Bakery', industry: 'fnb', languages: ['en', 'zh'] });
+    expect(json.profile).toMatchObject({
+      name: 'Kaki Bakery',
+      industry: 'fnb',
+      languages: ['en', 'zh'],
+    });
     expect(json.calendar.coverThrough).toBe(2027);
     const days: string[] = json.calendar.holidays.map((h: { day: string }) => h.day);
     expect(days.every((d) => d >= day(0) && d <= day(365))).toBe(true);
