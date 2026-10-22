@@ -9,9 +9,13 @@ import {
   FactList,
   FactResponse,
   Me,
+  SourceDetail,
+  SourceList,
+  SourceResponse,
   type AssistantSettingsBody,
   type BusinessProfileBody,
   type CreateFactBody,
+  type CreateSourceBody,
   type CreateWorkspaceBody,
   type FactListQuery,
   type UpdateFactBody,
@@ -34,10 +38,18 @@ export class UnauthorizedError extends Error {
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
-  constructor(status: number, code: string, message: string) {
+  /** The rest of the body, e.g. `sourceId` on `source_exists`. */
+  readonly details: Record<string, unknown>;
+  constructor(
+    status: number,
+    code: string,
+    message: string,
+    details: Record<string, unknown> = {},
+  ) {
     super(message);
     this.status = status;
     this.code = code;
+    this.details = details;
   }
 }
 
@@ -56,9 +68,17 @@ async function send(
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
+    const err = (await res.json().catch(() => ({}))) as {
+      error?: string;
+      message?: string;
+    } & Record<string, unknown>;
     if (res.status === 401) throw new UnauthorizedError(err.error ?? 'unauthorized');
-    throw new ApiError(res.status, err.error ?? 'error', err.message ?? `${path}: ${res.status}`);
+    throw new ApiError(
+      res.status,
+      err.error ?? 'error',
+      err.message ?? `${path}: ${res.status}`,
+      err,
+    );
   }
   return res;
 }
@@ -109,4 +129,15 @@ export const api = {
   businessProfile: () => getJson('/api/v1/settings/business-profile', BusinessProfileResponse),
   saveBusinessProfile: (body: BusinessProfileBody) =>
     request('PUT', '/api/v1/settings/business-profile', BusinessProfileResponse, body),
+  /** FEAT-012 §3: SCR-APP-023, SCR-APP-024 and the website form. */
+  sources: () => getJson('/api/v1/kb/sources', SourceList),
+  source: (id: string) => getJson(`/api/v1/kb/sources/${encodeURIComponent(id)}`, SourceDetail),
+  createSource: (body: CreateSourceBody) =>
+    request('POST', '/api/v1/kb/sources', SourceResponse, body),
+  retrySource: (id: string, version: number) =>
+    request('POST', `/api/v1/kb/sources/${encodeURIComponent(id)}/retry`, SourceResponse, {
+      version,
+    }),
+  deleteSource: async (id: string, version: number) =>
+    void (await send('DELETE', `/api/v1/kb/sources/${encodeURIComponent(id)}?version=${version}`)),
 };

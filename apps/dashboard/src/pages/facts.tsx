@@ -3,7 +3,7 @@ import { Button, EmptyState, ErrorState } from '@kaki/ui';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { api, ApiError } from '../lib/api.ts';
 import { useToast } from '../lib/form.ts';
 import {
@@ -17,6 +17,7 @@ import {
   updatedLabel,
 } from '../lib/facts.ts';
 import { DeleteFactDialog, type DeleteOutcome } from './delete-fact.tsx';
+import { KnowledgeTabs } from './knowledge-tabs.tsx';
 
 /** "GST to check" filters on `gst=unknown` rather than a status (FEAT-011 ui-design). */
 type StatusFilter = FactStatus | 'gst' | '';
@@ -67,16 +68,20 @@ export function FactsPage() {
   const [status, setStatus] = useState<StatusFilter>('');
   const [type, setType] = useState<FactType | ''>('');
   const [deleting, setDeleting] = useState<Fact | null>(null);
+  // "Facts found" on SCR-APP-024 links here with the source (FEAT-012).
+  const [params, setParams] = useSearchParams();
+  const sourceId = params.get('sourceId') ?? undefined;
   // Search runs a moment after typing stops, not on each keystroke.
   useEffect(() => {
     const timer = setTimeout(() => setSearch(q.trim()), 250);
     return () => clearTimeout(timer);
   }, [q]);
-  const filtered = Boolean(search || status || type);
+  const filtered = Boolean(search || status || type || sourceId);
   const list = useInfiniteQuery({
-    queryKey: ['facts', type, status, search],
+    queryKey: ['facts', type, status, search, sourceId],
     queryFn: ({ pageParam }) =>
       api.facts({
+        sourceId,
         type: type || undefined,
         status: status && status !== 'gst' ? status : undefined,
         gst: status === 'gst' ? 'unknown' : undefined,
@@ -116,6 +121,7 @@ export function FactsPage() {
     setSearch('');
     setStatus('');
     setType('');
+    if (sourceId) setParams({});
   };
 
   const addButton = (
@@ -137,6 +143,15 @@ export function FactsPage() {
         </div>
         {!forbidden && addButton}
       </div>
+      {!forbidden && <KnowledgeTabs />}
+      {sourceId && (
+        <p className="facts__source-filter">
+          Showing the facts from one source.{' '}
+          <Button variant="ghost" className="kaki-btn--sm" onClick={() => setParams({})}>
+            Show all facts
+          </Button>
+        </p>
+      )}
 
       {forbidden && (
         <EmptyState title="You can't manage facts">

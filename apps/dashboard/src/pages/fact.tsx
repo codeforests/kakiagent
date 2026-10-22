@@ -9,6 +9,7 @@ import { describedBy } from '../lib/form.ts';
 import { dayLabel, factTitle, POLICY_KIND_LABEL, promotionWindow, sgToday } from '../lib/facts.ts';
 import { DeleteFactDialog, type DeleteOutcome } from './delete-fact.tsx';
 import { StatusBadge } from './facts.tsx';
+import { FactProvenance } from './fact-provenance.tsx';
 import { NotFound } from './system.tsx';
 
 type Kind = FactType;
@@ -603,6 +604,8 @@ function FactForm({ fact, prefill = BLANK }: { fact: Fact | null; prefill?: Draf
             <span id="fact-use-label">Use in answers</span>
           </div>
         )}
+
+        {fact && <FactProvenance fact={fact} />}
 
         <div className="action-bar">
           <Button
