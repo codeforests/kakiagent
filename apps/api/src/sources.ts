@@ -110,7 +110,8 @@ export function registerSourceRoutes(
     const scope = parseWebsite(body.url, body.subdomains ?? []);
     await assertPublicHost(new URL(scope.url).hostname, {
       ...(opts.resolve ? { resolve: opts.resolve } : {}),
-      allowPrivate: config.CRAWL_ALLOW_PRIVATE_HOSTS,
+      // Dev-only (FEAT-012 §5.6): production builds always check the address.
+      allowPrivate: process.env.KAKI_BUILD !== 'production' && config.CRAWL_ALLOW_PRIVATE_HOSTS,
     });
     const source = await withKb(s, async (ctx) =>
       withCounts(
