@@ -246,7 +246,10 @@ describe('crawl stage (KB-01, KB-13; FEAT-012 §5.2)', () => {
     expect(requested).toHaveLength(100);
     // AC-3: every page discovered past the limit is listed as skipped, and nothing else is.
     const discovered = new Set(
-      requested.flatMap((u) => (site[u]?.links ?? []).map((l) => new URL(l, u).href)),
+      requested.flatMap((u) => {
+        const p = site[u];
+        return p && !('fail' in p) ? (p.links ?? []).map((l) => new URL(l, u).href) : [];
+      }),
     );
     const beyond = [...discovered].filter((u) => !requested.includes(u)).sort();
     expect(beyond.length).toBeGreaterThan(0);

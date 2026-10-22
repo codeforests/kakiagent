@@ -103,7 +103,7 @@ All commands below are the harness's own (AGENTS.md):
 - `pnpm test:e2e --project=chromium` with `PLAYWRIGHT_CHROMIUM_EXECUTABLE` and `CHROMIUM_EXECUTABLE_PATH` set to the sandbox Chromium: **33 passed**, none flaky.
   - The first attempt left `PLAYWRIGHT_CHROMIUM_EXECUTABLE` unset, and all 33 failed to launch a browser ("Executable doesn't exist … chromium_headless_shell-1248"). That is an environment issue. Nothing ran, and it isn't a test result.
 - `pnpm eval --fast`: every subset passes, and extraction precision, recall and prices are each 1.000 over 5 pages.
-- Run earlier in T14 on the same code (the only changes since are test files and docs): `pnpm format:check`, `lint` (ESLint and dependency-cruiser), `typecheck`, `test`, and `build && size`, all exit 0.
+- `pnpm format:check`, `lint` (ESLint and dependency-cruiser), `test` and `build && size` exit 0 (T14; only test files and docs changed since). `pnpm typecheck` was not re-run after the AC-3 correction, and CI caught a type error in it (the fake site's page union). That was fixed in `FEAT-012 acceptance: type the AC-3 correction`, and `pnpm typecheck` then exited 0, with the corrected test still green.
 - **Anti-fake-green review** (diff `266737c^..63fc214` over the test files, `thresholds.json`, the vitest configs and `ci.yml`):
   - **Additions only.** The only removed lines extend existing lists: the RLS role list gains `app_ingest` (4 → 5 roles), the outbox tests' queue map gains the ingest queue, and `thresholds.json` gains a trailing comma and a longer `$comment`.
   - **No loosening.** No thresholds were lowered, no coverage scope was narrowed or excluded, and no skip, todo or only was added.
