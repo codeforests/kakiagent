@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { withTenant } from '@kaki/db';
+import { fakeEmbed } from '@kaki/llm-gateway';
 import { startTestDatabase, TENANT_A, TENANT_B, type TestDatabase } from '@kaki/db/testing';
 import pg from 'pg';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
@@ -14,8 +15,10 @@ import {
   parseWebsite,
   retrySource,
   SourceExistsError,
+  searchVisitorFacts,
   SourceNotFoundError,
   VersionConflictError,
+  visitorKb,
 } from '../src/index.js';
 
 let tdb: TestDatabase;
@@ -49,6 +52,18 @@ const dash = <T>(tenantId: string, fn: (ctx: ReturnType<typeof dashboardKb>) => 
 
 const add = (tenantId: string, url = 'https://www.kakibakery.sg/', subs: string[] = []) =>
   dash(tenantId, (ctx) => createWebsiteSource(ctx, parseWebsite(url, subs), { pageLimit: 100 }));
+
+/** The fact IDs a visitor turn's retrieval would see for the tenant (ADR-010). */
+const visitorHits = (tenantId: string) =>
+  withTenant(tdb.zone('visitor'), tenantId, async (tx) =>
+    (
+      await searchVisitorFacts(
+        visitorKb(tx, tenantId, '00000000-0000-4000-8000-0000000000c1'),
+        fakeEmbed('open on sunday'),
+        { k: 50, maxDistance: 2 },
+      )
+    ).map((h) => h.id),
+  );
 
 async function auditOf(id: string) {
   return (
@@ -242,6 +257,10 @@ describe('website sources (FEAT-012 §5.5)', () => {
       provenance: { quote: 'Open on Sunday? Yes' },
     });
 
+    // The approved fact is what a visitor turn retrieves before the delete (AC-9).
+    const approved = facts[1]!;
+    expect(await visitorHits(TENANT_A)).toContain(approved);
+
     await owner.query(`update kb_sources set status = 'processing' where id = $1`, [s.id]);
     await expect(dash(TENANT_A, (ctx) => deleteSource(ctx, s.id, 1))).rejects.toBeInstanceOf(
       InvalidStateError,
@@ -269,6 +288,7 @@ describe('website sources (FEAT-012 §5.5)', () => {
         (await owner.query(`select 1 from ${table} where fact_id = any($1)`, [facts])).rowCount,
         table,
       ).toBe(0);
+    expect(await visitorHits(TENANT_A)).not.toContain(approved);
     expect((await auditOf(s.id)).at(-1)).toEqual({
       event_type: 'kb_source.deleted',
       actor_ref: USER,

@@ -241,10 +241,17 @@ describe('crawl stage (KB-01, KB-13; FEAT-012 §5.2)', () => {
     const list = await pages(s.id);
     expect(list.filter((p) => p.status === 'included')).toHaveLength(100);
     const skipped = list.filter((p) => p.status === 'skipped');
-    expect(skipped.length).toBeGreaterThan(0);
     expect(skipped.every((p) => p.reason === 'plan_limit')).toBe(true);
     for (const p of skipped) expect(requested).not.toContain(p.url);
     expect(requested).toHaveLength(100);
+    // AC-3: every page discovered past the limit is listed as skipped, and nothing else is.
+    const discovered = new Set(
+      requested.flatMap((u) => (site[u]?.links ?? []).map((l) => new URL(l, u).href)),
+    );
+    const beyond = [...discovered].filter((u) => !requested.includes(u)).sort();
+    expect(beyond.length).toBeGreaterThan(0);
+    expect(skipped.map((p) => p.url).sort()).toEqual(beyond);
+    expect(list).toHaveLength(100 + beyond.length);
   });
 
   it('fails no_pages when robots blocks everything, and site_unreachable when every fetch fails', async () => {
