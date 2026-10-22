@@ -17,3 +17,5 @@ export class SourceExistsError extends Error {
     super('source exists');
   }
 }
+/** A price whose GST treatment is unknown can't be approved until the owner chooses (KB-15). */
+export class GstRequiredError extends Error {}
