@@ -36,6 +36,13 @@ WORKDIR /app
 COPY --from=build --chown=node:node /out/package.json ./package.json
 COPY --from=build --chown=node:node /out/node_modules ./node_modules
 COPY --from=build --chown=node:node /out/dist ./dist
+# ingest-worker crawls with Chromium (FEAT-012 D3): playwright-core's headless shell,
+# the exact build its version drives, with the shared libraries it needs.
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+RUN if [ "$ROLE" = "ingest-worker" ]; then \
+      node node_modules/playwright-core/cli.js install --with-deps --only-shell chromium \
+      && rm -rf /var/lib/apt/lists/*; \
+    fi
 USER node
 LABEL org.opencontainers.image.source="https://github.com/codeforests/kakiagent" \
       org.opencontainers.image.title="kakiagent-${ROLE}"

@@ -32,6 +32,10 @@ run "launch_profile" {
   command = plan
 
   assert {
+    condition     = contains(keys(module.queues.queue_urls), "ingest") && contains(keys(module.queues.queue_urls), "conversation-turns")
+    error_message = "Each outbox topic has its queue: conversation-turns and ingest (FEAT-012)."
+  }
+  assert {
     condition     = length(module.network.app_subnet_ids) == 2
     error_message = "The launch profile uses 2 AZs (ADR-023)."
   }

@@ -106,6 +106,7 @@ module "edge" {
 resource "aws_secretsmanager_secret" "app" {
   for_each = toset([
     "dashboard-database-url", "visitor-database-url", "outbox-database-url", "identity-database-url",
+    "ingest-database-url",
     "visitor-token-secret", "session-secret", "magic-link-secret", "smtp-url",
   ])
   name       = "${var.name}/${each.key}"
@@ -121,6 +122,13 @@ data "aws_iam_policy_document" "turns_consumer" {
   statement {
     actions   = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:ChangeMessageVisibility", "sqs:GetQueueAttributes"]
     resources = [module.queues.queue_arns["conversation-turns"]]
+  }
+}
+
+data "aws_iam_policy_document" "ingest_consumer" {
+  statement {
+    actions   = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:ChangeMessageVisibility", "sqs:GetQueueAttributes"]
+    resources = [module.queues.queue_arns["ingest"]]
   }
 }
 
@@ -160,9 +168,15 @@ module "service" {
   min_count = local.p.min_tasks[each.key]
   max_count = 6
 
-  scale_on_queue_name = each.key == "agent-worker" ? "${var.name}-conversation-turns.fifo" : null
+  scale_on_queue_name = lookup({
+    agent-worker  = "${var.name}-conversation-turns.fifo"
+    ingest-worker = "${var.name}-ingest.fifo"
+  }, each.key, null)
+  # Extraction jobs run for minutes; a minute's wait before scaling out is fine (NFR-16).
+  queue_age_target_seconds = each.key == "ingest-worker" ? 60 : 1
   task_policies = lookup({
-    agent-worker = { sqs = data.aws_iam_policy_document.turns_consumer.json }
+    agent-worker  = { sqs = data.aws_iam_policy_document.turns_consumer.json }
+    ingest-worker = { sqs = data.aws_iam_policy_document.ingest_consumer.json }
     scheduler-worker = {
       sqs   = data.aws_iam_policy_document.turns_producer.json
       audit = data.aws_iam_policy_document.audit_anchor_writer.json
@@ -187,13 +201,19 @@ module "service" {
         VALKEY_URL          = local.valkey
         LLM_PROVIDER        = "fake" # the Bedrock au. provider arrives at MD (ADR-006)
       }
-      ingest-worker = { HEALTH_PORT = "3003" }
+      ingest-worker = {
+        HEALTH_PORT          = "3003"
+        AWS_REGION           = local.region
+        SQS_INGEST_QUEUE_URL = module.queues.queue_urls["ingest"]
+        LLM_PROVIDER         = "fake" # the Bedrock au. provider arrives at MD (ADR-006)
+      }
       scheduler-worker = {
-        HEALTH_PORT         = "3004"
-        AWS_REGION          = local.region
-        SQS_TURNS_QUEUE_URL = module.queues.queue_urls["conversation-turns"]
-        AUDIT_ANCHOR_BUCKET = module.storage.bucket_names["audit-anchors"]
-        PUBLIC_APP_URL      = local.public_url
+        HEALTH_PORT          = "3004"
+        AWS_REGION           = local.region
+        SQS_TURNS_QUEUE_URL  = module.queues.queue_urls["conversation-turns"]
+        SQS_INGEST_QUEUE_URL = module.queues.queue_urls["ingest"]
+        AUDIT_ANCHOR_BUCKET  = module.storage.bucket_names["audit-anchors"]
+        PUBLIC_APP_URL       = local.public_url
       }
     }[each.key] : k => v },
   )
@@ -215,7 +235,7 @@ module "service" {
       VISITOR_TOKEN_SECRET   = local.secret["visitor-token-secret"]
     }
     agent-worker  = { VISITOR_DATABASE_URL = local.secret["visitor-database-url"] }
-    ingest-worker = {}
+    ingest-worker = { INGEST_DATABASE_URL = local.secret["ingest-database-url"] }
     scheduler-worker = {
       OUTBOX_DATABASE_URL   = local.secret["outbox-database-url"]
       IDENTITY_DATABASE_URL = local.secret["identity-database-url"]

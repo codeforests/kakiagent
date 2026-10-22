@@ -20,6 +20,14 @@ export interface VisitorKbContext {
   conversationId: string;
 }
 
+/** The ingest worker's stages (FEAT-012): one source's run, in the ingest trust zone. */
+export interface IngestKbContext {
+  readonly scope: 'ingest';
+  tx: Tx;
+  tenantId: string;
+  sourceId: string;
+}
+
 export const dashboardKb = (tx: Tx, tenantId: string, userId: string): DashboardKbContext => ({
   scope: 'dashboard',
   tx,
@@ -32,4 +40,11 @@ export const visitorKb = (tx: Tx, tenantId: string, conversationId: string): Vis
   tx,
   tenantId,
   conversationId,
+});
+
+export const ingestKb = (tx: Tx, tenantId: string, sourceId: string): IngestKbContext => ({
+  scope: 'ingest',
+  tx,
+  tenantId,
+  sourceId,
 });

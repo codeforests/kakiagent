@@ -11,6 +11,7 @@ export const LOGIN_ROLES = [
   'app_agent_visitor',
   'app_outbox',
   'app_identity',
+  'app_ingest',
 ] as const;
 export type LoginRole = (typeof LOGIN_ROLES)[number];
 

@@ -18,6 +18,8 @@ export interface ConsumeOptions {
   queueUrl: string;
   signal: AbortSignal;
   waitTimeSeconds?: number;
+  /** Messages per receive (1–10, default 10); long jobs take 1 so none waits past its visibility. */
+  maxMessages?: number;
   onError?: (err: unknown, raw: Message) => void;
 }
 
@@ -71,7 +73,7 @@ export function createQueueClient(cfg: {
           res = await sqs.send(
             new ReceiveMessageCommand({
               QueueUrl: opts.queueUrl,
-              MaxNumberOfMessages: 10,
+              MaxNumberOfMessages: opts.maxMessages ?? 10,
               WaitTimeSeconds: opts.waitTimeSeconds ?? 10,
               MessageAttributeNames: ['All'],
               MessageSystemAttributeNames: ['ApproximateReceiveCount'],

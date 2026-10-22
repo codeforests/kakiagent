@@ -58,6 +58,9 @@ function toFact(r: FactRecord): Fact {
     updatedAt: r.updatedAt.toISOString(),
     validFrom: null,
     validUntil: null,
+    sourceId: r.sourceId,
+    confidence: r.confidence,
+    provenance: r.provenance && r.sourceId ? { sourceId: r.sourceId, ...r.provenance } : null,
   };
   switch (r.type) {
     case 'product':

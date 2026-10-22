@@ -1,7 +1,7 @@
 {
   "$comment": "The judge's agreement sample (ADR-022, FEAT-023 §5.7): fixed replies with a person's verdict. Draft labels were proposed by the implementer; a person must confirm or change every label and set labelledBy to their name before M1.5, and the real-judge run refuses the sample until then.",
   "evalSetVersion": "0.8.0",
-  "labelledBy": "draft (proposed by the implementer, awaiting the owner's review)",
+  "labelledBy": "Ken (all 14 draft labels confirmed, 2026-10-21)",
   "items": [
     {
       "id": "lang-zh-weekend-pass",

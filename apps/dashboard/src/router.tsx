@@ -1,7 +1,10 @@
 import { createBrowserRouter } from 'react-router';
 import { AssistantPage } from './pages/assistant.tsx';
 import { BusinessProfilePage, SetupProfilePage } from './pages/business-profile.tsx';
+import { AddWebsitePage, SetupSourcesPage } from './pages/add-website.tsx';
 import { Placeholder } from './pages/placeholder.tsx';
+import { SourcePage } from './pages/source.tsx';
+import { SourcesPage } from './pages/sources.tsx';
 import { FactPage } from './pages/fact.tsx';
 import { FactsPage } from './pages/facts.tsx';
 import { HomePage } from './pages/home.tsx';
@@ -33,11 +36,16 @@ export const router = createBrowserRouter([
       { index: true, element: <HomePage /> },
       // The setup wizard's first step (UC-03 1–3; FEAT-009); FEAT-035 adds the wizard frame.
       { path: 'setup', element: <SetupProfilePage /> },
+      // Its sources step, the website part (FEAT-012); FEAT-015..017 add files.
+      { path: 'setup/sources', element: <SetupSourcesPage /> },
       { path: 'inbox', element: <InboxPage /> },
       { path: 'approvals', element: <Placeholder title="Approvals" feature="FEAT-055" /> },
       { path: 'review', element: <Placeholder title="Review" feature="FEAT-013" /> },
-      // Knowledge → Facts (FEAT-022); FEAT-011 adds Sources and the other tabs.
+      // Knowledge → Facts (FEAT-022, FEAT-011) and Sources (FEAT-012).
       { path: 'knowledge', element: <FactsPage /> },
+      { path: 'knowledge/sources', element: <SourcesPage /> },
+      { path: 'knowledge/sources/new', element: <AddWebsitePage /> },
+      { path: 'knowledge/sources/:id', element: <SourcePage /> },
       { path: 'knowledge/facts/new', element: <FactPage /> },
       { path: 'knowledge/facts/:id', element: <FactPage /> },
       { path: 'coach', element: <Placeholder title="Coach" feature="FEAT-027" /> },

@@ -36,7 +36,13 @@ import {
   type TaskKind,
   type TurnPlan,
 } from '@kaki/agent';
-import { chunkContent, DEFAULT_SEARCH, type VisitorFact } from '@kaki/kb';
+import {
+  chunkContent,
+  DEFAULT_SEARCH,
+  extractPage,
+  fakeExtractScript,
+  type VisitorFact,
+} from '@kaki/kb';
 import {
   cosineSimilarity,
   DEFAULT_ROUTE_POLICY,
@@ -61,14 +67,23 @@ import {
   type Reply,
   type ScoreContext,
 } from './cases.js';
+import { extractionMetrics, loadExtractionPages, scoreExtraction } from './extraction.js';
 import { agreement, AgreementSample, checkSample, isDraft, judge, MIN_AGREEMENT } from './judge.js';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const fast = process.argv.includes('--fast');
+const ExtractionMetric = z.enum(['extraction-precision', 'extraction-recall', 'extraction-prices']);
 const thresholds = z
   .record(z.string(), z.unknown())
   .transform((o) => Object.fromEntries(Object.entries(o).filter(([k]) => !k.startsWith('$'))))
-  .pipe(z.record(Subset, z.number().min(0).max(1)))
+  .pipe(
+    z
+      .record(z.union([Subset, ExtractionMetric]), z.number().min(0).max(1))
+      .refine(
+        (t) => [...Subset.options, ...ExtractionMetric.options].every((k) => k in t),
+        'every subset and extraction metric needs a threshold',
+      ),
+  )
   .parse(JSON.parse(readFileSync(`${root}thresholds.json`, 'utf8')));
 
 /** The cost of the case being run (ADR-021): every model call reports to this sink. */
@@ -434,6 +449,39 @@ for (const subset of Subset.options) {
     `  ${subset.padEnd(13)} ${r.passed}/${r.total} = ${rate.toFixed(3)} (threshold ${min}) ${ok ? 'ok' : 'BELOW'}`,
   );
 }
+// FEAT-012 AC-6: the extraction subset, on the same provider, outside the conversation cost.
+{
+  const all = loadExtractionPages(`${root}extraction/pages.json`).filter((p) => !fast || p.fast);
+  const pages = all.filter((p) => realModel || !p.realOnly);
+  const extractor =
+    realModel ?? gatewayFromConfig({ provider: 'fake', fakeScript: fakeExtractScript });
+  const scores = [];
+  for (const page of pages) {
+    const { facts } = await extractPage(extractor, {
+      tenantId: fixtures.bakery.fixture.tenantId,
+      url: page.url,
+      title: page.title,
+      content: page.text,
+    });
+    const score = scoreExtraction(page, facts);
+    for (const problem of score.problems) console.log(`FAIL extraction ${page.id}: ${problem}`);
+    scores.push(score);
+  }
+  const metrics = extractionMetrics(scores);
+  const realOnly = all.length - pages.length;
+  console.log(
+    `  extraction    ${pages.length} page(s)${realOnly ? `; ${realOnly} naturally worded page(s) run with the real model only` : ''}`,
+  );
+  for (const metric of ExtractionMetric.options) {
+    const min = thresholds[metric];
+    const ok = metrics[metric] >= min;
+    if (!ok) failed = true;
+    console.log(
+      `    ${metric.slice('extraction-'.length).padEnd(11)} ${metrics[metric].toFixed(3)} (threshold ${min}) ${ok ? 'ok' : 'BELOW'}`,
+    );
+  }
+}
+
 // NFR-13 / ADR-007 decision 3: each case is one conversation. The fake prices its
 // models as their Claude counterparts, so the figure is indicative until M1.5.
 const USD_SGD = 1.35;

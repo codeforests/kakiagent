@@ -43,6 +43,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup
+      # The ingest worker's crawler tests drive Chromium (FEAT-012 D3).
+      - run: pnpm --filter @kaki/ingest-worker exec playwright-core install --with-deps --only-shell chromium
       # Unit and integration projects together, with each package's coverage
       # thresholds (plan §7). Includes the cross-tenant RLS suite (GOV-03).
       - run: pnpm test:coverage --concurrency=2
@@ -82,7 +84,8 @@ jobs:
       - run: node scripts/gen-local-env.mjs
       - run: docker compose up -d --wait
       - run: pnpm db:setup
-      - run: pnpm --filter @kaki/e2e exec playwright install --with-deps ${{ matrix.browser }}
+      # Chromium too in every job: the ingest worker crawls with it (FEAT-012).
+      - run: pnpm --filter @kaki/e2e exec playwright install --with-deps ${{ matrix.browser }} chromium
       - run: pnpm test:e2e --project=${{ matrix.browser }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure()

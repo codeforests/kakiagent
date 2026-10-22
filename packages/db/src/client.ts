@@ -13,9 +13,10 @@ export type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
  * - `visitor`: the widget API, the agent worker and the widget SSE stream (ADR-009);
  * - `outbox`: the outbox dispatcher, which reads pending rows across tenants;
  * - `identity`: sign-in, sessions and workspace creation, before any tenant context
- *   exists (FEAT-005 D2).
+ *   exists (FEAT-005 D2);
+ * - `ingest`: the ingest worker's crawl, extract and promote stages (FEAT-012).
  */
-export type TrustZone = 'dashboard' | 'visitor' | 'outbox' | 'identity';
+export type TrustZone = 'dashboard' | 'visitor' | 'outbox' | 'identity' | 'ingest';
 
 export interface ZoneDb {
   zone: TrustZone;

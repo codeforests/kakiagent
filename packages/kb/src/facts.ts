@@ -25,6 +25,15 @@ export type { FactInput };
 export type FactStatus = (typeof schema.FACT_STATUSES)[number];
 export type FactType = (typeof schema.FACT_TYPES)[number];
 
+/** Where an extracted fact was found (KB-05; FEAT-012 §3.1). */
+export interface Provenance {
+  url: string;
+  title: string | null;
+  quote: string;
+  start: number;
+  end: number;
+}
+
 export type FactRecord = FactInput & {
   id: string;
   status: FactStatus;
@@ -32,6 +41,10 @@ export type FactRecord = FactInput & {
   source: string;
   updatedAt: Date;
   validity: Validity;
+  /** Extracted facts only (FEAT-012); null for facts entered by hand. */
+  sourceId: string | null;
+  confidence: number | null;
+  provenance: Provenance | null;
 };
 
 export interface FactPatch {
@@ -50,6 +63,8 @@ export interface FactFilter {
   /** `unknown`: priced facts whose GST treatment needs review (KB-15). */
   gst?: 'unknown' | undefined;
   q?: string | undefined;
+  /** Facts extracted from one source (FEAT-012). */
+  sourceId?: string | undefined;
   cursor?: string | undefined;
   limit?: number | undefined;
 }
@@ -74,6 +89,9 @@ function toRecord(row: FactRow): FactRecord {
     value: row.value,
     gstTreatment: row.gstTreatment,
     validity: { validFrom: row.validFrom, validUntil: row.validUntil },
+    sourceId: row.sourceId,
+    confidence: row.confidence,
+    provenance: (row.provenance as Provenance | null) ?? null,
   } as FactRecord;
 }
 
@@ -140,6 +158,7 @@ export async function listFacts(
   if (filter.status) conditions.push(eq(f.status, filter.status));
   if (filter.type) conditions.push(eq(f.type, filter.type));
   if (filter.gst) conditions.push(eq(f.gstTreatment, filter.gst));
+  if (filter.sourceId) conditions.push(eq(f.sourceId, filter.sourceId));
   if (filter.q) {
     const pattern = like(filter.q);
     const fields = ['name', 'unit', 'question', 'answer', 'title', 'details'];

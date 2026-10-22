@@ -28,6 +28,7 @@ const s = {
   APP_AGENT_VISITOR_PASSWORD: prev.APP_AGENT_VISITOR_PASSWORD ?? rand(),
   APP_OUTBOX_PASSWORD: prev.APP_OUTBOX_PASSWORD ?? rand(),
   APP_IDENTITY_PASSWORD: prev.APP_IDENTITY_PASSWORD ?? rand(),
+  APP_INGEST_PASSWORD: prev.APP_INGEST_PASSWORD ?? rand(),
   VISITOR_TOKEN_SECRET: prev.VISITOR_TOKEN_SECRET ?? rand() + rand(),
   SESSION_SECRET: prev.SESSION_SECRET ?? rand() + rand(),
   MAGIC_LINK_SECRET: prev.MAGIC_LINK_SECRET ?? rand() + rand(),
@@ -40,6 +41,8 @@ const mail = {
 };
 const queue =
   'http://sqs.ap-southeast-1.localhost.localstack.cloud:4566/000000000000/conversation-turns.fifo';
+const ingestQueue =
+  'http://sqs.ap-southeast-1.localhost.localstack.cloud:4566/000000000000/ingest.fifo';
 
 const files = {
   // Root .env: read by docker compose, and the source of truth for local secrets.
@@ -52,6 +55,7 @@ const files = {
     APP_AGENT_VISITOR_PASSWORD: s.APP_AGENT_VISITOR_PASSWORD,
     APP_OUTBOX_PASSWORD: s.APP_OUTBOX_PASSWORD,
     APP_IDENTITY_PASSWORD: s.APP_IDENTITY_PASSWORD,
+    APP_INGEST_PASSWORD: s.APP_INGEST_PASSWORD,
   },
   'apps/api/.env': {
     // Local HTTP: browsers drop a Secure cookie on http://localhost in some setups.
@@ -62,6 +66,8 @@ const files = {
     VISITOR_DATABASE_URL: pg('app_agent_visitor', s.APP_AGENT_VISITOR_PASSWORD),
     VISITOR_TOKEN_SECRET: s.VISITOR_TOKEN_SECRET,
     SESSION_SECRET: s.SESSION_SECRET,
+    // `https://kakibakery.test` (the fixture site) is accepted locally (FEAT-012 §5.6).
+    CRAWL_ALLOW_PRIVATE_HOSTS: 'true',
   },
   'apps/realtime/.env': {
     DASHBOARD_DATABASE_URL: pg('app_dashboard', s.APP_DASHBOARD_PASSWORD),
@@ -80,13 +86,23 @@ const files = {
     IDENTITY_DATABASE_URL: pg('app_identity', s.APP_IDENTITY_PASSWORD),
     ...mail,
     SQS_TURNS_QUEUE_URL: queue,
+    SQS_INGEST_QUEUE_URL: ingestQueue,
     AWS_ACCESS_KEY_ID: 'test',
     AWS_SECRET_ACCESS_KEY: 'test',
   },
   'packages/governance/.env': {
     DASHBOARD_DATABASE_URL: pg('app_dashboard', s.APP_DASHBOARD_PASSWORD),
   },
-  'apps/ingest-worker/.env': {},
+  'apps/ingest-worker/.env': {
+    INGEST_DATABASE_URL: pg('app_ingest', s.APP_INGEST_PASSWORD),
+    SQS_INGEST_QUEUE_URL: ingestQueue,
+    AWS_ACCESS_KEY_ID: 'test',
+    AWS_SECRET_ACCESS_KEY: 'test',
+    // The local fixture site and dev pages run on 127.0.0.1 (FEAT-012 §5.6, dev-only).
+    CRAWL_ALLOW_PRIVATE_HOSTS: 'true',
+    // `https://kakibakery.test` is the fixture site (`pnpm fixtures:site`, FEAT-012 §5.8).
+    CRAWL_HOST_MAP: 'kakibakery.test=http://127.0.0.1:5176',
+  },
   'apps/widget/.env': {},
   'apps/dashboard/.env': {},
   'apps/operator/.env': {},
@@ -94,7 +110,15 @@ const files = {
 
 for (const [file, overrides] of Object.entries(files)) {
   if (existsSync(file) && !force && file !== '.env') {
-    console.log(`kept      ${file}`);
+    // Keep the file, but add variables a newer feature introduced (e.g. app_ingest).
+    const have = read(file);
+    const example = file === '.env' ? {} : read(file.replace(/\.env$/, '.env.example'));
+    const missing = Object.entries({ ...example, ...overrides }).filter(([k]) => !(k in have));
+    if (missing.length) {
+      const text = readFileSync(file, 'utf8').replace(/\n*$/, '\n');
+      writeFileSync(file, text + missing.map(([k, v]) => `${k}=${v}`).join('\n') + '\n');
+      console.log(`updated   ${file} (added ${missing.map(([k]) => k).join(', ')})`);
+    } else console.log(`kept      ${file}`);
     continue;
   }
   const example =

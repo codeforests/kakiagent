@@ -6,6 +6,8 @@ import { api } from '../lib/api.ts';
 import { Offline, TenantSuspended } from '../pages/system.tsx';
 import { AccountMenu } from './account-menu.tsx';
 import { Icon } from './icon.tsx';
+import { useNavCounts } from '../lib/sources.ts';
+import { NavCount } from './nav-count.tsx';
 import { SIDEBAR, TAB_BAR } from './nav.ts';
 
 function useOnline() {
@@ -30,6 +32,7 @@ function useOnline() {
 export function AppShell() {
   const online = useOnline();
   const me = useQuery({ queryKey: ['me'], queryFn: api.me });
+  const counts = useNavCounts();
 
   // A 401 is routed to sign-in or "session expired" by the query cache (main.tsx).
   if (me.data && !me.data.tenant) return <Navigate to="/welcome" replace />;
@@ -46,6 +49,7 @@ export function AppShell() {
               <NavLink to={item.to} end={item.to === '/'} className="nav-item">
                 <Icon name={item.icon} />
                 <span className="nav-item__label">{item.label}</span>
+                <NavCount count={counts[item.to]} />
               </NavLink>
             </li>
           ))}

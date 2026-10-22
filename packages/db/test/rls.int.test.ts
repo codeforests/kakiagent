@@ -13,7 +13,7 @@ let tdb: TestDatabase;
 let owner: pg.Client;
 
 async function asRole<T>(
-  role: 'app_dashboard' | 'app_agent_visitor' | 'app_outbox' | 'app_identity',
+  role: 'app_dashboard' | 'app_agent_visitor' | 'app_outbox' | 'app_identity' | 'app_ingest',
   tenantId: string | null,
   fn: (c: pg.Client) => Promise<T>,
 ) {
@@ -76,12 +76,12 @@ describe('schema guard', () => {
 
   it('application roles neither own tables nor bypass RLS', async () => {
     const { rows } = await owner.query(
-      `select rolname, rolsuper, rolbypassrls from pg_roles where rolname in ('app_dashboard','app_agent_visitor','app_outbox','app_identity')`,
+      `select rolname, rolsuper, rolbypassrls from pg_roles where rolname in ('app_dashboard','app_agent_visitor','app_outbox','app_identity','app_ingest')`,
     );
-    expect(rows).toHaveLength(4);
+    expect(rows).toHaveLength(5);
     for (const r of rows) expect(r).toMatchObject({ rolsuper: false, rolbypassrls: false });
     const owned = await owner.query(
-      `select tablename from pg_tables where schemaname = 'public' and tableowner in ('app_dashboard','app_agent_visitor','app_outbox','app_identity')`,
+      `select tablename from pg_tables where schemaname = 'public' and tableowner in ('app_dashboard','app_agent_visitor','app_outbox','app_identity','app_ingest')`,
     );
     expect(owned.rows).toEqual([]);
   });
@@ -1349,5 +1349,169 @@ describe('business profile and holidays (FEAT-009)', () => {
     await expect(ins('half', null)).rejects.toThrow(/holidays_kind_ck/);
     await expect(ins('closed', '  ')).rejects.toThrow(/holidays_label_ck/);
     await expect(ins('closed', 'x'.repeat(61))).rejects.toThrow(/holidays_label_ck/);
+  });
+});
+
+describe('knowledge sources, pages and staged facts (FEAT-012)', () => {
+  /** A source with one page and one staged fact for `tenant`, as the owner. */
+  async function seedSource(tenant: string, domain: string) {
+    const src = await owner.query<{ id: string }>(
+      `insert into kb_sources (tenant_id, kind, url, domain, page_limit, attested_by, attested_at, created_by)
+       values ($1, 'website', $2, $3, 100, 'u', now(), 'u') returning id`,
+      [tenant, `https://${domain}/`, domain],
+    );
+    const page = await owner.query<{ id: string }>(
+      `insert into kb_source_pages (tenant_id, source_id, attempt, seq, url, status, content)
+       values ($1, $2, 1, 0, $3, 'included', 'Fudge cake S$55') returning id`,
+      [tenant, src.rows[0]!.id, `https://${domain}/`],
+    );
+    await owner.query(
+      `insert into kb_staged_facts (tenant_id, source_id, attempt, page_id, type, value, gst_treatment,
+         quote, quote_start, quote_end, confidence, dedupe_key)
+       values ($1, $2, 1, $3, 'product', '{"name":"Fudge cake","priceCents":5500,"currency":"SGD"}',
+         'unknown', 'Fudge cake S$55', 0, 15, 0.9, 'product:fudge cake')`,
+      [tenant, src.rows[0]!.id, page.rows[0]!.id],
+    );
+    return src.rows[0]!.id;
+  }
+  async function cleanup() {
+    for (const t of ['kb_staged_facts', 'kb_source_pages'])
+      await owner.query(`delete from ${t} where tenant_id in ($1, $2)`, [TENANT_A, TENANT_B]);
+    await owner.query(`delete from facts where source_id is not null`);
+    await owner.query(`delete from kb_sources where tenant_id in ($1, $2)`, [TENANT_A, TENANT_B]);
+  }
+
+  it.each(['app_dashboard', 'app_ingest'] as const)(
+    "as %s, tenant B can't read or change tenant A's sources, pages or staged facts",
+    async (role) => {
+      const a = await seedSource(TENANT_A, 'a.example');
+      await seedSource(TENANT_B, 'b.example');
+      try {
+        await asRole(role, TENANT_B, async (c) => {
+          for (const t of ['kb_sources', 'kb_source_pages', 'kb_staged_facts']) {
+            const rows = (await c.query(`select tenant_id from ${t}`)).rows;
+            expect(rows.length, t).toBe(1);
+            expect(
+              rows.every((r) => r.tenant_id === TENANT_B),
+              t,
+            ).toBe(true);
+          }
+          expect(
+            (await c.query(`update kb_sources set status = 'ready' where id = $1`, [a])).rowCount,
+          ).toBe(0);
+          expect(
+            (await c.query(`delete from kb_staged_facts where source_id = $1`, [a])).rowCount,
+          ).toBe(0);
+          // Each role's own insert: the dashboard adds sources, the worker adds pages.
+          const insert =
+            role === 'app_dashboard'
+              ? c.query(
+                  `insert into kb_sources (tenant_id, kind, url, domain, page_limit, attested_by, attested_at, created_by)
+                   values ($1, 'website', 'https://c.example/', 'c.example', 100, 'u', now(), 'u')`,
+                  [TENANT_A],
+                )
+              : c.query(
+                  `insert into kb_source_pages (tenant_id, source_id, attempt, seq, url, status)
+                   values ($1, $2, 1, 1, 'https://a.example/x', 'included')`,
+                  [TENANT_A, a],
+                );
+          await expect(insert).rejects.toThrow(/row-level security/);
+        });
+      } finally {
+        await cleanup();
+      }
+    },
+  );
+
+  it('the ingest role writes extracted facts but cannot delete them or read conversations, identity or other tenants', async () => {
+    const src = await seedSource(TENANT_B, 'b.example');
+    try {
+      await asRole('app_ingest', TENANT_B, async (c) => {
+        const f = await c.query<{ id: string }>(
+          `insert into facts (tenant_id, type, status, value, gst_treatment, source, source_id, confidence, provenance)
+           values ($1, 'product', 'needs_review', '{"name":"Fudge cake","priceCents":5500,"currency":"SGD"}',
+             'unknown', 'website', $2, 0.9, '{"url":"https://b.example/","quote":"Fudge cake S$55","start":0,"end":15}')
+           returning id`,
+          [TENANT_B, src],
+        );
+        expect(f.rows).toHaveLength(1);
+        // Provenance is required on an extracted fact.
+        await c.query('savepoint s');
+        await expect(
+          c.query(
+            `insert into facts (tenant_id, type, status, value, gst_treatment, source_id)
+             values ($1, 'faq', 'needs_review', '{"question":"q","answer":"a"}', null, $2)`,
+            [TENANT_B, src],
+          ),
+        ).rejects.toThrow(/facts_provenance_ck/);
+        await c.query('rollback to savepoint s');
+      });
+      for (const stmt of [
+        `delete from facts`,
+        `update facts set status = 'approved'`,
+        `select * from conversations`,
+        `select * from messages`,
+        `select * from users`,
+        `select * from sessions`,
+        `select * from memberships`,
+        `delete from kb_sources`,
+        `insert into kb_sources (tenant_id, kind, url, domain, page_limit, attested_by, attested_at, created_by)
+           values ('${TENANT_B}', 'website', 'https://x.example/', 'x.example', 100, 'u', now(), 'u')`,
+      ])
+        await expect(
+          asRole('app_ingest', TENANT_B, (c) => c.query(stmt)),
+          stmt,
+        ).rejects.toThrow(/permission denied/);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it('the visitor role cannot read sources, pages or staged facts; staged and needs_review facts never reach visitor_facts', async () => {
+    const src = await seedSource(TENANT_A, 'a.example');
+    try {
+      await owner.query(
+        `insert into facts (tenant_id, type, status, value, gst_treatment, source, source_id, confidence, provenance)
+         values ($1, 'product', 'needs_review', '{"name":"Extracted cake","priceCents":4200,"currency":"SGD"}',
+           'inclusive', 'website', $2, 0.9, '{"url":"https://a.example/","quote":"q","start":0,"end":1}')`,
+        [TENANT_A, src],
+      );
+      for (const t of ['kb_sources', 'kb_source_pages', 'kb_staged_facts'])
+        await expect(
+          asRole('app_agent_visitor', TENANT_A, (c) => c.query(`select * from ${t}`)),
+        ).rejects.toThrow(/permission denied/);
+      const visible = await asRole('app_agent_visitor', TENANT_A, async (c) =>
+        (await c.query(`select value->>'name' as name from visitor_facts`)).rows.map((r) => r.name),
+      );
+      expect(visible).not.toContain('Extracted cake');
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("the dashboard adds allowed origins to its own tenant only, and can't change other tenant columns", async () => {
+    const { rows: before } = await owner.query(
+      `select allowed_origins from tenants where id = $1`,
+      [TENANT_B],
+    );
+    try {
+      await asRole('app_dashboard', TENANT_B, async (c) => {
+        await c.query(
+          `update tenants set allowed_origins = allowed_origins || '{https://b.example}'::text[]`,
+        );
+        expect(
+          (await c.query(`update tenants set allowed_origins = '{}' where id = $1`, [TENANT_A]))
+            .rowCount,
+        ).toBe(0);
+      });
+      await expect(
+        asRole('app_ingest', TENANT_B, (c) => c.query(`update tenants set allowed_origins = '{}'`)),
+      ).rejects.toThrow(/permission denied/);
+    } finally {
+      await owner.query(`update tenants set allowed_origins = $2 where id = $1`, [
+        TENANT_B,
+        before[0].allowed_origins,
+      ]);
+    }
   });
 });

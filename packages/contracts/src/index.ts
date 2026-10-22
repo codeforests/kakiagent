@@ -272,6 +272,10 @@ const factBase = {
   /** Promotions: the first and last day they run, in Singapore (null for other types). */
   validFrom: SgDate.nullable(),
   validUntil: SgDate.nullable(),
+  /** Facts from a source (FEAT-012): its ID, the extractor's confidence, where it was found. */
+  sourceId: z.uuid().nullable(),
+  confidence: z.number().min(0).max(1).nullable(),
+  provenance: z.lazy(() => Provenance).nullable(),
 };
 export const Fact = z.discriminatedUnion('type', [
   z.object({
@@ -306,6 +310,8 @@ export const FactListQuery = z.object({
   type: FactType.optional(),
   /** Priced facts whose GST treatment needs review (KB-15). */
   gst: z.literal('unknown').optional(),
+  /** The facts one source produced (FEAT-012 §3.2). */
+  sourceId: z.uuid().optional(),
   q: z.string().trim().max(100).optional(),
   cursor: z.string().min(1).max(200).optional(),
   limit: z.coerce.number().int().min(1).max(200).optional(),
@@ -313,6 +319,102 @@ export const FactListQuery = z.object({
 export type FactListQuery = z.infer<typeof FactListQuery>;
 export const FactList = z.object({ facts: z.array(Fact), nextCursor: z.string().nullable() });
 export const FactResponse = z.object({ fact: Fact });
+
+// ---- Dashboard API: knowledge sources (KB-01, KB-12, KB-13; FEAT-012 §3) ------------
+
+export const SourceKind = z.enum(['website']);
+export const SourceStatus = z.enum(['queued', 'processing', 'ready', 'failed']);
+export type SourceStatus = z.infer<typeof SourceStatus>;
+export const SourceStage = z.enum(['crawl', 'extract', 'promote']);
+export const SourceFailure = z.enum([
+  'no_pages',
+  'site_unreachable',
+  'extraction_unavailable',
+  'internal',
+]);
+export type SourceFailure = z.infer<typeof SourceFailure>;
+export const PageStatus = z.enum(['included', 'excluded', 'failed', 'skipped']);
+export type PageStatus = z.infer<typeof PageStatus>;
+export const PageReason = z.enum([
+  'robots',
+  'off_domain_redirect',
+  'not_html',
+  'duplicate',
+  'timeout',
+  'http_error',
+  'blocked_address',
+  'load_error',
+  'plan_limit',
+]);
+export type PageReason = z.infer<typeof PageReason>;
+
+export const Provenance = z.object({
+  sourceId: z.uuid(),
+  url: z.string(),
+  title: z.string().nullable(),
+  quote: z.string(),
+  start: z.int().min(0),
+  end: z.int().min(0),
+});
+export type Provenance = z.infer<typeof Provenance>;
+
+export const Source = z.object({
+  id: z.uuid(),
+  kind: SourceKind,
+  status: SourceStatus,
+  stage: SourceStage.nullable(),
+  /** The domain, e.g. "kakibakery.sg". */
+  name: z.string(),
+  url: z.string(),
+  domain: z.string(),
+  subdomains: z.array(z.string()),
+  pageLimit: z.int(),
+  failure: SourceFailure.nullable(),
+  counts: z.object({
+    pagesFound: z.int(),
+    pagesIncluded: z.int(),
+    pagesExcluded: z.int(),
+    pagesFailed: z.int(),
+    pagesSkipped: z.int(),
+    pagesExtracted: z.int(),
+    facts: z.int(),
+    factsNeedingReview: z.int(),
+  }),
+  attestedAt: z.iso.datetime({ offset: true }),
+  createdAt: z.iso.datetime({ offset: true }),
+  updatedAt: z.iso.datetime({ offset: true }),
+  finishedAt: z.iso.datetime({ offset: true }).nullable(),
+  version: z.int(),
+});
+export type Source = z.infer<typeof Source>;
+
+export const SourcePage = z.object({
+  id: z.uuid(),
+  url: z.string(),
+  title: z.string().nullable(),
+  status: PageStatus,
+  reason: PageReason.nullable(),
+  httpStatus: z.int().nullable(),
+  facts: z.int(),
+});
+export type SourcePage = z.infer<typeof SourcePage>;
+
+/** `attested` is checked by the route, so a missing one gets its own error (UC-03 4b). */
+export const CreateSourceBody = z
+  .object({
+    kind: z.literal('website'),
+    url: z.string().trim().min(1).max(2000),
+    subdomains: z.array(z.string().trim().min(1).max(253)).max(20).optional(),
+    attested: z.boolean().optional(),
+  })
+  .strict();
+export type CreateSourceBody = z.infer<typeof CreateSourceBody>;
+export const RetrySourceBody = z.object({ version: z.int().min(1) }).strict();
+export const SourceList = z.object({ sources: z.array(Source), pageLimit: z.int() });
+export type SourceList = z.infer<typeof SourceList>;
+export const SourceResponse = z.object({ source: Source });
+export const SourceDetail = z.object({ source: Source, pages: z.array(SourcePage) });
+export type SourceDetail = z.infer<typeof SourceDetail>;
 
 // ---- Dashboard API: assistant settings (AGT-08, AGT-11; FEAT-024 §3) ----------------
 
@@ -607,3 +709,12 @@ export const TurnJob = z.object({
   messageId: z.uuid(),
 });
 export type TurnJob = z.infer<typeof TurnJob>;
+
+/** One stage of a source's ingestion run (ADR-018 decision 1; FEAT-012 §5.1). */
+export const IngestJob = z.object({
+  tenantId: z.uuid(),
+  sourceId: z.uuid(),
+  attempt: z.number().int().min(1),
+  stage: z.enum(['crawl', 'extract', 'promote']),
+});
+export type IngestJob = z.infer<typeof IngestJob>;

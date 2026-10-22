@@ -25,6 +25,10 @@ import {
   InvalidCursorError,
   InvalidFactError,
   InvalidStateError,
+  InvalidWebsiteError,
+  NonPublicHostError,
+  SourceExistsError,
+  SourceNotFoundError,
   VersionConflictError,
 } from '@kaki/kb';
 import { channels, signToken, TokenError, verifyToken } from '@kaki/platform';
@@ -48,6 +52,7 @@ import {
 import { FactNotFound, ForbiddenError, registerFactRoutes } from './facts.js';
 import { createServer, type Deps } from './server.js';
 import { registerSettingsRoutes } from './settings.js';
+import { AttestationRequiredError, registerSourceRoutes } from './sources.js';
 
 export type { App, Deps } from './server.js';
 
@@ -81,10 +86,29 @@ export async function buildApp(deps: Deps) {
       err instanceof InvalidProfileError
     )
       return reply.code(400).send({ error: 'bad_request', message: err.message });
+    if (err instanceof AttestationRequiredError)
+      return reply.code(400).send({
+        error: 'attestation_required',
+        message: 'Confirm you own or manage this website first.',
+      });
+    if (err instanceof InvalidWebsiteError)
+      return reply.code(400).send({ error: 'bad_request', message: err.message });
+    if (err instanceof NonPublicHostError)
+      return reply.code(400).send({
+        error: 'url_not_public',
+        message: "We can't crawl this address. Use your website's public address.",
+      });
+    if (err instanceof SourceExistsError)
+      return reply.code(409).send({
+        error: 'source_exists',
+        message: 'This website is already a source.',
+        sourceId: err.sourceId,
+      });
     if (
       err instanceof NotFoundError ||
       err instanceof FactNotFoundError ||
-      err instanceof FactNotFound
+      err instanceof FactNotFound ||
+      err instanceof SourceNotFoundError
     )
       return reply.code(404).send({ error: 'not_found', message: 'Not found' });
     if (err instanceof TokenError)
@@ -118,9 +142,12 @@ export async function buildApp(deps: Deps) {
     if (err instanceof ForbiddenError)
       return reply.code(403).send({ error: 'forbidden', message: 'Not allowed' });
     if (err instanceof VersionConflictError)
-      return reply
-        .code(409)
-        .send({ error: 'version_conflict', message: 'This fact was changed by someone else' });
+      return reply.code(409).send({
+        error: 'version_conflict',
+        message: req.url.startsWith('/api/v1/kb/sources')
+          ? 'This source was changed by someone else'
+          : 'This fact was changed by someone else',
+      });
     if (err instanceof SettingsConflictError)
       return reply.code(409).send({
         error: 'version_conflict',
@@ -279,6 +306,7 @@ export async function buildApp(deps: Deps) {
   });
 
   registerFactRoutes(app, deps, sessionFrom);
+  registerSourceRoutes(app, deps, sessionFrom, { resolve: deps.resolve });
   registerSettingsRoutes(app, deps, sessionFrom);
 
   return app;

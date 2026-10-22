@@ -1,5 +1,5 @@
-# SQS FIFO queues with DLQs (ADR-012). The skeleton has one topic; features add more
-# by extending var.queues. Mirrors infra/local/localstack/01-queues.sh.
+# SQS FIFO queues with DLQs (ADR-012), one per outbox topic: conversation-turns and
+# ingest (FEAT-012). Features add more by extending var.queues. Mirrors infra/local/localstack/01-queues.sh.
 
 resource "aws_sqs_queue" "dlq" {
   for_each                  = var.queues

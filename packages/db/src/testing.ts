@@ -24,6 +24,7 @@ const ZONE_ROLE: Record<TrustZone, LoginRole> = {
   visitor: 'app_agent_visitor',
   outbox: 'app_outbox',
   identity: 'app_identity',
+  ingest: 'app_ingest',
 };
 
 /**
