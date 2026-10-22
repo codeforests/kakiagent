@@ -646,3 +646,30 @@ describe('undo (D5; AC-6)', () => {
     expect(await row(a.id)).toMatchObject({ status: 'approved', version: 2 });
   });
 });
+
+describe('scale (AC-8 chain, AC-10)', () => {
+  it('approves 500 facts in one Approve all within 10 s, one entry each, chain verifies', async () => {
+    await owner.query(
+      `insert into facts (tenant_id, type, status, value, source)
+       select $1, 'faq', 'needs_review',
+              jsonb_build_object('question', 'Q' || i || '?', 'answer', 'A.'), 'website'
+       from generate_series(1, 500) i`,
+      [TENANT_A],
+    );
+    await owner.query(
+      `insert into fact_versions (tenant_id, fact_id, version, status, value)
+       select tenant_id, id, 1, status, value from facts where tenant_id = $1`,
+      [TENANT_A],
+    );
+    const preview = await inTx(TENANT_A, (ctx) => previewApproveAll(ctx));
+    expect(preview.count).toBe(500);
+    const started = Date.now();
+    const { facts } = await inTx(TENANT_A, (ctx) => approveAll(ctx, {}, preview.previewHash));
+    const ms = Date.now() - started;
+    console.warn(`FEAT-013 AC-10: Approve all of 500 facts in ${ms} ms`);
+    expect(facts).toHaveLength(500);
+    expect(ms).toBeLessThan(10_000);
+    expect(await auditByType(TENANT_A, 'fact.approved')).toHaveLength(500);
+    expect((await verifyChain(tdb.zone('dashboard'), TENANT_A)).ok).toBe(true);
+  });
+});

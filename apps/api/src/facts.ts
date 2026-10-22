@@ -49,7 +49,7 @@ export function toCents(price: string): number {
 export const fromCents = (cents: number) =>
   `${Math.floor(cents / 100)}.${String(cents % 100).padStart(2, '0')}`;
 
-function toFact(r: FactRecord): Fact {
+export function toFact(r: FactRecord): Fact {
   const base = {
     id: r.id,
     status: r.status,
@@ -129,6 +129,46 @@ function inputOf(body: CreateFactBody): FactInput {
   }
 }
 
+/**
+ * The kb patch for an edit body (FEAT-011 §3.2): the value is validated against the
+ * fact's own type; only priced types take GST, and only promotions take validity (kb's
+ * `mergePatch` checks the combination). Shared with "edit and approve" (FEAT-013).
+ */
+export function patchOf(
+  current: FactRecord,
+  body: Omit<UpdateFactBody, 'status'> & { status?: UpdateFactBody['status'] },
+): FactPatch {
+  const patch: FactPatch = { version: body.version, status: body.status };
+  const priced = current.type === 'product' || current.type === 'promotion';
+  if (!priced && body.gstTreatment) throw new ZodError([]);
+  if (current.type !== 'promotion' && (body.validFrom !== undefined || body.validUntil))
+    throw new ZodError([]);
+  patch.gstTreatment = body.gstTreatment;
+  if (body.value)
+    switch (current.type) {
+      case 'product':
+        patch.value = productValue(ProductValueInput.parse(body.value));
+        break;
+      case 'faq':
+        patch.value = FaqValueInput.parse(body.value);
+        break;
+      case 'policy':
+        patch.value = PolicyValueInput.parse(body.value);
+        break;
+      case 'promotion':
+        patch.value = promotionValue(PromotionValueInput.parse(body.value));
+        break;
+    }
+  if (body.validFrom !== undefined || body.validUntil !== undefined)
+    patch.validity = {
+      ...(body.validFrom !== undefined
+        ? { validFrom: body.validFrom === null ? null : sgDayStart(body.validFrom) }
+        : {}),
+      ...(body.validUntil ? { validUntil: sgDayAfter(body.validUntil) } : {}),
+    };
+  return patch;
+}
+
 const DeleteQuery = z.object({ version: z.coerce.number().int().min(1) });
 
 /**
@@ -190,36 +230,7 @@ export function registerFactRoutes(
     const current = await withTenant(dashboardDb, s.tenantId, (tx) =>
       getFact(dashboardKb(tx, s.tenantId, s.userId), id),
     );
-    // The value is validated against the fact's own type; only priced types take GST,
-    // and only promotions take validity (kb's mergePatch checks the combination).
-    const patch: FactPatch = { version: body.version, status: body.status };
-    const priced = current.type === 'product' || current.type === 'promotion';
-    if (!priced && body.gstTreatment) throw new ZodError([]);
-    if (current.type !== 'promotion' && (body.validFrom !== undefined || body.validUntil))
-      throw new ZodError([]);
-    patch.gstTreatment = body.gstTreatment;
-    if (body.value)
-      switch (current.type) {
-        case 'product':
-          patch.value = productValue(ProductValueInput.parse(body.value));
-          break;
-        case 'faq':
-          patch.value = FaqValueInput.parse(body.value);
-          break;
-        case 'policy':
-          patch.value = PolicyValueInput.parse(body.value);
-          break;
-        case 'promotion':
-          patch.value = promotionValue(PromotionValueInput.parse(body.value));
-          break;
-      }
-    if (body.validFrom !== undefined || body.validUntil !== undefined)
-      patch.validity = {
-        ...(body.validFrom !== undefined
-          ? { validFrom: body.validFrom === null ? null : sgDayStart(body.validFrom) }
-          : {}),
-        ...(body.validUntil ? { validUntil: sgDayAfter(body.validUntil) } : {}),
-      };
+    const patch = patchOf(current, body);
     const next = mergePatch(current, patch);
     const chunk = contentChanged(current, next)
       ? await prepareChunk(llm, s.tenantId, next)
