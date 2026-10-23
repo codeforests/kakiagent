@@ -114,7 +114,8 @@ describe('readXlsx (FEAT-016 §5.3 step 3)', () => {
         'xl/_rels/workbook.xml.rels': strToU8('<Relationships/>'),
         'xl/worksheets/sheet1.xml': big,
       },
-      { level: 1 },
+      // Stored, not deflated: the cap counts unzipped bytes either way, and storing is fast.
+      { level: 0 },
     );
     expect(readXlsx(bytes)).toEqual({ ok: false, failure: 'unreadable' });
   });
