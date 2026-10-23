@@ -12,6 +12,7 @@ import {
 } from '@kaki/platform';
 import { buildApp } from '../src/app.js';
 import { schema as configSchema } from '../src/config.js';
+import type { UploadSigner } from '../src/server.js';
 
 export const APP_URL = 'http://localhost:5173';
 
@@ -30,6 +31,21 @@ export function fakeMailer() {
   return m satisfies Mailer;
 }
 
+/** Records what it signed and answers a recognisable URL. */
+export function fakeSigner() {
+  const signed: { key: string; sizeBytes: number; expiresInS: number }[] = [];
+  return {
+    signed,
+    async sign(key: string, sizeBytes: number, expiresInS: number) {
+      signed.push({ key, sizeBytes, expiresInS });
+      return {
+        url: `https://quarantine.test/${key}?signed`,
+        headers: { 'Content-Type': 'application/octet-stream' },
+      };
+    },
+  } satisfies UploadSigner & { signed: unknown[] };
+}
+
 export const tokenIn = (e: Email) => /#token=([A-Za-z0-9_-]{43})/.exec(e.text)![1]!;
 
 export function testConfig(tdb: TestDatabase, env: Record<string, string> = {}) {
@@ -46,6 +62,7 @@ export function testConfig(tdb: TestDatabase, env: Record<string, string> = {}) 
     SESSION_SECRET: 's'.repeat(32),
     MAGIC_LINK_SECRET: 'm'.repeat(32),
     SMTP_URL: 'smtp://localhost:1025',
+    QUARANTINE_BUCKET: 'kaki-test-quarantine',
     ...env,
   });
 }
@@ -59,6 +76,7 @@ export async function testApp(
     mailer?: Mailer;
     google?: GoogleSignIn | null;
     resolve?: Resolver;
+    uploads?: UploadSigner;
   } = {},
 ) {
   return buildApp({
@@ -72,6 +90,7 @@ export async function testApp(
     mailer: opts.mailer ?? fakeMailer(),
     rateLimiter: memoryRateLimiter(),
     google: opts.google ?? null,
+    uploads: opts.uploads ?? fakeSigner(),
     ...(opts.resolve ? { resolve: opts.resolve } : {}),
   });
 }

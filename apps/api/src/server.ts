@@ -6,6 +6,15 @@ import type { Logger, Mailer, Publisher, RateLimiter } from '@kaki/platform';
 import Fastify from 'fastify';
 import type { Config } from './config.js';
 
+/** Presigns the browser's PUT into quarantine (FEAT-015 §5.1); tests pass a fake. */
+export interface UploadSigner {
+  sign(
+    key: string,
+    sizeBytes: number,
+    expiresInS: number,
+  ): Promise<{ url: string; headers: Record<string, string> }>;
+}
+
 export interface Deps {
   config: Config;
   logger: Logger;
@@ -20,6 +29,8 @@ export interface Deps {
   rateLimiter: RateLimiter;
   /** Null when Google sign-in isn't configured. */
   google: GoogleSignIn | null;
+  /** Presigns file uploads into quarantine (FEAT-015 §5.1). */
+  uploads: UploadSigner;
   /** DNS for the website check (FEAT-012 D7); tests pass a fixed one. */
   resolve?: Resolver;
 }

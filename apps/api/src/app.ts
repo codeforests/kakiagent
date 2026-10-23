@@ -56,6 +56,7 @@ import {
 } from './auth.js';
 import { FactNotFound, ForbiddenError, registerFactRoutes } from './facts.js';
 import { createServer, type Deps } from './server.js';
+import { registerUploadRoutes } from './uploads.js';
 import { registerConflictRoutes, toConflict } from './conflicts.js';
 import { registerReviewRoutes, toPreview } from './review.js';
 import { registerSettingsRoutes } from './settings.js';
@@ -356,6 +357,7 @@ export async function buildApp(deps: Deps) {
   registerReviewRoutes(app, deps, sessionFrom);
   registerConflictRoutes(app, deps, sessionFrom);
   registerSourceRoutes(app, deps, sessionFrom, { resolve: deps.resolve });
+  registerUploadRoutes(app, deps, sessionFrom);
   registerSettingsRoutes(app, deps, sessionFrom);
 
   return app;

@@ -1,7 +1,7 @@
 # Tasks: FEAT-015 — File upload with content-type and malware checks; parsing and Tesseract OCR
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: in progress (T1–T8 done) · Last updated: 2026-10-23
+> Status: in progress (T1–T9 done) · Last updated: 2026-10-23
 
 - [x] T1 — Schema: `kb_sources` kind `file`, `name` (backfilled), nullable website columns with `kb_sources_website_ck`, the file columns with `kb_sources_file_ck` and the unique upload key, the new stages and failures, the page reasons and `ocr_confidence` (drizzle schema + `0023`); RLS suite case for file sources (design §4; AC-8 schema half)
       Done when: `pnpm db:setup` applies 0023 on a database at 0022 with a website source in it (its `name` equals its domain) and is idempotent; `drizzle-kit generate` reports no drift; the RLS suite passes with the file-source case.
@@ -19,7 +19,7 @@
       Done when: `pnpm --filter @kaki/ingest-worker fixtures:files` regenerates every file; the committed files match what T3–T6 tests expect.
 - [x] T8 — Worker wiring and local stack: `main.ts` config and deps, health checks, `.env.example`, `gen-local-env.mjs`, `02-buckets.sh` (buckets, lifecycle, CORS), ClamAV out of the compose profile with a health check, Dockerfile packages (design §5.8; D9)
       Done when: on the local stack, a file put into the quarantine bucket and a source row created by hand runs to `ready` in the dev worker; `/readyz` reports scanner and OCR; the ingest-worker image builds with Tesseract and poppler.
-- [ ] T9 — API: `POST /api/v1/kb/uploads` with the S3 presigner, the file body of `POST /api/v1/kb/sources`, `fileLimit`/`maxFileBytes` on the list, `not_retryable`, `toSource` for files, config and `.env.example` (design §3.2, §5.8; D2; AC-1, AC-6 retry, AC-8 tenant key)
+- [x] T9 — API: `POST /api/v1/kb/uploads` with the S3 presigner, the file body of `POST /api/v1/kb/sources`, `fileLimit`/`maxFileBytes` on the list, `not_retryable`, `toSource` for files, config and `.env.example` (design §3.2, §5.8; D2; AC-1, AC-6 retry, AC-8 tenant key)
       Done when: api integration tests pass for every designed success and error, and a PUT to the returned URL against LocalStack stores the object under the session tenant's prefix.
 - [ ] T10 — Terraform and CI: quarantine CORS, the GuardDuty protection plan and role, task policies and environment, `MALWARE_SCANNER=guardduty`; CI apt packages for integration and e2e (design §5.8)
       Done when: `terraform fmt -check`, `validate` and `terraform test` pass; `actionlint` is clean.
@@ -39,3 +39,4 @@
 - **S3 endpoint (design §5.8):** the worker (and the API in T9) use the existing `AWS_ENDPOINT_URL` for LocalStack, as the scheduler's anchor store does, rather than a new `S3_ENDPOINT_URL`.
 - **Job outcome:** `runIngestJob`'s outcome gains `type` (scan → parse) and `signature` (malware), so the worker logs them; neither is audited (NFR-11).
 - **T8 evidence:** on the local stack, `price-list.pdf` and `scanned-menu.pdf` put into `kaki-local-quarantine` with a source created through `createFileSource` ran scan → parse → extract → promote to `ready` in the dev worker (3 pages and 7 facts; 2 OCR pages and 4 facts). `/readyz` reports `{"database":true,"browser":true,"scanner":true,"ocr":true}`. clamd accepts a 25 MB stream. The image build couldn't run here (the sandbox's TLS proxy isn't trusted inside `docker build`, and Docker Hub rate-limited the base image), so CI builds the ingest-worker image and checks its Tesseract languages (T10).
+- **T9 evidence:** `apps/api/test/uploads.int.test.ts` (49 tests) covers every designed success and error of `POST /kb/uploads` and the file body of `POST /kb/sources`, the list's limits, OCR confidence on pages, retry (`not_retryable` for each D7 failure; `scan` or `parse` restarts) and the purge job on delete. A PUT to a real presigned URL on LocalStack stores the object at `uploads/<session tenant>/<uploadId>`. The URL signs `content-length;content-type;host`; LocalStack doesn't enforce signed headers (S3 does), so the refused-wrong-length half is asserted on the signature, and the worker re-checks the stored size (§5.3). The `UploadSigner` interface lives in `server.ts` beside `Deps`, which keeps the module graph acyclic.
