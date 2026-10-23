@@ -296,11 +296,17 @@ describe('detection at promote (KB-06; FEAT-014 §5.2)', () => {
     ]);
     await promote(TENANT_A, src);
     const facts = await factsOf(TENANT_A);
-    expect(facts.map((f) => f.status)).toEqual([
-      'conflicted',
-      'approved',
-      'conflicted',
-      'needs_review',
+    // The owner's two facts in the order they were made; the run's two share one
+    // created_at, so they're matched by price rather than by position.
+    expect(facts.slice(0, 2).map((f) => f.status)).toEqual(['conflicted', 'approved']);
+    expect(
+      facts
+        .slice(2)
+        .map((f) => [f.cents, f.status])
+        .sort(([a], [b]) => Number(a) - Number(b)),
+    ).toEqual([
+      [2600, 'conflicted'],
+      [2850, 'needs_review'],
     ]);
     expect((await factsOf(TENANT_B)).map((f) => f.status)).toEqual(['approved']);
   });
@@ -509,6 +515,21 @@ describe('resolving (UC-12 2–3, 2a)', () => {
     const third = await stagedSource(TENANT_A, 'kakicakes.sg', [{ input: product(3000) }]);
     await promote(TENANT_A, third);
     expect(await attempt(refs)).toBeInstanceOf(ConflictChangedError);
+  });
+
+  it('refuses a request naming a fact that is no longer conflicted, and writes nothing (AC-8)', async () => {
+    const { conflict, manualId } = await crossSourceConflict();
+    const refs = refsOf(conflict);
+    // Every app path that moves a fact also moves its version; this isolates the status
+    // check by moving only the status, as a write the versions didn't see would.
+    await owner.query(`update facts set status = 'approved' where id = $1`, [manualId]);
+    const before = await factsOf(TENANT_A);
+    const err = await inTx(TENANT_A, (ctx) => resolveConflict(ctx, refs, manualId, 'disable')).then(
+      () => null,
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(ConflictChangedError);
+    expect(await factsOf(TENANT_A)).toEqual(before);
   });
 
   it('a rejected value is not proposed again; a third value reopens against the kept fact (AC-8)', async () => {
