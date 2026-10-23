@@ -8,6 +8,7 @@ import type { SourceRecord } from '../sources.js';
 import type { FactInput } from '../types.js';
 import { moveFacts } from '../writes.js';
 import { StaleRunError } from './crawl.js';
+import type { MappingRecord } from './sheets/stages.js';
 
 const INGEST_ACTOR = { type: 'system', id: 'ingest-worker' } as const;
 
@@ -31,7 +32,7 @@ interface Candidate {
 }
 
 /** The tenant's facts of these types, as the plan compares them (FEAT-014 §5.2). */
-async function existingFacts(
+export async function existingFacts(
   tx: Tx,
   tenantId: string,
   types: FactInput['type'][],
@@ -153,7 +154,13 @@ export async function promoteSource(
       .map((e) => e.id);
     const plan = planPromotion(candidates, await existingFacts(tx, tenantId, types, matched));
     const embeddingOf = new Map(candidates.map((c, i) => [c, embeddings[i]!]));
-    for (const { candidate: c, status } of plan.insert) {
+    // A confirmed spreadsheet import is the owner's approval (KB-03, D11; FEAT-016 D5):
+    // its rows are written approved by the confirming user; conflicts still win (KB-06).
+    const mapping = source.kind === 'spreadsheet' ? (source.mapping as MappingRecord | null) : null;
+    const author = mapping?.confirmedBy ?? source.createdBy;
+    let approved = 0;
+    for (const { candidate: c, status: planned } of plan.insert) {
+      const status = mapping && planned === 'needs_review' ? 'approved' : planned;
       const [fact] = await tx
         .insert(schema.facts)
         .values({
@@ -168,8 +175,8 @@ export async function promoteSource(
           sourceId,
           confidence: c.confidence,
           provenance: c.provenance,
-          createdBy: source.createdBy,
-          updatedBy: source.createdBy,
+          createdBy: author,
+          updatedBy: author,
         })
         .returning();
       await tx.insert(schema.factVersions).values({
@@ -181,8 +188,20 @@ export async function promoteSource(
         gstTreatment: fact!.gstTreatment,
         validFrom: fact!.validFrom,
         validUntil: fact!.validUntil,
-        changedBy: source.createdBy,
+        changedBy: author,
       });
+      if (status === 'approved') {
+        approved += 1;
+        // KB-16: every approval is audited with its approver.
+        await audit.append(tx, tenantId, {
+          action: 'fact.approved',
+          actorType: 'user',
+          actorId: author,
+          subjectType: 'fact',
+          subjectId: fact!.id,
+          payload: { version: 1, mode: auditCode('import'), source: auditId(sourceId) },
+        });
+      }
       await tx.insert(schema.kbChunks).values({
         tenantId,
         factId: fact!.id,
@@ -229,7 +248,12 @@ export async function promoteSource(
       actorId: 'ingest-worker',
       subjectType: 'kb_source',
       subjectId: sourceId,
-      payload: conflicted ? { facts: written, attempt, conflicted } : { facts: written, attempt },
+      payload: {
+        facts: written,
+        attempt,
+        ...(conflicted ? { conflicted } : {}),
+        ...(mapping ? { approved } : {}),
+      },
     });
     return written;
   });

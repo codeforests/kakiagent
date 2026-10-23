@@ -8,6 +8,7 @@ import {
   MagicLinkVerifyResponse,
   FactList,
   FactResponse,
+  ImportPreview,
   Me,
   ApproveAllResponse,
   ApprovePreview,
@@ -28,6 +29,8 @@ import {
   type CreateFactBody,
   type CreateSourceBody,
   type CreateWorkspaceBody,
+  type ConfirmImportBody,
+  type ImportBody,
   type FactListQuery,
   type FactRef,
   type ResolveConflictBody,
@@ -166,6 +169,11 @@ export const api = {
     request('POST', '/api/v1/kb/uploads', UploadTicket, body),
   deleteSource: async (id: string, version: number) =>
     void (await send('DELETE', `/api/v1/kb/sources/${encodeURIComponent(id)}?version=${version}`)),
+  /** FEAT-016 §3.2: SCR-APP-025's preview (writes nothing) and confirm. */
+  previewImport: (id: string, body: ImportBody) =>
+    request('POST', `/api/v1/kb/sources/${encodeURIComponent(id)}/preview`, ImportPreview, body),
+  confirmImport: (id: string, body: ConfirmImportBody) =>
+    request('POST', `/api/v1/kb/sources/${encodeURIComponent(id)}/import`, SourceResponse, body),
   /** FEAT-013 §3: SCR-APP-019 and SCR-APP-008. */
   reviewFacts: (q: ReviewListQuery) => getJson(`/api/v1/kb/review/facts${query(q)}`, ReviewList),
   reviewSummary: () => getJson('/api/v1/kb/review/summary', ReviewSummary),

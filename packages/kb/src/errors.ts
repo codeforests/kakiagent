@@ -23,3 +23,5 @@ export class GstRequiredError extends Error {}
 export class NotRetryableError extends Error {}
 /** The tenant has as many file sources as its plan holds (D2; FEAT-015 §3.2). */
 export class FileLimitError extends Error {}
+/** A column mapping the sheet can't take; the message says what to fix (FEAT-016 §5.6). */
+export class BadMappingError extends Error {}

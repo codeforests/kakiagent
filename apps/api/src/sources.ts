@@ -1,8 +1,13 @@
 import {
+  ConfirmImportBody,
   CreateSourceBody,
   FILE_EXTENSIONS,
+  ImportBody,
+  ImportPreview,
   MAX_FILE_BYTES,
   RetrySourceBody,
+  SHEET_EXTENSIONS,
+  UPLOAD_EXTENSIONS,
   SourceDetail,
   SourceList,
   SourceResponse,
@@ -12,18 +17,23 @@ import { withTenant } from '@kaki/db';
 import { can } from '@kaki/identity';
 import {
   assertPublicHost,
+  confirmImport,
   createFileSource,
   createWebsiteSource,
   dashboardKb,
   deleteSource,
   getSource,
+  isUpload,
   listSources,
   parseWebsite,
+  previewImport,
   retryable,
   retrySource,
   sourceFactCounts,
   SourceNotFoundError,
+  type MappingRecord,
   type Resolver,
+  type SheetRecord,
   type SourceRecord,
 } from '@kaki/kb';
 import type { FastifyRequest } from 'fastify';
@@ -34,15 +44,22 @@ import type { App, Deps } from './server.js';
 
 /** `attested` missing or false (KB-13, UC-03 4b): nothing is written. */
 export class AttestationRequiredError extends Error {}
-/** A file name without an allowed extension (KB-02; FEAT-015 §3.2). */
+/** A file name without an allowed extension (KB-02, KB-03; FEAT-015 §3.2, FEAT-016 §3.2). */
 export class UnsupportedFileError extends Error {}
 /** Over the 25 MB a file may be (KB-02). */
 export class FileTooLargeError extends Error {}
 
-/** The early checks on a file's name and declared size; the scan decides what it is (D5). */
-export function checkFile(fileName: string, sizeBytes: number) {
+/**
+ * The early checks on a file's name and declared size; the scan decides what it is (D5).
+ * An upload may be a file or a spreadsheet; a source must have its kind's extension.
+ */
+export function checkFile(
+  fileName: string,
+  sizeBytes: number,
+  extensions: readonly string[] = UPLOAD_EXTENSIONS,
+) {
   const name = fileName.toLowerCase();
-  if (!FILE_EXTENSIONS.some((ext) => name.endsWith(ext))) throw new UnsupportedFileError();
+  if (!extensions.some((ext) => name.endsWith(ext))) throw new UnsupportedFileError();
   if (sizeBytes > MAX_FILE_BYTES) throw new FileTooLargeError();
 }
 
@@ -50,6 +67,24 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const DeleteQuery = z.object({ version: z.coerce.number().int().min(1) });
 
 type Counts = { facts: number; needsReview: number };
+
+/** A spreadsheet's layout and confirmed mapping; who confirmed stays in the audit log. */
+function sheetOf(r: SourceRecord): Source['sheet'] {
+  if (r.kind !== 'spreadsheet' || !r.sheet) return null;
+  const sheet = r.sheet as SheetRecord;
+  const mapping = r.mapping as MappingRecord | null;
+  return {
+    name: sheet.name,
+    headerRow: sheet.headerRow,
+    rows: sheet.rows,
+    rowsSkipped: sheet.rowsSkipped,
+    columns: sheet.columns,
+    suggested: sheet.suggested,
+    mapping: mapping
+      ? { columns: mapping.columns, gst: mapping.gst, confirmedAt: mapping.confirmedAt }
+      : null,
+  };
+}
 
 function toSource(r: SourceRecord, counts: Counts | undefined): Source {
   return {
@@ -64,16 +99,16 @@ function toSource(r: SourceRecord, counts: Counts | undefined): Source {
     pageLimit: r.pageLimit,
     failure: r.failure,
     retryable: retryable(r),
-    file:
-      r.kind === 'file'
-        ? {
-            name: r.name,
-            sizeBytes: r.fileSize ?? 0,
-            type: r.fileType,
-            ocrPages: r.ocrPages,
-            scannedAt: r.scannedAt?.toISOString() ?? null,
-          }
-        : null,
+    file: isUpload(r.kind)
+      ? {
+          name: r.name,
+          sizeBytes: r.fileSize ?? 0,
+          type: r.fileType,
+          ocrPages: r.ocrPages,
+          scannedAt: r.scannedAt?.toISOString() ?? null,
+        }
+      : null,
+    sheet: sheetOf(r),
     counts: {
       pagesFound: r.pagesFound,
       pagesIncluded: r.pagesIncluded,
@@ -137,8 +172,12 @@ export function registerSourceRoutes(
   app.post('/api/v1/kb/sources', async (req, reply) => {
     const s = await manager(req);
     const body = CreateSourceBody.parse(req.body);
-    if (body.kind === 'file') {
-      checkFile(body.fileName, body.sizeBytes);
+    if (body.kind === 'file' || body.kind === 'spreadsheet') {
+      checkFile(
+        body.fileName,
+        body.sizeBytes,
+        body.kind === 'file' ? FILE_EXTENSIONS : SHEET_EXTENSIONS,
+      );
       const source = await withKb(s, async (ctx) =>
         withCounts(ctx, await createFileSource(ctx, body, { fileLimit: config.FILE_LIMIT })),
       );
@@ -176,6 +215,25 @@ export function registerSourceRoutes(
     const { version } = RetrySourceBody.parse(req.body);
     const source = await withKb(s, async (ctx) =>
       withCounts(ctx, await retrySource(ctx, id, version)),
+    );
+    return SourceResponse.parse({ source });
+  });
+
+  // The spreadsheet's mapping (KB-03, UC-10 3-5; FEAT-016 §3.2): the preview writes
+  // nothing; the confirm re-runs the same validation and is the import's approval.
+  app.post<{ Params: { id: string } }>('/api/v1/kb/sources/:id/preview', async (req) => {
+    const s = await manager(req);
+    const id = sourceId(req.params.id);
+    const choice = ImportBody.parse(req.body);
+    return ImportPreview.parse(await withKb(s, (ctx) => previewImport(ctx, id, choice)));
+  });
+
+  app.post<{ Params: { id: string } }>('/api/v1/kb/sources/:id/import', async (req) => {
+    const s = await manager(req);
+    const id = sourceId(req.params.id);
+    const body = ConfirmImportBody.parse(req.body);
+    const source = await withKb(s, async (ctx) =>
+      withCounts(ctx, await confirmImport(ctx, id, body)),
     );
     return SourceResponse.parse({ source });
   });

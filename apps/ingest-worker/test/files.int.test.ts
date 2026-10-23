@@ -2,9 +2,13 @@ import { CreateBucketCommand, PutObjectCommand, S3Client } from '@aws-sdk/client
 import { LocalstackContainer, type StartedLocalStackContainer } from '@testcontainers/localstack';
 import {
   parseFile,
+  readCsv,
+  readXlsx,
   scanFile,
   ScannerUnavailableError,
   sniffType,
+  suggestMapping,
+  tableOf,
   type FileDeps,
   type FileType,
   type SourceRecord,
@@ -19,7 +23,9 @@ import {
   eicar,
   FAQ_DOCX,
   MENU_PHOTO_LINES,
+  PRICE_LIST_HEADER,
   PRICE_LIST_PAGES,
+  PRICE_LIST_ROWS,
   PROMO_SLIDES,
   SCANNED_MENU_PAGES,
 } from '../fixtures/files/content.js';
@@ -306,5 +312,82 @@ describe('file fixtures (T7)', () => {
     expect(await parse('blank.png')).toMatchObject([
       { url: 'image/1', status: 'excluded', reason: 'no_text' },
     ]);
+  });
+});
+
+/** The spreadsheet fixtures through the scan stage (S3 + ClamAV) and the parse (FEAT-016 T8). */
+describe('spreadsheet fixtures (FEAT-016)', () => {
+  const deps = (): FileDeps => ({ store, scanner: clamav, ocr, rasterizer });
+  async function scan(name: string, bytes = fixture(name)) {
+    const source = {
+      tenantId: randomUUID(),
+      id: randomUUID(),
+      kind: 'spreadsheet',
+      name,
+      uploadKey: `uploads/t/${randomUUID()}`,
+    } as SourceRecord;
+    await put(source.uploadKey!, bytes);
+    return { source, outcome: await scanFile(source, deps()) };
+  }
+  const sourcesKey = (s: SourceRecord) => `files/${s.tenantId}/${s.id}`;
+  /** What the parse stage stores, read back from `sources` as the stage reads it. */
+  async function layout(source: SourceRecord, type: 'xlsx' | 'csv') {
+    const bytes = await store.get('sources', sourcesKey(source));
+    let rows;
+    if (type === 'xlsx') {
+      const x = readXlsx(bytes);
+      if (!x.ok) throw new Error(x.failure);
+      rows = x.rows;
+    } else rows = readCsv(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+    const table = tableOf(rows, { rowLimit: 2000, mask: (s) => s })!;
+    return { table, suggested: suggestMapping(table.columns, table.rows) };
+  }
+
+  it('price-list.xlsx scans clean, finds its header on row 3 and suggests every field', async () => {
+    const { source, outcome } = await scan('price-list.xlsx');
+    expect(outcome).toMatchObject({ next: 'parse', type: 'xlsx' });
+    expect(await store.head('quarantine', source.uploadKey!)).toBeNull();
+    const { table, suggested } = await layout(source, 'xlsx');
+    expect(table.headerRow).toBe(3);
+    expect(table.columns.map((c) => c.header)).toEqual(PRICE_LIST_HEADER);
+    // Rows 4..15 less the empty row 7; the formula's cached value, never the formula.
+    expect(table.rows.map((r) => r.row)).toEqual([4, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15]);
+    expect(table.rows.find((r) => r.row === 13)!.cells[3]).toBe('55');
+    expect(table.rows[0]!.cells).toEqual(PRICE_LIST_ROWS[0]);
+    expect(suggested).toEqual({
+      columns: { sku: 0, product: 1, unit: 2, price: 3, stock: 4 },
+      gst: 'inclusive',
+    });
+  });
+
+  it('services.csv scans clean and keeps its quoted semicolons, commas and line breaks', async () => {
+    const { source, outcome } = await scan('services.csv');
+    expect(outcome).toMatchObject({ next: 'parse', type: 'csv' });
+    const { table, suggested } = await layout(source, 'csv');
+    expect(table.columns.map((c) => c.header)).toEqual(['Service', 'Price']);
+    expect(table.rows.map((r) => r.cells[0])).toEqual([
+      'Wash; cut and blow-dry',
+      'Colour, full head',
+      'Keratin treatment\r\n(long hair)',
+    ]);
+    expect(suggested).toEqual({ columns: { service: 0, price: 1 }, gst: null });
+  });
+
+  it.each([
+    ['protected.xlsx', 'encrypted'],
+    ['legacy.xls', 'unsupported_type'],
+    ['latin1.csv', 'unsupported_type'],
+  ])('%s is rejected as %s and deleted', async (name, failure) => {
+    const { source, outcome } = await scan(name);
+    expect(outcome).toEqual({ next: 'failed', failure });
+    expect(await store.head('quarantine', source.uploadKey!)).toBeNull();
+    expect(await store.head('sources', sourcesKey(source))).toBeNull();
+  });
+
+  it('rejects EICAR named prices.csv as malware before reading it', async () => {
+    const { source, outcome } = await scan('prices.csv', eicar());
+    expect(outcome).toMatchObject({ next: 'failed', failure: 'malware' });
+    expect(await store.head('quarantine', source.uploadKey!)).toBeNull();
+    expect(await store.head('sources', sourcesKey(source))).toBeNull();
   });
 });

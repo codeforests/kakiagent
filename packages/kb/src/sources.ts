@@ -32,6 +32,8 @@ export interface PageRecord {
   httpStatus: number | null;
   facts: number;
   ocrConfidence: number | null;
+  /** A spreadsheet row's cells (FEAT-016); null for other pages. */
+  cells: string[] | null;
 }
 
 /** Where a tenant's upload waits for its checks: the quarantine bucket (ADR-018 d2). */
@@ -65,9 +67,20 @@ export const NOT_RETRYABLE: readonly SourceFailure[] = [
   'no_text',
 ];
 
-/** A failed source that Retry can run again (KB-12): every website, and files not rejected. */
+/** Uploads stored as objects: files (FEAT-015) and spreadsheets (FEAT-016). */
+export const isUpload = (kind: SourceRecord['kind']) => kind === 'file' || kind === 'spreadsheet';
+
+/**
+ * A failed source that Retry can run again (KB-12): every website, and uploads not
+ * rejected; a spreadsheet without a table (`no_rows`) needs a new upload too (FEAT-016 §5.8).
+ */
 export const retryable = (s: Pick<SourceRecord, 'kind' | 'status' | 'failure'>) =>
-  s.status === 'failed' && !(s.kind === 'file' && s.failure && NOT_RETRYABLE.includes(s.failure));
+  s.status === 'failed' &&
+  !(
+    isUpload(s.kind) &&
+    s.failure &&
+    (NOT_RETRYABLE.includes(s.failure) || (s.kind === 'spreadsheet' && s.failure === 'no_rows'))
+  );
 
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 
@@ -148,11 +161,12 @@ export async function createWebsiteSource(
  * session tenant's quarantine prefix, so a source can only claim the tenant's own upload
  * (D2). The scan job is written with it; nothing reads the file before the scan (KB-11).
  * Throws `FileLimitError` at the plan's file count, `SourceExistsError` for an upload that
- * already has a source.
+ * already has a source. A spreadsheet (FEAT-016) is added the same way with its own kind,
+ * and counts toward the same limit (UC-10 precondition).
  */
 export async function createFileSource(
   ctx: DashboardKbContext,
-  file: { uploadId: string; fileName: string; sizeBytes: number },
+  file: { uploadId: string; fileName: string; sizeBytes: number; kind?: 'file' | 'spreadsheet' },
   opts: { fileLimit: number },
 ): Promise<SourceRecord> {
   const s = schema.kbSources;
@@ -171,7 +185,7 @@ export async function createFileSource(
     .insert(s)
     .values({
       tenantId: ctx.tenantId,
-      kind: 'file',
+      kind: file.kind ?? 'file',
       status: 'queued',
       stage: 'scan',
       name: file.fileName,
@@ -189,7 +203,7 @@ export async function createFileSource(
     subjectId: source.id,
     // The extension and size only: a file name can be personal data (NFR-11).
     payload: {
-      kind: auditCode('file'),
+      kind: auditCode(file.kind ?? 'file'),
       ext: auditCode(extensionOf(file.fileName)),
       sizeBytes: file.sizeBytes,
     },
@@ -207,7 +221,7 @@ export async function countFileSources(ctx: DashboardKbContext): Promise<number>
   const [row] = await ctx.tx
     .select({ n: sql<number>`count(*)::int` })
     .from(s)
-    .where(and(eq(s.tenantId, ctx.tenantId), eq(s.kind, 'file')));
+    .where(and(eq(s.tenantId, ctx.tenantId), inArray(s.kind, ['file', 'spreadsheet'])));
   return row?.n ?? 0;
 }
 
@@ -238,6 +252,7 @@ export async function getSource(
       httpStatus: p.httpStatus,
       facts: p.factsCount,
       ocrConfidence: p.ocrConfidence,
+      cells: p.cells,
     })
     .from(p)
     .where(and(eq(p.tenantId, ctx.tenantId), eq(p.sourceId, id), eq(p.attempt, source.attempt)))
@@ -279,6 +294,9 @@ export async function retrySource(
   if (!retryable(current)) throw new NotRetryableError(`a ${current.failure} file`);
   const stage: SourceStage =
     current.kind === 'website' ? 'crawl' : current.fileKey ? 'parse' : 'scan';
+  // A spreadsheet with no valid rows goes back to the mapping; after a transient failure it
+  // keeps it, so the parse goes straight on to the import (FEAT-016 D6).
+  const clearMapping = current.kind === 'spreadsheet' && current.failure === 'no_valid_rows';
   await clearRun(ctx, id);
   const [row] = await ctx.tx
     .update(schema.kbSources)
@@ -296,6 +314,7 @@ export async function retrySource(
       pagesExtracted: 0,
       factsCount: 0,
       ocrPages: 0,
+      ...(clearMapping ? { mapping: null } : {}),
       finishedAt: null,
       updatedAt: sql`now()`,
     })
@@ -353,7 +372,7 @@ export async function deleteSource(
     payload: { kind: auditCode(current.kind), facts: ids.length },
   });
   // A file's objects go through the outbox with the rows (ADR-012; FEAT-015 §5.7, GOV-05).
-  if (current.kind === 'file')
+  if (isUpload(current.kind))
     await enqueue(ctx.tx, {
       tenantId: ctx.tenantId,
       topic: 'ingest',

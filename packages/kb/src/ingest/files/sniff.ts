@@ -82,10 +82,16 @@ function isText(b: Uint8Array): boolean {
 /**
  * Decides a file's type from its bytes, never from its name (FEAT-015 D5). The name only
  * matters for text, which has no magic number, and for an OLE container, which is how
- * Office stores a password-protected .docx or .pptx.
+ * Office stores a password-protected .docx, .pptx or .xlsx. A spreadsheet source accepts
+ * only XLSX and UTF-8 CSV; a file source never takes those (FEAT-016 §5.2).
  */
-export function sniffType(bytes: Uint8Array, fileName: string): Sniffed {
+export function sniffType(
+  bytes: Uint8Array,
+  fileName: string,
+  kind: 'file' | 'spreadsheet' = 'file',
+): Sniffed {
   const ext = extension(fileName);
+  if (kind === 'spreadsheet') return sniffSheet(bytes, ext);
   if (EXECUTABLES.some((sig) => startsWith(bytes, sig)))
     return { ok: false, failure: 'unsupported_type' };
   if (startsWith(bytes, PNG)) return { ok: true, type: 'png' };
@@ -105,5 +111,31 @@ export function sniffType(bytes: Uint8Array, fileName: string): Sniffed {
     };
   if (isPdf(bytes)) return { ok: true, type: 'pdf' };
   if (ext === 'txt' && isText(bytes)) return { ok: true, type: 'txt' };
+  return { ok: false, failure: 'unsupported_type' };
+}
+
+/** A spreadsheet source's bytes: an XLSX workbook, or a `.csv` of strict UTF-8 text. */
+function sniffSheet(bytes: Uint8Array, ext: string): Sniffed {
+  if (EXECUTABLES.some((sig) => startsWith(bytes, sig)))
+    return { ok: false, failure: 'unsupported_type' };
+  if (startsWith(bytes, ZIP)) {
+    const zip = zipEntries(bytes);
+    if (!zip) return { ok: false, failure: 'unreadable' };
+    if (zip.encrypted) return { ok: false, failure: 'encrypted' };
+    return zip.names.includes('xl/workbook.xml')
+      ? { ok: true, type: 'xlsx' }
+      : { ok: false, failure: 'unsupported_type' };
+  }
+  // Office keeps a password-protected .xlsx in an OLE container; legacy .xls is OLE too.
+  if (startsWith(bytes, OLE))
+    return { ok: false, failure: ext === 'xlsx' ? 'encrypted' : 'unsupported_type' };
+  if (
+    ext === 'csv' &&
+    !startsWith(bytes, PNG) &&
+    !startsWith(bytes, JPEG) &&
+    !isPdf(bytes) &&
+    isText(bytes)
+  )
+    return { ok: true, type: 'csv' };
   return { ok: false, failure: 'unsupported_type' };
 }

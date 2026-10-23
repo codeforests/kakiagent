@@ -4,6 +4,13 @@ export interface ProductValue {
   priceCents: number;
   currency: 'SGD';
   unit?: string | undefined;
+  /**
+   * From an imported spreadsheet (FEAT-016 D8): stored and shown, never given to the model
+   * (architecture Q6); `stockAsOf` is the day the count was imported, `YYYY-MM-DD`.
+   */
+  sku?: string | undefined;
+  stock?: number | undefined;
+  stockAsOf?: string | undefined;
 }
 
 export interface FaqValue {

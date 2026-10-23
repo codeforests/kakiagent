@@ -36,14 +36,15 @@ export interface Provenance {
   end: number;
 }
 
-export type FileUnit = 'page' | 'slide' | 'part' | 'image';
+/** A file's pages, slides, parts or image (FEAT-015); a spreadsheet's rows (FEAT-016). */
+export type FileUnit = 'page' | 'slide' | 'part' | 'image' | 'row';
 
 /** A file page's locator, `page/3`, `slide/2`, `part/1` or `image/1` (FEAT-015 §3.1). */
 export const fileLocator = (unit: FileUnit, number: number) => `${unit}/${number}`;
 
 /** The file location a page locator names, or null for a web page's URL. */
 export function locationOf(url: string): { unit: FileUnit; number: number } | null {
-  const m = /^(page|slide|part|image)\/([1-9]\d{0,5})$/.exec(url);
+  const m = /^(page|slide|part|image|row)\/([1-9]\d{0,6})$/.exec(url);
   return m ? { unit: m[1] as FileUnit, number: Number(m[2]) } : null;
 }
 
@@ -291,14 +292,21 @@ export function mergePatch(current: FactRecord, patch: FactPatch): FactInput {
     throw new InvalidFactError(`a ${current.type} has no validity`);
   let next: FactInput;
   switch (current.type) {
-    case 'product':
+    case 'product': {
+      // An imported SKU and stock count aren't editable; an edit keeps them (FEAT-016 D8).
+      const { sku, stock, stockAsOf } = current.value;
+      const kept = Object.fromEntries(
+        Object.entries({ sku, stock, stockAsOf }).filter(([, v]) => v !== undefined),
+      );
+      const edited = patch.value as ProductValue | undefined;
       next = {
         type: 'product',
-        value: (patch.value as ProductValue | undefined) ?? current.value,
+        value: edited ? { ...edited, ...kept } : current.value,
         gstTreatment: (patch.gstTreatment as GstTreatment | undefined) ?? current.gstTreatment,
         validity: current.validity,
       };
       break;
+    }
     case 'faq':
     case 'policy':
       if (patch.gstTreatment) throw new InvalidFactError(`a ${current.type} has no GST`);

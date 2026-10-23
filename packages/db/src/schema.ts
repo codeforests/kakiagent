@@ -291,9 +291,18 @@ export const messages = pgTable(
   ],
 );
 
-export const SOURCE_KINDS = ['website', 'file'] as const;
+export const SOURCE_KINDS = ['website', 'file', 'spreadsheet'] as const;
 export const SOURCE_STATUSES = ['queued', 'processing', 'ready', 'failed'] as const;
-export const SOURCE_STAGES = ['scan', 'parse', 'crawl', 'extract', 'promote'] as const;
+/** `map` waits for the owner's column mapping with no job (FEAT-016 D3); `import` applies it. */
+export const SOURCE_STAGES = [
+  'scan',
+  'parse',
+  'map',
+  'import',
+  'crawl',
+  'extract',
+  'promote',
+] as const;
 export const SOURCE_FAILURES = [
   'no_pages',
   'site_unreachable',
@@ -308,9 +317,14 @@ export const SOURCE_FAILURES = [
   'scan_unavailable',
   'unreadable',
   'no_text',
+  // Spreadsheets (FEAT-016 §3.1): no table in the file, or no row valid under the mapping.
+  'no_rows',
+  'no_valid_rows',
 ] as const;
 /** What a file's bytes are (FEAT-015 §5.3), whatever its name says. */
-export const FILE_TYPES = ['pdf', 'docx', 'pptx', 'txt', 'jpeg', 'png'] as const;
+export const FILE_TYPES = ['pdf', 'docx', 'pptx', 'txt', 'jpeg', 'png', 'xlsx', 'csv'] as const;
+/** The types a spreadsheet source may be (FEAT-016 §5.2). */
+export const SHEET_TYPES = ['xlsx', 'csv'] as const;
 export const PAGE_STATUSES = ['included', 'excluded', 'failed', 'skipped'] as const;
 export const PAGE_REASONS = [
   'robots',
@@ -325,13 +339,21 @@ export const PAGE_REASONS = [
   'no_text',
   'page_limit',
   'ocr_limit',
+  // Spreadsheet rows (FEAT-016 §5.5): skipped as empty, or rejected with the first rule that fails.
+  'empty_row',
+  'no_name',
+  'no_price',
+  'bad_price',
+  'not_sgd',
+  'bad_stock',
+  'too_long',
 ] as const;
 
 const inList = (values: readonly string[]) => sql.raw(values.map((v) => `'${v}'`).join(', '));
 
 /**
- * Knowledge sources (KB_SOURCE, ADR-018 decision 1): one row per website (FEAT-012) or
- * uploaded file (FEAT-015); spreadsheets and chat exports join with FEAT-016..017.
+ * Knowledge sources (KB_SOURCE, ADR-018 decision 1): one row per website (FEAT-012),
+ * uploaded file (FEAT-015) or spreadsheet (FEAT-016); chat exports join with FEAT-017.
  * `attempt` keys the idempotent stage jobs; `version` is the dashboard's
  * optimistic-concurrency token.
  */
@@ -379,6 +401,12 @@ export const kbSources = pgTable(
     fileType: text('file_type', { enum: FILE_TYPES }),
     ocrPages: integer('ocr_pages').notNull().default(0),
     scannedAt: timestamp('scanned_at', { withTimezone: true }),
+    /**
+     * Spreadsheets (FEAT-016 §4): the layout the parse found (sheet, header, columns with
+     * samples, the suggested mapping), and the owner's confirmed mapping.
+     */
+    sheet: jsonb('sheet'),
+    mapping: jsonb('mapping'),
     createdBy: text('created_by').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -394,8 +422,13 @@ export const kbSources = pgTable(
     ),
     check(
       'kb_sources_file_ck',
-      sql`${t.kind} <> 'file' or (${t.uploadKey} is not null and ${t.fileSize} > 0)`,
+      sql`${t.kind} not in ('file', 'spreadsheet') or (${t.uploadKey} is not null and ${t.fileSize} > 0)`,
     ),
+    check(
+      'kb_sources_sheet_type_ck',
+      sql`${t.fileType} is null or (${t.kind} = 'spreadsheet') = (${t.fileType} in (${inList(SHEET_TYPES)}))`,
+    ),
+    check('kb_sources_mapping_ck', sql`${t.mapping} is null or ${t.kind} = 'spreadsheet'`),
     check(
       'kb_sources_file_type_ck',
       sql`${t.fileType} is null or ${t.fileType} in (${inList(FILE_TYPES)})`,
@@ -419,8 +452,9 @@ export const kbSources = pgTable(
 
 /**
  * A crawl's page list (KB-01) or a file's pages, slides or parts (KB-02, FEAT-015), per
- * attempt. `content` is masked visible text (ADR-015). A file page's `url` is a locator,
- * `page/3`, `slide/2`, `part/1` or `image/1`.
+ * attempt, or a spreadsheet's rows (FEAT-016 D1). `content` is masked visible text
+ * (ADR-015). A file page's `url` is a locator, `page/3`, `slide/2`, `part/1`, `image/1`, or
+ * a row's `row/12` (its row number in the sheet).
  */
 export const kbSourcePages = pgTable(
   'kb_source_pages',
@@ -440,6 +474,8 @@ export const kbSourcePages = pgTable(
     contentHash: text('content_hash'),
     /** 0..1 when the page's text came from OCR (FEAT-015 D6); null for a text layer. */
     ocrConfidence: real('ocr_confidence'),
+    /** A spreadsheet row's cells, masked (FEAT-016 §4); null for other pages. */
+    cells: text('cells').array(),
     extractedAt: timestamp('extracted_at', { withTimezone: true }),
     factsCount: integer('facts_count').notNull().default(0),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -461,6 +497,7 @@ export const kbSourcePages = pgTable(
       'kb_source_pages_ocr_ck',
       sql`${t.ocrConfidence} is null or ${t.ocrConfidence} between 0 and 1`,
     ),
+    check('kb_source_pages_cells_ck', sql`${t.cells} is null or cardinality(${t.cells}) <= 50`),
   ],
 );
 
@@ -488,7 +525,8 @@ export const facts = pgTable(
     type: text('type', { enum: FACT_TYPES }).notNull(),
     status: text('status', { enum: FACT_STATUSES }).notNull().default('needs_review'),
     /**
-     * product: { name, priceCents, currency: 'SGD', unit? }; faq: { question, answer };
+     * product: { name, priceCents, currency: 'SGD', unit?, sku?, stock?, stockAsOf? } (the last
+     * three from a spreadsheet, FEAT-016 D8); faq: { question, answer };
      * policy: { kind, title, details }; promotion: { title, details, priceCents?, currency? }.
      */
     value: jsonb('value').notNull(),

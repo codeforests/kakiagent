@@ -2,7 +2,7 @@ import type { Fact } from '@kaki/contracts';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { api } from '../lib/api.ts';
-import { locationWords } from '../lib/sources.ts';
+import { isImported, locationWords } from '../lib/sources.ts';
 
 /**
  * SCR-APP-028's Source section (KB-05; FEAT-012 ui-design): the passage a fact was found
@@ -31,7 +31,10 @@ export function FactProvenance({ fact }: { fact: Fact }) {
   } catch {
     // An unparsable URL is shown as it is.
   }
-  const confidence = fact.confidence === null ? null : Math.round(fact.confidence * 100);
+  // A spreadsheet row was imported, not found: "Imported" instead of a confidence.
+  const imported = isImported(p.location);
+  const confidence =
+    fact.confidence === null || imported ? null : Math.round(fact.confidence * 100);
   return (
     <section className="fact-source" aria-labelledby="fact-source-title">
       <h2 className="subsection-title" id="fact-source-title">
@@ -59,6 +62,7 @@ export function FactProvenance({ fact }: { fact: Fact }) {
             {confidence}% confidence
           </span>
         )}
+        {imported && ' · Imported'}
         {' · '}
         <Link to={`/knowledge/sources/${p.sourceId}`}>Open source</Link>
       </p>

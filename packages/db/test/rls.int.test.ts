@@ -1564,6 +1564,64 @@ describe('knowledge sources, pages and staged facts (FEAT-012)', () => {
     }
   });
 
+  it("spreadsheet sources (FEAT-016): tenant B can't see tenant A's or their rows, and the kind's checks hold", async () => {
+    const sheet = (tenant: string, key: string) =>
+      owner.query<{ id: string }>(
+        `insert into kb_sources (tenant_id, kind, name, upload_key, file_size, file_type, stage, created_by)
+         values ($1, 'spreadsheet', 'prices.xlsx', $2, 2048, 'xlsx', 'map', 'u') returning id`,
+        [tenant, key],
+      );
+    const a = (await sheet(TENANT_A, `uploads/${TENANT_A}/s1`)).rows[0]!.id;
+    await sheet(TENANT_B, `uploads/${TENANT_B}/s1`);
+    await owner.query(
+      `insert into kb_source_pages (tenant_id, source_id, attempt, seq, url, status, content, cells)
+       values ($1, $2, 1, 0, 'row/2', 'included', 'Cake | 12', '{Cake,12}')`,
+      [TENANT_A, a],
+    );
+    try {
+      for (const role of ['app_dashboard', 'app_ingest'] as const)
+        await asRole(role, TENANT_B, async (c) => {
+          const rows = (
+            await c.query(`select tenant_id from kb_sources where kind = 'spreadsheet'`)
+          ).rows;
+          expect(rows.map((r) => r.tenant_id)).toEqual([TENANT_B]);
+          expect(
+            (await c.query(`select * from kb_source_pages where source_id = $1`, [a])).rows,
+          ).toEqual([]);
+          expect(
+            (await c.query(`update kb_sources set mapping = '{}' where id = $1`, [a])).rowCount,
+          ).toBe(0);
+        });
+      // A spreadsheet needs its upload; its type is a sheet's, and only it holds a mapping.
+      await expect(
+        owner.query(
+          `insert into kb_sources (tenant_id, kind, name, created_by) values ($1, 'spreadsheet', 'x.csv', 'u')`,
+          [TENANT_A],
+        ),
+      ).rejects.toThrow(/kb_sources_file_ck/);
+      await expect(
+        owner.query(`update kb_sources set file_type = 'pdf' where id = $1`, [a]),
+      ).rejects.toThrow(/kb_sources_sheet_type_ck/);
+      await expect(
+        owner.query(
+          `insert into kb_sources (tenant_id, kind, name, upload_key, file_size, file_type, created_by)
+           values ($1, 'file', 'x.xlsx', 'k', 1, 'xlsx', 'u')`,
+          [TENANT_A],
+        ),
+      ).rejects.toThrow(/kb_sources_sheet_type_ck/);
+      await expect(
+        owner.query(
+          `insert into kb_sources (tenant_id, kind, name, upload_key, file_size, mapping, created_by)
+           values ($1, 'file', 'x.pdf', 'k2', 1, '{}', 'u')`,
+          [TENANT_A],
+        ),
+      ).rejects.toThrow(/kb_sources_mapping_ck/);
+    } finally {
+      await owner.query(`delete from kb_source_pages where source_id = $1`, [a]);
+      await cleanup();
+    }
+  });
+
   it("the dashboard adds allowed origins to its own tenant only, and can't change other tenant columns", async () => {
     const { rows: before } = await owner.query(
       `select allowed_origins from tenants where id = $1`,

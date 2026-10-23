@@ -103,6 +103,54 @@ describe('sniffType (KB-11; FEAT-015 §5.3, D5)', () => {
   });
 });
 
+describe('sniffType for spreadsheets (KB-11; FEAT-016 §5.2)', () => {
+  const sheet = (b: Uint8Array, name: string) => sniffType(b, name, 'spreadsheet');
+  const XLSX = zip({ '[Content_Types].xml': '<Types/>', 'xl/workbook.xml': '<workbook/>' });
+  it('takes an XLSX workbook and UTF-8 CSV, whatever the workbook is named', () => {
+    expect(sheet(XLSX, 'prices.xlsx')).toEqual({ ok: true, type: 'xlsx' });
+    expect(sheet(XLSX, 'prices.csv')).toEqual({ ok: true, type: 'xlsx' });
+    expect(sheet(strToU8('\uFEFFName,Price\nKaya,2.50\n'), 'prices.csv')).toEqual({
+      ok: true,
+      type: 'csv',
+    });
+  });
+  it('refuses encrypted and legacy workbooks, other documents, programs and non-UTF-8 text', () => {
+    expect(sheet(encryptFlag(XLSX), 'prices.xlsx')).toEqual({ ok: false, failure: 'encrypted' });
+    expect(sheet(OLE, 'prices.xlsx')).toEqual({ ok: false, failure: 'encrypted' });
+    expect(sheet(OLE, 'prices.xls')).toEqual({ ok: false, failure: 'unsupported_type' });
+    const docx = zip({ 'word/document.xml': '<w:document/>' });
+    expect(sheet(docx, 'prices.xlsx')).toEqual({ ok: false, failure: 'unsupported_type' });
+    expect(sheet(PNG, 'prices.csv')).toEqual({ ok: false, failure: 'unsupported_type' });
+    expect(sheet(strToU8('%PDF-1.4 x'), 'prices.csv')).toEqual({
+      ok: false,
+      failure: 'unsupported_type',
+    });
+    expect(sheet(bytes(0x7f, 0x45, 0x4c, 0x46), 'prices.csv')).toEqual({
+      ok: false,
+      failure: 'unsupported_type',
+    });
+    expect(sheet(new Uint8Array([0x4e, 0x61, 0x6d, 0x65, 0xe9, 0x2c]), 'prices.csv')).toEqual({
+      ok: false,
+      failure: 'unsupported_type',
+    });
+    expect(sheet(strToU8('Name,Price'), 'prices.txt')).toEqual({
+      ok: false,
+      failure: 'unsupported_type',
+    });
+    expect(sheet(strToU8('PK\x03\x04junk'), 'prices.xlsx')).toEqual({
+      ok: false,
+      failure: 'unreadable',
+    });
+  });
+  it('keeps XLSX and CSV out of file sources (FEAT-015 AC-3)', () => {
+    expect(sniffType(XLSX, 'prices.xlsx')).toEqual({ ok: false, failure: 'unsupported_type' });
+    expect(sniffType(strToU8('a,b'), 'prices.csv')).toEqual({
+      ok: false,
+      failure: 'unsupported_type',
+    });
+  });
+});
+
 describe('openPdf (FEAT-015 §5.3 step 5, D3)', () => {
   it('opens a plain PDF and reads its text layer with line breaks', async () => {
     const opened = await openPdf(
