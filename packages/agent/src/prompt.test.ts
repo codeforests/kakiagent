@@ -2,7 +2,7 @@ import type { VisitorFact } from '@kaki/kb';
 import { openStatus, WeeklyHours } from '@kaki/tenancy';
 import { describe, expect, it } from 'vitest';
 import { systemSlots } from './hours-text.js';
-import { buildVisitorPrompt, sgtNow } from './prompt.js';
+import { buildVisitorPrompt, factLine, sgtNow } from './prompt.js';
 import { assignRefs } from './slots.js';
 import { EGGLESS, FUDGE } from './testing/facts.js';
 
@@ -134,5 +134,21 @@ describe('language, register and hours in the prompt (FEAT-023 AC-1)', () => {
     expect(open.tail).toContain('Open now.');
     expect(open.tail).toContain("Today's hours: 8:00 am – 7:00 pm → [[s:hours.today]]");
     expect(closed.tail).toContain('Closed now; the team is back 明天上午8:00 → [[s:next_open]]');
+  });
+});
+
+describe('an imported product in the prompt (FEAT-016 D8, AC-5)', () => {
+  it('gives the model the name, unit and price, never the SKU or stock', () => {
+    const imported: VisitorFact = {
+      ...FUDGE,
+      value: { ...FUDGE.value, sku: 'PC-08', stock: 37, stockAsOf: '2026-10-23' },
+    } as VisitorFact;
+    const req = turn([imported], [], new Date('2026-10-23T02:00:00Z'));
+    const text = JSON.stringify(req);
+    if (FUDGE.type === 'product') expect(text).toContain(FUDGE.value.name);
+    expect(text).not.toContain('PC-08');
+    expect(text).not.toContain('37');
+    const line = factLine('1', imported, true);
+    expect(line).not.toMatch(/sku|stock|PC-08|37|2026-10-23/i);
   });
 });

@@ -27,7 +27,7 @@
       Done when: the measured time is under 1 minute and recorded below.
 - [x] T12 — E2E: `e2e/tests/spreadsheets.e2e.ts`: upload `price-list.xlsx`, map with the suggestion, see rejects with reasons, change a column, choose GST, import, done state, a fact's "From row … of price-list.xlsx" with SKU and stock, axe on SCR-APP-025 (AC-11; UC-10)
       Done when: the spec passes in Chromium against the local stack with `pnpm test:e2e --project=chromium`.
-- [ ] T13 — Verify: every AC in design §6 demonstrated; format, lint, boundaries, typecheck, unit, integration, coverage and E2E green; scaffold notes updated (design §6)
+- [x] T13 — Verify: every AC in design §6 demonstrated; format, lint, boundaries, typecheck, unit, integration, coverage and E2E green; scaffold notes updated (design §6)
       Done when: the evidence for each AC is recorded at the end of this file and every command above is green.
 
 ## Implementation notes
@@ -43,5 +43,16 @@
 
 ## Acceptance evidence (T13)
 
+- **AC-1:** `apps/api/test/spreadsheets.int.test.ts` "creates a queued spreadsheet at scan, with its audit entry (no file name) and job", "accepts .xlsx and .csv uploads; refuses .xls, and a kind that does not fit the name", "counts spreadsheets toward the plan's file limit", and the 403 case in "isolation and roles".
+- **AC-2:** `apps/ingest-worker/test/files.int.test.ts` "spreadsheet fixtures (FEAT-016)" (S3 and ClamAV: EICAR as `prices.csv` is `malware`; `protected.xlsx` `encrypted`; `legacy.xls` and `latin1.csv` `unsupported_type`); `packages/kb/src/ingest/files/sniff.test.ts` "sniffType for spreadsheets" (a DOCX named `.xlsx`, an executable, a PNG and a PDF named `.csv`, non-UTF-8 text) and "keeps XLSX and CSV out of file sources (FEAT-015 AC-3)".
+- **AC-3:** `packages/kb/test/sheets.int.test.ts` "parses an XLSX to `map`…", "reads a CSV…", "fails no_rows for a header without data…"; the worker test reads the committed `price-list.xlsx` (header on row 3, suggestion `{ sku: 0, product: 1, unit: 2, price: 3, stock: 4 }`, GST `inclusive`) and `services.csv` (`{ service: 0, price: 1 }`, quoted cells whole); `xlsx.test.ts` "passes over hidden and empty sheets"; the API test shows the layout and rows at `map`.
+- **AC-4:** `apps/api/test/spreadsheets.int.test.ts` "shows what would be imported, and why rows can't be; writes nothing" and the `bad_mapping` and `bad_request` cases; `packages/kb/test/sheets.int.test.ts` "previews the rows…" and "refuses a mapping…"; `rows.test.ts` covers every rule of §5.5; the E2E changes a column and previews again.
+- **AC-5:** `packages/kb/test/sheets.int.test.ts` "imports the confirmed rows as approved facts, with row results, provenance and audit (AC-5)" (approved, confidence 1, `row/<n>` provenance and quote, SKU, stock and `stockAsOf`, version, chunk, `fact.approved { mode: 'import' }` by the confirmer, `visitor_facts`) and "confirms: the mapping, an audit entry and one import job…"; the API test runs the import to `ready` and reads the fact with its row location; `packages/agent/src/prompt.test.ts` "gives the model the name, unit and price, never the SKU or stock".
+- **AC-6:** `packages/kb/test/sheets.int.test.ts` "holds back GST-unknown prices of a GST-registered business, not of others (KB-15, UC-10 4a)"; the API preview test's `gstReview`.
+- **AC-7:** `packages/kb/test/sheets.int.test.ts` "writes a row that disagrees with a live fact conflicted and flags the fact; drops one that agrees (KB-06)" (two rows of one product at two prices are both conflicted) and "counts rows the KB already has and rows that would conflict".
+- **AC-8:** `packages/kb/test/sheets.int.test.ts` "fails extraction_unavailable when embeddings fail, and retry keeps the mapping…", "fails no_valid_rows when nothing imports; retry returns to the mapping…", "ignores a stale or duplicate import job", "deletes a spreadsheet waiting at map, with its rows, and purges its object", and no_rows not retryable; the API tests for `no_valid_rows` → retry → `map`, `version_conflict`, and delete at `map`.
+- **AC-9:** `packages/db/test/rls.int.test.ts` spreadsheet case in every zone; the API test "is 404 to tenant B for tenant A's spreadsheet, and 403 without kb.manage".
+
 - **AC-10 (NFR-16), measured 2026-10-23 on the local stack** (fake provider and embeddings, one ingest worker), from the confirm on SCR-APP-025 to `ready`, `price-list-500.csv`: 3.06 s, 3.02 s and 2.92 s over three runs, each with 500 approved facts. To re-measure with real embeddings at MD.
 - **AC-11:** `e2e/tests/spreadsheets.e2e.ts` passes in Chromium against the local stack, with no serious axe violations on SCR-APP-007, SCR-APP-025 (mapping, preview, done) and SCR-APP-028.
+- **Checks:** `pnpm format:check`, `lint` (ESLint and dependency-cruiser), `typecheck`, `test` and `test:coverage` (unit and integration with the per-package thresholds; kb 311, api 196, ingest-worker 54, db 97 tests) pass, and `pnpm test:e2e --project=chromium` passes all 38 tests against the local stack. Firefox and WebKit aren't installed in this environment; CI runs all three engines.
