@@ -1,0 +1,23 @@
+# Tasks: FEAT-014 — Conflict detection and side-by-side resolution
+
+> Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
+> Status: not started · Last updated: 2026-10-23
+
+- [ ] T1 — Migration and grants: `0022_kb_conflicts_grants.sql` (column-level UPDATE on `facts` and `kb_chunks` for `app_ingest`), journal entry; RLS suite cases for the ingest role (design §4; D8; AC-9)
+      Done when: `pnpm db:setup` applies it on the local stack, and the db integration suite passes with new cases: `app_ingest` can update a fact's status and version and a chunk's version in its tenant, can't update a fact's value, GST or provenance, can't delete a fact, and can't touch another tenant's rows.
+- [ ] T2 — kb conflict logic: `conflicts.ts` with `entityKey` (moved from `extract.ts`), `sameValue`, `conflictId`, `planPromotion`; the set-based writer generalised from `decideRows` (actor, `conflicted`/`disabled`) (design §5.1, §5.2 step 1–3; D2, D3, D5; AC-2, AC-3)
+      Done when: unit tests pass for `sameValue` per type (prices, GST unknown vs stated, inclusive vs exclusive, promotion dates and details, normalised policy and FAQ texts) and for `planPromotion` (within-run same value collapsed, different values both kept and conflicted, duplicates of any status dropped, live facts flagged, rejected/disabled never joining), and the existing extract and review unit tests pass unchanged.
+- [ ] T3 — Detection at promote: `promoteSource` takes the tenant lock, plans against the tenant's facts, writes candidates with their status, flags existing facts (version, version row, chunk version, `fact.conflicted`), `kb_source.promoted.conflicted` (design §5.2; D8, D9; AC-1, AC-2, AC-3, AC-9 ingest half)
+      Done when: kb integration tests pass: a promote against an approved and a needs_review fact with other prices flags them and writes the new fact conflicted, all out of `visitor_facts`, `visitor_chunks` and visitor search in that transaction; a within-run price pair is written conflicted; agreeing findings write nothing; FEAT-012's ingest tests pass unchanged.
+- [ ] T4 — kb list, resolve and settle: `listConflicts` (with `withPassages` extracted from `listReviewFacts`), `conflictCount` and `reviewSummary.conflicts`, `resolveConflict` (use, enter, disable, GST check, staleness), `settleConflicts` from `deleteFact` and `deleteSource`, `ConflictChangedError` (design §5.3, §5.4; D1, D4, D7; AC-4..AC-8, AC-10)
+      Done when: kb integration tests pass for grouping, order, dates and the suggestion (strictly newer, ties none, manual date), each resolution's statuses, versions, chunks, visitor visibility and audit entries, `gst_required`, every `conflict_changed` case with nothing written, a rejected value not proposed again and a third value reopening, settle on source and fact deletion, and FEAT-013's review tests unchanged.
+- [ ] T5 — Contracts and API: the conflicts section in contracts, `ReviewSummary.conflicts`, `apps/api/src/conflicts.ts`, the error mapping (design §3, §5.5; AC-4..AC-9)
+      Done when: api integration tests pass for the list, each resolution, 400 (`keepId` outside `facts`, wrong edit fields, `gst_required`), 409 `conflict_changed` with the fresh conflict, 403 for `agent`, 401 without a session, and tenant B getting 409 with `conflict: null` and A's rows unchanged.
+- [ ] T6 — Dashboard Conflicts: SCR-APP-020 at `/review/conflicts` (`conflict-compare` cards, use with the GST choice, enter dialog with the shared fact fields, disable confirm, resolved rows, states), the Conflicts tab count, the nav and Facts-tab counts, the alert on `/setup/review` (ui-design SCR-APP-020, SCR-APP-019, SCR-APP-008)
+      Done when: `pnpm --filter @kaki/dashboard build` passes and every state in ui-design.md renders against the running stack at 1280 px and 390 px.
+- [ ] T7 — E2E: `e2e/tests/conflicts.e2e.ts`: manual prices for fixture products, the crawl, conflicted cards and counts, SCR-APP-020 side by side with the Newer tag, use (the widget then quotes it), enter, disable, the stale message, the setup alert, the empty state, axe on SCR-APP-020 and its dialogs (AC-11; UC-12; J1)
+      Done when: the new spec and the existing E2E suite pass on Chromium against the local stack.
+- [ ] T8 — Verify: every AC in design §6 demonstrably passes; format, lint and boundaries, typecheck, unit, integration with coverage, build and size, E2E and evals green; scaffold notes, RTM design refs and the manifest updated
+      Done when: all of the above pass in one fresh run, with the evidence recorded here.
+
+## Evidence
