@@ -401,6 +401,8 @@ describe('the queue (KB-16; AC-2)', () => {
     expect(s).toEqual({
       needsReview: 2,
       conflicted: 1,
+      // FEAT-014: one entity in conflict (a lone conflicted fact still counts as one).
+      conflicts: 1,
       byType: { product: 1, policy: 0, promotion: 0, faq: 2 },
       bySource: [
         { id: src, name: 'kakibakery.sg', count: 1 },

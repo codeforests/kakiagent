@@ -18,6 +18,7 @@ import {
   type FactRecord,
   type FactType,
 } from './facts.js';
+import { entityKey, inputOf } from './conflicts.js';
 import { NO_VALIDITY } from './types.js';
 import { moveFacts } from './writes.js';
 
@@ -67,6 +68,8 @@ export type TypeCounts = Record<FactType, number>;
 export interface ReviewSummary {
   needsReview: number;
   conflicted: number;
+  /** Open conflicts: entities whose sources disagree (FEAT-014). */
+  conflicts: number;
   byType: TypeCounts;
   bySource: { id: string | null; name: string | null; count: number }[];
   approvedInUse: number;
@@ -96,6 +99,7 @@ export const PASSAGE_CONTEXT = 160;
 export const UNDO_WINDOW_MINUTES = 10;
 
 const REVIEWABLE = ['needs_review', 'conflicted'] as const;
+type FactRow = typeof schema.facts.$inferSelect;
 const f = schema.facts;
 const zeroCounts = (): TypeCounts => ({ product: 0, policy: 0, promotion: 0, faq: 0 });
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
@@ -148,6 +152,53 @@ function decodeCursor(cursor: string): { rank: number; ts: string; id: string } 
 }
 
 /**
+ * Rows as review records: each with its passage in the current attempt's page text, its
+ * source's name and when that source finished reading. Shared with the conflicts list.
+ */
+export async function withPassages(
+  ctx: DashboardKbContext,
+  rows: FactRow[],
+): Promise<ReviewRecord[]> {
+  const sourceIds = [...new Set(rows.map((r) => r.sourceId).filter((s): s is string => !!s))];
+  const sources = new Map<string, { domain: string; finishedAt: Date | null }>();
+  const contents = new Map<string, string | null>();
+  if (sourceIds.length) {
+    const s = schema.kbSources;
+    for (const row of await ctx.tx
+      .select({ id: s.id, domain: s.domain, finishedAt: s.finishedAt })
+      .from(s)
+      .where(and(eq(s.tenantId, ctx.tenantId), inArray(s.id, sourceIds))))
+      sources.set(row.id, row);
+    const urls = [
+      ...new Set(rows.map((r) => (r.provenance as { url?: string } | null)?.url).filter(Boolean)),
+    ] as string[];
+    const p = schema.kbSourcePages;
+    // The current attempt's pages: provenance offsets refer to their content.
+    const pages = await ctx.tx
+      .select({ sourceId: p.sourceId, url: p.url, content: p.content })
+      .from(p)
+      .innerJoin(s, and(eq(s.tenantId, p.tenantId), eq(s.id, p.sourceId), eq(s.attempt, p.attempt)))
+      .where(
+        and(eq(p.tenantId, ctx.tenantId), inArray(p.sourceId, sourceIds), inArray(p.url, urls)),
+      );
+    for (const row of pages) contents.set(`${row.sourceId} ${row.url}`, row.content);
+  }
+  return rows.map((row) => {
+    const record = toRecord(row);
+    const p = record.provenance;
+    const source = record.sourceId ? sources.get(record.sourceId) : undefined;
+    return {
+      ...record,
+      passage: p
+        ? passageOf(contents.get(`${record.sourceId} ${p.url}`) ?? null, p.quote, p.start, p.end)
+        : null,
+      sourceName: source?.domain ?? null,
+      sourceCapturedAt: source?.finishedAt ?? null,
+    };
+  });
+}
+
+/**
  * Facts waiting for review (`needs_review`, and `conflicted` for FEAT-014's link), in the
  * KB-16 order, then crawl order, a page at a time, each with its passage and source.
  */
@@ -171,47 +222,10 @@ export async function listReviewFacts(
     .orderBy(rank, asc(f.createdAt), asc(f.id))
     .limit(limit + 1);
   const page = rows.slice(0, limit);
-
-  const sourceIds = [...new Set(page.map((r) => r.sourceId).filter((s): s is string => !!s))];
-  const sources = new Map<string, { domain: string; finishedAt: Date | null }>();
-  const contents = new Map<string, string | null>();
-  if (sourceIds.length) {
-    const s = schema.kbSources;
-    for (const row of await ctx.tx
-      .select({ id: s.id, domain: s.domain, finishedAt: s.finishedAt })
-      .from(s)
-      .where(and(eq(s.tenantId, ctx.tenantId), inArray(s.id, sourceIds))))
-      sources.set(row.id, row);
-    const urls = [
-      ...new Set(page.map((r) => (r.provenance as { url?: string } | null)?.url).filter(Boolean)),
-    ] as string[];
-    const p = schema.kbSourcePages;
-    // The current attempt's pages: provenance offsets refer to their content.
-    const pages = await ctx.tx
-      .select({ sourceId: p.sourceId, url: p.url, content: p.content })
-      .from(p)
-      .innerJoin(s, and(eq(s.tenantId, p.tenantId), eq(s.id, p.sourceId), eq(s.attempt, p.attempt)))
-      .where(
-        and(eq(p.tenantId, ctx.tenantId), inArray(p.sourceId, sourceIds), inArray(p.url, urls)),
-      );
-    for (const row of pages) contents.set(`${row.sourceId} ${row.url}`, row.content);
-  }
-
+  const facts = await withPassages(ctx, page);
   const last = page.at(-1);
   return {
-    facts: page.map((row) => {
-      const record = toRecord(row);
-      const p = record.provenance;
-      const source = record.sourceId ? sources.get(record.sourceId) : undefined;
-      return {
-        ...record,
-        passage: p
-          ? passageOf(contents.get(`${record.sourceId} ${p.url}`) ?? null, p.quote, p.start, p.end)
-          : null,
-        sourceName: source?.domain ?? null,
-        sourceCapturedAt: source?.finishedAt ?? null,
-      };
-    }),
+    facts,
     nextCursor:
       rows.length > limit && last ? encodeCursor(last.rank, last.cursorTs, last.id) : null,
   };
@@ -227,6 +241,7 @@ export async function reviewSummary(ctx: DashboardKbContext): Promise<ReviewSumm
   const summary: ReviewSummary = {
     needsReview: 0,
     conflicted: 0,
+    conflicts: 0,
     byType: zeroCounts(),
     bySource: [],
     approvedInUse: 0,
@@ -237,6 +252,13 @@ export async function reviewSummary(ctx: DashboardKbContext): Promise<ReviewSumm
     if (r.status === 'needs_review') summary.needsReview += r.count;
     if (r.status === 'conflicted') summary.conflicted += r.count;
     if (r.status === 'needs_review' || r.status === 'conflicted') summary.byType[r.type] += r.count;
+  }
+  if (summary.conflicted) {
+    const rows = await ctx.tx
+      .select()
+      .from(f)
+      .where(and(eq(f.tenantId, ctx.tenantId), eq(f.status, 'conflicted')));
+    summary.conflicts = new Set(rows.map((r) => entityKey(inputOf(r)))).size;
   }
   const s = schema.kbSources;
   const bySource = await ctx.tx

@@ -9,10 +9,19 @@ import pg from 'pg';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { entityKey } from '../src/conflicts.js';
 import {
+  ConflictChangedError,
   createFact,
   createWebsiteSource,
   dashboardKb,
+  deleteFact,
+  deleteSource,
   getSource,
+  GstRequiredError,
+  InvalidFactError,
+  listConflicts,
+  resolveConflict,
+  reviewSummary,
+  updateFact,
   parseWebsite,
   prepareChunk,
   promoteSource,
@@ -316,3 +325,247 @@ async function source(id: string): Promise<any> {
   const { rows } = await owner.query(`select * from kb_sources where id = $1`, [id]);
   return rows[0];
 }
+
+/** Tenant A: an approved manual S$26.00, then a website's S$28.50 read later (AC-1). */
+async function crossSourceConflict(tenantId = TENANT_A) {
+  const manualFact = await manual(tenantId, product(2600));
+  // The owner's word dates from yesterday; the website is read now.
+  await owner.query(`update facts set last_confirmed_at = now() - interval '1 day' where id = $1`, [
+    manualFact.id,
+  ]);
+  const src = await stagedSource(tenantId, 'kakibakery.sg', [{ input: product(2850, 'unknown') }]);
+  await owner.query(`update kb_sources set finished_at = now() where id = $1`, [src]);
+  await promote(tenantId, src);
+  const [conflict] = await inTx(tenantId, listConflicts);
+  return { conflict: conflict!, manualId: manualFact.id, sourceId: src };
+}
+
+/** The entries after the last promote: the resolution's. */
+async function resolutionAudit(tenantId: string) {
+  const all = await auditOf(tenantId);
+  const last = all.map((e) => e.event_type).lastIndexOf('kb_source.promoted');
+  return all.slice(last + 1);
+}
+
+const refsOf = (c: { facts: { id: string; version: number }[] }) =>
+  c.facts.map((m) => ({ id: m.id, version: m.version }));
+
+describe('the conflicts list (UC-12 1; KB-17)', () => {
+  it('groups by entity, each source with its passage and date, the strictly newer one suggested (AC-4)', async () => {
+    const { conflict, manualId, sourceId } = await crossSourceConflict();
+    await manual(TENANT_A, product(1500, 'inclusive', 'Butter cake'));
+    const list = await inTx(TENANT_A, listConflicts);
+    expect(list).toHaveLength(1);
+    expect(conflict.id).toMatch(/^[0-9a-f]{16}$/);
+    expect(conflict.type).toBe('product');
+    const [web, typed] = conflict.facts;
+    expect(web).toMatchObject({ sourceId, sourceName: 'kakibakery.sg', newer: true });
+    expect(web!.passage!.quote).toBe('Pandan chiffon cake (20 cm) — S$28.50');
+    expect(web!.passage!.before).toBe('Our cakes\n');
+    expect(typed).toMatchObject({ id: manualId, sourceId: null, passage: null, newer: false });
+    expect(web!.sourceDate.getTime()).toBeGreaterThan(typed!.sourceDate.getTime());
+    expect(conflict.suggestedId).toBe(web!.id);
+    expect(await inTx(TENANT_A, reviewSummary)).toMatchObject({ conflicted: 2, conflicts: 1 });
+    expect(await inTx(TENANT_B, listConflicts)).toEqual([]);
+  });
+
+  it('suggests nothing when no source is strictly newer, as in one run (D4)', async () => {
+    const src = await stagedSource(TENANT_A, 'kakibakery.sg', [
+      { input: product(2850), confidence: 0.95 },
+      { input: product(2600), confidence: 0.8 },
+    ]);
+    await promote(TENANT_A, src);
+    const [conflict] = await inTx(TENANT_A, listConflicts);
+    expect(conflict!.facts.map((m) => [m.value, m.newer])).toEqual([
+      [expect.objectContaining({ priceCents: 2850 }), false],
+      [expect.objectContaining({ priceCents: 2600 }), false],
+    ]);
+    expect(conflict!.suggestedId).toBeNull();
+  });
+});
+
+describe('resolving (UC-12 2–3, 2a)', () => {
+  it('use: keeps one value, rejects the rest, live at once, audited (AC-5)', async () => {
+    const { conflict, manualId } = await crossSourceConflict();
+    const webId = conflict.suggestedId!;
+    await expect(
+      inTx(TENANT_A, (ctx) => resolveConflict(ctx, refsOf(conflict), webId, 'use')),
+    ).rejects.toBeInstanceOf(GstRequiredError);
+    // Keeping the typed value needs no GST choice.
+    const { fact, rejected } = await inTx(TENANT_A, (ctx) =>
+      resolveConflict(ctx, refsOf(conflict), manualId, 'use'),
+    );
+    expect(fact).toMatchObject({ id: manualId, status: 'approved', version: 3 });
+    expect(rejected).toEqual([{ id: webId, version: 2 }]);
+    const facts = await factsOf(TENANT_A);
+    expect(facts.map((f) => [f.id, f.status, f.chunk_version])).toEqual([
+      [manualId, 'approved', 3],
+      [webId, 'rejected', 2],
+    ]);
+    const v = await visible(TENANT_A);
+    expect(v.view).toEqual([manualId]);
+    expect(v.chunks).toEqual([manualId]);
+    expect(v.search).toContain(manualId);
+    const audit = await resolutionAudit(TENANT_A);
+    expect(audit.map((e) => [e.event_type, e.payload.mode ?? null])).toEqual([
+      ['fact.approved', 'conflict'],
+      ['fact.rejected', 'conflict'],
+      ['kb.conflict.resolved', null],
+    ]);
+    expect(audit.at(-1)).toMatchObject({
+      actor_ref: USER,
+      payload: { resolution: 'use', kept: manualId, facts: 2, type: 'product', suggested: false },
+    });
+    expect(audit[0]!.payload.batch).toBe(audit[1]!.payload.batch);
+    expect(await inTx(TENANT_A, listConflicts)).toEqual([]);
+  });
+
+  it('use with a GST choice approves the price with that treatment (AC-5)', async () => {
+    const { conflict } = await crossSourceConflict();
+    const webId = conflict.suggestedId!;
+    const current = conflict.facts[0]!;
+    const next = { ...product(2850, 'inclusive') };
+    expect(current.value).toEqual(next.value);
+    const chunk = await prepareChunk(llm, TENANT_A, next);
+    const { fact } = await inTx(TENANT_A, (ctx) =>
+      resolveConflict(ctx, refsOf(conflict), webId, 'use', { next, chunk }),
+    );
+    expect(fact).toMatchObject({ status: 'approved', gstTreatment: 'inclusive' });
+    const audit = await resolutionAudit(TENANT_A);
+    expect(audit.map((e) => e.event_type)).toEqual([
+      'fact.updated',
+      'fact.approved',
+      'fact.rejected',
+      'kb.conflict.resolved',
+    ]);
+    expect(audit.at(-1)!.payload).toMatchObject({ suggested: true });
+    expect((await visible(TENANT_A)).view).toEqual([webId]);
+  });
+
+  it('enter: stores and re-embeds the entered value on the kept fact (AC-6)', async () => {
+    const { conflict, manualId } = await crossSourceConflict();
+    const webId = conflict.suggestedId!;
+    const next = product(2700, 'inclusive');
+    const chunk = await prepareChunk(llm, TENANT_A, next);
+    const { fact } = await inTx(TENANT_A, (ctx) =>
+      resolveConflict(ctx, refsOf(conflict), webId, 'enter', { next, chunk }),
+    );
+    expect(fact).toMatchObject({ id: webId, status: 'approved', value: next.value });
+    const { rows } = await owner.query(`select content from kb_chunks where fact_id = $1`, [webId]);
+    expect(rows[0].content).toBe(chunk.content);
+    expect((await factsOf(TENANT_A)).find((f) => f.id === manualId)!.status).toBe('rejected');
+    expect((await auditOf(TENANT_A)).at(-1)!.payload).toMatchObject({ resolution: 'enter' });
+  });
+
+  it('disable: keeps one fact disabled, rejects the rest, none in answers; Knowledge re-enables it (AC-7)', async () => {
+    const { conflict } = await crossSourceConflict();
+    const webId = conflict.suggestedId!;
+    const { fact } = await inTx(TENANT_A, (ctx) =>
+      resolveConflict(ctx, refsOf(conflict), webId, 'disable'),
+    );
+    expect(fact.status).toBe('disabled');
+    expect((await factsOf(TENANT_A)).map((f) => f.status)).toEqual(['rejected', 'disabled']);
+    expect((await visible(TENANT_A)).view).toEqual([]);
+    const audit = await resolutionAudit(TENANT_A);
+    expect(audit.map((e) => e.event_type)).toEqual([
+      'fact.disabled',
+      'fact.rejected',
+      'kb.conflict.resolved',
+    ]);
+    expect(audit.at(-1)!.payload).toMatchObject({ resolution: 'disable' });
+    // GST unknown doesn't block disabling; enabling needs the treatment, as any edit.
+    await owner.query(`update facts set gst_treatment = 'inclusive' where id = $1`, [webId]);
+    const enabled = await inTx(TENANT_A, (ctx) =>
+      updateFact(ctx, webId, { version: fact.version, status: 'approved' }),
+    );
+    expect(enabled.status).toBe('approved');
+  });
+
+  it('refuses a stale, partial or foreign request with the fresh conflict and writes nothing (AC-8, AC-9)', async () => {
+    const { conflict, manualId } = await crossSourceConflict();
+    const refs = refsOf(conflict);
+    const before = await factsOf(TENANT_A);
+    const attempt = (r: typeof refs, keep = manualId, tenant = TENANT_A) =>
+      inTx(tenant, (ctx) => resolveConflict(ctx, r, keep, 'use')).then(
+        () => null,
+        (e: unknown) => e,
+      );
+    const stale = await attempt(refs.map((r) => ({ ...r, version: r.version + 1 })));
+    expect(stale).toBeInstanceOf(ConflictChangedError);
+    expect((stale as ConflictChangedError).conflict?.id).toBe(conflict.id);
+    expect(await attempt(refs.filter((r) => r.id === manualId))).toBeInstanceOf(
+      ConflictChangedError,
+    );
+    const foreign = await attempt(refs, manualId, TENANT_B);
+    expect(foreign).toBeInstanceOf(ConflictChangedError);
+    expect((foreign as ConflictChangedError).conflict).toBeNull();
+    await expect(
+      inTx(TENANT_A, (ctx) =>
+        resolveConflict(ctx, refs, '00000000-0000-4000-8000-000000000999', 'use'),
+      ),
+    ).rejects.toBeInstanceOf(InvalidFactError);
+    expect(await factsOf(TENANT_A)).toEqual(before);
+    // A member that left the conflict: nothing is resolved.
+    const third = await stagedSource(TENANT_A, 'kakicakes.sg', [{ input: product(3000) }]);
+    await promote(TENANT_A, third);
+    expect(await attempt(refs)).toBeInstanceOf(ConflictChangedError);
+  });
+
+  it('a rejected value is not proposed again; a third value reopens against the kept fact (AC-8)', async () => {
+    const { conflict, manualId } = await crossSourceConflict();
+    await inTx(TENANT_A, (ctx) => resolveConflict(ctx, refsOf(conflict), manualId, 'use'));
+    const again = await stagedSource(TENANT_A, 'kakibakery.com.sg', [
+      { input: product(2850, 'unknown') },
+    ]);
+    expect(await promote(TENANT_A, again)).toBe(0);
+    const third = await stagedSource(TENANT_A, 'kakicakes.sg', [{ input: product(3000) }]);
+    expect(await promote(TENANT_A, third)).toBe(1);
+    const [reopened] = await inTx(TENANT_A, listConflicts);
+    expect(reopened!.facts.map((m) => m.value)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ priceCents: 3000 }),
+        expect.objectContaining({ priceCents: 2600 }),
+      ]),
+    );
+    expect(reopened!.facts).toHaveLength(2);
+  });
+});
+
+describe('settling after a delete (AC-10)', () => {
+  it('deleting the source behind one side returns the other to its earlier status', async () => {
+    const { manualId, sourceId } = await crossSourceConflict();
+    await inTx(TENANT_A, async (ctx) => {
+      const { source } = await getSource(ctx, sourceId);
+      await owner.query(`update kb_sources set status = 'ready' where id = $1`, [sourceId]);
+      return deleteSource(ctx, sourceId, source.version);
+    });
+    const facts = await factsOf(TENANT_A);
+    expect(facts.map((f) => [f.id, f.status, f.versions])).toEqual([
+      [manualId, 'approved', ['approved', 'conflicted', 'approved']],
+    ]);
+    expect((await visible(TENANT_A)).view).toEqual([manualId]);
+    expect((await auditOf(TENANT_A)).at(-1)).toMatchObject({
+      event_type: 'fact.conflict_cleared',
+      payload: { version: 3, to: 'approved' },
+    });
+  });
+
+  it('a fact written conflicted goes back to review; three disagreeing values stay open after one goes', async () => {
+    const src = await stagedSource(TENANT_A, 'kakibakery.sg', [
+      { input: product(2850) },
+      { input: product(2600) },
+      { input: product(3000) },
+    ]);
+    await promote(TENANT_A, src);
+    const [c] = await inTx(TENANT_A, listConflicts);
+    const [x, y, z] = c!.facts;
+    await inTx(TENANT_A, (ctx) => deleteFact(ctx, x!.id, x!.version));
+    const [still] = await inTx(TENANT_A, listConflicts);
+    expect(still!.facts.map((m) => m.id).sort()).toEqual([y!.id, z!.id].sort());
+    await inTx(TENANT_A, (ctx) => deleteFact(ctx, y!.id, y!.version));
+    expect(await inTx(TENANT_A, listConflicts)).toEqual([]);
+    expect((await factsOf(TENANT_A)).map((f) => [f.id, f.status])).toEqual([
+      [z!.id, 'needs_review'],
+    ]);
+  });
+});
