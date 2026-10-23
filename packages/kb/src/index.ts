@@ -28,6 +28,7 @@ export {
   FactNotFoundError,
   FileLimitError,
   NotRetryableError,
+  BadMappingError,
   GstRequiredError,
   InvalidCursorError,
   InvalidFactError,
@@ -96,6 +97,7 @@ export {
   getSource,
   listSources,
   NOT_RETRYABLE,
+  isUpload,
   retryable,
   retrySource,
   sourceFactCounts,
@@ -185,3 +187,27 @@ export {
 export { sniffType, type Sniffed } from './ingest/files/sniff.js';
 export { parseFile, type ParsedPage, type ParseOutcome } from './ingest/files/parse.js';
 export { scanFile, type ScanOutcome } from './ingest/files/scan-stage.js';
+// Spreadsheets (FEAT-016).
+export { readCsv } from './ingest/sheets/csv.js';
+export { readXlsx, type XlsxOutcome } from './ingest/sheets/xlsx.js';
+export {
+  tableOf,
+  type SheetColumn,
+  type SheetRow,
+  type SheetTable,
+} from './ingest/sheets/table.js';
+export {
+  SHEET_FIELDS,
+  suggestMapping,
+  type ColumnMapping,
+  type SheetField,
+  type Suggestion,
+} from './ingest/sheets/suggest.js';
+export { checkMapping, mapRows, type RowOutcome } from './ingest/sheets/rows.js';
+export { parsePrice, parseStock, centsText } from './ingest/sheets/money.js';
+export {
+  importSheetRows,
+  parseSheetSource,
+  type MappingRecord,
+  type SheetRecord,
+} from './ingest/sheets/stages.js';

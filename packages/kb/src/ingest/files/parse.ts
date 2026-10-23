@@ -117,7 +117,10 @@ export function xmlText(xml: string): string {
 }
 
 /** The ZIP's entries the filter keeps, refusing more than `MAX_UNZIPPED_BYTES` in total. */
-export function unzipSome(bytes: Uint8Array, keep: (name: string) => boolean): Map<string, string> | null {
+export function unzipSome(
+  bytes: Uint8Array,
+  keep: (name: string) => boolean,
+): Map<string, string> | null {
   let total = 0;
   try {
     const files = unzipSync(bytes, {

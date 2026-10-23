@@ -21,6 +21,7 @@ import { parseFileSource } from './files/parse-stage.js';
 import { ScannerUnavailableError, type FileDeps, type FileType } from './files/ports.js';
 import { scanFile } from './files/scan-stage.js';
 import { promoteSource } from './promote.js';
+import { importSheetRows, parseSheetSource } from './sheets/stages.js';
 
 export interface StageJobBody {
   tenantId: string;
@@ -60,6 +61,8 @@ export type IngestOutcome =
   | { result: 'stale' }
   | { result: 'purged' }
   | { result: 'next'; stage: SourceStage; type?: FileType }
+  /** A spreadsheet read and waiting for the owner's mapping (FEAT-016 D3). */
+  | { result: 'waiting'; stage: 'map'; rows: number }
   | { result: 'ready'; facts: number }
   /** `signature` is the scanner's name for the malware: logged, never audited (NFR-11). */
   | { result: 'failed'; failure: SourceFailure; signature?: string };
@@ -181,6 +184,20 @@ export async function runIngestJob(
         return { result: 'next', stage: 'parse', type: outcome.type };
       }
       case 'parse': {
+        if (source.kind === 'spreadsheet') {
+          const outcome = await parseSheetSource(zdb, source, needFiles(deps));
+          if (outcome.next === 'failed') {
+            await fail(zdb, job, outcome.failure);
+            return { result: 'failed', failure: outcome.failure };
+          }
+          if (outcome.next === 'import') {
+            // A retry after a transient failure keeps the confirmed mapping (D6).
+            await next('import');
+            return { result: 'next', stage: 'import' };
+          }
+          await waitForMapping(zdb, job);
+          return { result: 'waiting', stage: 'map', rows: outcome.rows };
+        }
         const outcome = await parseFileSource(zdb, source, needFiles(deps));
         if (outcome.next === 'failed') {
           await fail(zdb, job, outcome.failure);
@@ -213,9 +230,17 @@ export async function runIngestJob(
         return { result: 'next', stage: 'promote' };
       case 'promote':
         return { result: 'ready', facts: await promoteSource(zdb, source, deps.llm) };
-      // Waiting for the owner (FEAT-016 D3): no job runs at `map`; `import` arrives with T5.
+      case 'import': {
+        const outcome = await importSheetRows(zdb, source);
+        if (outcome.next === 'failed') {
+          await fail(zdb, job, outcome.failure);
+          return { result: 'failed', failure: outcome.failure };
+        }
+        await next('promote');
+        return { result: 'next', stage: 'promote' };
+      }
+      // Waiting for the owner (FEAT-016 D3): no job is written for `map`.
       case 'map':
-      case 'import':
         return { result: 'stale' };
     }
   } catch (err) {
@@ -234,6 +259,27 @@ export async function runIngestJob(
     await transition(zdb, job, ['processing'], { status: 'queued' });
     throw err;
   }
+}
+
+/**
+ * Parks a parsed spreadsheet at `map` (FEAT-016 D3): `queued`, with no job, until the
+ * owner confirms a mapping (`confirmImport` writes the import job).
+ */
+async function waitForMapping(zdb: ZoneDb, job: StageJobBody) {
+  await withTenant(zdb, job.tenantId, async (tx) => {
+    const [current] = await tx.select().from(schema.kbSources).where(ofSource(job)).for('update');
+    if (!current || current.attempt !== job.attempt || current.status !== 'processing')
+      throw new StaleRunError('source changed');
+    await tx
+      .update(schema.kbSources)
+      .set({
+        status: 'queued',
+        stage: 'map',
+        updatedAt: sql`now()`,
+        version: sql`${schema.kbSources.version} + 1`,
+      })
+      .where(ofSource(job));
+  });
 }
 
 /** A file job on a worker wired without file deps: a configuration error, never retried away. */

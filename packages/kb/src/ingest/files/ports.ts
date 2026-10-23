@@ -45,9 +45,16 @@ export interface FileLimits {
   ocrPages: number;
   /** OCR'd pages at once. */
   ocrConcurrency: number;
+  /** A spreadsheet's data rows read; later ones are only counted (FEAT-016 D10). */
+  sheetRows: number;
 }
 
-export const DEFAULT_FILE_LIMITS: FileLimits = { pages: 200, ocrPages: 50, ocrConcurrency: 2 };
+export const DEFAULT_FILE_LIMITS: FileLimits = {
+  pages: 200,
+  ocrPages: 50,
+  ocrConcurrency: 2,
+  sheetRows: 2000,
+};
 
 export interface FileDeps {
   store: FileStore;

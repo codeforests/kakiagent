@@ -45,7 +45,11 @@ export async function scanFile(source: SourceRecord, files: FileDeps): Promise<S
 
   const verdict = await files.scanner.scan({ key, bytes });
   if (verdict.infected) return reject('malware', verdict.signature);
-  const sniffed = sniffType(bytes, source.name);
+  const sniffed = sniffType(
+    bytes,
+    source.name,
+    source.kind === 'spreadsheet' ? 'spreadsheet' : 'file',
+  );
   if (!sniffed.ok) return reject(sniffed.failure);
   if (sniffed.type === 'pdf') {
     const pdf = await openPdf(bytes);
