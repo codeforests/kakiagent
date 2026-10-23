@@ -76,3 +76,8 @@ right), with thresholds `extraction-*` in `thresholds.json`. An injected price l
 `forbiddenPricesCents` fails prices outright. `realOnly` pages are worded naturally; the
 fake extractor reads only the fixture site's patterns, so they run with a real model
 only.
+
+FEAT-015 adds file pages to the extraction subset: a page with `fileName` is text as the
+file parser and OCR give it (its `url` is the page's locator, such as `page/1` or
+`part/1`), extracted with the file prompt. `file-ocr-price-list` is a scanned menu page
+as Tesseract reads it; `file-docx-faq` is the first part of a Word FAQ.

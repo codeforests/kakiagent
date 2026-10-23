@@ -1,7 +1,7 @@
 # Tasks: FEAT-015 — File upload with content-type and malware checks; parsing and Tesseract OCR
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: in progress (T1–T10 done) · Last updated: 2026-10-23
+> Status: in progress (T1–T11 done) · Last updated: 2026-10-23
 
 - [x] T1 — Schema: `kb_sources` kind `file`, `name` (backfilled), nullable website columns with `kb_sources_website_ck`, the file columns with `kb_sources_file_ck` and the unique upload key, the new stages and failures, the page reasons and `ocr_confidence` (drizzle schema + `0023`); RLS suite case for file sources (design §4; AC-8 schema half)
       Done when: `pnpm db:setup` applies 0023 on a database at 0022 with a website source in it (its `name` equals its domain) and is idempotent; `drizzle-kit generate` reports no drift; the RLS suite passes with the file-source case.
@@ -23,7 +23,7 @@
       Done when: api integration tests pass for every designed success and error, and a PUT to the returned URL against LocalStack stores the object under the session tenant's prefix.
 - [x] T10 — Terraform and CI: quarantine CORS, the GuardDuty protection plan and role, task policies and environment, `MALWARE_SCANNER=guardduty`; CI apt packages for integration and e2e (design §5.8)
       Done when: `terraform fmt -check`, `validate` and `terraform test` pass; `actionlint` is clean.
-- [ ] T11 — Evals: two file-page extraction cases (an OCR'd price list, a DOCX FAQ) in the extraction subset (design §8)
+- [x] T11 — Evals: two file-page extraction cases (an OCR'd price list, a DOCX FAQ) in the extraction subset (design §8)
       Done when: `pnpm eval` passes every threshold on the fake provider with existing cases unchanged.
 - [ ] T12 — Dashboard: the files part of SCR-APP-007 at `/knowledge/sources/new` and `/setup/sources`, file rows on SCR-APP-023, a file's extraction on SCR-APP-024, file provenance on SCR-APP-028 and the review card (ui-design.md)
       Done when: `pnpm --filter @kaki/dashboard build` passes and every state in ui-design.md renders against the running stack at 1280 px and 390 px.
