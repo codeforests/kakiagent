@@ -53,18 +53,9 @@
     "title": "FAQ — Kaki Bakery",
     "text": "/ /about /contact /products /faq /policies/refund /policies/delivery /promotions /js-only /news\nQuestions\n\nQ: Do you have eggless cakes?\nA: Yes, the butter cake and pandan chiffon come eggless. Order 3 days ahead.\n\nQ: Are your cakes halal?\nA: Our kitchen is not halal-certified, but we use no pork or lard.\n\nQ: Can I collect on Sundays?\nA: Yes, collection is from 9 am to 1 pm on Sundays.",
     "expected": [
-      {
-        "type": "faq",
-        "quote": "Q: Do you have eggless cakes?"
-      },
-      {
-        "type": "faq",
-        "quote": "Q: Are your cakes halal?"
-      },
-      {
-        "type": "faq",
-        "quote": "Q: Can I collect on Sundays?"
-      }
+      { "type": "faq", "quote": "Q: Do you have eggless cakes?" },
+      { "type": "faq", "quote": "Q: Are your cakes halal?" },
+      { "type": "faq", "quote": "Q: Can I collect on Sundays?" }
     ]
   },
   {
@@ -85,13 +76,7 @@
     "url": "https://kakibakery.test/policies/delivery",
     "title": "Delivery — Kaki Bakery",
     "text": "/ /about /contact /products /faq /policies/refund /policies/delivery /promotions /js-only /news\nDelivery\n\nDelivery policy: Islandwide delivery is S$15, free for orders above S$120.",
-    "expected": [
-      {
-        "type": "policy",
-        "quote": "Islandwide delivery is S$15",
-        "kind": "delivery"
-      }
-    ]
+    "expected": [{ "type": "policy", "quote": "Islandwide delivery is S$15", "kind": "delivery" }]
   },
   {
     "id": "fixture-promotion",
@@ -99,13 +84,7 @@
     "url": "https://kakibakery.test/promotions",
     "title": "Promotions — Kaki Bakery",
     "text": "/ /about /contact /products /faq /policies/refund /policies/delivery /promotions /js-only /news\nThis month\n\nPromotion: Christmas log cake — 15% off all log cakes until 2099-12-26",
-    "expected": [
-      {
-        "type": "promotion",
-        "quote": "Christmas log cake",
-        "validUntil": "2099-12-26"
-      }
-    ]
+    "expected": [{ "type": "promotion", "quote": "Christmas log cake", "validUntil": "2099-12-26" }]
   },
   {
     "id": "fixture-javascript-page",
@@ -167,17 +146,8 @@
     "title": "Menu — Kaki Bakery",
     "text": "Menu\nOur signature Ondeh-Ondeh Cake is back! A 1 kg cake is $62, prices include GST.\nLooking for something smaller? Egg tarts come in boxes of 6 for $12.60.\nAll cakes need 3 days' notice.",
     "expected": [
-      {
-        "type": "product",
-        "quote": "Ondeh-Ondeh Cake",
-        "priceCents": 6200,
-        "gst": "inclusive"
-      },
-      {
-        "type": "product",
-        "quote": "Egg tarts come in boxes of 6 for $12.60",
-        "priceCents": 1260
-      }
+      { "type": "product", "quote": "Ondeh-Ondeh Cake", "priceCents": 6200, "gst": "inclusive" },
+      { "type": "product", "quote": "Egg tarts come in boxes of 6 for $12.60", "priceCents": 1260 }
     ]
   },
   {
@@ -187,16 +157,8 @@
     "title": "Ordering — Kaki Bakery",
     "text": "How to order\nWe take orders on WhatsApp. Please order at least 3 days before you collect.\nChanged your mind? You can cancel up to 2 days before collection and we will refund you in full.\nWe accept PayNow and cash only.",
     "expected": [
-      {
-        "type": "policy",
-        "quote": "cancel up to 2 days before collection",
-        "kind": "refund"
-      },
-      {
-        "type": "policy",
-        "quote": "We accept PayNow and cash only",
-        "kind": "payment"
-      }
+      { "type": "policy", "quote": "cancel up to 2 days before collection", "kind": "refund" },
+      { "type": "policy", "quote": "We accept PayNow and cash only", "kind": "payment" }
     ]
   },
   {
@@ -212,11 +174,7 @@
         "priceCents": 3200,
         "gst": "inclusive"
       },
-      {
-        "type": "promotion",
-        "quote": "Early-bird offer",
-        "validUntil": "2099-01-15"
-      }
+      { "type": "promotion", "quote": "Early-bird offer", "validUntil": "2099-01-15" }
     ]
   },
   {
@@ -251,14 +209,8 @@
     "title": "",
     "text": "Kaki Bakery FAQ\t2026\nUpdated monthly\nQ: Can I collect my cake on the same day?\nA: Yes, for orders before 11 am.\nQ: Do you have halal certification?\nA: Our kitchen is halal certified.",
     "expected": [
-      {
-        "type": "faq",
-        "quote": "Q: Can I collect my cake on the same day?"
-      },
-      {
-        "type": "faq",
-        "quote": "Q: Do you have halal certification?"
-      }
+      { "type": "faq", "quote": "Q: Can I collect my cake on the same day?" },
+      { "type": "faq", "quote": "Q: Do you have halal certification?" }
     ]
   }
 ]
