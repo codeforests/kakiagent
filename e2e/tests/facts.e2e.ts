@@ -63,6 +63,16 @@ test('a fact added in the dashboard is used in the next widget answer', async ({
   expect(shown).not.toContain('S$99');
   await expectNoSeriousA11yViolations(visitor, 'kaki-agent');
   await visitorContext.close();
+
+  // The owner's facts go, so later specs start from the dev seed: the fixture site's
+  // FAQ answers the same question differently, which is a conflict since FEAT-014.
+  await owner.evaluate(async () => {
+    const { facts } = (await (await fetch('/api/v1/kb/facts?q=eggless&limit=200')).json()) as {
+      facts: { id: string; version: number; source: string }[];
+    };
+    for (const f of facts.filter((f) => f.source === 'manual'))
+      await fetch(`/api/v1/kb/facts/${f.id}?version=${f.version}`, { method: 'DELETE' });
+  });
 });
 
 /**
