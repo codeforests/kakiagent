@@ -3,7 +3,7 @@
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
 > Status: pending · Last updated: 2026-10-23
 
-- [ ] T1 — Schema: `kb_sources` kind `spreadsheet`, stages `map`/`import`, failures `no_rows`/`no_valid_rows`, file types `xlsx`/`csv` with `kb_sources_sheet_type_ck`, the widened `kb_sources_file_ck`, `sheet` and `mapping` with `kb_sources_mapping_ck`; `kb_source_pages.cells` and the row reasons (drizzle schema + `0024`); RLS suite case for spreadsheet sources and rows (design §4; AC-9 schema half)
+- [x] T1 — Schema: `kb_sources` kind `spreadsheet`, stages `map`/`import`, failures `no_rows`/`no_valid_rows`, file types `xlsx`/`csv` with `kb_sources_sheet_type_ck`, the widened `kb_sources_file_ck`, `sheet` and `mapping` with `kb_sources_mapping_ck`; `kb_source_pages.cells` and the row reasons (drizzle schema + `0024`); RLS suite case for spreadsheet sources and rows (design §4; AC-9 schema half)
       Done when: `pnpm db:setup` applies 0024 on a database at 0023 and is idempotent; `drizzle-kit generate` reports no drift; the RLS suite passes with the spreadsheet case.
 - [ ] T2 — Contracts: §3.1 shapes, `UPLOAD_EXTENSIONS`/`SHEET_EXTENSIONS`, the spreadsheet body, `ImportBody`, `ConfirmImportBody`, `ImportPreview`, the product value's `sku`/`stock`/`stockAsOf`, `FileLocation` unit `row`, `IngestJob` stage `import` (design §3.1, §5.9)
       Done when: typecheck passes across the workspace with the new enum values handled (dashboard records included).
