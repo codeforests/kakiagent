@@ -82,6 +82,8 @@ module "storage" {
   source      = "../../modules/storage"
   name        = local.bucket_pfx
   kms_key_arn = module.data.kms_key_arn
+  # The dashboard PUTs uploads to presigned quarantine URLs (FEAT-015 §3.2).
+  upload_origins = [local.public_url]
 }
 
 module "edge" {
@@ -152,6 +154,40 @@ data "aws_iam_policy_document" "audit_anchor_writer" {
   }
 }
 
+# File uploads (FEAT-015 §5.8). The api only signs PUTs under quarantine/uploads/ (the
+# browser does the PUT with the api's signature). The ingest worker reads, tags-checks
+# and deletes quarantine objects and keeps clean copies in sources. ListBucket lets a
+# missing key answer 404 (`upload_missing`) instead of 403.
+data "aws_iam_policy_document" "upload_signer" {
+  statement {
+    actions   = ["s3:PutObject"]
+    resources = ["${module.storage.bucket_arns["quarantine"]}/uploads/*"]
+  }
+  statement {
+    actions   = ["kms:GenerateDataKey"]
+    resources = [module.data.kms_key_arn]
+  }
+}
+
+data "aws_iam_policy_document" "file_store" {
+  statement {
+    actions   = ["s3:GetObject", "s3:GetObjectTagging", "s3:DeleteObject"]
+    resources = ["${module.storage.bucket_arns["quarantine"]}/uploads/*"]
+  }
+  statement {
+    actions   = ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"]
+    resources = ["${module.storage.bucket_arns["sources"]}/files/*"]
+  }
+  statement {
+    actions   = ["s3:ListBucket"]
+    resources = [module.storage.bucket_arns["quarantine"], module.storage.bucket_arns["sources"]]
+  }
+  statement {
+    actions   = ["kms:Decrypt", "kms:GenerateDataKey"]
+    resources = [module.data.kms_key_arn]
+  }
+}
+
 module "service" {
   source   = "../../modules/service"
   for_each = local.roles
@@ -175,8 +211,12 @@ module "service" {
   # Extraction jobs run for minutes; a minute's wait before scaling out is fine (NFR-16).
   queue_age_target_seconds = each.key == "ingest-worker" ? 60 : 1
   task_policies = lookup({
-    agent-worker  = { sqs = data.aws_iam_policy_document.turns_consumer.json }
-    ingest-worker = { sqs = data.aws_iam_policy_document.ingest_consumer.json }
+    api          = { uploads = data.aws_iam_policy_document.upload_signer.json }
+    agent-worker = { sqs = data.aws_iam_policy_document.turns_consumer.json }
+    ingest-worker = {
+      sqs   = data.aws_iam_policy_document.ingest_consumer.json
+      files = data.aws_iam_policy_document.file_store.json
+    }
     scheduler-worker = {
       sqs   = data.aws_iam_policy_document.turns_producer.json
       audit = data.aws_iam_policy_document.audit_anchor_writer.json
@@ -192,6 +232,8 @@ module "service" {
         PUBLIC_REALTIME_URL     = local.public_url
         PUBLIC_WIDGET_PANEL_URL = "${local.public_url}/w/v1/panel.js"
         PUBLIC_APP_URL          = local.public_url
+        AWS_REGION              = local.region
+        QUARANTINE_BUCKET       = module.storage.bucket_names["quarantine"]
       }
       realtime = { PORT = "3001", VALKEY_URL = local.valkey }
       agent-worker = {
@@ -206,6 +248,9 @@ module "service" {
         AWS_REGION           = local.region
         SQS_INGEST_QUEUE_URL = module.queues.queue_urls["ingest"]
         LLM_PROVIDER         = "fake" # the Bedrock au. provider arrives at MD (ADR-006)
+        QUARANTINE_BUCKET    = module.storage.bucket_names["quarantine"]
+        SOURCES_BUCKET       = module.storage.bucket_names["sources"]
+        MALWARE_SCANNER      = "guardduty" # FEAT-015 §5.3; ClamAV is the local stand-in
       }
       scheduler-worker = {
         HEALTH_PORT          = "3004"

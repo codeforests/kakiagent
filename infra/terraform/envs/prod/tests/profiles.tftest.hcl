@@ -63,6 +63,26 @@ run "launch_profile" {
     condition     = module.service["api"].task_count_range.min == 1 && module.service["ingest-worker"].task_count_range.min == 0
     error_message = "One task per role; ingest-worker scales to zero (ADR-023)."
   }
+  assert {
+    condition     = module.storage.upload_scanning.malware_protection && module.storage.upload_scanning.tagging == "ENABLED"
+    error_message = "GuardDuty Malware Protection scans and tags quarantine uploads (FEAT-015 §5.3)."
+  }
+  assert {
+    condition     = toset(module.storage.upload_scanning.object_prefixes) == toset(["uploads/"])
+    error_message = "GuardDuty scans every object under uploads/ (FEAT-015 §5.3)."
+  }
+  assert {
+    condition     = length(module.storage.upload_scanning.upload_origins) == 1
+    error_message = "Only the app's origin may PUT uploads into quarantine (FEAT-015 §5.8)."
+  }
+  assert {
+    condition     = module.service["ingest-worker"].environment.MALWARE_SCANNER == "guardduty" && module.service["ingest-worker"].environment.QUARANTINE_BUCKET == module.storage.bucket_names["quarantine"] && module.service["ingest-worker"].environment.SOURCES_BUCKET == module.storage.bucket_names["sources"]
+    error_message = "The ingest worker reads GuardDuty's verdict and knows both file buckets (FEAT-015)."
+  }
+  assert {
+    condition     = module.service["api"].environment.QUARANTINE_BUCKET == module.storage.bucket_names["quarantine"] && contains(module.service["api"].task_policy_names, "uploads") && contains(module.service["ingest-worker"].task_policy_names, "files")
+    error_message = "The api signs uploads into quarantine and the ingest worker has the file-store policy (FEAT-015)."
+  }
 }
 
 run "full_profile" {

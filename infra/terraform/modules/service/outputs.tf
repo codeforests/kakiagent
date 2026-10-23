@@ -17,3 +17,13 @@ output "task_count_range" {
   description = "Auto-scaling minimum and maximum tasks."
   value       = { min = aws_appautoscaling_target.this.min_capacity, max = aws_appautoscaling_target.this.max_capacity }
 }
+
+output "environment" {
+  description = "The task's plain environment (secrets are separate)."
+  value       = var.environment
+}
+
+output "task_policy_names" {
+  description = "The inline policies on the task role."
+  value       = keys(var.task_policies)
+}

@@ -45,6 +45,8 @@ jobs:
       - uses: ./.github/actions/setup
       # The ingest worker's crawler tests drive Chromium (FEAT-012 D3).
       - run: pnpm --filter @kaki/ingest-worker exec playwright-core install --with-deps --only-shell chromium
+      # Its file tests run Tesseract (English and simplified Chinese) and pdftoppm (FEAT-015).
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-chi-sim poppler-utils
       # Unit and integration projects together, with each package's coverage
       # thresholds (plan §7). Includes the cross-tenant RLS suite (GOV-03).
       - run: pnpm test:coverage --concurrency=2
@@ -86,6 +88,8 @@ jobs:
       - run: pnpm db:setup
       # Chromium too in every job: the ingest worker crawls with it (FEAT-012).
       - run: pnpm --filter @kaki/e2e exec playwright install --with-deps ${{ matrix.browser }} chromium
+      # `pnpm dev` runs the ingest worker, which reads files with Tesseract and pdftoppm (FEAT-015).
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-chi-sim poppler-utils
       - run: pnpm test:e2e --project=${{ matrix.browser }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure()
@@ -128,6 +132,14 @@ jobs:
           ignore-unfixed: true
           exit-code: '1'
       - run: docker build --build-arg ROLE=api -t kaki/api:ci .
+      # The ingest-worker image carries Tesseract with both languages and pdftoppm (FEAT-015 §5.8).
+      - run: docker build --build-arg ROLE=ingest-worker -t kaki/ingest-worker:ci .
+      - name: OCR tools in the ingest-worker image
+        run: |
+          langs=$(docker run --rm kaki/ingest-worker:ci tesseract --list-langs)
+          echo "$langs"
+          for l in eng chi_sim; do grep -qx "$l" <<<"$langs" || { echo "::error::tesseract lacks $l"; exit 1; }; done
+          docker run --rm kaki/ingest-worker:ci pdftoppm -v
       - name: Trivy (api image)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:

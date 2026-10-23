@@ -55,6 +55,8 @@ export function s3FileStore(cfg: {
           // The browser's Content-Type isn't trusted; the sniffed type is in the database.
           MetadataDirective: 'REPLACE',
           ContentType: 'application/octet-stream',
+          // GuardDuty's scan tag stays on the quarantine object (no tagging on sources).
+          TaggingDirective: 'REPLACE',
         }),
       );
     },
