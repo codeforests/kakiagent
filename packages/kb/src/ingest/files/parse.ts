@@ -184,9 +184,12 @@ export async function parseFile(
 ): Promise<ParseOutcome> {
   const limits = { ...DEFAULT_FILE_LIMITS, ...deps.limits };
   switch (type) {
-    // Spreadsheets have their own parse (FEAT-016 §5.3); a file is never one (the scan).
+    // Spreadsheets and chat exports have their own parse (FEAT-016 §5.3, FEAT-017 §5.3); a
+    // file is never one (the scan).
     case 'xlsx':
     case 'csv':
+    case 'json':
+    case 'zip':
       return { ok: false, failure: 'unreadable' };
     case 'txt': {
       // TextDecoder drops a byte-order mark.

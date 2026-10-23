@@ -1,6 +1,7 @@
 import {
   ConfirmImportBody,
   CreateSourceBody,
+  CHAT_EXTENSIONS,
   FILE_EXTENSIONS,
   ImportBody,
   ImportPreview,
@@ -31,6 +32,7 @@ import {
   retrySource,
   sourceFactCounts,
   SourceNotFoundError,
+  type ChatRecord,
   type MappingRecord,
   type Resolver,
   type SheetRecord,
@@ -86,6 +88,13 @@ function sheetOf(r: SourceRecord): Source['sheet'] {
   };
 }
 
+/** A chat export's redacted summary; the owner's business names aren't returned (§3.1). */
+function chatOf(r: SourceRecord): Source['chat'] {
+  if (r.kind !== 'chat' || !r.chat) return null;
+  const { businessNames: _names, ...chat } = r.chat as ChatRecord;
+  return chat.format ? (chat as Source['chat']) : null;
+}
+
 function toSource(r: SourceRecord, counts: Counts | undefined): Source {
   return {
     id: r.id,
@@ -109,6 +118,7 @@ function toSource(r: SourceRecord, counts: Counts | undefined): Source {
         }
       : null,
     sheet: sheetOf(r),
+    chat: chatOf(r),
     counts: {
       pagesFound: r.pagesFound,
       pagesIncluded: r.pagesIncluded,
@@ -172,11 +182,15 @@ export function registerSourceRoutes(
   app.post('/api/v1/kb/sources', async (req, reply) => {
     const s = await manager(req);
     const body = CreateSourceBody.parse(req.body);
-    if (body.kind === 'file' || body.kind === 'spreadsheet') {
+    if (body.kind === 'file' || body.kind === 'spreadsheet' || body.kind === 'chat') {
       checkFile(
         body.fileName,
         body.sizeBytes,
-        body.kind === 'file' ? FILE_EXTENSIONS : SHEET_EXTENSIONS,
+        body.kind === 'file'
+          ? FILE_EXTENSIONS
+          : body.kind === 'spreadsheet'
+            ? SHEET_EXTENSIONS
+            : CHAT_EXTENSIONS,
       );
       const source = await withKb(s, async (ctx) =>
         withCounts(ctx, await createFileSource(ctx, body, { fileLimit: config.FILE_LIMIT })),

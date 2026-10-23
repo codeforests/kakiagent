@@ -1,7 +1,13 @@
 import { usageSink } from '@kaki/analytics';
 import { IngestJob } from '@kaki/contracts';
 import { createZoneDb, ping } from '@kaki/db';
-import { DEFAULT_FILE_LIMITS, fakeExtractScript, runIngestJob, type FileDeps } from '@kaki/kb';
+import {
+  DEFAULT_FILE_LIMITS,
+  fakeExtractScript,
+  fakeMineScript,
+  runIngestJob,
+  type FileDeps,
+} from '@kaki/kb';
 import { gatewayFromConfig } from '@kaki/llm-gateway';
 import {
   createLogger,
@@ -62,6 +68,10 @@ const config = loadConfig(
         .default(DEFAULT_FILE_LIMITS.ocrConcurrency),
       /** Data rows read per spreadsheet (FEAT-016 D10). */
       SHEET_ROW_LIMIT: z.coerce.number().int().min(1).default(DEFAULT_FILE_LIMITS.sheetRows),
+      /** A chat export's messages read, the latest kept (FEAT-017 D9). */
+      CHAT_MESSAGE_LIMIT: z.coerce.number().int().min(1).default(DEFAULT_FILE_LIMITS.chatMessages),
+      /** A chat export's conversation parts stored and mined (FEAT-017 §5.3). */
+      CHAT_PART_LIMIT: z.coerce.number().int().min(1).default(DEFAULT_FILE_LIMITS.chatParts),
     }),
 );
 const stopTelemetry = startTelemetry('ingest-worker', config.OTEL_EXPORTER_OTLP_ENDPOINT);
@@ -73,8 +83,9 @@ const queue = createQueueClient({ region: config.AWS_REGION, endpoint: config.AW
 const llm = gatewayFromConfig({
   provider: config.LLM_PROVIDER,
   anthropicApiKey: config.ANTHROPIC_API_KEY,
-  // The fake model reads the fixture site's patterns (FEAT-012 §5.3).
-  fakeScript: fakeExtractScript,
+  // The fake model reads the fixture site's patterns (FEAT-012 §5.3) and mines chat parts
+  // (FEAT-017 §5.4).
+  fakeScript: (req) => (req.model === 'mine' ? fakeMineScript(req) : fakeExtractScript(req)),
   onUsage: usageSink(zdb, logger),
 });
 const browser = chromiumFetchers({
@@ -106,6 +117,8 @@ const files: FileDeps = {
     ocrPages: config.OCR_PAGE_LIMIT,
     ocrConcurrency: config.OCR_CONCURRENCY,
     sheetRows: config.SHEET_ROW_LIMIT,
+    chatMessages: config.CHAT_MESSAGE_LIMIT,
+    chatParts: config.CHAT_PART_LIMIT,
   },
 };
 // Tesseract's languages don't change while the worker runs: checked once (§5.8).

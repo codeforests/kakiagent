@@ -183,7 +183,10 @@ export function SourcesPage() {
 export function UploadAgain({ source, small = false }: { source: Source; small?: boolean }) {
   return (
     <Button asChild variant="secondary" className={small ? 'kaki-btn--sm source-row__retry' : ''}>
-      <Link to="/knowledge/sources/new#files" aria-label={`Upload again: ${source.name}`}>
+      <Link
+        to={`/knowledge/sources/new#${source.kind === 'chat' ? 'chats' : 'files'}`}
+        aria-label={`Upload again: ${source.name}`}
+      >
         Upload again
       </Link>
     </Button>
@@ -204,6 +207,7 @@ export function MapColumns({ source, small = false }: { source: Source; small?: 
 export function SourceIcon({ source }: { source: Source }) {
   if (!source.file) return <GlobeIcon />;
   if (source.kind === 'spreadsheet') return <TableIcon />;
+  if (source.kind === 'chat') return <ChatIcon />;
   return isImage(fileTypeOf(source.name, source.file.type)) ? <PictureIcon /> : <FileIcon />;
 }
 
@@ -230,6 +234,15 @@ export function TableIcon() {
   return (
     <svg {...iconProps}>
       <path d="M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM3 10h18M3 15h18M9 10v10" />
+    </svg>
+  );
+}
+
+/** A chat export (FEAT-017 ui-design): a speech bubble. */
+export function ChatIcon() {
+  return (
+    <svg {...iconProps}>
+      <path d="M21 12a8 8 0 0 1-11.8 7L4 20.5l1.5-4.6A8 8 0 1 1 21 12zM8.5 10.5h7M8.5 14h4.5" />
     </svg>
   );
 }

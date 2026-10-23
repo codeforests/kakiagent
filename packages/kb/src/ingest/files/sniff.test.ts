@@ -176,3 +176,45 @@ describe('openPdf (FEAT-015 §5.3 step 5, D3)', () => {
     });
   });
 });
+
+describe('sniffType for chat exports (FEAT-017 §5.2)', () => {
+  const chat = (bytes: Uint8Array, name: string) => sniffType(bytes, name, 'chat');
+  it('takes WhatsApp text, a zip and Telegram JSON', () => {
+    expect(chat(strToU8('13/10/2026, 09:01 - A: Hi'), 'export.txt')).toEqual({
+      ok: true,
+      type: 'txt',
+    });
+    expect(chat(zipSync({ '_chat.txt': strToU8('x') }), 'export.zip')).toEqual({
+      ok: true,
+      type: 'zip',
+    });
+    expect(chat(strToU8('﻿  {"messages": []}'), 'export.json')).toEqual({ ok: true, type: 'json' });
+  });
+  it('refuses other files, and bytes that do not match the name', () => {
+    expect(chat(makePdf([{ lines: ['x'] }]), 'export.txt')).toEqual({
+      ok: false,
+      failure: 'unsupported_type',
+    });
+    expect(chat(strToU8('[1,2]'), 'export.json')).toEqual({
+      ok: false,
+      failure: 'unsupported_type',
+    });
+    expect(chat(zipSync({ 'a.txt': strToU8('x') }), 'export.txt')).toEqual({
+      ok: false,
+      failure: 'unsupported_type',
+    });
+    expect(chat(new Uint8Array([0x4d, 0x5a, 0x90, 0]), 'export.txt')).toEqual({
+      ok: false,
+      failure: 'unsupported_type',
+    });
+    expect(chat(new Uint8Array([0xff, 0xfe, 0, 0x41]), 'export.txt')).toEqual({
+      ok: false,
+      failure: 'unsupported_type',
+    });
+    expect(chat(strToU8('x'), 'export.pdf')).toEqual({ ok: false, failure: 'unsupported_type' });
+  });
+  it('refuses an encrypted zip as encrypted', () => {
+    const zip = encryptFlag(zipSync({ '_chat.txt': strToU8('x') }));
+    expect(chat(zip, 'export.zip')).toEqual({ ok: false, failure: 'encrypted' });
+  });
+});

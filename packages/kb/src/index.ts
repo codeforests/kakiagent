@@ -151,6 +151,8 @@ export {
   type StagedFact,
 } from './ingest/extract.js';
 export { fakeExtractScript } from './ingest/fake-extract.js';
+export { fakeMineScript } from './ingest/chats/fake-mine.js';
+export { MINING_SYSTEM, parseMining, minePart } from './ingest/chats/mine.js';
 export { promoteSource } from './ingest/promote.js';
 export { conflictId, entityKey, sameValue } from './conflicts.js';
 export {
@@ -211,6 +213,11 @@ export {
   type MappingRecord,
   type SheetRecord,
 } from './ingest/sheets/stages.js';
+export type { ChatRecord, ChatSummaryRecord } from './ingest/chats/record.js';
+export { readWhatsApp } from './ingest/chats/whatsapp.js';
+export { readTelegram } from './ingest/chats/telegram.js';
+export { chatTextFromZip } from './ingest/chats/zip.js';
+export { groupExchanges } from './ingest/chats/exchanges.js';
 export {
   confirmImport,
   previewImport,

@@ -121,7 +121,8 @@ export async function buildApp(deps: Deps) {
     if (err instanceof UnsupportedFileError)
       return reply.code(400).send({
         error: 'unsupported_type',
-        message: 'Upload a PDF, Word, PowerPoint, text, JPG, PNG, Excel (.xlsx) or CSV file.',
+        message:
+          'Upload a PDF, Word, PowerPoint, text, JPG, PNG, Excel (.xlsx) or CSV file, or a WhatsApp (.txt, .zip) or Telegram (.json) chat export.',
       });
     if (err instanceof BadMappingError)
       return reply.code(400).send({ error: 'bad_mapping', message: err.message });

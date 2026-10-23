@@ -31,6 +31,7 @@ export function defaultRegistry(provider: Exclude<ProviderId, 'bedrock'>): Model
       'reply.simple': fake('fake-haiku', PRICES.haiku),
       'reply.complex': fake('fake-sonnet', PRICES.sonnet),
       extract: fake('fake-sonnet', PRICES.sonnet),
+      mine: fake('fake-haiku', PRICES.haiku),
       summarise: fake('fake-haiku', PRICES.haiku),
       judge: fake('fake-opus', PRICES.opus),
       embed: fake('fake-embed', PRICES.embed),
@@ -46,6 +47,7 @@ export function defaultRegistry(provider: Exclude<ProviderId, 'bedrock'>): Model
     'reply.simple': dev('claude-haiku-5-5', PRICES.haiku),
     'reply.complex': dev('claude-sonnet-5-5', PRICES.sonnet),
     extract: dev('claude-sonnet-5-5', PRICES.sonnet),
+    mine: dev('claude-haiku-5-5', PRICES.haiku),
     summarise: dev('claude-haiku-5-5', PRICES.haiku),
     judge: dev('claude-opus-5-5', PRICES.opus),
     // Anthropic has no embedding API: the local embedder stands in (FEAT-022 D5).

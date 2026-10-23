@@ -88,10 +88,11 @@ function isText(b: Uint8Array): boolean {
 export function sniffType(
   bytes: Uint8Array,
   fileName: string,
-  kind: 'file' | 'spreadsheet' = 'file',
+  kind: 'file' | 'spreadsheet' | 'chat' = 'file',
 ): Sniffed {
   const ext = extension(fileName);
   if (kind === 'spreadsheet') return sniffSheet(bytes, ext);
+  if (kind === 'chat') return sniffChat(bytes, ext);
   if (EXECUTABLES.some((sig) => startsWith(bytes, sig)))
     return { ok: false, failure: 'unsupported_type' };
   if (startsWith(bytes, PNG)) return { ok: true, type: 'png' };
@@ -111,6 +112,32 @@ export function sniffType(
     };
   if (isPdf(bytes)) return { ok: true, type: 'pdf' };
   if (ext === 'txt' && isText(bytes)) return { ok: true, type: 'txt' };
+  return { ok: false, failure: 'unsupported_type' };
+}
+
+/**
+ * A chat export's bytes (FEAT-017 §5.2): WhatsApp `.txt` (strict UTF-8 text), Telegram
+ * `.json` (UTF-8 text opening with `{`), or a `.zip` (iOS WhatsApp; its chat text is
+ * checked by the parse). Anything else, or bytes that don't match the name, is refused.
+ */
+function sniffChat(bytes: Uint8Array, ext: string): Sniffed {
+  if (EXECUTABLES.some((sig) => startsWith(bytes, sig)))
+    return { ok: false, failure: 'unsupported_type' };
+  if (startsWith(bytes, ZIP)) {
+    if (ext !== 'zip') return { ok: false, failure: 'unsupported_type' };
+    const zip = zipEntries(bytes);
+    if (!zip) return { ok: false, failure: 'unreadable' };
+    if (zip.encrypted) return { ok: false, failure: 'encrypted' };
+    return { ok: true, type: 'zip' };
+  }
+  if (startsWith(bytes, PNG) || startsWith(bytes, JPEG) || startsWith(bytes, OLE) || isPdf(bytes))
+    return { ok: false, failure: 'unsupported_type' };
+  if (!isText(bytes)) return { ok: false, failure: 'unsupported_type' };
+  if (ext === 'txt') return { ok: true, type: 'txt' };
+  if (ext === 'json') {
+    const start = new TextDecoder().decode(bytes.subarray(0, 64)).trimStart();
+    if (start.startsWith('{')) return { ok: true, type: 'json' };
+  }
   return { ok: false, failure: 'unsupported_type' };
 }
 

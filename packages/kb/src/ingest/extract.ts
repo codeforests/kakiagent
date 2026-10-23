@@ -332,7 +332,12 @@ export async function extractPage(
 
 export interface ExtractOptions {
   concurrency?: number;
-  onDropped?: (pageId: string, dropped: Partial<Record<DropReason, number>>) => void;
+  onDropped?: (pageId: string, dropped: Partial<Record<string, number>>) => void;
+  /** Reads a page instead of `extractPage`: a chat export's parts are mined (FEAT-017 §5.4). */
+  read?: (
+    llm: LlmGateway,
+    page: { tenantId: string; url: string; content: string },
+  ) => Promise<{ facts: StagedFact[]; dropped: Partial<Record<string, number>> }>;
 }
 
 /**
@@ -400,13 +405,15 @@ export async function extractSource(
       const page = queue.shift();
       if (!page) return;
       try {
-        const { facts, dropped } = await extractPage(llm, {
-          tenantId,
-          url: page.url,
-          title: page.title,
-          content: page.content ?? '',
-          ...(source.kind === 'file' ? { fileName: source.name } : {}),
-        });
+        const { facts, dropped } = opts.read
+          ? await opts.read(llm, { tenantId, url: page.url, content: page.content ?? '' })
+          : await extractPage(llm, {
+              tenantId,
+              url: page.url,
+              title: page.title,
+              content: page.content ?? '',
+              ...(source.kind === 'file' ? { fileName: source.name } : {}),
+            });
         if (Object.keys(dropped).length) opts.onDropped?.(page.id, dropped);
         await withTenant(zdb, tenantId, async (tx) => {
           const [row] = await tx

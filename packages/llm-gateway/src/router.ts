@@ -39,7 +39,9 @@ export function costOf(usage: Usage, price: PriceTable): number {
 }
 
 export function purposeOf(model: LogicalModel): UsagePurpose {
-  return model === 'reply.simple' || model === 'reply.complex' ? 'reply' : model;
+  if (model === 'reply.simple' || model === 'reply.complex') return 'reply';
+  // Mining is ingestion, recorded with extraction (FEAT-017 §5.7).
+  return model === 'mine' ? 'extract' : model;
 }
 
 /**

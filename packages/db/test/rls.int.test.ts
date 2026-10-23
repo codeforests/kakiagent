@@ -1622,6 +1622,55 @@ describe('knowledge sources, pages and staged facts (FEAT-012)', () => {
     }
   });
 
+  it("chat sources (FEAT-017): tenant B can't see tenant A's or their parts, and the kind's checks hold", async () => {
+    const chat = (tenant: string, key: string) =>
+      owner.query<{ id: string }>(
+        `insert into kb_sources (tenant_id, kind, name, upload_key, file_size, file_type, chat, stage, created_by)
+         values ($1, 'chat', 'Chat export', $2, 2048, 'txt', '{"businessNames":["Kaki"]}', 'extract', 'u') returning id`,
+        [tenant, key],
+      );
+    const a = (await chat(TENANT_A, `uploads/${TENANT_A}/c1`)).rows[0]!.id;
+    await chat(TENANT_B, `uploads/${TENANT_B}/c1`);
+    await owner.query(
+      `insert into kb_source_pages (tenant_id, source_id, attempt, seq, url, status, content)
+       values ($1, $2, 1, 0, 'chat/1', 'included', 'Customer: Open on Sunday?')`,
+      [TENANT_A, a],
+    );
+    try {
+      for (const role of ['app_dashboard', 'app_ingest'] as const)
+        await asRole(role, TENANT_B, async (c) => {
+          const rows = (await c.query(`select tenant_id from kb_sources where kind = 'chat'`)).rows;
+          expect(rows.map((r) => r.tenant_id)).toEqual([TENANT_B]);
+          expect(
+            (await c.query(`select * from kb_source_pages where source_id = $1`, [a])).rows,
+          ).toEqual([]);
+          expect(
+            (await c.query(`update kb_sources set chat = '{}' where id = $1`, [a])).rowCount,
+          ).toBe(0);
+        });
+      // A chat export needs its upload; its type is a chat's, and only it holds a chat summary.
+      await expect(
+        owner.query(
+          `insert into kb_sources (tenant_id, kind, name, created_by) values ($1, 'chat', 'Chat export', 'u')`,
+          [TENANT_A],
+        ),
+      ).rejects.toThrow(/kb_sources_file_ck/);
+      await expect(
+        owner.query(`update kb_sources set file_type = 'pdf' where id = $1`, [a]),
+      ).rejects.toThrow(/kb_sources_chat_type_ck/);
+      await expect(
+        owner.query(
+          `insert into kb_sources (tenant_id, kind, name, upload_key, file_size, chat, created_by)
+           values ($1, 'file', 'x.pdf', 'k3', 1, '{}', 'u')`,
+          [TENANT_A],
+        ),
+      ).rejects.toThrow(/kb_sources_chat_ck/);
+    } finally {
+      await owner.query(`delete from kb_source_pages where source_id = $1`, [a]);
+      await cleanup();
+    }
+  });
+
   it("the dashboard adds allowed origins to its own tenant only, and can't change other tenant columns", async () => {
     const { rows: before } = await owner.query(
       `select allowed_origins from tenants where id = $1`,

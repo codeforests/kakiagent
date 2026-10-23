@@ -119,14 +119,16 @@ describe('POST /api/v1/kb/uploads (AC-1; KB-02, UC-10 2a)', () => {
     expect(signer.signed).toHaveLength(0);
   });
 
-  it.each(['menu.zip', 'menu.xls', 'menu.exe', 'menu.pdf.exe', 'menu', 'menu.doc'])(
+  // .zip and .json are chat exports since FEAT-017 (§3.2): refused only as a chat's kind.
+  it.each(['menu.xls', 'menu.exe', 'menu.pdf.exe', 'menu', 'menu.doc'])(
     'refuses %s as unsupported_type',
     async (fileName) => {
       const res = await call('POST', '/api/v1/kb/uploads', asA, { fileName, sizeBytes: 10 });
       expect(res.statusCode).toBe(400);
       expect(res.json()).toEqual({
         error: 'unsupported_type',
-        message: 'Upload a PDF, Word, PowerPoint, text, JPG, PNG, Excel (.xlsx) or CSV file.',
+        message:
+          'Upload a PDF, Word, PowerPoint, text, JPG, PNG, Excel (.xlsx) or CSV file, or a WhatsApp (.txt, .zip) or Telegram (.json) chat export.',
       });
     },
   );

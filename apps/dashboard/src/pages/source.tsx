@@ -24,6 +24,7 @@ import {
 } from '../lib/sources.ts';
 import { SourceProgress, SourceState, UploadAgain } from './sources.tsx';
 import { SpreadsheetPage } from './spreadsheet.tsx';
+import { ChatPage } from './chat.tsx';
 import { NoPermission } from './system.tsx';
 
 type PageFilter = Page['status'] | '';
@@ -47,7 +48,8 @@ const pathOf = (url: string) => {
 
 /**
  * SCR-APP-024 Source (KB-01, KB-05, KB-12; FEAT-012 ui-design); a spreadsheet's route
- * renders SCR-APP-025 instead (FEAT-016 ui-design), with the same loading and error states.
+ * renders SCR-APP-025 instead (FEAT-016 ui-design) and a chat export's SCR-APP-026 (FEAT-017),
+ * with the same loading and error states.
  */
 export function SourcePage() {
   const { id = '' } = useParams();
@@ -112,6 +114,7 @@ export function SourcePage() {
 
   if (source.kind === 'spreadsheet')
     return <SpreadsheetPage key={source.id} source={source} pages={loaded.data.pages} />;
+  if (source.kind === 'chat') return <ChatPage key={source.id} source={source} />;
 
   const pages = loaded.data.pages;
   const counts = Object.fromEntries(

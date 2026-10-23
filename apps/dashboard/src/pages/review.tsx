@@ -1,7 +1,7 @@
 import type { FactRef, FactType, ReviewFact } from '@kaki/contracts';
 import { Button, EmptyState, ErrorState } from '@kaki/ui';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, NavLink } from 'react-router';
 import { api, ApiError } from '../lib/api.ts';
 import {
@@ -97,13 +97,25 @@ const FAILED = "We couldn't save this just now. Nothing was changed.";
  * Approve all, the bulk bar, the fact cards grouped in the KB-16 order, the dialogs, the
  * toast and the keyboard shortcuts.
  */
-export function ReviewQueue({ setup = false }: { setup?: boolean }) {
+/**
+ * `scoped` embeds the queue for one source and type, without the page header, tabs or
+ * filters: a chat export's suggested FAQs on SCR-APP-026 (FEAT-017 ui-design). `empty` is
+ * shown once nothing is left to review there.
+ */
+export function ReviewQueue({
+  setup = false,
+  scoped,
+}: {
+  setup?: boolean;
+  scoped?: { sourceId: string; type: FactType; empty: ReactNode };
+}) {
+  const embedded = setup || Boolean(scoped);
   const queryClient = useQueryClient();
   const visible = useVisible();
   const summary = useReviewSummary();
   const busySources = (summary.data?.sourcesBusy ?? 0) > 0;
-  const [sourceId, setSourceId] = useState('');
-  const [type, setType] = useState<FactType | ''>('');
+  const [sourceId, setSourceId] = useState(scoped?.sourceId ?? '');
+  const [type, setType] = useState<FactType | ''>(scoped?.type ?? '');
   const scope = { sourceId: sourceId || undefined, type: type || undefined };
   const filtered = Boolean(sourceId || type);
   const list = useInfiniteQuery({
@@ -301,7 +313,7 @@ export function ReviewQueue({ setup = false }: { setup?: boolean }) {
 
   return (
     <div className="review-queue" ref={queueRef} onKeyDown={onKeyDown}>
-      {!setup && (
+      {!embedded && (
         <div className="page-header">
           <div className="page-header__text">
             <h1 className="page-title" ref={headingRef} tabIndex={-1}>
@@ -319,13 +331,13 @@ export function ReviewQueue({ setup = false }: { setup?: boolean }) {
           )}
         </div>
       )}
-      {!setup && (
+      {!embedded && (
         <ReviewTabs
           count={summary.data && summary.data.needsReview + summary.data.conflicted}
           conflicts={summary.data?.conflicts}
         />
       )}
-      {setup && approvable && !empty && (
+      {embedded && approvable && !empty && (
         <div className="review-queue__setup-actions">
           <Button variant="secondary" onClick={() => setApprovingAll(true)}>
             {approveAllLabel(scope, sourceName)}
@@ -354,7 +366,7 @@ export function ReviewQueue({ setup = false }: { setup?: boolean }) {
         </div>
       )}
 
-      {(!empty || filtered) && !list.isError && (
+      {(!empty || filtered) && !list.isError && !scoped && (
         <div className="filters review-filters">
           <label className="field field--inline">
             <span className="sr-only">Source</span>
@@ -480,7 +492,8 @@ export function ReviewQueue({ setup = false }: { setup?: boolean }) {
           {`New facts show up here after a source finishes reading. Your assistant is using ${plural(summary.data?.approvedInUse ?? 0, 'approved fact')}.`}
         </EmptyState>
       )}
-      {empty && filtered && (
+      {empty && scoped?.empty}
+      {empty && filtered && !scoped && (
         <EmptyState
           title="No facts to review here"
           action={

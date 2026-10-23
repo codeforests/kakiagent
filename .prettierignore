@@ -7,3 +7,5 @@ e2e/test-results/
 e2e/playwright-report/
 infra/
 **/*.md
+# Generated fixtures, compared byte for byte with their generator
+apps/ingest-worker/fixtures/files/

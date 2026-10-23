@@ -140,7 +140,8 @@
         "spec": "features/FEAT-012-website-crawl/ui-design.md#scr-app-007--add-your-sources-website-part",
         "extended_by": [
           "features/FEAT-015-file-upload/ui-design.md#scr-app-007--add-your-sources-extended-files-part",
-          "features/FEAT-016-spreadsheet-import/ui-design.md#scr-app-007--add-your-sources-extended-spreadsheets"
+          "features/FEAT-016-spreadsheet-import/ui-design.md#scr-app-007--add-your-sources-extended-spreadsheets",
+          "features/FEAT-017-chat-import/ui-design.md#scr-app-007--add-your-sources-extended-chat-exports"
         ]
       },
       "states": {
@@ -154,10 +155,10 @@
           "added",
           "refused",
           "limit",
-          "map"
+          "map",
+          "chat"
         ],
         "gaps": [
-          "chat exports (FEAT-017)",
           "wizard frame (FEAT-035)"
         ],
         "supplements": []
@@ -353,7 +354,8 @@
         "spec": "features/FEAT-012-website-crawl/ui-design.md#scr-app-023--sources",
         "extended_by": [
           "features/FEAT-015-file-upload/ui-design.md#scr-app-023--sources-extended-file-rows",
-          "features/FEAT-016-spreadsheet-import/ui-design.md#scr-app-023--sources-extended-spreadsheet-rows"
+          "features/FEAT-016-spreadsheet-import/ui-design.md#scr-app-023--sources-extended-spreadsheet-rows",
+          "features/FEAT-017-chat-import/ui-design.md#scr-app-023--sources-extended-chat-rows"
         ]
       },
       "states": {
@@ -465,6 +467,48 @@
       "status": "designed",
       "designed_at": "2026-10-23"
     },
+    "SCR-APP-026": {
+      "name": "Chat-history import",
+      "surface": "APP",
+      "feature": "FEAT-017",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-017-chat-import/ui-design.md#scr-app-026--chat-history-import"
+      },
+      "states": {
+        "covered": [
+          "reading",
+          "suggestions",
+          "all-reviewed",
+          "empty",
+          "failed",
+          "loading",
+          "error",
+          "not-found",
+          "permission",
+          "delete-confirm"
+        ],
+        "gaps": [],
+        "supplements": []
+      },
+      "contract_bindings": [
+        "GET /api/v1/kb/sources/:id",
+        "GET /api/v1/kb/review/facts",
+        "POST /api/v1/kb/facts/:id/approve",
+        "POST /api/v1/kb/facts/:id/reject",
+        "GET /api/v1/kb/review/preview",
+        "POST /api/v1/kb/review/approve-all",
+        "POST /api/v1/kb/sources/:id/retry",
+        "DELETE /api/v1/kb/sources/:id"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-10-23"
+    },
     "SCR-APP-027": {
       "name": "Facts",
       "surface": "APP",
@@ -514,7 +558,8 @@
         "extended_by": [
           "features/FEAT-012-website-crawl/ui-design.md#scr-app-028--fact-extended-provenance",
           "features/FEAT-015-file-upload/ui-design.md#scr-app-028--fact-and-scr-app-019--review--facts-extended-file-provenance",
-          "features/FEAT-016-spreadsheet-import/ui-design.md#scr-app-028--fact-extended-a-rows-provenance-sku-and-stock"
+          "features/FEAT-016-spreadsheet-import/ui-design.md#scr-app-028--fact-extended-a-rows-provenance-sku-and-stock",
+          "features/FEAT-017-chat-import/ui-design.md#scr-app-028--fact-extended-a-suggestions-provenance"
         ]
       },
       "states": {

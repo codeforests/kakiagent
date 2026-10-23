@@ -3,7 +3,7 @@ import { Button } from '@kaki/ui';
 import { Link } from 'react-router';
 import { factTitle, POLICY_KIND_LABEL, sgd } from '../lib/facts.ts';
 import { dayOf, GROUP, gstUnknown, shortUrl, valueLine } from '../lib/review.ts';
-import { isImported, locationWords } from '../lib/sources.ts';
+import { isImported, provenanceWords } from '../lib/sources.ts';
 
 export type CardGst = 'inclusive' | 'exclusive';
 export type Decided = 'approved' | 'rejected';
@@ -110,7 +110,7 @@ export function FactCard(props: FactCardProps) {
           {fact.provenance?.location && (
             // A file has no address to open: the page and the file's name (FEAT-015).
             <span className="review-card__source">
-              {locationWords(fact.provenance.location)} of {fact.sourceName ?? 'the file'}
+              {provenanceWords(fact.provenance.location, fact.sourceName ?? 'the file')}
             </span>
           )}
           {fact.provenance && !fact.provenance.location && (

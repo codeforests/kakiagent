@@ -14,6 +14,7 @@ import {
 import { originsOf, type WebsiteScope } from './ingest/scope.js';
 import { entityKey, inputOf } from './conflicts.js';
 import { settleConflicts } from './writes.js';
+import type { ChatRecord } from './ingest/chats/record.js';
 
 export type SourceStatus = (typeof schema.SOURCE_STATUSES)[number];
 export type SourceStage = (typeof schema.SOURCE_STAGES)[number];
@@ -65,10 +66,17 @@ export const NOT_RETRYABLE: readonly SourceFailure[] = [
   'malware',
   'unreadable',
   'no_text',
+  // Chat exports (FEAT-017 §5.6): the export was deleted; only a new upload helps.
+  'chat_format',
+  'business_not_found',
 ];
 
-/** Uploads stored as objects: files (FEAT-015) and spreadsheets (FEAT-016). */
-export const isUpload = (kind: SourceRecord['kind']) => kind === 'file' || kind === 'spreadsheet';
+/** Uploads stored as objects: files (FEAT-015), spreadsheets (FEAT-016), chat exports (FEAT-017). */
+export const isUpload = (kind: SourceRecord['kind']) =>
+  kind === 'file' || kind === 'spreadsheet' || kind === 'chat';
+
+/** A chat export's name until the parse names it by format and days (FEAT-017 §3.1). */
+export const CHAT_SOURCE_NAME = 'Chat export';
 
 /**
  * A failed source that Retry can run again (KB-12): every website, and uploads not
@@ -162,11 +170,19 @@ export async function createWebsiteSource(
  * (D2). The scan job is written with it; nothing reads the file before the scan (KB-11).
  * Throws `FileLimitError` at the plan's file count, `SourceExistsError` for an upload that
  * already has a source. A spreadsheet (FEAT-016) is added the same way with its own kind,
- * and counts toward the same limit (UC-10 precondition).
+ * and counts toward the same limit (UC-10 precondition). So is a chat export (FEAT-017
+ * §3.2), named "Chat export" rather than its file name, which usually names the customer;
+ * the owner's business names are kept in `chat` for the parse.
  */
 export async function createFileSource(
   ctx: DashboardKbContext,
-  file: { uploadId: string; fileName: string; sizeBytes: number; kind?: 'file' | 'spreadsheet' },
+  file: {
+    uploadId: string;
+    fileName: string;
+    sizeBytes: number;
+    kind?: 'file' | 'spreadsheet' | 'chat';
+    businessNames?: string[];
+  },
   opts: { fileLimit: number },
 ): Promise<SourceRecord> {
   const s = schema.kbSources;
@@ -188,7 +204,15 @@ export async function createFileSource(
       kind: file.kind ?? 'file',
       status: 'queued',
       stage: 'scan',
-      name: file.fileName,
+      name: file.kind === 'chat' ? CHAT_SOURCE_NAME : file.fileName,
+      ...(file.kind === 'chat'
+        ? {
+            chat: {
+              businessNames: file.businessNames ?? [],
+              ext: extensionOf(file.fileName),
+            } satisfies ChatRecord,
+          }
+        : {}),
       uploadKey,
       fileSize: file.sizeBytes,
       createdBy: ctx.userId,
@@ -221,7 +245,7 @@ export async function countFileSources(ctx: DashboardKbContext): Promise<number>
   const [row] = await ctx.tx
     .select({ n: sql<number>`count(*)::int` })
     .from(s)
-    .where(and(eq(s.tenantId, ctx.tenantId), inArray(s.kind, ['file', 'spreadsheet'])));
+    .where(and(eq(s.tenantId, ctx.tenantId), inArray(s.kind, ['file', 'spreadsheet', 'chat'])));
   return row?.n ?? 0;
 }
 
@@ -271,6 +295,22 @@ async function lockSource(ctx: DashboardKbContext, id: string, version: number) 
   return row;
 }
 
+/**
+ * Moves a chat export's redacted parts to the next attempt, unread again, and drops the
+ * old attempt's staging (FEAT-017 D5).
+ */
+async function carryParts(ctx: DashboardKbContext, current: SourceRecord) {
+  const p = schema.kbSourcePages;
+  const st = schema.kbStagedFacts;
+  await ctx.tx.delete(st).where(and(eq(st.tenantId, ctx.tenantId), eq(st.sourceId, current.id)));
+  await ctx.tx
+    .update(p)
+    .set({ attempt: current.attempt + 1, extractedAt: null, factsCount: 0 })
+    .where(
+      and(eq(p.tenantId, ctx.tenantId), eq(p.sourceId, current.id), eq(p.attempt, current.attempt)),
+    );
+}
+
 async function clearRun(ctx: DashboardKbContext, id: string) {
   const ofThis = <T extends typeof schema.kbStagedFacts | typeof schema.kbSourcePages>(t: T) =>
     and(eq(t.tenantId, ctx.tenantId), eq(t.sourceId, id));
@@ -283,6 +323,9 @@ async function clearRun(ctx: DashboardKbContext, id: string) {
  * staging go, the counts restart, and the first stage's job is written in the same
  * transaction. A website starts at the crawl; a file at `parse` when its clean copy is
  * stored, else at `scan` (FEAT-015 §5.6). A file rejected by its checks can't be retried.
+ * A chat export whose redacted parts are stored keeps them for the new attempt and starts
+ * at `extract`, because its export is already deleted (FEAT-017 §5.6, D5); one not yet
+ * read starts at `parse`.
  */
 export async function retrySource(
   ctx: DashboardKbContext,
@@ -292,12 +335,21 @@ export async function retrySource(
   const current = await lockSource(ctx, id, version);
   if (current.status !== 'failed') throw new InvalidStateError(`a ${current.status} source`);
   if (!retryable(current)) throw new NotRetryableError(`a ${current.failure} file`);
+  const chat = current.kind === 'chat' ? (current.chat as ChatRecord | null) : null;
+  const keepParts = Boolean(chat?.exportDeletedAt);
   const stage: SourceStage =
-    current.kind === 'website' ? 'crawl' : current.fileKey ? 'parse' : 'scan';
+    current.kind === 'website'
+      ? 'crawl'
+      : keepParts
+        ? 'extract'
+        : current.fileKey || current.kind === 'chat'
+          ? 'parse'
+          : 'scan';
   // A spreadsheet with no valid rows goes back to the mapping; after a transient failure it
   // keeps it, so the parse goes straight on to the import (FEAT-016 D6).
   const clearMapping = current.kind === 'spreadsheet' && current.failure === 'no_valid_rows';
-  await clearRun(ctx, id);
+  if (keepParts) await carryParts(ctx, current);
+  else await clearRun(ctx, id);
   const [row] = await ctx.tx
     .update(schema.kbSources)
     .set({
@@ -306,12 +358,16 @@ export async function retrySource(
       failure: null,
       attempt: current.attempt + 1,
       version: current.version + 1,
-      pagesFound: 0,
-      pagesIncluded: 0,
-      pagesExcluded: 0,
-      pagesFailed: 0,
-      pagesSkipped: 0,
-      pagesExtracted: 0,
+      ...(keepParts
+        ? { pagesExtracted: 0 }
+        : {
+            pagesFound: 0,
+            pagesIncluded: 0,
+            pagesExcluded: 0,
+            pagesFailed: 0,
+            pagesSkipped: 0,
+            pagesExtracted: 0,
+          }),
       factsCount: 0,
       ocrPages: 0,
       ...(clearMapping ? { mapping: null } : {}),

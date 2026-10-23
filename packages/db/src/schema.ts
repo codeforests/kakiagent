@@ -291,7 +291,7 @@ export const messages = pgTable(
   ],
 );
 
-export const SOURCE_KINDS = ['website', 'file', 'spreadsheet'] as const;
+export const SOURCE_KINDS = ['website', 'file', 'spreadsheet', 'chat'] as const;
 export const SOURCE_STATUSES = ['queued', 'processing', 'ready', 'failed'] as const;
 /** `map` waits for the owner's column mapping with no job (FEAT-016 D3); `import` applies it. */
 export const SOURCE_STAGES = [
@@ -320,11 +320,27 @@ export const SOURCE_FAILURES = [
   // Spreadsheets (FEAT-016 §3.1): no table in the file, or no row valid under the mapping.
   'no_rows',
   'no_valid_rows',
+  // Chat exports (FEAT-017 §3.1): not an export we can read (UC-11 2a), or no business message.
+  'chat_format',
+  'business_not_found',
 ] as const;
 /** What a file's bytes are (FEAT-015 §5.3), whatever its name says. */
-export const FILE_TYPES = ['pdf', 'docx', 'pptx', 'txt', 'jpeg', 'png', 'xlsx', 'csv'] as const;
+export const FILE_TYPES = [
+  'pdf',
+  'docx',
+  'pptx',
+  'txt',
+  'jpeg',
+  'png',
+  'xlsx',
+  'csv',
+  'json',
+  'zip',
+] as const;
 /** The types a spreadsheet source may be (FEAT-016 §5.2). */
 export const SHEET_TYPES = ['xlsx', 'csv'] as const;
+/** The types a chat export may be (FEAT-017 §5.2): WhatsApp text or iOS zip, Telegram JSON. */
+export const CHAT_TYPES = ['txt', 'json', 'zip'] as const;
 export const PAGE_STATUSES = ['included', 'excluded', 'failed', 'skipped'] as const;
 export const PAGE_REASONS = [
   'robots',
@@ -353,7 +369,7 @@ const inList = (values: readonly string[]) => sql.raw(values.map((v) => `'${v}'`
 
 /**
  * Knowledge sources (KB_SOURCE, ADR-018 decision 1): one row per website (FEAT-012),
- * uploaded file (FEAT-015) or spreadsheet (FEAT-016); chat exports join with FEAT-017.
+ * uploaded file (FEAT-015), spreadsheet (FEAT-016) or chat export (FEAT-017).
  * `attempt` keys the idempotent stage jobs; `version` is the dashboard's
  * optimistic-concurrency token.
  */
@@ -407,6 +423,11 @@ export const kbSources = pgTable(
      */
     sheet: jsonb('sheet'),
     mapping: jsonb('mapping'),
+    /**
+     * Chat exports (FEAT-017 §4): the redacted summary the parse wrote (format, days,
+     * counts, redactions, when the export was deleted) and the owner's business names.
+     */
+    chat: jsonb('chat'),
     createdBy: text('created_by').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -422,13 +443,18 @@ export const kbSources = pgTable(
     ),
     check(
       'kb_sources_file_ck',
-      sql`${t.kind} not in ('file', 'spreadsheet') or (${t.uploadKey} is not null and ${t.fileSize} > 0)`,
+      sql`${t.kind} not in ('file', 'spreadsheet', 'chat') or (${t.uploadKey} is not null and ${t.fileSize} > 0)`,
     ),
     check(
       'kb_sources_sheet_type_ck',
       sql`${t.fileType} is null or (${t.kind} = 'spreadsheet') = (${t.fileType} in (${inList(SHEET_TYPES)}))`,
     ),
     check('kb_sources_mapping_ck', sql`${t.mapping} is null or ${t.kind} = 'spreadsheet'`),
+    check(
+      'kb_sources_chat_type_ck',
+      sql`${t.kind} <> 'chat' or ${t.fileType} is null or ${t.fileType} in (${inList(CHAT_TYPES)})`,
+    ),
+    check('kb_sources_chat_ck', sql`${t.chat} is null or ${t.kind} = 'chat'`),
     check(
       'kb_sources_file_type_ck',
       sql`${t.fileType} is null or ${t.fileType} in (${inList(FILE_TYPES)})`,

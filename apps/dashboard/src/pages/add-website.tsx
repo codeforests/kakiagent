@@ -5,6 +5,7 @@ import { Link, useNavigate } from 'react-router';
 import { api, ApiError } from '../lib/api.ts';
 import { Field } from '../lib/field.tsx';
 import { describedBy } from '../lib/form.ts';
+import { AddChatForm } from './add-chat.tsx';
 import { AddFilesForm } from './add-files.tsx';
 import { NoPermission } from './system.tsx';
 
@@ -228,7 +229,7 @@ export function AddWebsiteForm() {
   );
 }
 
-/** SCR-APP-007's two parts, website then files (UC-03 6 expects both on one step). */
+/** SCR-APP-007's parts, website, files, then chat history (UC-03 6 expects them on one step). */
 function SourceSections() {
   return (
     <>
@@ -243,6 +244,12 @@ function SourceSections() {
           Files
         </h2>
         <AddFilesForm />
+      </section>
+      <section className="add-sources__part" id="chats" aria-labelledby="add-chats-title">
+        <h2 className="subsection-title" id="add-chats-title">
+          Chat history
+        </h2>
+        <AddChatForm />
       </section>
     </>
   );

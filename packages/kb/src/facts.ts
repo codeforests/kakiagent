@@ -37,14 +37,14 @@ export interface Provenance {
 }
 
 /** A file's pages, slides, parts or image (FEAT-015); a spreadsheet's rows (FEAT-016). */
-export type FileUnit = 'page' | 'slide' | 'part' | 'image' | 'row';
+export type FileUnit = 'page' | 'slide' | 'part' | 'image' | 'row' | 'chat';
 
 /** A file page's locator, `page/3`, `slide/2`, `part/1` or `image/1` (FEAT-015 §3.1). */
 export const fileLocator = (unit: FileUnit, number: number) => `${unit}/${number}`;
 
 /** The file location a page locator names, or null for a web page's URL. */
 export function locationOf(url: string): { unit: FileUnit; number: number } | null {
-  const m = /^(page|slide|part|image|row)\/([1-9]\d{0,6})$/.exec(url);
+  const m = /^(page|slide|part|image|row|chat)\/([1-9]\d{0,6})$/.exec(url);
   return m ? { unit: m[1] as FileUnit, number: Number(m[2]) } : null;
 }
 
