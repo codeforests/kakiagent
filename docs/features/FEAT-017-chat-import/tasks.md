@@ -36,7 +36,7 @@
 Run in a session without Docker: integration tests used a local Postgres 16 + pgvector (`KAKI_TEST_DATABASE_URL`) and the in-memory file store; the E2E spec runs in CI.
 
 - **AC-1:** `apps/api/test/chats.int.test.ts` (6 passed): 201 `queued` at `scan` named "Chat export", the audit without file or business names, one job, `.pdf` as chat 400, missing/empty `businessNames` 400, the file limit, `agent` 403.
-- **AC-2:** `packages/kb/test/chats.int.test.ts` (EICAR `chat.txt` → `malware`, encrypted zip, PDF as `.txt`, no copy to `sources`); `sniff` unit tests.
+- **AC-2:** `packages/kb/test/chats.int.test.ts` "checks a chat export for malware…" (EICAR `chat.txt` → `malware` with no part stored, an encrypted zip → `encrypted`, every export scanned, nothing copied to `sources`, `file_key` null) and the AC-6 test (PDF as `.txt` → `unsupported_type`); `sniff` unit tests.
 - **AC-3:** `packages/kb/test/chats.int.test.ts` reads all four fixtures and asserts no fixture PII or file name in any stored row, the parts' tokens, the counts, the object deleted, `exportDeletedAt` and `kb_source.export_deleted`; `readers`, `redact` and `exchanges` unit tests (218 kb unit tests pass).
 - **AC-4:** `mine.test.ts` (every `parseMining` drop reason counted, the 20-pair cap, `MINING_SYSTEM`); `router.test.ts` routes `mine` to Haiku with purpose `extract` (37 gateway tests pass).
 - **AC-5:** `packages/kb/test/chats.int.test.ts`: `ready` with `needs_review` FAQs, `source 'chat'`, provenance and `location { unit: 'chat' }`, none in `visitor_facts`; approving puts one in `visitor_facts`, rejecting removes it.
@@ -44,5 +44,5 @@ Run in a session without Docker: integration tests used a local Postgres 16 + pg
 - **AC-7:** `packages/kb/test/chats.int.test.ts`: model failure → `extraction_unavailable`, retry from kept parts → `ready`; stale job no-op; resume after delete; delete purges parts and FAQs.
 - **AC-8:** `packages/db/test/rls.int.test.ts` chat case (98 passed); `apps/api/test/chats.int.test.ts` tenant B 404 and empty scoped review.
 - **AC-9:** `e2e/tests/chats.e2e.ts` written, linted and typechecked; runs in CI's E2E job (no Docker here).
-- **Checks:** `pnpm format:check`, `pnpm lint` (ESLint and dependency-cruiser: no violations), `pnpm typecheck` pass; dashboard build passes; kb integration (chats, files, sheets: 44 passed). `apps/api/test/uploads.int.test.ts` "the S3 presigner" needs Docker or `KAKI_TEST_S3_ENDPOINT` and was not run here (FEAT-015's test; CI runs it).
+- **Checks:** `pnpm format:check`, `pnpm lint` (ESLint and dependency-cruiser: no violations), `pnpm typecheck` pass; dashboard build passes; kb integration (chats 7, plus files and sheets, all passed). `apps/api/test/uploads.int.test.ts` "the S3 presigner" needs Docker or `KAKI_TEST_S3_ENDPOINT` and was not run here (FEAT-015's test; CI runs it).
 - **Recorded:** `apps/ingest-worker/fixtures/files/` added to `.prettierignore`, because the generated JSON fixtures are compared byte for byte with their generator.

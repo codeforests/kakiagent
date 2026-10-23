@@ -60,6 +60,21 @@ afterEach(async () => {
   await owner.query(`delete from outbox`);
 });
 
+/** Built from two halves so no checkout holds the EICAR string (FEAT-015 §5.9). */
+const EICAR = strToU8('X5O!P%@AP[4\\PZX54(P^)7CC)7}$' + 'EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*');
+
+/** The zip with every entry marked encrypted (general-purpose flag bit 0). */
+function encryptedZip(zip: Uint8Array): Uint8Array {
+  const b = zip.slice();
+  const view = new DataView(b.buffer);
+  for (let at = 0; at + 8 < b.length; at++) {
+    const sig = view.getUint32(at, true);
+    if (sig === 0x04034b50) view.setUint16(at + 6, view.getUint16(at + 6, true) | 1, true);
+    if (sig === 0x02014b50) view.setUint16(at + 8, view.getUint16(at + 8, true) | 1, true);
+  }
+  return b;
+}
+
 function memFiles() {
   const buckets: Record<Bucket, Map<string, Uint8Array>> = {
     quarantine: new Map(),
@@ -87,7 +102,13 @@ function memFiles() {
   });
   const deps: FileDeps = {
     store,
-    scanner: { scan: vi.fn(async () => ({ infected: false as const })) },
+    scanner: {
+      scan: vi.fn(async ({ bytes }: { bytes: Uint8Array }) =>
+        Buffer.from(bytes).includes(Buffer.from('EICAR-STANDARD-ANTIVIRUS-TEST-FILE'))
+          ? { infected: true as const, signature: 'Eicar-Test-Signature' }
+          : { infected: false as const },
+      ),
+    },
     ocr: { recognize: never },
     rasterizer: { render: never },
   };
@@ -285,6 +306,30 @@ describe('chat import pipeline (FEAT-017 T6)', () => {
     const stored = await everythingStored();
     for (const pii of CHAT_PII) expect(stored, pii).not.toContain(pii);
     expect(files.buckets.quarantine.size).toBe(0);
+  });
+
+  it('checks a chat export for malware and never copies it to the sources bucket (AC-2)', async () => {
+    const files = memFiles();
+    const virus = await addChat(files, EICAR, 'chat.txt');
+    expect((await drain(virus, files)).at(-1)).toMatchObject({
+      result: 'failed',
+      failure: 'malware',
+    });
+    expect(await sourceRow(virus.id)).toMatchObject({ status: 'failed', failure: 'malware' });
+    expect((await owner.query(`select count(*)::int as n from kb_source_pages`)).rows[0].n).toBe(0);
+
+    const locked = await addChat(files, encryptedZip(WHATSAPP_IOS_ZIP), 'chat.zip');
+    expect((await drain(locked, files)).at(-1)).toMatchObject({
+      result: 'failed',
+      failure: 'encrypted',
+    });
+
+    const clean = await addChat(files, strToU8(WHATSAPP_ANDROID));
+    expect((await drain(clean, files)).at(-1)).toMatchObject({ result: 'ready' });
+    expect(files.deps.scanner.scan).toHaveBeenCalledTimes(3);
+    expect(files.buckets.sources.size).toBe(0);
+    expect(files.buckets.quarantine.size).toBe(0);
+    expect((await sourceRow(clean.id)).file_key).toBeNull();
   });
 
   it('fails a file that is no chat, or has no message from the business, deleting it (AC-6)', async () => {
