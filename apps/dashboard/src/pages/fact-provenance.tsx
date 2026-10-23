@@ -2,7 +2,7 @@ import type { Fact } from '@kaki/contracts';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { api } from '../lib/api.ts';
-import { isImported, locationWords } from '../lib/sources.ts';
+import { isImported, provenanceWords } from '../lib/sources.ts';
 
 /**
  * SCR-APP-028's Source section (KB-05; FEAT-012 ui-design): the passage a fact was found
@@ -46,7 +46,7 @@ export function FactProvenance({ fact }: { fact: Fact }) {
       <p className="fact-source__meta">
         From{' '}
         {p.location ? (
-          `${locationWords(p.location)} of ${fileName}`
+          provenanceWords(p.location, fileName ?? 'the file')
         ) : (
           <a href={p.url} target="_blank" rel="noreferrer noopener">
             {place}

@@ -34,6 +34,17 @@ export const STAGE_LABEL: Record<NonNullable<Source['stage']>, string> = {
   promote: 'Saving facts',
 };
 
+/** A chat export's own stage names (FEAT-017 ui-design). */
+const CHAT_STAGE_LABEL: Partial<Record<NonNullable<Source['stage']>, string>> = {
+  parse: 'Reading and removing personal data',
+  extract: 'Finding questions and answers',
+  promote: 'Saving suggestions',
+};
+
+/** The stage in words, for the source's kind. */
+export const stageLabel = (s: Pick<Source, 'kind'>, stage: NonNullable<Source['stage']>) =>
+  (s.kind === 'chat' ? CHAT_STAGE_LABEL[stage] : undefined) ?? STAGE_LABEL[stage];
+
 export const FAILURE_TEXT: Record<SourceFailure, string> = {
   no_pages: 'No page could be read. robots.txt or the domain limits excluded every page.',
   site_unreachable: "We couldn't reach the site. Check the address and that the site is online.",
@@ -186,6 +197,8 @@ const EXTENSION_TYPE: Record<string, FileType> = {
   png: 'png',
   xlsx: 'xlsx',
   csv: 'csv',
+  json: 'json',
+  zip: 'zip',
 };
 
 /** The type the scan named, or, before it has, the one the extension suggests. */
@@ -203,9 +216,10 @@ export function sizeLabel(bytes: number): string {
 
 /** A file page's label from its locator: "Page 3", "Slide 2", "Part 1", "Image", "Row 12". */
 export function pageLabel(url: string): string | null {
-  const m = /^(page|slide|part|image|row)\/(\d+)$/.exec(url);
+  const m = /^(page|slide|part|image|row|chat)\/(\d+)$/.exec(url);
   if (!m) return null;
   if (m[1] === 'image') return 'Image';
+  if (m[1] === 'chat') return `Part ${m[2]}`;
   return `${m[1]![0]!.toUpperCase()}${m[1]!.slice(1)} ${m[2]}`;
 }
 
@@ -213,11 +227,34 @@ export function pageLabel(url: string): string | null {
 export function sourceMeta(s: Source): string {
   if (!s.file) return `Added ${updatedLabel(s.createdAt)}`;
   const type = fileTypeOf(s.name, s.file.type);
+  const label = s.kind === 'chat' ? chatTypeLabel(s) : type ? FILE_TYPE_LABEL[type] : null;
   return [
     `Uploaded ${updatedLabel(s.createdAt)}`,
-    ...(type ? [FILE_TYPE_LABEL[type]] : []),
+    ...(label ? [label] : []),
     sizeLabel(s.file.sizeBytes),
   ].join(' · ');
+}
+
+/**
+ * What a chat export is (FEAT-017 ui-design): its format once read, else what the upload
+ * looks like. Its name is never the file name, so the scan's type decides.
+ */
+export function chatTypeLabel(s: Pick<Source, 'chat' | 'file'>): string | null {
+  if (s.chat) return s.chat.format === 'whatsapp' ? 'WhatsApp chat' : 'Telegram chat';
+  const type = s.file?.type;
+  if (type === 'txt') return 'WhatsApp export (.txt)';
+  return type ? FILE_TYPE_LABEL[type] : null;
+}
+
+/** The redaction notice on SCR-APP-007 and SCR-APP-026 (FEAT-017 ui-design). */
+export const CHAT_REDACTION_NOTICE =
+  "Before anything is saved, we remove customers' names, phone numbers, e-mail addresses, NRIC and card numbers, and addresses. The export file is deleted as soon as it has been read. Nothing is used in answers until you approve it.";
+
+/** "page 3 of menu.pdf", or "your reply in WhatsApp chat, …" for a chat export (FEAT-017). */
+export function provenanceWords(location: { unit: string; number: number }, name: string) {
+  return location.unit === 'chat'
+    ? `your reply in ${name}`
+    : `${locationWords(location)} of ${name}`;
 }
 
 /** "page 3", "slide 2", "part 1", "the image", "row 12": where in a file a fact was found. */
@@ -252,6 +289,7 @@ export function unitWords(s: Source): { one: string; many: string } | null {
   const type = s.file ? fileTypeOf(s.name, s.file.type) : null;
   if (!s.file) return { one: 'page', many: 'pages' };
   if (s.kind === 'spreadsheet') return { one: 'row', many: 'rows' };
+  if (s.kind === 'chat') return { one: 'part', many: 'parts' };
   if (isImage(type)) return null;
   if (type === 'pptx') return { one: 'slide', many: 'slides' };
   if (type === 'docx' || type === 'txt') return { one: 'part', many: 'parts' };
@@ -294,6 +332,11 @@ export function sourceSummary(s: Source): string {
         : []),
     ].join(' · ');
   if (waitingToMap(s)) return STAGE_LABEL.map;
+  // A chat export's findings are suggested FAQs (FEAT-017 ui-design).
+  if (s.kind === 'chat' && s.status === 'ready')
+    return c.facts === 0
+      ? 'No questions found'
+      : `${c.facts} suggested ${c.facts === 1 ? 'FAQ' : 'FAQs'}`;
   const unit = unitWords(s);
   const ocr = s.file && s.file.ocrPages > 0 ? ` · ${s.file.ocrPages} by OCR` : '';
   const pages = unit
@@ -304,7 +347,7 @@ export function sourceSummary(s: Source): string {
       ? `No facts found${pages}`
       : `${c.facts} ${c.facts === 1 ? 'fact' : 'facts'} · ${c.factsNeedingReview} need review${pages}`;
   if (s.status === 'failed') return failureText(s);
-  const stage = s.stage ? STAGE_LABEL[s.stage] : 'Waiting';
+  const stage = s.stage ? stageLabel(s, s.stage) : 'Waiting';
   // A queued source that started a stage is waiting for a retry (UC-03 5c).
   if (s.status === 'queued' && s.stage && s.stage !== 'crawl') return `${stage} · waiting to retry`;
   const p = stageProgress(s);

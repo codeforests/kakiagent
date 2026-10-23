@@ -1,4 +1,4 @@
-import { MAX_FILE_BYTES, UPLOAD_EXTENSIONS, type Source } from '@kaki/contracts';
+import { FILE_EXTENSIONS, MAX_FILE_BYTES, SHEET_EXTENSIONS, type Source } from '@kaki/contracts';
 import { Button } from '@kaki/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useId, useRef, useState, type DragEvent } from 'react';
@@ -15,6 +15,9 @@ import {
   waitingToMap,
 } from '../lib/sources.ts';
 import { FileIcon, PictureIcon, SourceState, TableIcon } from './sources.tsx';
+
+/** What this part takes; chat exports have their own part (FEAT-017). */
+const EXTENSIONS: readonly string[] = [...FILE_EXTENSIONS, ...SHEET_EXTENSIONS];
 
 /** Files upload two at a time (FEAT-015 ui-design); the rest wait. */
 const AT_ONCE = 2;
@@ -47,7 +50,7 @@ function refusalOf(file: File): Refusal | null {
   const name = file.name.toLowerCase();
   // Old Excel files can't be read; the owner can save them as .xlsx (FEAT-016 ui-design).
   if (name.endsWith('.xls')) return 'xls';
-  if (!UPLOAD_EXTENSIONS.some((ext) => name.endsWith(ext))) return 'type';
+  if (!EXTENSIONS.some((ext) => name.endsWith(ext))) return 'type';
   if (file.size > MAX_FILE_BYTES) return 'size';
   if (file.size === 0) return 'empty';
   return null;
@@ -71,9 +74,11 @@ export function AddFilesForm() {
   const [said, setSaid] = useState('');
   const list = useSources();
   const fileLimit = list.data?.fileLimit;
-  // Spreadsheets count toward the plan's file limit too (FEAT-016).
+  // Spreadsheets and chat exports count toward the plan's file limit too (FEAT-016, FEAT-017).
   const fileSources =
-    list.data?.sources.filter((s) => s.kind === 'file' || s.kind === 'spreadsheet') ?? [];
+    list.data?.sources.filter(
+      (s) => s.kind === 'file' || s.kind === 'spreadsheet' || s.kind === 'chat',
+    ) ?? [];
   const byId = new Map(fileSources.map((s) => [s.id, s]));
   const addedSources = rows.flatMap((r) =>
     r.state === 'added' && byId.has(r.sourceId) ? [byId.get(r.sourceId)!] : [],
@@ -212,7 +217,7 @@ export function AddFilesForm() {
           className="sr-only"
           type="file"
           multiple
-          accept={UPLOAD_EXTENSIONS.join(',')}
+          accept={EXTENSIONS.join(',')}
           tabIndex={-1}
           aria-hidden="true"
           data-testid="file-input"

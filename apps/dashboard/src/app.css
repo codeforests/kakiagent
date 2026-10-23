@@ -2052,3 +2052,75 @@ a.settings-row:hover {
   display: grid;
   gap: var(--space-2);
 }
+
+/* SCR-APP-007 chat history part and SCR-APP-026 chat-history import (FEAT-017 ui-design) */
+.add-chat {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+}
+.add-chat > .field,
+.add-chat > .upload-list,
+.add-chat > p {
+  justify-self: stretch;
+}
+.add-chat__notice,
+.chat-privacy__skipped {
+  margin: 0;
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+  color: var(--color-text-secondary);
+}
+.add-chat__how summary {
+  cursor: pointer;
+}
+.add-chat__how p {
+  margin: var(--space-2) 0 0;
+  font-size: var(--type-body-sm-size);
+}
+.chat-privacy {
+  display: grid;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+.chat-privacy .section-title,
+.chat-privacy p {
+  margin: 0;
+}
+.chat-privacy__counts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+}
+.chat-privacy__counts div {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.chat-privacy__counts dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+.chat-privacy__deleted {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-success-default);
+  font-size: var(--type-caption-size);
+}
+.chat-privacy__read {
+  font-size: var(--type-body-sm-size);
+  color: var(--color-text-secondary);
+}
+.chat-page__suggestions {
+  display: grid;
+  gap: var(--space-3);
+}
+.chat-page__suggestions .section-title,
+.chat-page__lead {
+  margin: 0;
+}
+.chat-page__lead {
+  color: var(--color-text-secondary);
+}
