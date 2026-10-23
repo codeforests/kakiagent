@@ -7,7 +7,7 @@
       Done when: `pnpm db:setup` applies 0024 on a database at 0023 and is idempotent; `drizzle-kit generate` reports no drift; the RLS suite passes with the spreadsheet case.
 - [x] T2 — Contracts: §3.1 shapes, `UPLOAD_EXTENSIONS`/`SHEET_EXTENSIONS`, the spreadsheet body, `ImportBody`, `ConfirmImportBody`, `ImportPreview`, the product value's `sku`/`stock`/`stockAsOf`, `FileLocation` unit `row`, `IngestJob` stage `import` (design §3.1, §5.9)
       Done when: typecheck passes across the workspace with the new enum values handled (dashboard records included).
-- [ ] T3 — Sheet readers: `csv.ts`, `xlsx.ts`, `table.ts` (design §5.3 steps 2–4; D2, D9, D10)
+- [x] T3 — Sheet readers: `csv.ts`, `xlsx.ts`, `table.ts` (design §5.3 steps 2–4; D2, D9, D10)
       Done when: unit tests pass for quoted fields with commas, `""` and line breaks, BOM, CRLF, delimiter choice; shared strings, rich text, inline strings, booleans, errors, cached formula values, float noise, sparse cell references, the first visible sheet, the unzip cap and malformed XML as `unreadable`; header detection below a title row, "Column C" for an empty header, the row and column limits, cell cut at 1,000 chars.
 - [ ] T4 — Mapping logic: `money.ts`, `suggest.ts`, `rows.ts` (`mapRows`, `checkMapping`) (design §5.4, §5.5; D7; AC-3 and AC-4 logic)
       Done when: unit tests pass for every rule of §5.5 in order, every accepted and refused price form, stock forms, the suggestion table (EN and 中文 headers, "cost" refused, content fallback for price and name, GST from the header) and every `bad_mapping` message.

@@ -79,7 +79,7 @@ export function splitParts(text: string, max = MAX_PAGE_TEXT): string[] {
 }
 
 const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
-const decodeXml = (s: string) =>
+export const decodeXml = (s: string) =>
   s.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (m, e: string) => {
     if (e[0] === '#')
       return String.fromCodePoint(
@@ -117,7 +117,7 @@ export function xmlText(xml: string): string {
 }
 
 /** The ZIP's entries the filter keeps, refusing more than `MAX_UNZIPPED_BYTES` in total. */
-function unzipSome(bytes: Uint8Array, keep: (name: string) => boolean): Map<string, string> | null {
+export function unzipSome(bytes: Uint8Array, keep: (name: string) => boolean): Map<string, string> | null {
   let total = 0;
   try {
     const files = unzipSync(bytes, {
