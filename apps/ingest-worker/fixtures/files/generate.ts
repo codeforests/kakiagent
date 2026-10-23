@@ -15,6 +15,7 @@ import {
   PROTECTED_PASSWORD,
   SCANNED_MENU_PAGES,
 } from './content.js';
+import { writeSheetFixtures } from './sheets.js';
 
 /**
  * `pnpm --filter @kaki/ingest-worker fixtures:files`: regenerates the committed file
@@ -236,3 +237,4 @@ out('promo.pptx', pptx());
 out('policies.txt', POLICIES_TXT);
 out('protected.docx', oleDocx());
 out('program.pdf', elf());
+writeSheetFixtures();
