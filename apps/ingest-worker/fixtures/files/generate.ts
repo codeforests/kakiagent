@@ -15,6 +15,7 @@ import {
   PROTECTED_PASSWORD,
   SCANNED_MENU_PAGES,
 } from './content.js';
+import { writeChatFixtures } from './chats.js';
 import { writeSheetFixtures } from './sheets.js';
 
 /**
@@ -238,3 +239,4 @@ out('policies.txt', POLICIES_TXT);
 out('protected.docx', oleDocx());
 out('program.pdf', elf());
 writeSheetFixtures();
+writeChatFixtures();

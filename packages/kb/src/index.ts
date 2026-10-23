@@ -214,6 +214,10 @@ export {
   type SheetRecord,
 } from './ingest/sheets/stages.js';
 export type { ChatRecord, ChatSummaryRecord } from './ingest/chats/record.js';
+export { readWhatsApp } from './ingest/chats/whatsapp.js';
+export { readTelegram } from './ingest/chats/telegram.js';
+export { chatTextFromZip } from './ingest/chats/zip.js';
+export { groupExchanges } from './ingest/chats/exchanges.js';
 export {
   confirmImport,
   previewImport,

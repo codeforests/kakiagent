@@ -14,7 +14,8 @@
     "test:coverage": "vitest run --coverage --passWithNoTests",
     "fixtures:site": "tsx fixtures/main.ts",
     "fixtures:files": "tsx fixtures/files/generate.ts",
-    "fixtures:sheets": "tsx fixtures/files/sheets.ts"
+    "fixtures:sheets": "tsx fixtures/files/sheets.ts",
+    "fixtures:chats": "tsx fixtures/files/chats.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1152.0",

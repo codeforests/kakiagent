@@ -15,7 +15,7 @@
       Done when: unit tests pass for every check of §5.4 with drop counts, the 20-pair cap, and the fake's output.
 - [x] T6 — Pipeline: `sniffType` for chat, `scanFile` without copy for chat, `parseChatSource` (store, delete, audit), the job's parse branch, promote with `source 'chat'` and never approved, retry keeping parts, delete and purge, `countFileSources` (design §5.2, §5.3 step 7, §5.5, §5.6; D2, D5, D6; AC-2, AC-3, AC-5, AC-6, AC-7 pipeline half)
       Done when: kb integration tests with the in-memory file store pass: each fixture runs to `ready` with `needs_review` FAQs, no fixture PII in any stored row, the object deleted and audited; `chat_format` and `business_not_found` delete the object and aren't retryable; model failure then retry ends `ready` from kept parts; a crash after delete resumes; approving a suggestion puts it in `visitor_facts`.
-- [ ] T7 — Fixtures: `generate.ts` gains the §5.8 files; committed (design §5.8)
+- [x] T7 — Fixtures: `generate.ts` gains the §5.8 files; committed (design §5.8)
       Done when: the generator regenerates every file and the committed files match what T3–T6 tests expect.
 - [ ] T8 — Worker wiring: `CHAT_MESSAGE_LIMIT`, `CHAT_PART_LIMIT` config and `.env.example`, the fake provider routing `mine`, logs (design §5.7)
       Done when: ingest-worker typecheck and unit tests pass; the worker starts against the local stack.
