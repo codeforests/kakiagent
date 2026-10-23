@@ -1,6 +1,14 @@
 /** Logical models (ADR-007 decision 5). Routing policy maps requests onto these. */
 export type LogicalModel =
-  'triage' | 'reply.simple' | 'reply.complex' | 'extract' | 'summarise' | 'judge' | 'embed';
+  | 'triage'
+  | 'reply.simple'
+  | 'reply.complex'
+  | 'extract'
+  /** Chat-export Q&A mining on Haiku 5.5 (ADR-007 decision 4; FEAT-017 §5.4). */
+  | 'mine'
+  | 'summarise'
+  | 'judge'
+  | 'embed';
 
 export type ProviderId = 'fake' | 'anthropic-dev' | 'bedrock';
 

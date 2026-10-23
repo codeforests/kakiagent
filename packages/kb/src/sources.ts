@@ -67,8 +67,12 @@ export const NOT_RETRYABLE: readonly SourceFailure[] = [
   'no_text',
 ];
 
-/** Uploads stored as objects: files (FEAT-015) and spreadsheets (FEAT-016). */
-export const isUpload = (kind: SourceRecord['kind']) => kind === 'file' || kind === 'spreadsheet';
+/** Uploads stored as objects: files (FEAT-015), spreadsheets (FEAT-016), chat exports (FEAT-017). */
+export const isUpload = (kind: SourceRecord['kind']) =>
+  kind === 'file' || kind === 'spreadsheet' || kind === 'chat';
+
+/** A chat export's name until the parse names it by format and days (FEAT-017 §3.1). */
+export const CHAT_SOURCE_NAME = 'Chat export';
 
 /**
  * A failed source that Retry can run again (KB-12): every website, and uploads not
@@ -162,11 +166,19 @@ export async function createWebsiteSource(
  * (D2). The scan job is written with it; nothing reads the file before the scan (KB-11).
  * Throws `FileLimitError` at the plan's file count, `SourceExistsError` for an upload that
  * already has a source. A spreadsheet (FEAT-016) is added the same way with its own kind,
- * and counts toward the same limit (UC-10 precondition).
+ * and counts toward the same limit (UC-10 precondition). So is a chat export (FEAT-017
+ * §3.2), named "Chat export" rather than its file name, which usually names the customer;
+ * the owner's business names are kept in `chat` for the parse.
  */
 export async function createFileSource(
   ctx: DashboardKbContext,
-  file: { uploadId: string; fileName: string; sizeBytes: number; kind?: 'file' | 'spreadsheet' },
+  file: {
+    uploadId: string;
+    fileName: string;
+    sizeBytes: number;
+    kind?: 'file' | 'spreadsheet' | 'chat';
+    businessNames?: string[];
+  },
   opts: { fileLimit: number },
 ): Promise<SourceRecord> {
   const s = schema.kbSources;
@@ -188,7 +200,8 @@ export async function createFileSource(
       kind: file.kind ?? 'file',
       status: 'queued',
       stage: 'scan',
-      name: file.fileName,
+      name: file.kind === 'chat' ? CHAT_SOURCE_NAME : file.fileName,
+      ...(file.kind === 'chat' ? { chat: { businessNames: file.businessNames ?? [] } } : {}),
       uploadKey,
       fileSize: file.sizeBytes,
       createdBy: ctx.userId,
@@ -221,7 +234,7 @@ export async function countFileSources(ctx: DashboardKbContext): Promise<number>
   const [row] = await ctx.tx
     .select({ n: sql<number>`count(*)::int` })
     .from(s)
-    .where(and(eq(s.tenantId, ctx.tenantId), inArray(s.kind, ['file', 'spreadsheet'])));
+    .where(and(eq(s.tenantId, ctx.tenantId), inArray(s.kind, ['file', 'spreadsheet', 'chat'])));
   return row?.n ?? 0;
 }
 

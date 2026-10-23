@@ -211,6 +211,7 @@ export {
   type MappingRecord,
   type SheetRecord,
 } from './ingest/sheets/stages.js';
+export type { ChatRecord, ChatSummaryRecord } from './ingest/chats/record.js';
 export {
   confirmImport,
   previewImport,

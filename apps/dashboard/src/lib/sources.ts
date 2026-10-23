@@ -59,6 +59,11 @@ export const FAILURE_TEXT: Record<SourceFailure, string> = {
     "We couldn't find a table with a header row and at least one row below it. Check the first sheet, then upload it again.",
   no_valid_rows:
     'None of the rows could be imported with that mapping. Retry to map the columns again.',
+  // Chat exports (FEAT-017 ui-design).
+  chat_format:
+    "This doesn't look like a chat export we can read. Export the chat from WhatsApp (More › Export chat › Without media) or Telegram Desktop (Export chat history › JSON), then upload that file.",
+  business_not_found:
+    "We couldn't find any messages from the name you gave. Check how your business's name appears in the chat, then upload the export again. The file has been deleted.",
 };
 
 /** A spreadsheet's own words for the safety failures that name a file type (FEAT-016). */
@@ -70,12 +75,24 @@ const SHEET_FAILURE_TEXT: Partial<Record<SourceFailure, string>> = {
     "This spreadsheet seems damaged and couldn't be read. Open it, save it again as .xlsx, and upload the copy.",
 };
 
+/** A chat export's own words for the safety failures that name a file type (FEAT-017). */
+const CHAT_FAILURE_TEXT: Partial<Record<SourceFailure, string>> = {
+  unsupported_type:
+    'Upload the .txt or .zip file WhatsApp exports, or the result.json file Telegram exports.',
+  encrypted:
+    'This zip file is password-protected. Export the chat again and upload the file without a password.',
+};
+
 /** The failure in words, for the source's kind. */
 export const failureText = (s: Pick<Source, 'kind' | 'failure'>) => {
   const failure = s.failure ?? 'internal';
-  return (
-    (s.kind === 'spreadsheet' ? SHEET_FAILURE_TEXT[failure] : undefined) ?? FAILURE_TEXT[failure]
-  );
+  const own =
+    s.kind === 'spreadsheet'
+      ? SHEET_FAILURE_TEXT
+      : s.kind === 'chat'
+        ? CHAT_FAILURE_TEXT
+        : undefined;
+  return own?.[failure] ?? FAILURE_TEXT[failure];
 };
 
 export const PAGE_STATE: Record<
@@ -155,6 +172,9 @@ export const FILE_TYPE_LABEL: Record<FileType, string> = {
   png: 'PNG image',
   xlsx: 'Excel workbook',
   csv: 'CSV file',
+  // Chat exports (FEAT-017 ui-design): after the parse, `chat.format` names them instead.
+  json: 'Telegram export (.json)',
+  zip: 'WhatsApp export (.zip)',
 };
 const EXTENSION_TYPE: Record<string, FileType> = {
   pdf: 'pdf',

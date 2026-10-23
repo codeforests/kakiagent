@@ -330,7 +330,7 @@ export const FactResponse = z.object({ fact: Fact });
 
 // ---- Dashboard API: knowledge sources (KB-01, KB-12, KB-13; FEAT-012 §3) ------------
 
-export const SourceKind = z.enum(['website', 'file', 'spreadsheet']);
+export const SourceKind = z.enum(['website', 'file', 'spreadsheet', 'chat']);
 export const SourceStatus = z.enum(['queued', 'processing', 'ready', 'failed']);
 export type SourceStatus = z.infer<typeof SourceStatus>;
 /** `map`: waiting for the owner's column mapping (FEAT-016 D3); `import`: applying it. */
@@ -360,6 +360,9 @@ export const SourceFailure = z.enum([
   // Spreadsheets (FEAT-016 §3.1).
   'no_rows',
   'no_valid_rows',
+  // Chat exports (FEAT-017 §3.1): not an export we can read (UC-11 2a), or no business message.
+  'chat_format',
+  'business_not_found',
 ]);
 export type SourceFailure = z.infer<typeof SourceFailure>;
 export const PageStatus = z.enum(['included', 'excluded', 'failed', 'skipped']);
@@ -390,10 +393,11 @@ export type PageReason = z.infer<typeof PageReason>;
 
 /**
  * Where in a file a page is (FEAT-015 §3.1): its pages, slides, parts, or the image; or a
- * spreadsheet's row (FEAT-016), numbered as in the sheet.
+ * spreadsheet's row (FEAT-016), numbered as in the sheet; or a chat export's conversation
+ * part (FEAT-017).
  */
 export const FileLocation = z.object({
-  unit: z.enum(['page', 'slide', 'part', 'image', 'row']),
+  unit: z.enum(['page', 'slide', 'part', 'image', 'row', 'chat']),
   number: z.int().min(1),
 });
 export type FileLocation = z.infer<typeof FileLocation>;
@@ -411,7 +415,18 @@ export const Provenance = z.object({
 });
 export type Provenance = z.infer<typeof Provenance>;
 
-export const FileType = z.enum(['pdf', 'docx', 'pptx', 'txt', 'jpeg', 'png', 'xlsx', 'csv']);
+export const FileType = z.enum([
+  'pdf',
+  'docx',
+  'pptx',
+  'txt',
+  'jpeg',
+  'png',
+  'xlsx',
+  'csv',
+  'json',
+  'zip',
+]);
 export type FileType = z.infer<typeof FileType>;
 
 export const Source = z.object({
@@ -441,6 +456,8 @@ export const Source = z.object({
     .nullable(),
   /** Spreadsheets only (FEAT-016 §3.1), once the parse has read the sheet. */
   sheet: z.lazy(() => SheetLayout).nullable(),
+  /** Chat exports only (FEAT-017 §3.1), once the parse has read and redacted the export. */
+  chat: z.lazy(() => ChatSummary).nullable(),
   counts: z.object({
     pagesFound: z.int(),
     pagesIncluded: z.int(),
@@ -478,8 +495,12 @@ export type SourcePage = z.infer<typeof SourcePage>;
 export const FILE_EXTENSIONS = ['.pdf', '.docx', '.pptx', '.txt', '.jpg', '.jpeg', '.png'] as const;
 /** Spreadsheets imported row by row (KB-03; FEAT-016). */
 export const SHEET_EXTENSIONS = ['.xlsx', '.csv'] as const;
-/** What `POST /kb/uploads` accepts: files and spreadsheets share the upload path. */
-export const UPLOAD_EXTENSIONS = [...FILE_EXTENSIONS, ...SHEET_EXTENSIONS] as const;
+/** Chat exports mined for suggested FAQs (KB-04; FEAT-017): WhatsApp .txt or .zip, Telegram .json. */
+export const CHAT_EXTENSIONS = ['.txt', '.zip', '.json'] as const;
+/** What `POST /kb/uploads` accepts: files, spreadsheets and chat exports share the upload path. */
+export const UPLOAD_EXTENSIONS = [
+  ...new Set([...FILE_EXTENSIONS, ...SHEET_EXTENSIONS, ...CHAT_EXTENSIONS]),
+] as readonly string[];
 /** KB-02: up to 25 MB each. */
 export const MAX_FILE_BYTES = 25 * 1024 * 1024;
 const FileName = z
@@ -513,11 +534,25 @@ const fileBody = <K extends 'file' | 'spreadsheet'>(kind: K) =>
     .strict();
 const FileSourceBody = fileBody('file');
 const SpreadsheetSourceBody = fileBody('spreadsheet');
+/**
+ * A chat export (FEAT-017 §3.2): `fileName` is checked for its extension and never stored
+ * (it usually names the customer); `businessNames` are how the business appears in the chat.
+ */
+const ChatSourceBody = z
+  .object({
+    kind: z.literal('chat'),
+    uploadId: z.uuid(),
+    fileName: FileName,
+    sizeBytes: z.int().min(1),
+    businessNames: z.array(z.string().trim().min(1).max(100)).min(1).max(5),
+  })
+  .strict();
 /** `attested` is checked by the route, so a missing one gets its own error (UC-03 4b). */
 export const CreateSourceBody = z.discriminatedUnion('kind', [
   WebsiteSourceBody,
   FileSourceBody,
   SpreadsheetSourceBody,
+  ChatSourceBody,
 ]);
 export type CreateSourceBody = z.infer<typeof CreateSourceBody>;
 
@@ -546,6 +581,31 @@ export type SourceList = z.infer<typeof SourceList>;
 export const SourceResponse = z.object({ source: Source });
 export const SourceDetail = z.object({ source: Source, pages: z.array(SourcePage) });
 export type SourceDetail = z.infer<typeof SourceDetail>;
+
+// ---- Dashboard API: chat-history import (KB-04; FEAT-017 §3) ------------------------
+
+export const ChatFormat = z.enum(['whatsapp', 'telegram']);
+export type ChatFormat = z.infer<typeof ChatFormat>;
+/** What the parse read and removed; counts only (NFR-11). */
+export const ChatSummary = z.object({
+  format: ChatFormat,
+  from: SgDate,
+  to: SgDate,
+  messages: z.int(),
+  messagesSkipped: z.int(),
+  businessMessages: z.int(),
+  conversations: z.int(),
+  exchanges: z.int(),
+  redacted: z.object({
+    names: z.int(),
+    phones: z.int(),
+    emails: z.int(),
+    ids: z.int(),
+    addresses: z.int(),
+  }),
+  exportDeletedAt: z.iso.datetime({ offset: true }).nullable(),
+});
+export type ChatSummary = z.infer<typeof ChatSummary>;
 
 // ---- Dashboard API: spreadsheet import (KB-03; FEAT-016 §3) -------------------------
 
