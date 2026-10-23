@@ -133,7 +133,9 @@ test('the owner maps, previews and imports a price list, and sees what was not i
   await dialog.getByRole('button', { name: 'Import 6 rows' }).click();
 
   // Importing, then done: the rows that weren't imported are shown first.
-  await expect(page.getByText('6 rows imported', { exact: true })).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByText('6 rows imported', { exact: true })).toBeVisible({
+    timeout: 120_000,
+  });
   await expect(
     page.getByText("They're approved and your assistant can use them now."),
   ).toBeVisible();
