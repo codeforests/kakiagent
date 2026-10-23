@@ -1,6 +1,7 @@
 import { and, desc, eq, getTableColumns, schema, sql } from '@kaki/db';
 import { audit, auditCode } from '@kaki/governance';
 import type { PreparedChunk } from './chunk.js';
+import { entityKey, inputOf } from './conflicts.js';
 import type { DashboardKbContext } from './context.js';
 import {
   FactNotFoundError,
@@ -19,6 +20,7 @@ import {
   type PromotionValue,
   type Validity,
 } from './types.js';
+import { settleConflicts } from './writes.js';
 
 export type { FactInput };
 
@@ -427,7 +429,7 @@ export async function deleteFact(
 ): Promise<void> {
   const f = schema.facts;
   const [row] = await ctx.tx
-    .select({ type: f.type, version: f.version })
+    .select()
     .from(f)
     .where(and(eq(f.tenantId, ctx.tenantId), eq(f.id, id)))
     .for('update');
@@ -446,4 +448,12 @@ export async function deleteFact(
     subjectId: id,
     payload: { type: auditCode(row.type), version: row.version },
   });
+  // A conflict this fact was part of may be over (FEAT-014 §5.3).
+  if (row.status === 'conflicted')
+    await settleConflicts(
+      ctx.tx,
+      ctx.tenantId,
+      { type: 'user', id: ctx.userId },
+      new Set([entityKey(inputOf(row))]),
+    );
 }

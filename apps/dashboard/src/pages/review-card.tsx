@@ -1,8 +1,8 @@
 import type { ReviewFact } from '@kaki/contracts';
 import { Button } from '@kaki/ui';
 import { Link } from 'react-router';
-import { factTitle, factValue, GST_LABEL, POLICY_KIND_LABEL, sgd } from '../lib/facts.ts';
-import { dayOf, GROUP, gstUnknown, shortUrl } from '../lib/review.ts';
+import { factTitle, POLICY_KIND_LABEL, sgd } from '../lib/facts.ts';
+import { dayOf, GROUP, gstUnknown, shortUrl, valueLine } from '../lib/review.ts';
 
 export type CardGst = 'inclusive' | 'exclusive';
 export type Decided = 'approved' | 'rejected';
@@ -21,22 +21,6 @@ export interface FactCardProps {
   onApprove: () => void;
   onEdit: () => void;
   onReject: () => void;
-}
-
-/** The value line (title-sm, prices tabular): "S$55.00 · GST incl." (ui-design cross-screen). */
-function valueLine(f: ReviewFact): string | null {
-  switch (f.type) {
-    case 'product':
-      return f.gstTreatment === 'unknown'
-        ? sgd(f.value.price)
-        : `${sgd(f.value.price)} · ${GST_LABEL[f.gstTreatment]}`;
-    case 'promotion':
-      return factValue(f) || null;
-    case 'faq':
-      return f.value.answer;
-    case 'policy':
-      return f.value.details;
-  }
 }
 
 function Passage({ fact }: { fact: ReviewFact }) {

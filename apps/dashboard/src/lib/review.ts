@@ -1,4 +1,5 @@
-import type { FactType, ReviewFact, ReviewScopeQuery, SkipReason } from '@kaki/contracts';
+import type { Fact, FactType, ReviewFact, ReviewScopeQuery, SkipReason } from '@kaki/contracts';
+import { factValue, GST_LABEL, sgd } from './facts.ts';
 import { useQuery } from '@tanstack/react-query';
 import { api } from './api.ts';
 import { POLL_MS, useVisible } from './sources.ts';
@@ -16,6 +17,22 @@ export const GROUP = Object.fromEntries(GROUPS.map((g) => [g.type, g])) as Recor
   FactType,
   (typeof GROUPS)[number]
 >;
+
+/** The value line (title-sm, prices tabular): "S$55.00 · GST incl." (ui-design cross-screen). */
+export function valueLine(f: Fact): string | null {
+  switch (f.type) {
+    case 'product':
+      return f.gstTreatment === 'unknown'
+        ? sgd(f.value.price)
+        : `${sgd(f.value.price)} · ${GST_LABEL[f.gstTreatment]}`;
+    case 'promotion':
+      return factValue(f) || null;
+    case 'faq':
+      return f.value.answer;
+    case 'policy':
+      return f.value.details;
+  }
+}
 
 /** A price the owner must give a GST treatment before approving it (KB-15). */
 export const gstUnknown = (f: ReviewFact) => f.gstTreatment === 'unknown';

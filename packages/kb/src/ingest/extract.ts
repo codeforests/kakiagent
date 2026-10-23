@@ -2,6 +2,7 @@ import { and, asc, eq, gte, isNull, schema, sql, withTenant, type Tx, type ZoneD
 import type { LlmGateway } from '@kaki/llm-gateway';
 import { z } from 'zod';
 import { isSgDate, sgDayAfter, sgDayStart } from '../dates.js';
+import { entityKey } from '../conflicts.js';
 import { checkFact } from '../facts.js';
 import type { SourceRecord } from '../sources.js';
 import { POLICY_KINDS, type FactInput, type PolicyKind } from '../types.js';
@@ -148,8 +149,6 @@ function quoteHasAmount(quote: string, cents: number): boolean {
 
 const FOREIGN = /(US\$|USD|A\$|AUD|RM|MYR|RMB|CNY|IDR|Rp|€|£|¥|EUR|GBP|JPY)\s?\d/i;
 
-const key = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
-
 function toInput(item: Item): FactInput | DropReason {
   switch (item.type) {
     case 'product': {
@@ -209,18 +208,6 @@ function toInput(item: Item): FactInput | DropReason {
         },
       };
     }
-  }
-}
-
-function dedupeKeyOf(input: FactInput): string {
-  switch (input.type) {
-    case 'product':
-      return `product:${key(input.value.name)}|${key(input.value.unit ?? '')}`;
-    case 'faq':
-      return `faq:${key(input.value.question)}`;
-    case 'policy':
-    case 'promotion':
-      return `${input.type}:${key(input.value.title)}`;
   }
 }
 
@@ -289,7 +276,7 @@ export function parseExtraction(
       start: at.start,
       end: at.end,
       confidence: Math.min(1, Math.max(0, item.confidence)),
-      dedupeKey: dedupeKeyOf(input),
+      dedupeKey: entityKey(input),
     });
   }
   return { facts, dropped };

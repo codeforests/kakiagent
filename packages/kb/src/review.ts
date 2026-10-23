@@ -18,7 +18,9 @@ import {
   type FactRecord,
   type FactType,
 } from './facts.js';
+import { entityKey, inputOf } from './conflicts.js';
 import { NO_VALIDITY } from './types.js';
+import { moveFacts } from './writes.js';
 
 /**
  * Fact review (KB-16, ADR-010 decisions 1–3; FEAT-013 §5.1): the queue of facts waiting
@@ -66,6 +68,8 @@ export type TypeCounts = Record<FactType, number>;
 export interface ReviewSummary {
   needsReview: number;
   conflicted: number;
+  /** Open conflicts: entities whose sources disagree (FEAT-014). */
+  conflicts: number;
   byType: TypeCounts;
   bySource: { id: string | null; name: string | null; count: number }[];
   approvedInUse: number;
@@ -95,6 +99,7 @@ export const PASSAGE_CONTEXT = 160;
 export const UNDO_WINDOW_MINUTES = 10;
 
 const REVIEWABLE = ['needs_review', 'conflicted'] as const;
+type FactRow = typeof schema.facts.$inferSelect;
 const f = schema.facts;
 const zeroCounts = (): TypeCounts => ({ product: 0, policy: 0, promotion: 0, faq: 0 });
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
@@ -147,6 +152,53 @@ function decodeCursor(cursor: string): { rank: number; ts: string; id: string } 
 }
 
 /**
+ * Rows as review records: each with its passage in the current attempt's page text, its
+ * source's name and when that source finished reading. Shared with the conflicts list.
+ */
+export async function withPassages(
+  ctx: DashboardKbContext,
+  rows: FactRow[],
+): Promise<ReviewRecord[]> {
+  const sourceIds = [...new Set(rows.map((r) => r.sourceId).filter((s): s is string => !!s))];
+  const sources = new Map<string, { domain: string; finishedAt: Date | null }>();
+  const contents = new Map<string, string | null>();
+  if (sourceIds.length) {
+    const s = schema.kbSources;
+    for (const row of await ctx.tx
+      .select({ id: s.id, domain: s.domain, finishedAt: s.finishedAt })
+      .from(s)
+      .where(and(eq(s.tenantId, ctx.tenantId), inArray(s.id, sourceIds))))
+      sources.set(row.id, row);
+    const urls = [
+      ...new Set(rows.map((r) => (r.provenance as { url?: string } | null)?.url).filter(Boolean)),
+    ] as string[];
+    const p = schema.kbSourcePages;
+    // The current attempt's pages: provenance offsets refer to their content.
+    const pages = await ctx.tx
+      .select({ sourceId: p.sourceId, url: p.url, content: p.content })
+      .from(p)
+      .innerJoin(s, and(eq(s.tenantId, p.tenantId), eq(s.id, p.sourceId), eq(s.attempt, p.attempt)))
+      .where(
+        and(eq(p.tenantId, ctx.tenantId), inArray(p.sourceId, sourceIds), inArray(p.url, urls)),
+      );
+    for (const row of pages) contents.set(`${row.sourceId} ${row.url}`, row.content);
+  }
+  return rows.map((row) => {
+    const record = toRecord(row);
+    const p = record.provenance;
+    const source = record.sourceId ? sources.get(record.sourceId) : undefined;
+    return {
+      ...record,
+      passage: p
+        ? passageOf(contents.get(`${record.sourceId} ${p.url}`) ?? null, p.quote, p.start, p.end)
+        : null,
+      sourceName: source?.domain ?? null,
+      sourceCapturedAt: source?.finishedAt ?? null,
+    };
+  });
+}
+
+/**
  * Facts waiting for review (`needs_review`, and `conflicted` for FEAT-014's link), in the
  * KB-16 order, then crawl order, a page at a time, each with its passage and source.
  */
@@ -170,47 +222,10 @@ export async function listReviewFacts(
     .orderBy(rank, asc(f.createdAt), asc(f.id))
     .limit(limit + 1);
   const page = rows.slice(0, limit);
-
-  const sourceIds = [...new Set(page.map((r) => r.sourceId).filter((s): s is string => !!s))];
-  const sources = new Map<string, { domain: string; finishedAt: Date | null }>();
-  const contents = new Map<string, string | null>();
-  if (sourceIds.length) {
-    const s = schema.kbSources;
-    for (const row of await ctx.tx
-      .select({ id: s.id, domain: s.domain, finishedAt: s.finishedAt })
-      .from(s)
-      .where(and(eq(s.tenantId, ctx.tenantId), inArray(s.id, sourceIds))))
-      sources.set(row.id, row);
-    const urls = [
-      ...new Set(page.map((r) => (r.provenance as { url?: string } | null)?.url).filter(Boolean)),
-    ] as string[];
-    const p = schema.kbSourcePages;
-    // The current attempt's pages: provenance offsets refer to their content.
-    const pages = await ctx.tx
-      .select({ sourceId: p.sourceId, url: p.url, content: p.content })
-      .from(p)
-      .innerJoin(s, and(eq(s.tenantId, p.tenantId), eq(s.id, p.sourceId), eq(s.attempt, p.attempt)))
-      .where(
-        and(eq(p.tenantId, ctx.tenantId), inArray(p.sourceId, sourceIds), inArray(p.url, urls)),
-      );
-    for (const row of pages) contents.set(`${row.sourceId} ${row.url}`, row.content);
-  }
-
+  const facts = await withPassages(ctx, page);
   const last = page.at(-1);
   return {
-    facts: page.map((row) => {
-      const record = toRecord(row);
-      const p = record.provenance;
-      const source = record.sourceId ? sources.get(record.sourceId) : undefined;
-      return {
-        ...record,
-        passage: p
-          ? passageOf(contents.get(`${record.sourceId} ${p.url}`) ?? null, p.quote, p.start, p.end)
-          : null,
-        sourceName: source?.domain ?? null,
-        sourceCapturedAt: source?.finishedAt ?? null,
-      };
-    }),
+    facts,
     nextCursor:
       rows.length > limit && last ? encodeCursor(last.rank, last.cursorTs, last.id) : null,
   };
@@ -226,6 +241,7 @@ export async function reviewSummary(ctx: DashboardKbContext): Promise<ReviewSumm
   const summary: ReviewSummary = {
     needsReview: 0,
     conflicted: 0,
+    conflicts: 0,
     byType: zeroCounts(),
     bySource: [],
     approvedInUse: 0,
@@ -236,6 +252,13 @@ export async function reviewSummary(ctx: DashboardKbContext): Promise<ReviewSumm
     if (r.status === 'needs_review') summary.needsReview += r.count;
     if (r.status === 'conflicted') summary.conflicted += r.count;
     if (r.status === 'needs_review' || r.status === 'conflicted') summary.byType[r.type] += r.count;
+  }
+  if (summary.conflicted) {
+    const rows = await ctx.tx
+      .select()
+      .from(f)
+      .where(and(eq(f.tenantId, ctx.tenantId), eq(f.status, 'conflicted')));
+    summary.conflicts = new Set(rows.map((r) => entityKey(inputOf(r)))).size;
   }
   const s = schema.kbSources;
   const bySource = await ctx.tx
@@ -345,76 +368,42 @@ export async function approveAll(
 
 // ---- Writes ------------------------------------------------------------------------
 
-type Decision = 'approved' | 'rejected' | 'needs_review';
-type Mode = 'single' | 'edited' | 'bulk' | 'all';
+type Decision = 'approved' | 'rejected' | 'needs_review' | 'disabled';
+type Mode = 'single' | 'edited' | 'bulk' | 'all' | 'conflict';
 
 const ACTION: Record<Decision, string> = {
   approved: 'fact.approved',
   rejected: 'fact.rejected',
   needs_review: 'fact.review_undone',
+  disabled: 'fact.disabled',
 };
 
 /**
- * Moves locked, checked rows to `status` set-based (D7): the facts, their version rows
- * and their chunks' versions, then one audit entry per fact. Approval records the
- * confirmation time (KB-17). Returns the new versions.
+ * Moves locked, checked rows to `status` set-based (D7) as the dashboard user, with one
+ * audit entry per fact. Returns the new versions.
  */
-async function decideRows(
+export async function decideRows(
   ctx: DashboardKbContext,
   rows: { id: string; status?: string }[],
   status: Decision,
   mode: Mode | null,
   batch?: string,
 ): Promise<FactRef[]> {
-  if (!rows.length) return [];
-  const ids = rows.map((r) => r.id);
   const from = new Map(rows.map((r) => [r.id, r.status]));
-  const updated = await ctx.tx
-    .update(f)
-    .set({
-      status,
-      version: sql`${f.version} + 1`,
-      updatedBy: ctx.userId,
-      updatedAt: sql`now()`,
-      ...(status === 'approved' ? { lastConfirmedAt: sql`now()` } : {}),
-    })
-    .where(and(eq(f.tenantId, ctx.tenantId), inArray(f.id, ids)))
-    .returning({ id: f.id, version: f.version });
-  await ctx.tx.execute(sql`
-    insert into fact_versions (tenant_id, fact_id, version, status, value, gst_treatment,
-                               valid_from, valid_until, changed_by)
-    select tenant_id, id, version, status, value, gst_treatment, valid_from, valid_until,
-           ${ctx.userId}
-    from facts
-    where tenant_id = ${ctx.tenantId} and id in (${sql.join(
-      ids.map((id) => sql`${id}::uuid`),
-      sql`, `,
-    )})`);
-  await ctx.tx.execute(sql`
-    update kb_chunks c set fact_version = f.version
-    from facts f
-    where c.tenant_id = ${ctx.tenantId} and f.tenant_id = c.tenant_id and f.id = c.fact_id
-      and f.id in (${sql.join(
-        ids.map((id) => sql`${id}::uuid`),
-        sql`, `,
-      )})`);
-  const byId = new Map(updated.map((u) => [u.id, u.version]));
-  const refs = ids.map((id) => ({ id, version: byId.get(id)! }));
-  for (const ref of refs) {
-    const payload: Record<string, AuditPayload[string]> = { version: ref.version };
-    if (mode) payload.mode = auditCode(mode);
-    if (status === 'needs_review') payload.from = auditCode(from.get(ref.id) ?? 'approved');
-    if (batch) payload.batch = auditId(batch);
-    await audit.append(ctx.tx, ctx.tenantId, {
-      action: ACTION[status],
-      actorType: 'user',
-      actorId: ctx.userId,
-      subjectType: 'fact',
-      subjectId: ref.id,
-      payload,
-    });
-  }
-  return refs;
+  return moveFacts(
+    ctx.tx,
+    ctx.tenantId,
+    { type: 'user', id: ctx.userId },
+    rows.map((r) => r.id),
+    status,
+    (ref) => {
+      const payload: Record<string, AuditPayload[string]> = { version: ref.version };
+      if (mode) payload.mode = auditCode(mode);
+      if (status === 'needs_review') payload.from = auditCode(from.get(ref.id) ?? 'approved');
+      if (batch) payload.batch = auditId(batch);
+      return { action: ACTION[status], payload };
+    },
+  );
 }
 
 async function lockFact(ctx: DashboardKbContext, id: string) {

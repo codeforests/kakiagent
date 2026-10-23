@@ -1724,6 +1724,70 @@ a.settings-row:hover {
 .review-skeleton__actions {
   width: 55%;
 }
+.chip--info {
+  background: var(--color-info-soft);
+  color: var(--color-info-default);
+}
+/* SCR-APP-020 Review · Conflicts (FEAT-014 ui-design): the sources side by side. */
+.conflict-card {
+  display: grid;
+  gap: var(--space-4);
+}
+.conflict-columns {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-4);
+}
+@media (min-width: 640px) {
+  .conflict-columns {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.conflict-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+}
+.conflict-column__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--type-body-sm-size);
+  color: var(--color-text-secondary);
+  overflow-wrap: anywhere;
+}
+.conflict-column__meta .chip {
+  margin-left: 0;
+}
+.conflict-column > .chip {
+  align-self: flex-start;
+  margin-left: 0;
+}
+.conflict-column__action {
+  margin-top: auto;
+}
+.conflict-card__footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border-default);
+}
+.conflict-card .alert {
+  margin: 0;
+}
+@media (max-width: 639px) {
+  .conflict-column__action .kaki-btn,
+  .conflict-card__footer .kaki-btn {
+    width: 100%;
+    min-height: var(--size-control-lg);
+  }
+}
 .review-toast {
   display: flex;
   align-items: center;

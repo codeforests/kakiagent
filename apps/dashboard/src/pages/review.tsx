@@ -26,7 +26,7 @@ interface Toast {
 }
 
 /** The Review hub tabs (FEAT-013 ui-design cross-screen): route links, like Knowledge's. */
-export function ReviewTabs({ count }: { count?: number }) {
+export function ReviewTabs({ count, conflicts }: { count?: number; conflicts?: number }) {
   return (
     <nav className="tabs knowledge-tabs" aria-label="Review">
       <NavLink to="/review" end className="tabs__tab">
@@ -40,6 +40,12 @@ export function ReviewTabs({ count }: { count?: number }) {
       </NavLink>
       <NavLink to="/review/conflicts" className="tabs__tab">
         Conflicts
+        {conflicts ? (
+          <span className="count-pill count-pill--danger">
+            {conflicts}
+            <span className="sr-only"> conflicts</span>
+          </span>
+        ) : null}
       </NavLink>
       <NavLink to="/review/corrections" className="tabs__tab">
         Corrections
@@ -49,7 +55,7 @@ export function ReviewTabs({ count }: { count?: number }) {
 }
 
 /** design.md `toast` with one Undo action: 5 s, paused while hovered or focused. */
-function ReviewToast({
+export function ReviewToast({
   toast,
   onClose,
   onUndo,
@@ -314,13 +320,28 @@ export function ReviewQueue({ setup = false }: { setup?: boolean }) {
         </div>
       )}
       {!setup && (
-        <ReviewTabs count={summary.data && summary.data.needsReview + summary.data.conflicted} />
+        <ReviewTabs
+          count={summary.data && summary.data.needsReview + summary.data.conflicted}
+          conflicts={summary.data?.conflicts}
+        />
       )}
       {setup && approvable && !empty && (
         <div className="review-queue__setup-actions">
           <Button variant="secondary" onClick={() => setApprovingAll(true)}>
             {approveAllLabel(scope, sourceName)}
           </Button>
+        </div>
+      )}
+
+      {setup && (summary.data?.conflicts ?? 0) > 0 && (
+        <div className="alert alert--warning" role="status">
+          <p>
+            {summary.data!.conflicts === 1
+              ? '1 conflict needs your choice.'
+              : `${summary.data!.conflicts} conflicts need your choice.`}{' '}
+            Facts that disagree stay out of answers until you resolve them.{' '}
+            <Link to="/review/conflicts">Resolve conflicts</Link>
+          </p>
         </div>
       )}
 
@@ -596,7 +617,10 @@ export function ReviewPlaceholder({ title, feature }: { title: string; feature: 
           <h1 className="page-title">Review</h1>
         </div>
       </div>
-      <ReviewTabs count={summary.data && summary.data.needsReview + summary.data.conflicted} />
+      <ReviewTabs
+        count={summary.data && summary.data.needsReview + summary.data.conflicted}
+        conflicts={summary.data?.conflicts}
+      />
       <EmptyState title={`${title} aren't built yet`}>This tab arrives with {feature}.</EmptyState>
     </div>
   );

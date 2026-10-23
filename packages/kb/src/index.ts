@@ -1,6 +1,6 @@
 /**
  * Public interface of the `kb` module (architecture §5.2): facts, versions and chunks
- * (FEAT-022, FEAT-011), sources and the ingest pipeline (FEAT-012), review (FEAT-013). Other modules may import only this file (dependency-cruiser enforces it).
+ * (FEAT-022, FEAT-011), sources and the ingest pipeline (FEAT-012), review (FEAT-013), conflicts (FEAT-014). Other modules may import only this file (dependency-cruiser enforces it).
  */
 export {
   NO_VALIDITY,
@@ -137,6 +137,15 @@ export {
 } from './ingest/extract.js';
 export { fakeExtractScript } from './ingest/fake-extract.js';
 export { promoteSource } from './ingest/promote.js';
+export { conflictId, entityKey, sameValue } from './conflicts.js';
+export {
+  ConflictChangedError,
+  listConflicts,
+  resolveConflict,
+  type ConflictFactRecord,
+  type ConflictRecord,
+  type Resolution,
+} from './resolve.js';
 export {
   DEFAULT_MAX_ATTEMPTS,
   runIngestJob,

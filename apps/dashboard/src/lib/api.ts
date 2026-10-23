@@ -12,6 +12,8 @@ import {
   ApproveAllResponse,
   ApprovePreview,
   ApproveSelectionResponse,
+  ConflictList,
+  ResolveConflictResponse,
   RejectSelectionResponse,
   ReviewList,
   ReviewSummary,
@@ -27,6 +29,7 @@ import {
   type CreateWorkspaceBody,
   type FactListQuery,
   type FactRef,
+  type ResolveConflictBody,
   type ReviewListQuery,
   type ReviewScopeQuery,
   type UpdateFactBody,
@@ -180,4 +183,7 @@ export const api = {
     request('POST', '/api/v1/kb/review/reject', RejectSelectionResponse, { facts }),
   undoReview: (facts: FactRef[]) =>
     request('POST', '/api/v1/kb/review/undo', UndoResponse, { facts }),
+  conflicts: () => getJson('/api/v1/kb/conflicts', ConflictList),
+  resolveConflict: (body: ResolveConflictBody) =>
+    request('POST', '/api/v1/kb/conflicts/resolve', ResolveConflictResponse, body),
 };

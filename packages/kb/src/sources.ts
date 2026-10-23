@@ -10,6 +10,8 @@ import {
   VersionConflictError,
 } from './errors.js';
 import { originsOf, type WebsiteScope } from './ingest/scope.js';
+import { entityKey, inputOf } from './conflicts.js';
+import { settleConflicts } from './writes.js';
 
 export type SourceStatus = (typeof schema.SOURCE_STATUSES)[number];
 export type SourceStage = (typeof schema.SOURCE_STAGES)[number];
@@ -226,12 +228,15 @@ export async function deleteSource(
   if (current.status === 'processing') throw new InvalidStateError('source is processing');
   await clearRun(ctx, id);
   const f = schema.facts;
-  const ids = (
-    await ctx.tx
-      .select({ id: f.id })
-      .from(f)
-      .where(and(eq(f.tenantId, ctx.tenantId), eq(f.sourceId, id)))
-  ).map((r) => r.id);
+  const rows = await ctx.tx
+    .select()
+    .from(f)
+    .where(and(eq(f.tenantId, ctx.tenantId), eq(f.sourceId, id)));
+  const ids = rows.map((r) => r.id);
+  // Conflicts its facts were part of may be over once they're gone (FEAT-014 §5.3).
+  const keys = new Set(
+    rows.filter((r) => r.status === 'conflicted').map((r) => entityKey(inputOf(r))),
+  );
   if (ids.length) {
     for (const t of [schema.kbChunks, schema.factVersions])
       await ctx.tx.delete(t).where(and(eq(t.tenantId, ctx.tenantId), inArray(t.factId, ids)));
@@ -246,6 +251,7 @@ export async function deleteSource(
     subjectId: id,
     payload: { kind: auditCode(current.kind), facts: ids.length },
   });
+  await settleConflicts(ctx.tx, ctx.tenantId, { type: 'user', id: ctx.userId }, keys);
   return ids.length;
 }
 

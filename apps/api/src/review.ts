@@ -43,7 +43,7 @@ import type { App, Deps } from './server.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-function toReviewFact(r: ReviewRecord): ReviewFact {
+export function toReviewFact(r: ReviewRecord): ReviewFact {
   return {
     ...toFact(r),
     passage: r.passage,

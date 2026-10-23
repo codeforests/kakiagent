@@ -29,6 +29,7 @@ import {
   InvalidWebsiteError,
   NonPublicHostError,
   PreviewStaleError,
+  ConflictChangedError,
   SourceExistsError,
   SourceNotFoundError,
   VersionConflictError,
@@ -53,6 +54,7 @@ import {
 } from './auth.js';
 import { FactNotFound, ForbiddenError, registerFactRoutes } from './facts.js';
 import { createServer, type Deps } from './server.js';
+import { registerConflictRoutes, toConflict } from './conflicts.js';
 import { registerReviewRoutes, toPreview } from './review.js';
 import { registerSettingsRoutes } from './settings.js';
 import { AttestationRequiredError, registerSourceRoutes } from './sources.js';
@@ -167,6 +169,12 @@ export async function buildApp(deps: Deps) {
         error: 'preview_stale',
         message: 'Some facts changed since you checked; check the new count',
         preview: toPreview(err.preview),
+      });
+    if (err instanceof ConflictChangedError)
+      return reply.code(409).send({
+        error: 'conflict_changed',
+        message: 'This conflict changed since you loaded it',
+        conflict: err.conflict ? toConflict(err.conflict) : null,
       });
     if (err instanceof EmbeddingUnavailableError)
       return reply
@@ -320,6 +328,7 @@ export async function buildApp(deps: Deps) {
 
   registerFactRoutes(app, deps, sessionFrom);
   registerReviewRoutes(app, deps, sessionFrom);
+  registerConflictRoutes(app, deps, sessionFrom);
   registerSourceRoutes(app, deps, sessionFrom, { resolve: deps.resolve });
   registerSettingsRoutes(app, deps, sessionFrom);
 
