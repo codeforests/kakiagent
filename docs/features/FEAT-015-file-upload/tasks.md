@@ -1,7 +1,7 @@
 # Tasks: FEAT-015 — File upload with content-type and malware checks; parsing and Tesseract OCR
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: in progress (T1–T3 done) · Last updated: 2026-10-23
+> Status: in progress (T1–T4 done) · Last updated: 2026-10-23
 
 - [x] T1 — Schema: `kb_sources` kind `file`, `name` (backfilled), nullable website columns with `kb_sources_website_ck`, the file columns with `kb_sources_file_ck` and the unique upload key, the new stages and failures, the page reasons and `ocr_confidence` (drizzle schema + `0023`); RLS suite case for file sources (design §4; AC-8 schema half)
       Done when: `pnpm db:setup` applies 0023 on a database at 0022 with a website source in it (its `name` equals its domain) and is idempotent; `drizzle-kit generate` reports no drift; the RLS suite passes with the file-source case.
@@ -9,7 +9,7 @@
       Done when: kb integration tests pass: a file source is created with its audit entry (no file name) and outbox job; the same upload twice fails; the file limit holds; retry restarts at `parse` with a stored file and at `scan` without, and refuses each safety failure; delete writes the purge job; review records name a file source by its file name.
 - [x] T3 — Type sniffing and encryption checks: `sniff.ts` (PDF, PNG, JPEG, ZIP → DOCX/PPTX/encrypted/other, OLE, executables, strict UTF-8 text) and the PDF `/Encrypt` and password check (design §5.3 steps 4–5; D3, D5; AC-3 logic)
       Done when: unit tests pass for every rule, including renamed ELF and PE executables, a PNG named `.jpg`, an XLSX, a ZIP with an encrypted entry, an OLE file named `.docx` and `.doc`, binary bytes named `.txt`, and the encrypted PDF fixture.
-- [ ] T4 — Parsers: `parse.ts` for the PDF text layer (pdf.js with CMaps), DOCX, PPTX and TXT, splitting into parts, the zip-bomb cap, page caps, and the OCR hand-off for pages without text through the `OcrEngine` and `PdfRasterizer` ports (design §5.4; D8; AC-4 logic, AC-5 logic)
+- [x] T4 — Parsers: `parse.ts` for the PDF text layer (pdf.js with CMaps), DOCX, PPTX and TXT, splitting into parts, the zip-bomb cap, page caps, and the OCR hand-off for pages without text through the `OcrEngine` and `PdfRasterizer` ports (design §5.4; D8; AC-4 logic, AC-5 logic)
       Done when: unit tests pass with fake OCR and rasteriser: page text for each text fixture, `w:tab`/table/line-break handling, slide order, part splitting at 50,000 chars, a textless PDF page sent to OCR, `page_limit` and `ocr_limit` skipping, an oversized DOCX rejected as `unreadable`.
 - [ ] T5 — Scan and parse stages in the job: `scanFile`, `parseFile`, the `scan`/`parse`/`purge` cases in `runIngestJob`, rejection with deletion and audit, the file extraction prompt, `source 'file'` and the OCR confidence cap in promote (design §5.2–§5.5; D1, D6; AC-2, AC-3, AC-4, AC-5 and AC-6 pipeline halves)
       Done when: kb integration tests with in-memory `FileStore`, a fake scanner, fake OCR and the fake extractor pass: EICAR-flagged files leave zero pages, staged rows and facts and are deleted from quarantine with no OCR or model call; each rejection reason; a text PDF ends `ready` with provenance locators; an OCR page caps fact confidence; scanner errors give `queued` then `scan_unavailable`; a stale or duplicate job changes nothing; the purge job deletes both objects and is idempotent.

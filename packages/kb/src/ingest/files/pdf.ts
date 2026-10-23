@@ -20,7 +20,8 @@ const assets = (() => {
 const ENCRYPT = /\/Encrypt\s*(?:\d+\s+\d+\s+R|<<)/;
 
 export type PdfOpen =
-  { ok: true; doc: PdfDocument } | { ok: false; failure: 'encrypted' | 'unreadable' };
+  | { ok: true; doc: PdfDocument; close: () => Promise<void> }
+  | { ok: false; failure: 'encrypted' | 'unreadable' };
 
 /**
  * Opens a PDF with no password (FEAT-015 §5.3 step 5). Any encryption, including a PDF that
@@ -31,15 +32,16 @@ export async function openPdf(bytes: Uint8Array): Promise<PdfOpen> {
     return { ok: false, failure: 'encrypted' };
   const { getDocument } = await pdfjs();
   try {
-    const doc = await getDocument({
+    const task = getDocument({
       // pdf.js takes ownership of the buffer it's given.
       data: bytes.slice(),
       ...assets,
       cMapPacked: true,
       useSystemFonts: false,
       verbosity: 0,
-    }).promise;
-    return { ok: true, doc };
+    });
+    const doc = await task.promise;
+    return { ok: true, doc, close: () => task.destroy() };
   } catch (err) {
     return {
       ok: false,
