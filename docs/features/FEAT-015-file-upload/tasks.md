@@ -1,7 +1,7 @@
 # Tasks: FEAT-015 — File upload with content-type and malware checks; parsing and Tesseract OCR
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: in progress (T1–T5 done) · Last updated: 2026-10-23
+> Status: in progress (T1–T7 done) · Last updated: 2026-10-23
 
 - [x] T1 — Schema: `kb_sources` kind `file`, `name` (backfilled), nullable website columns with `kb_sources_website_ck`, the file columns with `kb_sources_file_ck` and the unique upload key, the new stages and failures, the page reasons and `ocr_confidence` (drizzle schema + `0023`); RLS suite case for file sources (design §4; AC-8 schema half)
       Done when: `pnpm db:setup` applies 0023 on a database at 0022 with a website source in it (its `name` equals its domain) and is idempotent; `drizzle-kit generate` reports no drift; the RLS suite passes with the file-source case.
@@ -13,9 +13,9 @@
       Done when: unit tests pass with fake OCR and rasteriser: page text for each text fixture, `w:tab`/table/line-break handling, slide order, part splitting at 50,000 chars, a textless PDF page sent to OCR, `page_limit` and `ocr_limit` skipping, an oversized DOCX rejected as `unreadable`.
 - [x] T5 — Scan and parse stages in the job: `scanFile`, `parseFile`, the `scan`/`parse`/`purge` cases in `runIngestJob`, rejection with deletion and audit, the file extraction prompt, `source 'file'` and the OCR confidence cap in promote (design §5.2–§5.5; D1, D6; AC-2, AC-3, AC-4, AC-5 and AC-6 pipeline halves)
       Done when: kb integration tests with in-memory `FileStore`, a fake scanner, fake OCR and the fake extractor pass: EICAR-flagged files leave zero pages, staged rows and facts and are deleted from quarantine with no OCR or model call; each rejection reason; a text PDF ends `ready` with provenance locators; an OCR page caps fact confidence; scanner errors give `queued` then `scan_unavailable`; a stale or duplicate job changes nothing; the purge job deletes both objects and is idempotent.
-- [ ] T6 — Worker adapters: `s3-files.ts`, `clamav.ts`, `guardduty.ts`, `tesseract.ts`, `pdf-raster.ts` (design §5.1, §5.3 adapters, §5.4 Tesseract and pdftoppm)
+- [x] T6 — Worker adapters: `s3-files.ts`, `clamav.ts`, `guardduty.ts`, `tesseract.ts`, `pdf-raster.ts` (design §5.1, §5.3 adapters, §5.4 Tesseract and pdftoppm)
       Done when: ingest-worker integration tests pass: S3 head/get/copy/delete against LocalStack; ClamAV says clean for a fixture and `FOUND` for EICAR, and unavailable for a closed port; GuardDuty maps each tag value with a fake S3 client and never treats a missing tag as clean; Tesseract reads the English fixtures' prices and the Chinese fixture at ≥ 90% character accuracy; pdftoppm renders a scanned page.
-- [ ] T7 — Fixtures: `fixtures/files/generate.ts` and the committed files of design §5.9; the runtime EICAR builder (design §5.9)
+- [x] T7 — Fixtures: `fixtures/files/generate.ts` and the committed files of design §5.9; the runtime EICAR builder (design §5.9)
       Done when: `pnpm --filter @kaki/ingest-worker fixtures:files` regenerates every file; the committed files match what T3–T6 tests expect.
 - [ ] T8 — Worker wiring and local stack: `main.ts` config and deps, health checks, `.env.example`, `gen-local-env.mjs`, `02-buckets.sh` (buckets, lifecycle, CORS), ClamAV out of the compose profile with a health check, Dockerfile packages (design §5.8; D9)
       Done when: on the local stack, a file put into the quarantine bucket and a source row created by hand runs to `ready` in the dev worker; `/readyz` reports scanner and OCR; the ingest-worker image builds with Tesseract and poppler.
