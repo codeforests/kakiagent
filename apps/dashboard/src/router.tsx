@@ -3,6 +3,7 @@ import { AssistantPage } from './pages/assistant.tsx';
 import { BusinessProfilePage, SetupProfilePage } from './pages/business-profile.tsx';
 import { AddWebsitePage, SetupSourcesPage } from './pages/add-website.tsx';
 import { Placeholder } from './pages/placeholder.tsx';
+import { ReviewPage, ReviewPlaceholder, SetupReviewPage } from './pages/review.tsx';
 import { SourcePage } from './pages/source.tsx';
 import { SourcesPage } from './pages/sources.tsx';
 import { FactPage } from './pages/fact.tsx';
@@ -40,7 +41,18 @@ export const router = createBrowserRouter([
       { path: 'setup/sources', element: <SetupSourcesPage /> },
       { path: 'inbox', element: <InboxPage /> },
       { path: 'approvals', element: <Placeholder title="Approvals" feature="FEAT-055" /> },
-      { path: 'review', element: <Placeholder title="Review" feature="FEAT-013" /> },
+      // Its review step (FEAT-013, SCR-APP-008 partial).
+      { path: 'setup/review', element: <SetupReviewPage /> },
+      // Review → Facts (FEAT-013); Conflicts and Corrections follow (FEAT-014, FEAT-018).
+      { path: 'review', element: <ReviewPage /> },
+      {
+        path: 'review/conflicts',
+        element: <ReviewPlaceholder title="Conflicts" feature="FEAT-014" />,
+      },
+      {
+        path: 'review/corrections',
+        element: <ReviewPlaceholder title="Corrections" feature="FEAT-018" />,
+      },
       // Knowledge → Facts (FEAT-022, FEAT-011) and Sources (FEAT-012).
       { path: 'knowledge', element: <FactsPage /> },
       { path: 'knowledge/sources', element: <SourcesPage /> },

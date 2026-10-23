@@ -165,6 +165,43 @@
       "status": "designed",
       "designed_at": "2026-10-21"
     },
+    "SCR-APP-008": {
+      "name": "Wizard · Review your facts",
+      "surface": "APP",
+      "feature": "FEAT-013",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-013-fact-review/ui-design.md#scr-app-008--wizard--review-your-facts-partial"
+      },
+      "states": {
+        "covered": [
+          "loading",
+          "still-extracting",
+          "populated",
+          "all-approved",
+          "error"
+        ],
+        "gaps": [
+          "wizard frame (FEAT-035)",
+          "conflicts (FEAT-014)",
+          "coverage summary (FEAT-019)"
+        ],
+        "supplements": []
+      },
+      "contract_bindings": [
+        "GET /api/v1/kb/review/facts",
+        "GET /api/v1/kb/review/summary",
+        "GET /api/v1/kb/review/preview",
+        "POST /api/v1/kb/review/approve-all"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-10-22"
+    },
     "SCR-APP-015": {
       "name": "Conversation",
       "surface": "APP",
@@ -203,34 +240,55 @@
     "SCR-APP-019": {
       "name": "Review · Facts",
       "surface": "APP",
-      "feature": "anchor",
+      "feature": "FEAT-013",
       "strategy": "code-native",
       "source": {
         "spec": "02-design/anchor-screens.md#scr-app-019--review--facts",
-        "prototype": "02-design/anchors/scr-app-019-review-facts.html"
+        "prototype": "02-design/anchors/scr-app-019-review-facts.html",
+        "extended_by": [
+          "features/FEAT-013-fact-review/ui-design.md#scr-app-019--review--facts"
+        ]
       },
       "states": {
         "covered": [
           "default",
+          "gst-unknown card",
+          "edit-and-approve dialog",
+          "bulk-selection",
+          "approve-all",
           "loading",
           "empty",
+          "still-extracting",
           "error",
-          "approve-all",
-          "bulk-selection"
+          "keyboard",
+          "permission"
         ],
-        "gaps": [],
+        "gaps": [
+          "stale-since flag (FEAT-018)"
+        ],
         "supplements": []
       },
-      "contract_bindings": [],
+      "contract_bindings": [
+        "GET /api/v1/kb/review/facts",
+        "GET /api/v1/kb/review/summary",
+        "GET /api/v1/kb/review/preview",
+        "POST /api/v1/kb/review/approve-all",
+        "POST /api/v1/kb/facts/:id/approve",
+        "POST /api/v1/kb/facts/:id/reject",
+        "POST /api/v1/kb/review/approve",
+        "POST /api/v1/kb/review/reject",
+        "POST /api/v1/kb/review/undo"
+      ],
       "conformance": {
         "result": "pass",
         "corrections": [
-          "single-column queue instead of list + detail (amendment A1, applied to design.md §3)"
+          "single-column queue instead of list + detail (amendment A1, applied to design.md §3)",
+          "GST choice inside the card for GST-unknown prices (FEAT-013 ui-design decision)"
         ],
         "escalations": []
       },
       "status": "designed",
-      "designed_at": "2026-10-19"
+      "designed_at": "2026-10-22"
     },
     "SCR-APP-023": {
       "name": "Sources",
@@ -351,7 +409,9 @@
       "source": {
         "spec": "features/FEAT-011-kb-manager/ui-design.md#scr-app-028--fact",
         "extends": "features/FEAT-022-grounded-verified-answer/ui-design.md#scr-app-028--fact",
-        "extended_by": ["features/FEAT-012-website-crawl/ui-design.md#scr-app-028--fact-extended-provenance"]
+        "extended_by": [
+          "features/FEAT-012-website-crawl/ui-design.md#scr-app-028--fact-extended-provenance"
+        ]
       },
       "states": {
         "covered": [

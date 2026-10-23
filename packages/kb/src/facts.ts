@@ -78,7 +78,8 @@ export const DEFAULT_PAGE_SIZE = 50;
 
 type FactRow = typeof schema.facts.$inferSelect;
 
-function toRecord(row: FactRow): FactRecord {
+/** A row as the module's record; shared with `review.ts`, not exported from the package. */
+export function toRecord(row: FactRow): FactRecord {
   return {
     id: row.id,
     type: row.type,
@@ -198,7 +199,7 @@ export async function getFact(ctx: DashboardKbContext, id: string): Promise<Fact
 
 // ---- Writes -----------------------------------------------------------------------
 
-async function writeVersion(ctx: DashboardKbContext, row: FactRow) {
+export async function writeVersion(ctx: DashboardKbContext, row: FactRow) {
   await ctx.tx.insert(schema.factVersions).values({
     tenantId: ctx.tenantId,
     factId: row.id,
@@ -212,7 +213,7 @@ async function writeVersion(ctx: DashboardKbContext, row: FactRow) {
   });
 }
 
-async function writeChunk(ctx: DashboardKbContext, row: FactRow, chunk: PreparedChunk) {
+export async function writeChunk(ctx: DashboardKbContext, row: FactRow, chunk: PreparedChunk) {
   const values = {
     tenantId: ctx.tenantId,
     factId: row.id,
@@ -395,6 +396,8 @@ export async function updateFact(
 
   const actions: string[] = [];
   if (changed) actions.push('fact.updated');
+  // An edit that takes a fact out of review is an approval too (KB-16; FEAT-013 D8).
+  if (current.status === 'needs_review' && status === 'approved') actions.push('fact.approved');
   if (status !== current.status && status === 'disabled') actions.push('fact.disabled');
   if (status !== current.status && current.status === 'disabled') actions.push('fact.enabled');
   for (const action of actions)
@@ -404,7 +407,10 @@ export async function updateFact(
       actorId: ctx.userId,
       subjectType: 'fact',
       subjectId: id,
-      payload: { version: row.version },
+      payload:
+        action === 'fact.approved'
+          ? { version: row.version, mode: auditCode('edited') }
+          : { version: row.version },
     });
   return toRecord(row);
 }

@@ -22,11 +22,13 @@ import {
 import {
   EmbeddingUnavailableError,
   FactNotFoundError,
+  GstRequiredError,
   InvalidCursorError,
   InvalidFactError,
   InvalidStateError,
   InvalidWebsiteError,
   NonPublicHostError,
+  PreviewStaleError,
   SourceExistsError,
   SourceNotFoundError,
   VersionConflictError,
@@ -51,6 +53,7 @@ import {
 } from './auth.js';
 import { FactNotFound, ForbiddenError, registerFactRoutes } from './facts.js';
 import { createServer, type Deps } from './server.js';
+import { registerReviewRoutes, toPreview } from './review.js';
 import { registerSettingsRoutes } from './settings.js';
 import { AttestationRequiredError, registerSourceRoutes } from './sources.js';
 
@@ -155,6 +158,16 @@ export async function buildApp(deps: Deps) {
       });
     if (err instanceof InvalidStateError)
       return reply.code(409).send({ error: 'invalid_state', message: err.message });
+    if (err instanceof GstRequiredError)
+      return reply
+        .code(400)
+        .send({ error: 'gst_required', message: 'Choose whether the price includes GST' });
+    if (err instanceof PreviewStaleError)
+      return reply.code(409).send({
+        error: 'preview_stale',
+        message: 'Some facts changed since you checked; check the new count',
+        preview: toPreview(err.preview),
+      });
     if (err instanceof EmbeddingUnavailableError)
       return reply
         .code(503)
@@ -306,6 +319,7 @@ export async function buildApp(deps: Deps) {
   });
 
   registerFactRoutes(app, deps, sessionFrom);
+  registerReviewRoutes(app, deps, sessionFrom);
   registerSourceRoutes(app, deps, sessionFrom, { resolve: deps.resolve });
   registerSettingsRoutes(app, deps, sessionFrom);
 

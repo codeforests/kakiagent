@@ -142,6 +142,11 @@
   gap: var(--space-3);
   margin-top: var(--space-2);
 }
+.kaki-dialog--form {
+  max-width: 640px;
+  max-height: calc(100dvh - 2 * var(--space-6));
+  overflow-y: auto;
+}
 @media (max-width: 639px) {
   .kaki-dialog {
     top: auto;

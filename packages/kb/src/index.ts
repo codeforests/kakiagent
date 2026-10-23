@@ -1,6 +1,6 @@
 /**
  * Public interface of the `kb` module (architecture §5.2): facts, versions and chunks
- * (FEAT-022, FEAT-011), sources and the ingest pipeline (FEAT-012). Other modules may import only this file (dependency-cruiser enforces it).
+ * (FEAT-022, FEAT-011), sources and the ingest pipeline (FEAT-012), review (FEAT-013). Other modules may import only this file (dependency-cruiser enforces it).
  */
 export {
   NO_VALIDITY,
@@ -26,6 +26,7 @@ export {
 export {
   EmbeddingUnavailableError,
   FactNotFoundError,
+  GstRequiredError,
   InvalidCursorError,
   InvalidFactError,
   InvalidStateError,
@@ -53,6 +54,32 @@ export {
   type FactType,
   type Provenance,
 } from './facts.js';
+export {
+  approveAll,
+  approveFact,
+  approveSelected,
+  listReviewFacts,
+  passageOf,
+  previewApproveAll,
+  PreviewStaleError,
+  rejectFact,
+  rejectSelected,
+  REVIEW_ORDER,
+  REVIEW_PAGE_SIZE,
+  reviewSummary,
+  undoReview,
+  UNDO_WINDOW_MINUTES,
+  type ApprovePreview,
+  type FactRef,
+  type Passage,
+  type ReviewPage,
+  type ReviewRecord,
+  type ReviewScope,
+  type ReviewSummary,
+  type SkipReason,
+  type Skipped,
+  type TypeCounts,
+} from './review.js';
 export {
   createWebsiteSource,
   deleteSource,

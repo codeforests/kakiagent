@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router';
 import { Icon } from './icon.tsx';
-import { useNavCounts } from '../lib/sources.ts';
+import { useNavCounts } from '../lib/nav-counts.ts';
 import { NavCount } from './nav-count.tsx';
 import { MORE } from './nav.ts';
 
@@ -16,7 +16,7 @@ export function MorePage() {
             <NavLink to={item.to} className="nav-item">
               <Icon name={item.icon} />
               <span>{item.label}</span>
-              <NavCount count={counts[item.to]} />
+              <NavCount value={counts[item.to]} />
             </NavLink>
           </li>
         ))}

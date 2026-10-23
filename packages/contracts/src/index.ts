@@ -416,6 +416,114 @@ export const SourceResponse = z.object({ source: Source });
 export const SourceDetail = z.object({ source: Source, pages: z.array(SourcePage) });
 export type SourceDetail = z.infer<typeof SourceDetail>;
 
+// ---- Dashboard API: fact review (KB-16; FEAT-013 §3) --------------------------------
+
+/** "By source or by entity type" (KB-16). */
+export const ReviewScopeQuery = z
+  .object({ sourceId: z.uuid().optional(), type: FactType.optional() })
+  .strict();
+export type ReviewScopeQuery = z.infer<typeof ReviewScopeQuery>;
+export const ReviewListQuery = ReviewScopeQuery.extend({
+  cursor: z.string().min(1).max(200).optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+});
+export type ReviewListQuery = z.infer<typeof ReviewListQuery>;
+
+/** The quote inside its page text, cut at words (FEAT-013 D6). Text, never HTML. */
+export const Passage = z.object({ before: z.string(), quote: z.string(), after: z.string() });
+export type Passage = z.infer<typeof Passage>;
+const reviewExtras = {
+  passage: Passage.nullable(),
+  /** The source's domain, e.g. "kakibakery.sg"; null for facts without a source. */
+  sourceName: z.string().nullable(),
+  /** When the source finished reading. */
+  sourceCapturedAt: z.iso.datetime({ offset: true }).nullable(),
+};
+const [productFact, faqFact, policyFact, promotionFact] = Fact.options;
+export const ReviewFact = z.discriminatedUnion('type', [
+  productFact.extend(reviewExtras),
+  faqFact.extend(reviewExtras),
+  policyFact.extend(reviewExtras),
+  promotionFact.extend(reviewExtras),
+]);
+export type ReviewFact = z.infer<typeof ReviewFact>;
+export const ReviewList = z.object({
+  facts: z.array(ReviewFact),
+  nextCursor: z.string().nullable(),
+});
+
+export const TypeCounts = z.object({
+  product: z.int(),
+  policy: z.int(),
+  promotion: z.int(),
+  faq: z.int(),
+});
+export type TypeCounts = z.infer<typeof TypeCounts>;
+export const ReviewSummary = z.object({
+  needsReview: z.int(),
+  conflicted: z.int(),
+  byType: TypeCounts,
+  bySource: z.array(
+    z.object({ id: z.uuid().nullable(), name: z.string().nullable(), count: z.int() }),
+  ),
+  approvedInUse: z.int(),
+  sourcesBusy: z.int(),
+});
+export type ReviewSummary = z.infer<typeof ReviewSummary>;
+export const ApprovePreview = z.object({
+  scope: ReviewScopeQuery,
+  count: z.int(),
+  byType: TypeCounts,
+  excluded: z.object({ gstUnknown: z.int(), conflicted: z.int() }),
+  previewHash: z.string().regex(/^[0-9a-f]{64}$/),
+});
+export type ApprovePreview = z.infer<typeof ApprovePreview>;
+
+export const FactRef = z.object({ id: z.uuid(), version: z.int().min(1) }).strict();
+export type FactRef = z.infer<typeof FactRef>;
+const distinctRefs = (max: number) =>
+  z
+    .array(FactRef)
+    .min(1)
+    .max(max)
+    .refine((refs) => new Set(refs.map((r) => r.id)).size === refs.length, {
+      message: 'Each fact once',
+    });
+export const ApproveAllBody = ReviewScopeQuery.extend({
+  previewHash: z.string().regex(/^[0-9a-f]{64}$/),
+}).strict();
+export type ApproveAllBody = z.infer<typeof ApproveAllBody>;
+export const ApproveAllResponse = z.object({ approved: z.int(), facts: z.array(FactRef) });
+export const SelectionBody = z.object({ facts: distinctRefs(200) }).strict();
+export type SelectionBody = z.infer<typeof SelectionBody>;
+export const UndoBody = z.object({ facts: distinctRefs(5000) }).strict();
+export type UndoBody = z.infer<typeof UndoBody>;
+export const SkipReason = z.enum([
+  'gst_unknown',
+  'conflicted',
+  'not_reviewable',
+  'changed',
+  'not_found',
+]);
+export type SkipReason = z.infer<typeof SkipReason>;
+const Skipped = z.array(z.object({ id: z.uuid(), reason: SkipReason }));
+export const ApproveSelectionResponse = z.object({ approved: z.array(FactRef), skipped: Skipped });
+export const RejectSelectionResponse = z.object({ rejected: z.array(FactRef), skipped: Skipped });
+export const UndoResponse = z.object({ restored: z.int(), skipped: Skipped });
+
+/** "Edit and approve" sends the edit fields of `UpdateFactBody`; none means approve as is. */
+export const ApproveFactBody = z
+  .object({
+    version: z.int().min(1),
+    value: z.record(z.string(), z.unknown()).optional(),
+    gstTreatment: ManualGstTreatment.optional(),
+    validFrom: SgDate.nullable().optional(),
+    validUntil: SgDate.optional(),
+  })
+  .strict();
+export type ApproveFactBody = z.infer<typeof ApproveFactBody>;
+export const RejectFactBody = z.object({ version: z.int().min(1) }).strict();
+
 // ---- Dashboard API: assistant settings (AGT-08, AGT-11; FEAT-024 §3) ----------------
 
 /** A tenant text per language; null (or blank, read as null) = the default (FEAT-024 D3). */

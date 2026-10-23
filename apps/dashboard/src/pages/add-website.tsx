@@ -252,6 +252,9 @@ export function SetupSourcesPage() {
       <h1 className="page-title">Add your sources</h1>
       <AddWebsiteForm />
       <Button asChild variant="ghost">
+        <Link to="/setup/review">Next: review your facts</Link>
+      </Button>
+      <Button asChild variant="ghost">
         <Link to="/">Skip, I'll add files later</Link>
       </Button>
     </div>
