@@ -182,7 +182,8 @@ export async function parseFile(
   const limits = { ...DEFAULT_FILE_LIMITS, ...deps.limits };
   switch (type) {
     case 'txt': {
-      const text = new TextDecoder().decode(bytes).replace(/^﻿/, '');
+      // TextDecoder drops a byte-order mark.
+      const text = new TextDecoder().decode(bytes);
       return { ok: true, pages: textPages('part', splitParts(tidy(text))) };
     }
     case 'docx': {
