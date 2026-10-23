@@ -8,7 +8,7 @@ import { updatedLabel } from '../lib/facts.ts';
 import { useToast } from '../lib/form.ts';
 import {
   busy,
-  FAILURE_TEXT,
+  failureText,
   FILE_TYPE_LABEL,
   fileTypeOf,
   isImage,
@@ -23,6 +23,7 @@ import {
   useStatusAnnouncements,
 } from '../lib/sources.ts';
 import { SourceProgress, SourceState, UploadAgain } from './sources.tsx';
+import { SpreadsheetPage } from './spreadsheet.tsx';
 import { NoPermission } from './system.tsx';
 
 type PageFilter = Page['status'] | '';
@@ -44,7 +45,10 @@ const pathOf = (url: string) => {
   }
 };
 
-/** SCR-APP-024 Source (KB-01, KB-05, KB-12; FEAT-012 ui-design). */
+/**
+ * SCR-APP-024 Source (KB-01, KB-05, KB-12; FEAT-012 ui-design); a spreadsheet's route
+ * renders SCR-APP-025 instead (FEAT-016 ui-design), with the same loading and error states.
+ */
 export function SourcePage() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
@@ -105,6 +109,9 @@ export function SourcePage() {
         ))}
       </div>
     );
+
+  if (source.kind === 'spreadsheet')
+    return <SpreadsheetPage key={source.id} source={source} pages={loaded.data.pages} />;
 
   const pages = loaded.data.pages;
   const counts = Object.fromEntries(
@@ -215,7 +222,7 @@ export function SourcePage() {
         )}
         {source.status === 'failed' && (
           <div className="alert alert--danger" role="alert">
-            <p>{FAILURE_TEXT[source.failure ?? 'internal']}</p>
+            <p>{failureText(source)}</p>
             {source.retryable ? (
               <Button
                 variant="secondary"

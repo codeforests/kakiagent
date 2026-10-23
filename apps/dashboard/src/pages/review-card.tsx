@@ -3,7 +3,7 @@ import { Button } from '@kaki/ui';
 import { Link } from 'react-router';
 import { factTitle, POLICY_KIND_LABEL, sgd } from '../lib/facts.ts';
 import { dayOf, GROUP, gstUnknown, shortUrl, valueLine } from '../lib/review.ts';
-import { locationWords } from '../lib/sources.ts';
+import { isImported, locationWords } from '../lib/sources.ts';
 
 export type CardGst = 'inclusive' | 'exclusive';
 export type Decided = 'approved' | 'rejected';
@@ -52,7 +52,9 @@ export function FactCard(props: FactCardProps) {
   const { fact, selected, busy, error, gst, gstError } = props;
   const title = factTitle(fact);
   const headingId = `review-${fact.id}`;
-  const confidence = fact.confidence === null ? null : Math.round(fact.confidence * 100);
+  const imported = isImported(fact.provenance?.location);
+  const confidence =
+    fact.confidence === null || imported ? null : Math.round(fact.confidence * 100);
   const conflicted = fact.status === 'conflicted';
   const needsGst = gstUnknown(fact);
   const value = valueLine(fact);
@@ -94,6 +96,7 @@ export function FactCard(props: FactCardProps) {
           <span className="review-card__kind">
             {GROUP[fact.type].one}
             {fact.type === 'policy' && ` · ${POLICY_KIND_LABEL[fact.value.kind]}`}
+            {imported && ' · Imported'}
             {confidence !== null && (
               <>
                 {' · '}

@@ -21,7 +21,7 @@
       Done when: ingest-worker integration tests pass: `price-list.xlsx` and `services.csv` scan clean and parse to their expected layout; `protected.xlsx`, `legacy.xls` and `latin1.csv` are refused with their reasons; EICAR as `prices.csv` fails `malware`.
 - [x] T9 — API: the spreadsheet body of `POST /kb/sources`, `POST /:id/preview`, `POST /:id/import`, `bad_mapping`, `toSource` with `sheet`, pages with `cells`, the extension lists (design §3.2; AC-1, AC-4, AC-6, AC-8, AC-9)
       Done when: api integration tests pass for every designed success and error, including tenant B's 404 on tenant A's source.
-- [ ] T10 — Dashboard: spreadsheets on SCR-APP-007 (the files part takes `.csv`/`.xlsx`), spreadsheet rows on SCR-APP-023, SCR-APP-025 at `/knowledge/sources/:id` for a spreadsheet (mapping, preview, importing, done with rejects, failed), row provenance with SKU and stock on SCR-APP-028 (ui-design.md)
+- [x] T10 — Dashboard: spreadsheets on SCR-APP-007 (the files part takes `.csv`/`.xlsx`), spreadsheet rows on SCR-APP-023, SCR-APP-025 at `/knowledge/sources/:id` for a spreadsheet (mapping, preview, importing, done with rejects, failed), row provenance with SKU and stock on SCR-APP-028 (ui-design.md)
       Done when: `pnpm --filter @kaki/dashboard build` passes and every state in ui-design.md renders against the running stack at 1280 px and 390 px.
 - [ ] T11 — NFR-16 timing: `price-list-500.csv` from confirm to `ready` on the local stack (AC-10)
       Done when: the measured time is under 1 minute and recorded below.

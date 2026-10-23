@@ -15,12 +15,16 @@ import {
   useRetry,
   useSources,
   useStatusAnnouncements,
+  waitingToMap,
 } from '../lib/sources.ts';
 import { KnowledgeTabs } from './knowledge-tabs.tsx';
 import { NoPermission } from './system.tsx';
 
 export function SourceState({ source }: { source: Source }) {
-  const state = SOURCE_STATE[source.status];
+  // A spreadsheet waiting for its mapping waits for the owner, not for us (FEAT-016).
+  const state = waitingToMap(source)
+    ? { label: 'Map columns', tone: 'info' as const }
+    : SOURCE_STATE[source.status];
   return (
     <span className={`status-badge status-badge--${state.tone}`}>
       {source.status === 'processing' ? (
@@ -140,6 +144,7 @@ export function SourcesPage() {
                 >
                   {sourceSummary(s)}
                 </p>
+                {waitingToMap(s) && <MapColumns source={s} small />}
                 {s.status === 'ready' && s.counts.factsNeedingReview > 0 && (
                   <Link to="/review">Review facts</Link>
                 )}
@@ -185,8 +190,20 @@ export function UploadAgain({ source, small = false }: { source: Source; small?:
   );
 }
 
+/** The way to SCR-APP-025 for a spreadsheet waiting at `map` (FEAT-016 ui-design). */
+export function MapColumns({ source, small = false }: { source: Source; small?: boolean }) {
+  return (
+    <Button asChild variant="secondary" className={small ? 'kaki-btn--sm source-row__retry' : ''}>
+      <Link to={`/knowledge/sources/${source.id}`} aria-label={`Map columns: ${source.name}`}>
+        Map columns
+      </Link>
+    </Button>
+  );
+}
+
 export function SourceIcon({ source }: { source: Source }) {
   if (!source.file) return <GlobeIcon />;
+  if (source.kind === 'spreadsheet') return <TableIcon />;
   return isImage(fileTypeOf(source.name, source.file.type)) ? <PictureIcon /> : <FileIcon />;
 }
 
@@ -205,6 +222,14 @@ export function FileIcon() {
   return (
     <svg {...iconProps}>
       <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M9 13h6M9 17h6" />
+    </svg>
+  );
+}
+
+export function TableIcon() {
+  return (
+    <svg {...iconProps}>
+      <path d="M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM3 10h18M3 15h18M9 10v10" />
     </svg>
   );
 }

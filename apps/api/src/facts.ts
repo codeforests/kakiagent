@@ -75,6 +75,10 @@ export function toFact(r: FactRecord): Fact {
           name: r.value.name,
           price: fromCents(r.value.priceCents),
           ...(r.value.unit ? { unit: r.value.unit } : {}),
+          // Imported from a spreadsheet; shown, never quoted (FEAT-016 D8).
+          ...(r.value.sku !== undefined ? { sku: r.value.sku } : {}),
+          ...(r.value.stock !== undefined ? { stock: r.value.stock } : {}),
+          ...(r.value.stockAsOf !== undefined ? { stockAsOf: r.value.stockAsOf } : {}),
         },
         gstTreatment: r.gstTreatment,
       };

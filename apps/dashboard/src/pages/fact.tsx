@@ -197,6 +197,7 @@ function FactForm({ fact, prefill = BLANK }: { fact: Fact | null; prefill?: Draf
           readOnly={readOnly}
           fixedType={fact?.type ?? null}
         />
+        {fact && <ImportedFields fact={fact} />}
         {fact && (
           <div className="fact-form__status">
             <StatusBadge status={fact.status} />
@@ -264,6 +265,40 @@ function FactForm({ fact, prefill = BLANK }: { fact: Fact | null; prefill?: Draf
           }}
         />
       )}
+    </div>
+  );
+}
+
+/**
+ * A product's SKU and stock from an imported spreadsheet (FEAT-016 D8): shown, never
+ * edited here, and never quoted to customers. Editing the fact keeps them.
+ */
+function ImportedFields({ fact }: { fact: Fact }) {
+  if (fact.type !== 'product') return null;
+  const { sku, stock, stockAsOf } = fact.value;
+  if (sku === undefined && stock === undefined) return null;
+  return (
+    <div className="fact-imported" data-testid="imported-fields">
+      <dl className="sheet-mapping">
+        {sku !== undefined && (
+          <div>
+            <dt>SKU or item code</dt>
+            <dd>{sku}</dd>
+          </div>
+        )}
+        {stock !== undefined && (
+          <div>
+            <dt>Stock</dt>
+            <dd>
+              {stock}
+              {stockAsOf && ` (as of ${dayLabel(stockAsOf)})`}
+            </dd>
+          </div>
+        )}
+      </dl>
+      <p className="sheet-page__note">
+        From the imported spreadsheet. Your assistant doesn't tell customers stock counts.
+      </p>
     </div>
   );
 }

@@ -451,6 +451,18 @@ describe('POST /:id/import (AC-5, AC-8)', () => {
       ['approved', 'Ondeh ondeh', 3],
       ['approved', 'Pandan chiffon', 12],
     ]);
+    // The fact API shows the stock with its date; a row is the fact's location (D8).
+    const listed = await call('GET', `/api/v1/kb/facts?sourceId=${source.id}`, asA);
+    const ondeh = listed
+      .json()
+      .facts.find((f: { value: { name: string } }) => f.value.name === 'Ondeh ondeh');
+    expect(ondeh.value).toEqual({
+      name: 'Ondeh ondeh',
+      price: '12.50',
+      stock: 3,
+      stockAsOf: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+    });
+    expect(ondeh.provenance.location).toEqual({ unit: 'row', number: 5 });
   });
 
   it('is version_conflict on a stale version and changes nothing', async () => {

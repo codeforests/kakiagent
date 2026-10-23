@@ -21,6 +21,7 @@ import {
   useReviewSummary,
   valueLine,
 } from '../lib/review.ts';
+import { isImported } from '../lib/sources.ts';
 import type { CardGst } from './review-card.tsx';
 import { FactFields } from './fact-fields.tsx';
 import { ReviewTabs, ReviewToast } from './review.tsx';
@@ -60,7 +61,10 @@ function Column({
   onUse: () => void;
 }) {
   const value = valueLine(member);
-  const confidence = member.confidence === null ? null : Math.round(member.confidence * 100);
+  // A spreadsheet row was imported: "Imported" instead of a confidence (FEAT-016).
+  const imported = isImported(member.provenance?.location);
+  const confidence =
+    member.confidence === null || imported ? null : Math.round(member.confidence * 100);
   const needsGst = gstUnknown(member);
   const where = member.sourceName ? ` from ${member.sourceName}` : ' you entered';
   const what = member.type === 'product' ? sgd(member.value.price) : 'this value';
@@ -78,6 +82,7 @@ function Column({
           </span>
         )}
         {member.type === 'policy' && <span>{POLICY_KIND_LABEL[member.value.kind]}</span>}
+        {imported && <span>Imported</span>}
         {confidence !== null && (
           <span className={confidence < 70 ? 'review-card__low' : undefined}>
             {confidence < 70 && <span aria-hidden="true">! </span>}

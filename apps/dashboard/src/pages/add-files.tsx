@@ -1,4 +1,4 @@
-import { FILE_EXTENSIONS, MAX_FILE_BYTES, type Source } from '@kaki/contracts';
+import { MAX_FILE_BYTES, UPLOAD_EXTENSIONS, type Source } from '@kaki/contracts';
 import { Button } from '@kaki/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useId, useRef, useState, type DragEvent } from 'react';
@@ -7,25 +7,29 @@ import { api, ApiError, putFile } from '../lib/api.ts';
 import {
   fileTypeOf,
   isImage,
+  isSheetName,
   sizeLabel,
   sourceSummary,
   useSources,
   useStatusAnnouncements,
+  waitingToMap,
 } from '../lib/sources.ts';
-import { FileIcon, PictureIcon, SourceState } from './sources.tsx';
+import { FileIcon, PictureIcon, SourceState, TableIcon } from './sources.tsx';
 
 /** Files upload two at a time (FEAT-015 ui-design); the rest wait. */
 const AT_ONCE = 2;
 
-type Refusal = 'type' | 'size' | 'empty' | 'limit';
+type Refusal = 'type' | 'xls' | 'size' | 'empty' | 'limit';
 const REFUSAL_TEXT: Record<Refusal, string> = {
   type: 'Not a file type we can read',
+  xls: 'Save it as .xlsx or CSV first',
   size: 'Over 25 MB',
   empty: 'This file is empty',
   limit: "Your plan's file limit is reached",
 };
 const REFUSAL_SAID: Record<Refusal, string> = {
   type: 'not a file type we can read',
+  xls: 'save it as .xlsx or CSV first',
   size: 'it is over 25 MB',
   empty: 'it is empty',
   limit: "your plan's file limit is reached",
@@ -41,7 +45,9 @@ type Row =
 /** The browser's checks before anything is sent (the server checks again, the scan too). */
 function refusalOf(file: File): Refusal | null {
   const name = file.name.toLowerCase();
-  if (!FILE_EXTENSIONS.some((ext) => name.endsWith(ext))) return 'type';
+  // Old Excel files can't be read; the owner can save them as .xlsx (FEAT-016 ui-design).
+  if (name.endsWith('.xls')) return 'xls';
+  if (!UPLOAD_EXTENSIONS.some((ext) => name.endsWith(ext))) return 'type';
   if (file.size > MAX_FILE_BYTES) return 'size';
   if (file.size === 0) return 'empty';
   return null;
@@ -65,7 +71,9 @@ export function AddFilesForm() {
   const [said, setSaid] = useState('');
   const list = useSources();
   const fileLimit = list.data?.fileLimit;
-  const fileSources = list.data?.sources.filter((s) => s.kind === 'file') ?? [];
+  // Spreadsheets count toward the plan's file limit too (FEAT-016).
+  const fileSources =
+    list.data?.sources.filter((s) => s.kind === 'file' || s.kind === 'spreadsheet') ?? [];
   const byId = new Map(fileSources.map((s) => [s.id, s]));
   const addedSources = rows.flatMap((r) =>
     r.state === 'added' && byId.has(r.sourceId) ? [byId.get(r.sourceId)!] : [],
@@ -85,7 +93,8 @@ export function AddFilesForm() {
         let source: Source | null = null;
         try {
           ({ source } = await api.createSource({
-            kind: 'file',
+            // A price list is imported row by row (FEAT-016).
+            kind: isSheetName(file.name) ? 'spreadsheet' : 'file',
             uploadId: ticket.uploadId,
             fileName: file.name,
             sizeBytes: file.size,
@@ -182,9 +191,10 @@ export function AddFilesForm() {
   return (
     <div className="add-files">
       <p className="add-files__help">
-        PDF, Word (.docx), PowerPoint (.pptx), text (.txt), JPG or PNG, up to 25 MB each. Scanned
-        pages and photos are read with OCR, in English and Chinese. Text in pictures inside Word or
-        PowerPoint files isn't read.
+        PDF, Word (.docx), PowerPoint (.pptx), text (.txt), JPG or PNG, up to 25 MB each. Price
+        lists in Excel (.xlsx) or CSV are imported row by row: you match the columns before anything
+        is added. Scanned pages and photos are read with OCR, in English and Chinese. Text in
+        pictures inside Word or PowerPoint files isn't read.
       </p>
       <div
         className={`card add-files__drop${dragging ? ' add-files__drop--over' : ''}`}
@@ -202,7 +212,7 @@ export function AddFilesForm() {
           className="sr-only"
           type="file"
           multiple
-          accept={FILE_EXTENSIONS.join(',')}
+          accept={UPLOAD_EXTENSIONS.join(',')}
           tabIndex={-1}
           aria-hidden="true"
           data-testid="file-input"
@@ -236,7 +246,13 @@ export function AddFilesForm() {
             return (
               <li key={r.key} className="upload-row" data-testid="upload-row">
                 <span className="source-row__icon" aria-hidden="true">
-                  {isImage(type) ? <PictureIcon /> : <FileIcon />}
+                  {isSheetName(r.file.name) ? (
+                    <TableIcon />
+                  ) : isImage(type) ? (
+                    <PictureIcon />
+                  ) : (
+                    <FileIcon />
+                  )}
                 </span>
                 <div className="upload-row__text">
                   <span className="upload-row__name" title={r.file.name}>
@@ -294,12 +310,21 @@ export function AddFilesForm() {
                   {r.state === 'added' && (
                     <>
                       {source && <SourceState source={source} />}
-                      <Link
-                        to={`/knowledge/sources/${r.sourceId}`}
-                        aria-label={`View ${r.file.name}`}
-                      >
-                        View
-                      </Link>
+                      {source && waitingToMap(source) ? (
+                        <Link
+                          to={`/knowledge/sources/${r.sourceId}`}
+                          aria-label={`Map columns: ${r.file.name}`}
+                        >
+                          Map columns
+                        </Link>
+                      ) : (
+                        <Link
+                          to={`/knowledge/sources/${r.sourceId}`}
+                          aria-label={`View ${r.file.name}`}
+                        >
+                          View
+                        </Link>
+                      )}
                     </>
                   )}
                 </div>

@@ -1,4 +1,11 @@
-import type { FileType, Source, SourceFailure, SourcePage } from '@kaki/contracts';
+import {
+  SHEET_EXTENSIONS,
+  type FileType,
+  type SheetField,
+  type Source,
+  type SourceFailure,
+  type SourcePage,
+} from '@kaki/contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { api } from './api.ts';
@@ -174,9 +181,9 @@ export function sizeLabel(bytes: number): string {
   return `${bytes === 0 ? 0 : Math.max(1, Math.round(bytes / 1024))} KB`;
 }
 
-/** A file page's label from its locator: "Page 3", "Slide 2", "Part 1", "Image". */
+/** A file page's label from its locator: "Page 3", "Slide 2", "Part 1", "Image", "Row 12". */
 export function pageLabel(url: string): string | null {
-  const m = /^(page|slide|part|image)\/(\d+)$/.exec(url);
+  const m = /^(page|slide|part|image|row)\/(\d+)$/.exec(url);
   if (!m) return null;
   if (m[1] === 'image') return 'Image';
   return `${m[1]![0]!.toUpperCase()}${m[1]!.slice(1)} ${m[2]}`;
@@ -193,22 +200,47 @@ export function sourceMeta(s: Source): string {
   ].join(' · ');
 }
 
-/** "page 3", "slide 2", "part 1", "the image": where in a file a fact was found. */
+/** "page 3", "slide 2", "part 1", "the image", "row 12": where in a file a fact was found. */
 export function locationWords(location: { unit: string; number: number }): string {
   return location.unit === 'image' ? 'the image' : `${location.unit} ${location.number}`;
 }
+
+/** A fact from a spreadsheet row was imported, not found: it has no confidence (FEAT-016). */
+export const isImported = (location: { unit: string } | null | undefined) =>
+  location?.unit === 'row';
+
+/** Spreadsheets (FEAT-016 ui-design, cross-screen). */
+export const SHEET_FIELD_LABEL: Record<SheetField, string> = {
+  product: 'Product name',
+  service: 'Service name',
+  price: 'Price',
+  unit: 'Unit or size',
+  sku: 'SKU or item code',
+  stock: 'Stock',
+};
+
+/** A name the files part uploads as a spreadsheet source. */
+export const isSheetName = (name: string) =>
+  SHEET_EXTENSIONS.some((ext) => name.toLowerCase().endsWith(ext));
+
+/** A spreadsheet waiting for the owner's mapping: queued at `map`, with no job (D3). */
+export const waitingToMap = (s: Pick<Source, 'kind' | 'status' | 'stage'>) =>
+  s.kind === 'spreadsheet' && s.status === 'queued' && s.stage === 'map';
 
 /** What a file's pages are called: slides for PowerPoint, parts for Word and text. */
 export function unitWords(s: Source): { one: string; many: string } | null {
   const type = s.file ? fileTypeOf(s.name, s.file.type) : null;
   if (!s.file) return { one: 'page', many: 'pages' };
+  if (s.kind === 'spreadsheet') return { one: 'row', many: 'rows' };
   if (isImage(type)) return null;
   if (type === 'pptx') return { one: 'slide', many: 'slides' };
   if (type === 'docx' || type === 'txt') return { one: 'part', many: 'parts' };
   return { one: 'page', many: 'pages' };
 }
 
-export const busy = (s: Source) => s.status === 'queued' || s.status === 'processing';
+/** Being worked on: polled, with progress. A spreadsheet waiting at `map` is not. */
+export const busy = (s: Source) =>
+  (s.status === 'queued' || s.status === 'processing') && !waitingToMap(s);
 
 /**
  * How far the current stage is, 0–100, or null when it can't be told (promote, or a crawl
@@ -234,6 +266,14 @@ export function stageProgress(s: Source): { done: number; of: number; percent: n
  */
 export function sourceSummary(s: Source): string {
   const c = s.counts;
+  if (s.kind === 'spreadsheet' && s.status === 'ready')
+    return [
+      `${c.facts} ${c.facts === 1 ? 'fact' : 'facts'} imported`,
+      ...(c.pagesFailed
+        ? [`${c.pagesFailed} ${c.pagesFailed === 1 ? 'row' : 'rows'} not imported`]
+        : []),
+    ].join(' · ');
+  if (waitingToMap(s)) return STAGE_LABEL.map;
   const unit = unitWords(s);
   const ocr = s.file && s.file.ocrPages > 0 ? ` · ${s.file.ocrPages} by OCR` : '';
   const pages = unit
@@ -289,22 +329,28 @@ export function useSource(id: string) {
   });
 }
 
+const stateOf = (s: Source) => (waitingToMap(s) ? 'map' : s.status);
+
 /**
  * The polite announcement of a source's status change (ui-design: "kakibakery.sg is
  * ready. 38 facts need review."), never every count change.
  */
 export function useStatusAnnouncements(sources: Source[] | undefined) {
   const [message, setMessage] = useState('');
-  const [seen, setSeen] = useState<ReadonlyMap<string, Source['status']>>(new Map());
-  const key = sources?.map((s) => `${s.id}:${s.status}`).join() ?? '';
+  const [seen, setSeen] = useState<ReadonlyMap<string, string>>(new Map());
+  // A spreadsheet reaching `map` is a change too ("ready to map").
+  const key = sources?.map((s) => `${s.id}:${stateOf(s)}`).join() ?? '';
   const [seenKey, setSeenKey] = useState(key);
   // Adjusted while rendering (React's pattern for state derived from a changed prop).
   if (sources && key !== seenKey) {
     const said: string[] = [];
     for (const s of sources) {
       const before = seen.get(s.id);
-      if (!before || before === s.status) continue;
-      if (s.status === 'ready')
+      if (!before || before === stateOf(s)) continue;
+      if (waitingToMap(s)) said.push(`${s.name} is ready to map.`);
+      else if (s.status === 'ready' && s.kind === 'spreadsheet')
+        said.push(`${s.counts.facts} ${s.counts.facts === 1 ? 'row' : 'rows'} imported.`);
+      else if (s.status === 'ready')
         said.push(
           `${s.name} is ready. ${s.counts.factsNeedingReview} ${s.counts.factsNeedingReview === 1 ? 'fact needs' : 'facts need'} review.`,
         );
@@ -312,7 +358,7 @@ export function useStatusAnnouncements(sources: Source[] | undefined) {
       else if (s.status === 'processing') said.push(`Reading ${s.name}.`);
     }
     setSeenKey(key);
-    setSeen(new Map(sources.map((s) => [s.id, s.status])));
+    setSeen(new Map(sources.map((s) => [s.id, stateOf(s)])));
     if (said.length) setMessage(said.join(' '));
   }
   return [message, setMessage] as const;
