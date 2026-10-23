@@ -1,6 +1,8 @@
 .claude/settings.local.json
 ~$*
 *.docx
+# The FEAT-015 test fixtures are generated (fixtures:files), not research documents.
+!apps/ingest-worker/fixtures/files/*.docx
 
 # dependencies and build output
 node_modules/
