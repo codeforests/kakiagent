@@ -68,6 +68,9 @@ const files = {
     SESSION_SECRET: s.SESSION_SECRET,
     // `https://kakibakery.test` (the fixture site) is accepted locally (FEAT-012 §5.6).
     CRAWL_ALLOW_PRIVATE_HOSTS: 'true',
+    // LocalStack signs upload URLs with these (FEAT-015).
+    AWS_ACCESS_KEY_ID: 'test',
+    AWS_SECRET_ACCESS_KEY: 'test',
   },
   'apps/realtime/.env': {
     DASHBOARD_DATABASE_URL: pg('app_dashboard', s.APP_DASHBOARD_PASSWORD),

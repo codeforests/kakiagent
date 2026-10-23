@@ -291,15 +291,26 @@ export const messages = pgTable(
   ],
 );
 
-export const SOURCE_KINDS = ['website'] as const;
+export const SOURCE_KINDS = ['website', 'file'] as const;
 export const SOURCE_STATUSES = ['queued', 'processing', 'ready', 'failed'] as const;
-export const SOURCE_STAGES = ['crawl', 'extract', 'promote'] as const;
+export const SOURCE_STAGES = ['scan', 'parse', 'crawl', 'extract', 'promote'] as const;
 export const SOURCE_FAILURES = [
   'no_pages',
   'site_unreachable',
   'extraction_unavailable',
   'internal',
+  // Files (FEAT-015 §3.1): the safety checks (KB-11), then reading (KB-02).
+  'upload_missing',
+  'too_large',
+  'unsupported_type',
+  'encrypted',
+  'malware',
+  'scan_unavailable',
+  'unreadable',
+  'no_text',
 ] as const;
+/** What a file's bytes are (FEAT-015 §5.3), whatever its name says. */
+export const FILE_TYPES = ['pdf', 'docx', 'pptx', 'txt', 'jpeg', 'png'] as const;
 export const PAGE_STATUSES = ['included', 'excluded', 'failed', 'skipped'] as const;
 export const PAGE_REASONS = [
   'robots',
@@ -311,14 +322,18 @@ export const PAGE_REASONS = [
   'blocked_address',
   'load_error',
   'plan_limit',
+  'no_text',
+  'page_limit',
+  'ocr_limit',
 ] as const;
 
 const inList = (values: readonly string[]) => sql.raw(values.map((v) => `'${v}'`).join(', '));
 
 /**
- * Knowledge sources (KB_SOURCE, ADR-018 decision 1): one row per website (FEAT-012);
- * files, spreadsheets and chat exports join with FEAT-015..017. `attempt` keys the
- * idempotent stage jobs; `version` is the dashboard's optimistic-concurrency token.
+ * Knowledge sources (KB_SOURCE, ADR-018 decision 1): one row per website (FEAT-012) or
+ * uploaded file (FEAT-015); spreadsheets and chat exports join with FEAT-016..017.
+ * `attempt` keys the idempotent stage jobs; `version` is the dashboard's
+ * optimistic-concurrency token.
  */
 export const kbSources = pgTable(
   'kb_sources',
@@ -332,13 +347,16 @@ export const kbSources = pgTable(
     stage: text('stage', { enum: SOURCE_STAGES }),
     attempt: integer('attempt').notNull().default(1),
     version: integer('version').notNull().default(1),
-    url: text('url').notNull(),
-    domain: text('domain').notNull(),
+    /** The domain for a website, the file's name as uploaded for a file. */
+    name: text('name').notNull(),
+    // Websites only (`kb_sources_website_ck`).
+    url: text('url'),
+    domain: text('domain'),
     subdomains: text('subdomains')
       .array()
       .notNull()
       .default(sql`'{}'::text[]`),
-    pageLimit: integer('page_limit').notNull(),
+    pageLimit: integer('page_limit'),
     failure: text('failure', { enum: SOURCE_FAILURES }),
     pagesFound: integer('pages_found').notNull().default(0),
     pagesIncluded: integer('pages_included').notNull().default(0),
@@ -348,8 +366,19 @@ export const kbSources = pgTable(
     pagesExtracted: integer('pages_extracted').notNull().default(0),
     factsCount: integer('facts_count').notNull().default(0),
     /** KB-13: who confirmed they own or may use the domain, and when (also audited). */
-    attestedBy: text('attested_by').notNull(),
-    attestedAt: timestamp('attested_at', { withTimezone: true }).notNull(),
+    attestedBy: text('attested_by'),
+    attestedAt: timestamp('attested_at', { withTimezone: true }),
+    /**
+     * Files (FEAT-015 §4): the quarantine key it was uploaded to, the `sources` bucket key
+     * once it passed the safety checks, its size, the type its bytes showed, and how many
+     * of its pages were read by OCR.
+     */
+    uploadKey: text('upload_key'),
+    fileKey: text('file_key'),
+    fileSize: integer('file_size'),
+    fileType: text('file_type', { enum: FILE_TYPES }),
+    ocrPages: integer('ocr_pages').notNull().default(0),
+    scannedAt: timestamp('scanned_at', { withTimezone: true }),
     createdBy: text('created_by').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -358,6 +387,19 @@ export const kbSources = pgTable(
   (t) => [
     primaryKey({ columns: [t.tenantId, t.id] }),
     uniqueIndex('kb_sources_domain_uq').on(t.tenantId, t.kind, t.domain),
+    uniqueIndex('kb_sources_upload_uq').on(t.tenantId, t.uploadKey),
+    check(
+      'kb_sources_website_ck',
+      sql`${t.kind} <> 'website' or (${t.url} is not null and ${t.domain} is not null and ${t.pageLimit} is not null and ${t.attestedBy} is not null and ${t.attestedAt} is not null)`,
+    ),
+    check(
+      'kb_sources_file_ck',
+      sql`${t.kind} <> 'file' or (${t.uploadKey} is not null and ${t.fileSize} > 0)`,
+    ),
+    check(
+      'kb_sources_file_type_ck',
+      sql`${t.fileType} is null or ${t.fileType} in (${inList(FILE_TYPES)})`,
+    ),
     check('kb_sources_kind_ck', sql`${t.kind} in (${inList(SOURCE_KINDS)})`),
     check('kb_sources_status_ck', sql`${t.status} in (${inList(SOURCE_STATUSES)})`),
     check(
@@ -370,12 +412,16 @@ export const kbSources = pgTable(
     ),
     check(
       'kb_sources_counts_ck',
-      sql`${t.pageLimit} > 0 and ${t.attempt} >= 1 and least(${t.pagesFound}, ${t.pagesIncluded}, ${t.pagesExcluded}, ${t.pagesFailed}, ${t.pagesSkipped}, ${t.pagesExtracted}, ${t.factsCount}) >= 0`,
+      sql`(${t.pageLimit} is null or ${t.pageLimit} > 0) and ${t.attempt} >= 1 and least(${t.pagesFound}, ${t.pagesIncluded}, ${t.pagesExcluded}, ${t.pagesFailed}, ${t.pagesSkipped}, ${t.pagesExtracted}, ${t.factsCount}, ${t.ocrPages}) >= 0`,
     ),
   ],
 );
 
-/** A crawl's page list (KB-01), per attempt. `content` is masked visible text (ADR-015). */
+/**
+ * A crawl's page list (KB-01) or a file's pages, slides or parts (KB-02, FEAT-015), per
+ * attempt. `content` is masked visible text (ADR-015). A file page's `url` is a locator,
+ * `page/3`, `slide/2`, `part/1` or `image/1`.
+ */
 export const kbSourcePages = pgTable(
   'kb_source_pages',
   {
@@ -392,6 +438,8 @@ export const kbSourcePages = pgTable(
     content: text('content'),
     /** SHA-256 of `content`, for duplicates now and the re-crawl diff (FEAT-020). */
     contentHash: text('content_hash'),
+    /** 0..1 when the page's text came from OCR (FEAT-015 D6); null for a text layer. */
+    ocrConfidence: real('ocr_confidence'),
     extractedAt: timestamp('extracted_at', { withTimezone: true }),
     factsCount: integer('facts_count').notNull().default(0),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -408,6 +456,10 @@ export const kbSourcePages = pgTable(
     check(
       'kb_source_pages_reason_ck',
       sql`(${t.status} = 'included') = (${t.reason} is null) and (${t.reason} is null or ${t.reason} in (${inList(PAGE_REASONS)}))`,
+    ),
+    check(
+      'kb_source_pages_ocr_ck',
+      sql`${t.ocrConfidence} is null or ${t.ocrConfidence} between 0 and 1`,
     ),
   ],
 );

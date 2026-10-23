@@ -1,0 +1,4 @@
+Kaki Bakery policies
+
+Booking policy: Book tasting sessions at least 3 days ahead.
+Payment policy: We accept PayNow, cards and cash.

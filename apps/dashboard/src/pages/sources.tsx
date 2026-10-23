@@ -3,11 +3,13 @@ import { Button, EmptyState, ErrorState } from '@kaki/ui';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { ApiError } from '../lib/api.ts';
-import { updatedLabel } from '../lib/facts.ts';
 import { useToast } from '../lib/form.ts';
 import {
   busy,
+  fileTypeOf,
+  isImage,
   SOURCE_STATE,
+  sourceMeta,
   sourceSummary,
   stageProgress,
   useRetry,
@@ -67,7 +69,7 @@ export function SourcesPage() {
   };
   const add = (
     <Button asChild>
-      <Link to="/knowledge/sources/new">Add website</Link>
+      <Link to="/knowledge/sources/new">Add sources</Link>
     </Button>
   );
 
@@ -79,8 +81,8 @@ export function SourcesPage() {
         <div className="page-header__text">
           <h2 className="section-title">Sources</h2>
           <p className="page-lede">
-            Websites you add are read page by page. The facts we find wait for your review before
-            your assistant uses them.
+            Websites and files you add are read page by page. The facts we find wait for your review
+            before your assistant uses them.
           </p>
         </div>
         {sources && sources.length > 0 && add}
@@ -111,7 +113,8 @@ export function SourcesPage() {
       )}
       {sources && sources.length === 0 && (
         <EmptyState title="No sources yet" action={add}>
-          Add your website and we'll find your products, prices and policies for you to review.
+          Add your website or upload files, and we'll find your products, prices and policies for
+          you to review.
         </EmptyState>
       )}
       {sources && sources.length > 0 && (
@@ -120,13 +123,13 @@ export function SourcesPage() {
             <li key={s.id} className="source-row" data-testid="source-row">
               <div className="source-row__main">
                 <span className="source-row__icon" aria-hidden="true">
-                  <GlobeIcon />
+                  <SourceIcon source={s} />
                 </span>
                 <div className="source-row__text">
                   <Link className="source-row__name" to={`/knowledge/sources/${s.id}`}>
                     {s.name}
                   </Link>
-                  <span className="source-row__meta">Added {updatedLabel(s.createdAt)}</span>
+                  <span className="source-row__meta">{sourceMeta(s)}</span>
                 </div>
                 <SourceState source={s} />
               </div>
@@ -140,7 +143,7 @@ export function SourcesPage() {
                 {s.status === 'ready' && s.counts.factsNeedingReview > 0 && (
                   <Link to="/review">Review facts</Link>
                 )}
-                {s.status === 'failed' && (
+                {s.status === 'failed' && s.retryable && (
                   <Button
                     variant="secondary"
                     className="kaki-btn--sm source-row__retry"
@@ -152,6 +155,7 @@ export function SourcesPage() {
                     {retry.isPending && retry.variables?.id === s.id ? 'Retrying…' : 'Retry'}
                   </Button>
                 )}
+                {s.status === 'failed' && !s.retryable && <UploadAgain source={s} small />}
               </div>
             </li>
           ))}
@@ -167,6 +171,49 @@ export function SourcesPage() {
         </div>
       )}
     </div>
+  );
+}
+
+/** A failed file only a new upload fixes (FEAT-015 D7): KB-12's retry action for it. */
+export function UploadAgain({ source, small = false }: { source: Source; small?: boolean }) {
+  return (
+    <Button asChild variant="secondary" className={small ? 'kaki-btn--sm source-row__retry' : ''}>
+      <Link to="/knowledge/sources/new#files" aria-label={`Upload again: ${source.name}`}>
+        Upload again
+      </Link>
+    </Button>
+  );
+}
+
+export function SourceIcon({ source }: { source: Source }) {
+  if (!source.file) return <GlobeIcon />;
+  return isImage(fileTypeOf(source.name, source.file.type)) ? <PictureIcon /> : <FileIcon />;
+}
+
+const iconProps = {
+  width: 20,
+  height: 20,
+  viewBox: '0 0 24 24',
+  fill: 'none',
+  stroke: 'currentColor',
+  strokeWidth: '2',
+  strokeLinecap: 'round',
+  strokeLinejoin: 'round',
+} as const;
+
+export function FileIcon() {
+  return (
+    <svg {...iconProps}>
+      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M9 13h6M9 17h6" />
+    </svg>
+  );
+}
+
+export function PictureIcon() {
+  return (
+    <svg {...iconProps}>
+      <path d="M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM21 15l-5-5L5 20M8.5 10a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z" />
+    </svg>
   );
 }
 

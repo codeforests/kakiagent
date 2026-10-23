@@ -1,7 +1,8 @@
-import type { Source, SourceFailure, SourcePage } from '@kaki/contracts';
+import type { FileType, Source, SourceFailure, SourcePage } from '@kaki/contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { api } from './api.ts';
+import { updatedLabel } from './facts.ts';
 
 /** Source display rules shared by SCR-APP-023, SCR-APP-024 and the shell (FEAT-012 ui-design). */
 
@@ -16,6 +17,8 @@ export const SOURCE_STATE: Record<
 };
 
 export const STAGE_LABEL: Record<NonNullable<Source['stage']>, string> = {
+  scan: 'Checking the file',
+  parse: 'Reading the file',
   crawl: 'Reading pages',
   extract: 'Finding facts',
   promote: 'Saving facts',
@@ -27,6 +30,20 @@ export const FAILURE_TEXT: Record<SourceFailure, string> = {
   extraction_unavailable:
     'Finding facts failed after several tries. Your pages are saved; try again in a few minutes.',
   internal: 'Something went wrong on our side. Try again; if it fails again, contact support.',
+  // Files (FEAT-015 ui-design).
+  upload_missing: "The upload didn't finish, so there's nothing to read. Upload the file again.",
+  too_large: 'This file is over 25 MB. Upload a smaller file, or split it.',
+  unsupported_type:
+    "This isn't a file type we can read. Upload a PDF, Word, PowerPoint, text, JPG or PNG file.",
+  encrypted:
+    'This file is password-protected or encrypted. Save a copy without a password and upload that.',
+  malware:
+    'This file contains malware, so we deleted it without reading it. Check your computer with antivirus software.',
+  scan_unavailable: "We couldn't check this file for malware just now. Try again in a few minutes.",
+  unreadable:
+    "This file seems damaged and couldn't be read. Open and save it again, then upload the copy.",
+  no_text:
+    "We couldn't find any text in this file, even in its images. Upload a clearer scan or a text version.",
 };
 
 export const PAGE_STATE: Record<
@@ -43,7 +60,9 @@ export const PAGE_STATE: Record<
 export function pageResult(p: SourcePage): string {
   switch (p.reason) {
     case null:
-      return 'Read';
+      return p.ocrConfidence === null
+        ? 'Read'
+        : `Read with OCR · ${Math.round(p.ocrConfidence * 100)}% confidence`;
     case 'robots':
       return 'Excluded: blocked by robots.txt';
     case 'off_domain_redirect':
@@ -62,7 +81,79 @@ export function pageResult(p: SourcePage): string {
       return "Failed: couldn't load";
     case 'plan_limit':
       return 'Skipped: plan limit';
+    case 'no_text':
+      return 'Excluded: no text found';
+    case 'page_limit':
+      return 'Skipped: over the 200-page limit';
+    case 'ocr_limit':
+      return 'Skipped: over the limit of 50 scanned pages';
   }
+}
+
+/** Files (FEAT-015 ui-design, cross-screen). */
+export const FILE_TYPE_LABEL: Record<FileType, string> = {
+  pdf: 'PDF',
+  docx: 'Word document',
+  pptx: 'PowerPoint',
+  txt: 'Text file',
+  jpeg: 'JPG image',
+  png: 'PNG image',
+};
+const EXTENSION_TYPE: Record<string, FileType> = {
+  pdf: 'pdf',
+  docx: 'docx',
+  pptx: 'pptx',
+  txt: 'txt',
+  jpg: 'jpeg',
+  jpeg: 'jpeg',
+  png: 'png',
+};
+
+/** The type the scan named, or, before it has, the one the extension suggests. */
+export function fileTypeOf(name: string, type: FileType | null = null): FileType | null {
+  return type ?? EXTENSION_TYPE[/\.([a-z]+)$/i.exec(name)?.[1]?.toLowerCase() ?? ''] ?? null;
+}
+
+export const isImage = (type: FileType | null) => type === 'jpeg' || type === 'png';
+
+/** "2.4 MB", "820 KB" (1 MB = 1,048,576 bytes, as the 25 MB limit). */
+export function sizeLabel(bytes: number): string {
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${bytes === 0 ? 0 : Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
+/** A file page's label from its locator: "Page 3", "Slide 2", "Part 1", "Image". */
+export function pageLabel(url: string): string | null {
+  const m = /^(page|slide|part|image)\/(\d+)$/.exec(url);
+  if (!m) return null;
+  if (m[1] === 'image') return 'Image';
+  return `${m[1]![0]!.toUpperCase()}${m[1]!.slice(1)} ${m[2]}`;
+}
+
+/** "Uploaded 23 Oct 2026, 2:30 pm · PDF · 2.4 MB" for a file; "Added …" for a website. */
+export function sourceMeta(s: Source): string {
+  if (!s.file) return `Added ${updatedLabel(s.createdAt)}`;
+  const type = fileTypeOf(s.name, s.file.type);
+  return [
+    `Uploaded ${updatedLabel(s.createdAt)}`,
+    ...(type ? [FILE_TYPE_LABEL[type]] : []),
+    sizeLabel(s.file.sizeBytes),
+  ].join(' · ');
+}
+
+/** "page 3", "slide 2", "part 1", "the image": where in a file a fact was found. */
+export function locationWords(location: { unit: string; number: number }): string {
+  return location.unit === 'image' ? 'the image' : `${location.unit} ${location.number}`;
+}
+
+/** What a file's pages are called: slides for PowerPoint, parts for Word and text. */
+export function unitWords(s: Source): { one: string; many: string } | null {
+  const type = s.file ? fileTypeOf(s.name, s.file.type) : null;
+  if (!s.file) return { one: 'page', many: 'pages' };
+  if (isImage(type)) return null;
+  if (type === 'pptx') return { one: 'slide', many: 'slides' };
+  if (type === 'docx' || type === 'txt') return { one: 'part', many: 'parts' };
+  return { one: 'page', many: 'pages' };
 }
 
 export const busy = (s: Source) => s.status === 'queued' || s.status === 'processing';
@@ -85,14 +176,21 @@ export function stageProgress(s: Source): { done: number; of: number; percent: n
   return null;
 }
 
-/** "38 facts · 38 need review · 31 pages read" (ready), or the busy stage text. */
+/**
+ * "38 facts · 38 need review · 31 pages read" (ready; files add " · 3 by OCR", say slides
+ * or parts, and say nothing about pages for an image), or the busy stage text.
+ */
 export function sourceSummary(s: Source): string {
   const c = s.counts;
-  const pages = `${c.pagesIncluded} ${c.pagesIncluded === 1 ? 'page' : 'pages'} read`;
+  const unit = unitWords(s);
+  const ocr = s.file && s.file.ocrPages > 0 ? ` · ${s.file.ocrPages} by OCR` : '';
+  const pages = unit
+    ? ` · ${c.pagesIncluded} ${c.pagesIncluded === 1 ? unit.one : unit.many} read${ocr}`
+    : '';
   if (s.status === 'ready')
     return c.facts === 0
-      ? `No facts found · ${pages}`
-      : `${c.facts} ${c.facts === 1 ? 'fact' : 'facts'} · ${c.factsNeedingReview} need review · ${pages}`;
+      ? `No facts found${pages}`
+      : `${c.facts} ${c.facts === 1 ? 'fact' : 'facts'} · ${c.factsNeedingReview} need review${pages}`;
   if (s.status === 'failed') return FAILURE_TEXT[s.failure ?? 'internal'];
   const stage = s.stage ? STAGE_LABEL[s.stage] : 'Waiting';
   // A queued source that started a stage is waiting for a retry (UC-03 5c).

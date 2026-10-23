@@ -67,9 +67,9 @@ async function seedConflict() {
     })
   ).json().fact.id as string;
   const { rows } = await owner.query(
-    `insert into kb_sources (tenant_id, kind, status, url, domain, page_limit, attested_by,
+    `insert into kb_sources (tenant_id, kind, status, name, url, domain, page_limit, attested_by,
                              attested_at, created_by, finished_at)
-     values ($1, 'website', 'ready', 'https://kakibakery.sg/', 'kakibakery.sg', 100, 'u', now(), 'u', now())
+     values ($1, 'website', 'ready', 'kakibakery.sg', 'https://kakibakery.sg/', 'kakibakery.sg', 100, 'u', now(), 'u', now())
      returning id`,
     [TENANT_A],
   );

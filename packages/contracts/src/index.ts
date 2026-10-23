@@ -322,15 +322,24 @@ export const FactResponse = z.object({ fact: Fact });
 
 // ---- Dashboard API: knowledge sources (KB-01, KB-12, KB-13; FEAT-012 §3) ------------
 
-export const SourceKind = z.enum(['website']);
+export const SourceKind = z.enum(['website', 'file']);
 export const SourceStatus = z.enum(['queued', 'processing', 'ready', 'failed']);
 export type SourceStatus = z.infer<typeof SourceStatus>;
-export const SourceStage = z.enum(['crawl', 'extract', 'promote']);
+export const SourceStage = z.enum(['scan', 'parse', 'crawl', 'extract', 'promote']);
 export const SourceFailure = z.enum([
   'no_pages',
   'site_unreachable',
   'extraction_unavailable',
   'internal',
+  // Files (FEAT-015 §3.1): the safety checks (KB-11), then reading (KB-02).
+  'upload_missing',
+  'too_large',
+  'unsupported_type',
+  'encrypted',
+  'malware',
+  'scan_unavailable',
+  'unreadable',
+  'no_text',
 ]);
 export type SourceFailure = z.infer<typeof SourceFailure>;
 export const PageStatus = z.enum(['included', 'excluded', 'failed', 'skipped']);
@@ -345,31 +354,60 @@ export const PageReason = z.enum([
   'blocked_address',
   'load_error',
   'plan_limit',
+  'no_text',
+  'page_limit',
+  'ocr_limit',
 ]);
 export type PageReason = z.infer<typeof PageReason>;
 
+/** Where in a file a page is (FEAT-015 §3.1): its pages, slides, parts, or the image. */
+export const FileLocation = z.object({
+  unit: z.enum(['page', 'slide', 'part', 'image']),
+  number: z.int().min(1),
+});
+export type FileLocation = z.infer<typeof FileLocation>;
+
 export const Provenance = z.object({
   sourceId: z.uuid(),
+  /** A web page's URL, or a file page's locator (`page/3`, `slide/2`, `part/1`, `image/1`). */
   url: z.string(),
   title: z.string().nullable(),
   quote: z.string(),
   start: z.int().min(0),
   end: z.int().min(0),
+  /** Set for facts from files. */
+  location: FileLocation.nullable(),
 });
 export type Provenance = z.infer<typeof Provenance>;
+
+export const FileType = z.enum(['pdf', 'docx', 'pptx', 'txt', 'jpeg', 'png']);
+export type FileType = z.infer<typeof FileType>;
 
 export const Source = z.object({
   id: z.uuid(),
   kind: SourceKind,
   status: SourceStatus,
   stage: SourceStage.nullable(),
-  /** The domain, e.g. "kakibakery.sg". */
+  /** The domain, e.g. "kakibakery.sg", or the file's name. */
   name: z.string(),
-  url: z.string(),
-  domain: z.string(),
+  /** Websites only; null for files. */
+  url: z.string().nullable(),
+  domain: z.string().nullable(),
   subdomains: z.array(z.string()),
-  pageLimit: z.int(),
+  pageLimit: z.int().nullable(),
   failure: SourceFailure.nullable(),
+  /** Failed for a reason a retry can fix; files rejected by the safety checks can't be (D7). */
+  retryable: z.boolean(),
+  /** Files only (FEAT-015): `type` is what the bytes showed, null until the scan. */
+  file: z
+    .object({
+      name: z.string(),
+      sizeBytes: z.int(),
+      type: FileType.nullable(),
+      ocrPages: z.int(),
+      scannedAt: z.iso.datetime({ offset: true }).nullable(),
+    })
+    .nullable(),
   counts: z.object({
     pagesFound: z.int(),
     pagesIncluded: z.int(),
@@ -380,7 +418,7 @@ export const Source = z.object({
     facts: z.int(),
     factsNeedingReview: z.int(),
   }),
-  attestedAt: z.iso.datetime({ offset: true }),
+  attestedAt: z.iso.datetime({ offset: true }).nullable(),
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
   finishedAt: z.iso.datetime({ offset: true }).nullable(),
@@ -396,11 +434,23 @@ export const SourcePage = z.object({
   reason: PageReason.nullable(),
   httpStatus: z.int().nullable(),
   facts: z.int(),
+  /** 0..1 when the page was read by OCR (FEAT-015). */
+  ocrConfidence: z.number().min(0).max(1).nullable(),
 });
 export type SourcePage = z.infer<typeof SourcePage>;
 
-/** `attested` is checked by the route, so a missing one gets its own error (UC-03 4b). */
-export const CreateSourceBody = z
+/** The file names an upload may have (KB-02); the bytes decide what a file is (FEAT-015 D5). */
+export const FILE_EXTENSIONS = ['.pdf', '.docx', '.pptx', '.txt', '.jpg', '.jpeg', '.png'] as const;
+/** KB-02: up to 25 MB each. */
+export const MAX_FILE_BYTES = 25 * 1024 * 1024;
+const FileName = z
+  .string()
+  .trim()
+  .min(1)
+  .max(200)
+  .refine((n) => !/[/\\\p{Cc}]/u.test(n), { message: 'Not a file name' });
+
+const WebsiteSourceBody = z
   .object({
     kind: z.literal('website'),
     url: z.string().trim().min(1).max(2000),
@@ -408,9 +458,41 @@ export const CreateSourceBody = z
     attested: z.boolean().optional(),
   })
   .strict();
+/** An uploaded file becomes a source once its PUT is done (FEAT-015 §3.2, D2). */
+const FileSourceBody = z
+  .object({
+    kind: z.literal('file'),
+    uploadId: z.uuid(),
+    fileName: FileName,
+    /** As declared for the upload; the scan stores the object's real size. */
+    sizeBytes: z.int().min(1),
+  })
+  .strict();
+/** `attested` is checked by the route, so a missing one gets its own error (UC-03 4b). */
+export const CreateSourceBody = z.discriminatedUnion('kind', [WebsiteSourceBody, FileSourceBody]);
 export type CreateSourceBody = z.infer<typeof CreateSourceBody>;
+
+/** A presigned upload to the quarantine bucket (KB-11; FEAT-015 §3.2). */
+export const UploadRequestBody = z
+  .object({ fileName: FileName, sizeBytes: z.int().min(1) })
+  .strict();
+export type UploadRequestBody = z.infer<typeof UploadRequestBody>;
+export const UploadTicket = z.object({
+  uploadId: z.uuid(),
+  url: z.string(),
+  /** Headers the PUT must send as they are (the signed length). */
+  headers: z.record(z.string(), z.string()),
+  expiresAt: z.iso.datetime({ offset: true }),
+});
+export type UploadTicket = z.infer<typeof UploadTicket>;
 export const RetrySourceBody = z.object({ version: z.int().min(1) }).strict();
-export const SourceList = z.object({ sources: z.array(Source), pageLimit: z.int() });
+export const SourceList = z.object({
+  sources: z.array(Source),
+  pageLimit: z.int(),
+  /** How many file sources the plan holds, and the size limit (FEAT-015). */
+  fileLimit: z.int(),
+  maxFileBytes: z.int(),
+});
 export type SourceList = z.infer<typeof SourceList>;
 export const SourceResponse = z.object({ source: Source });
 export const SourceDetail = z.object({ source: Source, pages: z.array(SourcePage) });
@@ -874,11 +956,22 @@ export const TurnJob = z.object({
 });
 export type TurnJob = z.infer<typeof TurnJob>;
 
-/** One stage of a source's ingestion run (ADR-018 decision 1; FEAT-012 §5.1). */
-export const IngestJob = z.object({
-  tenantId: z.uuid(),
-  sourceId: z.uuid(),
-  attempt: z.number().int().min(1),
-  stage: z.enum(['crawl', 'extract', 'promote']),
-});
+/**
+ * One stage of a source's ingestion run (ADR-018 decision 1; FEAT-012 §5.1), or the purge
+ * of a deleted file's objects (FEAT-015 §5.7).
+ */
+export const IngestJob = z.union([
+  z.object({
+    tenantId: z.uuid(),
+    sourceId: z.uuid(),
+    attempt: z.number().int().min(1),
+    stage: z.enum(['scan', 'parse', 'crawl', 'extract', 'promote']),
+  }),
+  z.object({
+    tenantId: z.uuid(),
+    sourceId: z.uuid(),
+    stage: z.literal('purge'),
+    keys: z.object({ quarantine: z.string().optional(), sources: z.string().optional() }),
+  }),
+]);
 export type IngestJob = z.infer<typeof IngestJob>;

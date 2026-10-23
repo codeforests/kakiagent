@@ -4,7 +4,9 @@ import { audit, auditCode, auditHash } from '@kaki/governance';
 import { enqueue } from '@kaki/platform/outbox';
 import type { DashboardKbContext } from './context.js';
 import {
+  FileLimitError,
   InvalidStateError,
+  NotRetryableError,
   SourceExistsError,
   SourceNotFoundError,
   VersionConflictError,
@@ -29,7 +31,14 @@ export interface PageRecord {
   reason: PageReason | null;
   httpStatus: number | null;
   facts: number;
+  ocrConfidence: number | null;
 }
+
+/** Where a tenant's upload waits for its checks: the quarantine bucket (ADR-018 d2). */
+export const quarantineKey = (tenantId: string, uploadId: string) =>
+  `uploads/${tenantId}/${uploadId}`;
+/** Where a clean file is kept, for every attempt, until its source is deleted. */
+export const sourcesKey = (tenantId: string, sourceId: string) => `files/${tenantId}/${sourceId}`;
 
 /** The ingest job for a source's next stage (ADR-018 decision 1), in the caller's transaction. */
 export async function enqueueStage(
@@ -44,6 +53,21 @@ export async function enqueueStage(
     payload: { tenantId: source.tenantId, sourceId: source.id, attempt: source.attempt, stage },
   });
 }
+
+/** File failures only a new upload fixes: the file is gone or can't change (FEAT-015 D7). */
+export const NOT_RETRYABLE: readonly SourceFailure[] = [
+  'upload_missing',
+  'too_large',
+  'unsupported_type',
+  'encrypted',
+  'malware',
+  'unreadable',
+  'no_text',
+];
+
+/** A failed source that Retry can run again (KB-12): every website, and files not rejected. */
+export const retryable = (s: Pick<SourceRecord, 'kind' | 'status' | 'failure'>) =>
+  s.status === 'failed' && !(s.kind === 'file' && s.failure && NOT_RETRYABLE.includes(s.failure));
 
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 
@@ -75,6 +99,7 @@ export async function createWebsiteSource(
       kind: 'website',
       status: 'queued',
       stage: 'crawl',
+      name: scope.domain,
       url: scope.url,
       domain: scope.domain,
       subdomains: scope.subdomains,
@@ -118,6 +143,74 @@ export async function createWebsiteSource(
   return source;
 }
 
+/**
+ * Adds an uploaded file as a source (KB-02; FEAT-015 §5.6). The object is under the
+ * session tenant's quarantine prefix, so a source can only claim the tenant's own upload
+ * (D2). The scan job is written with it; nothing reads the file before the scan (KB-11).
+ * Throws `FileLimitError` at the plan's file count, `SourceExistsError` for an upload that
+ * already has a source.
+ */
+export async function createFileSource(
+  ctx: DashboardKbContext,
+  file: { uploadId: string; fileName: string; sizeBytes: number },
+  opts: { fileLimit: number },
+): Promise<SourceRecord> {
+  const s = schema.kbSources;
+  const uploadKey = quarantineKey(ctx.tenantId, file.uploadId);
+  // One file source at a time per tenant, so two uploads can't both take the last slot.
+  await ctx.tx.execute(
+    sql`select pg_advisory_xact_lock(hashtextextended(${`kb.files:${ctx.tenantId}`}, 0))`,
+  );
+  const [existing] = await ctx.tx
+    .select({ id: s.id })
+    .from(s)
+    .where(and(eq(s.tenantId, ctx.tenantId), eq(s.uploadKey, uploadKey)));
+  if (existing) throw new SourceExistsError(existing.id);
+  if ((await countFileSources(ctx)) >= opts.fileLimit) throw new FileLimitError('file limit');
+  const [row] = await ctx.tx
+    .insert(s)
+    .values({
+      tenantId: ctx.tenantId,
+      kind: 'file',
+      status: 'queued',
+      stage: 'scan',
+      name: file.fileName,
+      uploadKey,
+      fileSize: file.sizeBytes,
+      createdBy: ctx.userId,
+    })
+    .returning();
+  const source = row!;
+  await audit.append(ctx.tx, ctx.tenantId, {
+    action: 'kb_source.created',
+    actorType: 'user',
+    actorId: ctx.userId,
+    subjectType: 'kb_source',
+    subjectId: source.id,
+    // The extension and size only: a file name can be personal data (NFR-11).
+    payload: {
+      kind: auditCode('file'),
+      ext: auditCode(extensionOf(file.fileName)),
+      sizeBytes: file.sizeBytes,
+    },
+  });
+  await enqueueStage(ctx.tx, source, 'scan');
+  return source;
+}
+
+/** ".pdf" → "pdf"; "" when the name has none. */
+export const extensionOf = (name: string) =>
+  /\.([a-z0-9]{1,8})$/i.exec(name)?.[1]?.toLowerCase() ?? '';
+
+export async function countFileSources(ctx: DashboardKbContext): Promise<number> {
+  const s = schema.kbSources;
+  const [row] = await ctx.tx
+    .select({ n: sql<number>`count(*)::int` })
+    .from(s)
+    .where(and(eq(s.tenantId, ctx.tenantId), eq(s.kind, 'file')));
+  return row?.n ?? 0;
+}
+
 export async function listSources(ctx: DashboardKbContext): Promise<SourceRecord[]> {
   const s = schema.kbSources;
   return ctx.tx
@@ -144,6 +237,7 @@ export async function getSource(
       reason: p.reason,
       httpStatus: p.httpStatus,
       facts: p.factsCount,
+      ocrConfidence: p.ocrConfidence,
     })
     .from(p)
     .where(and(eq(p.tenantId, ctx.tenantId), eq(p.sourceId, id), eq(p.attempt, source.attempt)))
@@ -171,7 +265,9 @@ async function clearRun(ctx: DashboardKbContext, id: string) {
 
 /**
  * Runs a failed source again as a new attempt (KB-12 retry): the old attempt's pages and
- * staging go, the counts restart, and the crawl job is written in the same transaction.
+ * staging go, the counts restart, and the first stage's job is written in the same
+ * transaction. A website starts at the crawl; a file at `parse` when its clean copy is
+ * stored, else at `scan` (FEAT-015 §5.6). A file rejected by its checks can't be retried.
  */
 export async function retrySource(
   ctx: DashboardKbContext,
@@ -180,12 +276,15 @@ export async function retrySource(
 ): Promise<SourceRecord> {
   const current = await lockSource(ctx, id, version);
   if (current.status !== 'failed') throw new InvalidStateError(`a ${current.status} source`);
+  if (!retryable(current)) throw new NotRetryableError(`a ${current.failure} file`);
+  const stage: SourceStage =
+    current.kind === 'website' ? 'crawl' : current.fileKey ? 'parse' : 'scan';
   await clearRun(ctx, id);
   const [row] = await ctx.tx
     .update(schema.kbSources)
     .set({
       status: 'queued',
-      stage: 'crawl',
+      stage,
       failure: null,
       attempt: current.attempt + 1,
       version: current.version + 1,
@@ -196,6 +295,7 @@ export async function retrySource(
       pagesSkipped: 0,
       pagesExtracted: 0,
       factsCount: 0,
+      ocrPages: 0,
       finishedAt: null,
       updatedAt: sql`now()`,
     })
@@ -210,14 +310,15 @@ export async function retrySource(
     subjectId: id,
     payload: { attempt: source.attempt },
   });
-  await enqueueStage(ctx.tx, source, 'crawl');
+  await enqueueStage(ctx.tx, source, stage);
   return source;
 }
 
 /**
  * Deletes a source with its pages, staging and every fact it produced, whatever their
- * status, with their chunks and versions (KB-07 documents, GOV-05; FEAT-012 D9). A source
- * being processed can't be deleted. Returns how many facts went.
+ * status, with their chunks and versions (KB-07 documents, GOV-05; FEAT-012 D9), and for a
+ * file the job that deletes its stored objects. A source being processed can't be
+ * deleted. Returns how many facts went.
  */
 export async function deleteSource(
   ctx: DashboardKbContext,
@@ -251,6 +352,22 @@ export async function deleteSource(
     subjectId: id,
     payload: { kind: auditCode(current.kind), facts: ids.length },
   });
+  // A file's objects go through the outbox with the rows (ADR-012; FEAT-015 §5.7, GOV-05).
+  if (current.kind === 'file')
+    await enqueue(ctx.tx, {
+      tenantId: ctx.tenantId,
+      topic: 'ingest',
+      groupKey: id,
+      payload: {
+        tenantId: ctx.tenantId,
+        sourceId: id,
+        stage: 'purge',
+        keys: {
+          ...(current.uploadKey ? { quarantine: current.uploadKey } : {}),
+          sources: sourcesKey(ctx.tenantId, id),
+        },
+      },
+    });
   await settleConflicts(ctx.tx, ctx.tenantId, { type: 'user', id: ctx.userId }, keys);
   return ids.length;
 }

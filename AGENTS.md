@@ -19,7 +19,7 @@ The repo holds the signed-off SDLC documents (`docs/`) and the **walking skeleto
 | `packages/db`, `platform`, `contracts`, `llm-gateway`, `design-tokens`, `ui` | Shared infrastructure: schema, migrations and RLS; config, logging, telemetry, queue, pub/sub and outbox; Zod API contracts; the only route to models; tokens built from `docs/02-design/tokens.json`; shared React components. |
 | `e2e/` | Playwright tests against the running local stack. |
 | `evals/` | The AI evaluation runner, cases and `thresholds.json` (AGT-14, ADR-022). |
-| `infra/local/`, `docker-compose.yml` | Local stack: Postgres 16 + pgvector, Valkey, LocalStack (SQS, S3), Mailpit, ClamAV (profile `ingest`). |
+| `infra/local/`, `docker-compose.yml` | Local stack: Postgres 16 + pgvector, Valkey, LocalStack (SQS, S3), Mailpit, ClamAV. |
 | `infra/terraform/` | AWS modules and the `envs/prod` root, which runs the lean launch profile until the prod trigger and the ADR-003 design after it (`profile = "launch" | "full"`, ADR-023, ADR-024). Written, validated and tested with `terraform test`; **never applied** until milestone MD. |
 
 ## Commands

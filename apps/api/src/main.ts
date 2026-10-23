@@ -11,6 +11,7 @@ import {
 } from '@kaki/platform';
 import { buildApp } from './app.js';
 import { loadApiConfig } from './config.js';
+import { s3UploadSigner } from './uploads.js';
 
 const config = loadApiConfig();
 const stopTelemetry = startTelemetry('api', config.OTEL_EXPORTER_OTLP_ENDPOINT);
@@ -32,6 +33,11 @@ const deps = {
   identityDb: createZoneDb('identity', config.IDENTITY_DATABASE_URL),
   mailer: createSmtpMailer(config.SMTP_URL, config.EMAIL_FROM),
   rateLimiter: createRateLimiter(config.VALKEY_URL),
+  uploads: s3UploadSigner({
+    bucket: config.QUARANTINE_BUCKET,
+    region: config.AWS_REGION,
+    endpoint: config.AWS_ENDPOINT_URL,
+  }),
   google:
     config.GOOGLE_CLIENT_ID && config.GOOGLE_CLIENT_SECRET
       ? createGoogleSignIn({

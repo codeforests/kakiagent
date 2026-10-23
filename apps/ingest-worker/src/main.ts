@@ -1,7 +1,7 @@
 import { usageSink } from '@kaki/analytics';
 import { IngestJob } from '@kaki/contracts';
 import { createZoneDb, ping } from '@kaki/db';
-import { fakeExtractScript, runIngestJob } from '@kaki/kb';
+import { DEFAULT_FILE_LIMITS, fakeExtractScript, runIngestJob, type FileDeps } from '@kaki/kb';
 import { gatewayFromConfig } from '@kaki/llm-gateway';
 import {
   createLogger,
@@ -13,6 +13,11 @@ import {
 } from '@kaki/platform';
 import { z } from 'zod';
 import { chromiumFetchers, parseHostMap } from './chromium.js';
+import { clamavScanner } from './clamav.js';
+import { guarddutyScanner } from './guardduty.js';
+import { pdftoppmRasterizer } from './pdf-raster.js';
+import { s3FileStore } from './s3-files.js';
+import { tesseractOcr } from './tesseract.js';
 
 const flag = z.preprocess((v) => v === 'true' || v === '1', z.boolean());
 const optional = z.preprocess((v) => (v === '' ? undefined : v), z.string().optional());
@@ -37,6 +42,24 @@ const config = loadConfig(
       CRAWL_HOST_MAP: optional,
       /** The image's Chromium; unset uses playwright-core's own download. */
       CHROMIUM_EXECUTABLE_PATH: optional,
+      /** Uploads wait in quarantine; only clean files reach sources (FEAT-015 §5.3). */
+      QUARANTINE_BUCKET: z.string().min(3),
+      SOURCES_BUCKET: z.string().min(3),
+      /** ClamAV locally (and ADR-019's fallback); GuardDuty Malware Protection at MD. */
+      MALWARE_SCANNER: z.enum(['clamav', 'guardduty']).default('clamav'),
+      CLAMAV_HOST: z.string().default('127.0.0.1'),
+      CLAMAV_PORT: envSchemas.port.default(3310),
+      TESSERACT_PATH: z.string().default('tesseract'),
+      PDFTOPPM_PATH: z.string().default('pdftoppm'),
+      /** Pages read, and pages OCR'd, per file; OCR'd pages at once (FEAT-015 D8). */
+      FILE_PAGE_LIMIT: z.coerce.number().int().min(1).default(DEFAULT_FILE_LIMITS.pages),
+      OCR_PAGE_LIMIT: z.coerce.number().int().min(0).default(DEFAULT_FILE_LIMITS.ocrPages),
+      OCR_CONCURRENCY: z.coerce
+        .number()
+        .int()
+        .min(1)
+        .max(8)
+        .default(DEFAULT_FILE_LIMITS.ocrConcurrency),
     }),
 );
 const stopTelemetry = startTelemetry('ingest-worker', config.OTEL_EXPORTER_OTLP_ENDPOINT);
@@ -60,9 +83,40 @@ const browser = chromiumFetchers({
 if (dev && config.CRAWL_ALLOW_PRIVATE_HOSTS)
   logger.warn('crawler address guard is off (CRAWL_ALLOW_PRIVATE_HOSTS, dev only)');
 
+const store = s3FileStore({
+  quarantineBucket: config.QUARANTINE_BUCKET,
+  sourcesBucket: config.SOURCES_BUCKET,
+  region: config.AWS_REGION,
+  endpoint: config.AWS_ENDPOINT_URL,
+});
+const clamav =
+  config.MALWARE_SCANNER === 'clamav'
+    ? clamavScanner({ host: config.CLAMAV_HOST, port: config.CLAMAV_PORT })
+    : null;
+const ocr = tesseractOcr({ path: config.TESSERACT_PATH });
+const files: FileDeps = {
+  store,
+  scanner: clamav ?? guarddutyScanner({ s3: store.s3, quarantineBucket: config.QUARANTINE_BUCKET }),
+  ocr,
+  rasterizer: pdftoppmRasterizer({ path: config.PDFTOPPM_PATH }),
+  limits: {
+    pages: config.FILE_PAGE_LIMIT,
+    ocrPages: config.OCR_PAGE_LIMIT,
+    ocrConcurrency: config.OCR_CONCURRENCY,
+  },
+};
+// Tesseract's languages don't change while the worker runs: checked once (§5.8).
+const ocrReady = ocr.healthy();
+void ocrReady.then((ok) => {
+  if (!ok) logger.error('tesseract is missing, or lacks eng or chi_sim');
+});
+
 const health = startHealthServer(config.HEALTH_PORT, {
   database: () => ping(zdb),
   browser: async () => browser.healthy(),
+  // GuardDuty scans in S3 on its own; there is nothing to reach.
+  scanner: async () => (clamav ? clamav.healthy() : true),
+  ocr: () => ocrReady,
 });
 const abort = new AbortController();
 
@@ -85,7 +139,7 @@ const consuming = queue.consume<unknown>(
       outboxId: msg.id,
       tenantId: job.tenantId,
       sourceId: job.sourceId,
-      attempt: job.attempt,
+      attempt: 'attempt' in job ? job.attempt : undefined,
       stage: job.stage,
     });
     const started = Date.now();
@@ -99,6 +153,7 @@ const consuming = queue.consume<unknown>(
           concurrency: config.EXTRACT_CONCURRENCY,
           onDropped: (pageId, dropped) => log.info({ pageId, dropped }, 'extracted facts dropped'),
         },
+        files,
         maxAttempts: config.INGEST_MAX_ATTEMPTS,
       },
       job,

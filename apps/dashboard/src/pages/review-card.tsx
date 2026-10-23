@@ -3,6 +3,7 @@ import { Button } from '@kaki/ui';
 import { Link } from 'react-router';
 import { factTitle, POLICY_KIND_LABEL, sgd } from '../lib/facts.ts';
 import { dayOf, GROUP, gstUnknown, shortUrl, valueLine } from '../lib/review.ts';
+import { locationWords } from '../lib/sources.ts';
 
 export type CardGst = 'inclusive' | 'exclusive';
 export type Decided = 'approved' | 'rejected';
@@ -34,7 +35,9 @@ function Passage({ fact }: { fact: ReviewFact }) {
         {p.after}
       </span>
       {fact.sourceCapturedAt && (
-        <span className="review-card__caption">Website · read {dayOf(fact.sourceCapturedAt)}</span>
+        <span className="review-card__caption">
+          {fact.provenance?.location ? 'File' : 'Website'} · read {dayOf(fact.sourceCapturedAt)}
+        </span>
       )}
     </blockquote>
   );
@@ -101,7 +104,13 @@ export function FactCard(props: FactCardProps) {
               </>
             )}
           </span>
-          {fact.provenance && (
+          {fact.provenance?.location && (
+            // A file has no address to open: the page and the file's name (FEAT-015).
+            <span className="review-card__source">
+              {locationWords(fact.provenance.location)} of {fact.sourceName ?? 'the file'}
+            </span>
+          )}
+          {fact.provenance && !fact.provenance.location && (
             <a
               className="review-card__source"
               href={fact.provenance.url}

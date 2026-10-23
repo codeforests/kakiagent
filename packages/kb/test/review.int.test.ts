@@ -95,9 +95,9 @@ const policy = (title: string, details: string): FactInput => ({
 
 async function seedSource(tenantId: string, domain: string, pages: Record<string, string>) {
   const { rows } = await owner.query(
-    `insert into kb_sources (tenant_id, kind, status, url, domain, page_limit, attested_by,
+    `insert into kb_sources (tenant_id, kind, status, name, url, domain, page_limit, attested_by,
                              attested_at, created_by, finished_at)
-     values ($1, 'website', 'ready', $2, $3, 100, $4, now(), $4, now()) returning id`,
+     values ($1, 'website', 'ready', $3, $2, $3, 100, $4, now(), $4, now()) returning id`,
     [tenantId, `https://${domain}/`, domain, USER],
   );
   const id = rows[0].id as string;
@@ -381,9 +381,9 @@ describe('the queue (KB-16; AC-2)', () => {
   it('summarises counts for the tab, the filters and the empty state', async () => {
     const src = await seedSource(TENANT_A, 'kakibakery.sg', {});
     await owner.query(
-      `insert into kb_sources (tenant_id, kind, status, stage, url, domain, page_limit,
+      `insert into kb_sources (tenant_id, kind, status, stage, name, url, domain, page_limit,
                                attested_by, attested_at, created_by)
-       values ($1, 'website', 'processing', 'crawl', 'https://b.sg/', 'b.sg', 100, $2, now(), $2)`,
+       values ($1, 'website', 'processing', 'crawl', 'b.sg', 'https://b.sg/', 'b.sg', 100, $2, now(), $2)`,
       [TENANT_A, USER],
     );
     await seedFact(TENANT_A, product('A', 100), {

@@ -11,7 +11,7 @@ export class InvalidFactError extends Error {}
 export class InvalidCursorError extends Error {}
 /** No such source for this tenant (FEAT-012). */
 export class SourceNotFoundError extends Error {}
-/** A website source for this domain already exists (FEAT-012 §3.2). */
+/** A website source for this domain, or a source for this upload, already exists. */
 export class SourceExistsError extends Error {
   constructor(readonly sourceId: string) {
     super('source exists');
@@ -19,3 +19,7 @@ export class SourceExistsError extends Error {
 }
 /** A price whose GST treatment is unknown can't be approved until the owner chooses (KB-15). */
 export class GstRequiredError extends Error {}
+/** A file failed for a reason only a new upload fixes (FEAT-015 D7). */
+export class NotRetryableError extends Error {}
+/** The tenant has as many file sources as its plan holds (D2; FEAT-015 §3.2). */
+export class FileLimitError extends Error {}

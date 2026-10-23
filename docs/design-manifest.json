@@ -137,7 +137,10 @@
       "feature": "FEAT-012",
       "strategy": "code-native",
       "source": {
-        "spec": "features/FEAT-012-website-crawl/ui-design.md#scr-app-007--add-your-sources-website-part"
+        "spec": "features/FEAT-012-website-crawl/ui-design.md#scr-app-007--add-your-sources-website-part",
+        "extended_by": [
+          "features/FEAT-015-file-upload/ui-design.md#scr-app-007--add-your-sources-extended-files-part"
+        ]
       },
       "states": {
         "covered": [
@@ -145,17 +148,22 @@
           "validation",
           "submitting",
           "exists",
-          "error"
+          "error",
+          "uploading",
+          "added",
+          "refused",
+          "limit"
         ],
         "gaps": [
-          "files, spreadsheets, chat exports (FEAT-015..017)",
+          "spreadsheets, chat exports (FEAT-016, FEAT-017)",
           "wizard frame (FEAT-035)"
         ],
         "supplements": []
       },
       "contract_bindings": [
         "POST /api/v1/kb/sources",
-        "GET /api/v1/kb/sources"
+        "GET /api/v1/kb/sources",
+        "POST /api/v1/kb/uploads"
       ],
       "conformance": {
         "result": "pass",
@@ -163,7 +171,7 @@
         "escalations": []
       },
       "status": "designed",
-      "designed_at": "2026-10-21"
+      "designed_at": "2026-10-23"
     },
     "SCR-APP-008": {
       "name": "Wizard · Review your facts",
@@ -250,7 +258,8 @@
         "prototype": "02-design/anchors/scr-app-019-review-facts.html",
         "extended_by": [
           "features/FEAT-013-fact-review/ui-design.md#scr-app-019--review--facts",
-          "features/FEAT-014-conflicts/ui-design.md#scr-app-019--review--facts-partial"
+          "features/FEAT-014-conflicts/ui-design.md#scr-app-019--review--facts-partial",
+          "features/FEAT-015-file-upload/ui-design.md#scr-app-028--fact-and-scr-app-019--review--facts-extended-file-provenance"
         ]
       },
       "states": {
@@ -339,7 +348,10 @@
       "feature": "FEAT-012",
       "strategy": "code-native",
       "source": {
-        "spec": "features/FEAT-012-website-crawl/ui-design.md#scr-app-023--sources"
+        "spec": "features/FEAT-012-website-crawl/ui-design.md#scr-app-023--sources",
+        "extended_by": [
+          "features/FEAT-015-file-upload/ui-design.md#scr-app-023--sources-extended-file-rows"
+        ]
       },
       "states": {
         "covered": [
@@ -366,7 +378,7 @@
         "escalations": []
       },
       "status": "designed",
-      "designed_at": "2026-10-21"
+      "designed_at": "2026-10-23"
     },
     "SCR-APP-024": {
       "name": "Source",
@@ -374,7 +386,10 @@
       "feature": "FEAT-012",
       "strategy": "code-native",
       "source": {
-        "spec": "features/FEAT-012-website-crawl/ui-design.md#scr-app-024--source"
+        "spec": "features/FEAT-012-website-crawl/ui-design.md#scr-app-024--source",
+        "extended_by": [
+          "features/FEAT-015-file-upload/ui-design.md#scr-app-024--source-extended-a-files-extraction"
+        ]
       },
       "states": {
         "covered": [
@@ -388,8 +403,7 @@
           "filtered-empty"
         ],
         "gaps": [
-          "changes since the last crawl (FEAT-020)",
-          "a file's extraction (FEAT-015)"
+          "changes since the last crawl (FEAT-020)"
         ],
         "supplements": []
       },
@@ -404,7 +418,7 @@
         "escalations": []
       },
       "status": "designed",
-      "designed_at": "2026-10-21"
+      "designed_at": "2026-10-23"
     },
     "SCR-APP-027": {
       "name": "Facts",
@@ -453,7 +467,8 @@
         "spec": "features/FEAT-011-kb-manager/ui-design.md#scr-app-028--fact",
         "extends": "features/FEAT-022-grounded-verified-answer/ui-design.md#scr-app-028--fact",
         "extended_by": [
-          "features/FEAT-012-website-crawl/ui-design.md#scr-app-028--fact-extended-provenance"
+          "features/FEAT-012-website-crawl/ui-design.md#scr-app-028--fact-extended-provenance",
+          "features/FEAT-015-file-upload/ui-design.md#scr-app-028--fact-and-scr-app-019--review--facts-extended-file-provenance"
         ]
       },
       "states": {

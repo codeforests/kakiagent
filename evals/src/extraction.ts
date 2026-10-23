@@ -7,7 +7,8 @@ import { z } from 'zod';
  * from them. An extracted fact matches an expected one of the same type when their quotes
  * overlap on the page, so a model may word its fields freely but must point at the right
  * passage. `realOnly` pages are worded naturally; the fake extractor only reads the
- * fixture site's patterns, so they run with a real model only.
+ * fixture site's patterns, so they run with a real model only. File pages (FEAT-015) are
+ * text as the parser and OCR give it, extracted with the file prompt.
  */
 export const ExpectedFact = z
   .object({
@@ -31,6 +32,8 @@ export const ExtractionPage = z
     id: z.string(),
     fast: z.boolean().default(false),
     realOnly: z.boolean().default(false),
+    /** A file page (FEAT-015 §5.5): its file name, and `url` is its locator (`page/1`). */
+    fileName: z.string().optional(),
     url: z.string(),
     title: z.string(),
     text: z.string().min(1),

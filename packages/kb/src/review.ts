@@ -160,12 +160,12 @@ export async function withPassages(
   rows: FactRow[],
 ): Promise<ReviewRecord[]> {
   const sourceIds = [...new Set(rows.map((r) => r.sourceId).filter((s): s is string => !!s))];
-  const sources = new Map<string, { domain: string; finishedAt: Date | null }>();
+  const sources = new Map<string, { name: string; finishedAt: Date | null }>();
   const contents = new Map<string, string | null>();
   if (sourceIds.length) {
     const s = schema.kbSources;
     for (const row of await ctx.tx
-      .select({ id: s.id, domain: s.domain, finishedAt: s.finishedAt })
+      .select({ id: s.id, name: s.name, finishedAt: s.finishedAt })
       .from(s)
       .where(and(eq(s.tenantId, ctx.tenantId), inArray(s.id, sourceIds))))
       sources.set(row.id, row);
@@ -192,7 +192,7 @@ export async function withPassages(
       passage: p
         ? passageOf(contents.get(`${record.sourceId} ${p.url}`) ?? null, p.quote, p.start, p.end)
         : null,
-      sourceName: source?.domain ?? null,
+      sourceName: source?.name ?? null,
       sourceCapturedAt: source?.finishedAt ?? null,
     };
   });
@@ -262,12 +262,12 @@ export async function reviewSummary(ctx: DashboardKbContext): Promise<ReviewSumm
   }
   const s = schema.kbSources;
   const bySource = await ctx.tx
-    .select({ id: f.sourceId, name: s.domain, count: sql<number>`count(*)::int` })
+    .select({ id: f.sourceId, name: s.name, count: sql<number>`count(*)::int` })
     .from(f)
     .leftJoin(s, and(eq(s.tenantId, f.tenantId), eq(s.id, f.sourceId)))
     .where(and(eq(f.tenantId, ctx.tenantId), inArray(f.status, [...REVIEWABLE])))
-    .groupBy(f.sourceId, s.domain)
-    .orderBy(s.domain);
+    .groupBy(f.sourceId, s.name)
+    .orderBy(s.name);
   summary.bySource = bySource;
   const [busy] = await ctx.tx
     .select({ count: sql<number>`count(*)::int` })

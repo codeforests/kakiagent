@@ -19,3 +19,15 @@ variable "force_destroy" {
   type        = bool
   default     = false
 }
+
+variable "upload_origins" {
+  description = "Origins whose browsers PUT uploads into quarantine (the dashboard; FEAT-015)."
+  type        = list(string)
+  default     = []
+}
+
+variable "malware_protection" {
+  description = "Scan quarantine uploads with GuardDuty Malware Protection for S3 (FEAT-015, ADR-019)."
+  type        = bool
+  default     = true
+}

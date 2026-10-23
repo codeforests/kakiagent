@@ -62,8 +62,9 @@ resource "aws_s3_bucket_object_lock_configuration" "audit_anchors" {
   }
 }
 
-# Uploads land in quarantine until the malware check passes (ADR-018); unclaimed
-# objects expire.
+# Uploads land in quarantine until the malware check passes (ADR-018); the worker
+# deletes each one once scanned, and anything left (an upload never added as a source,
+# FEAT-015 §5.3) expires after a day.
 resource "aws_s3_bucket_lifecycle_configuration" "quarantine" {
   bucket = aws_s3_bucket.this["quarantine"].id
   rule {
@@ -71,7 +72,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "quarantine" {
     status = "Enabled"
     filter {}
     expiration {
-      days = 7
+      days = 1
     }
     noncurrent_version_expiration {
       noncurrent_days = 1

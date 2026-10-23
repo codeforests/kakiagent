@@ -36,6 +36,17 @@ export interface Provenance {
   end: number;
 }
 
+export type FileUnit = 'page' | 'slide' | 'part' | 'image';
+
+/** A file page's locator, `page/3`, `slide/2`, `part/1` or `image/1` (FEAT-015 §3.1). */
+export const fileLocator = (unit: FileUnit, number: number) => `${unit}/${number}`;
+
+/** The file location a page locator names, or null for a web page's URL. */
+export function locationOf(url: string): { unit: FileUnit; number: number } | null {
+  const m = /^(page|slide|part|image)\/([1-9]\d{0,5})$/.exec(url);
+  return m ? { unit: m[1] as FileUnit, number: Number(m[2]) } : null;
+}
+
 export type FactRecord = FactInput & {
   id: string;
   status: FactStatus;

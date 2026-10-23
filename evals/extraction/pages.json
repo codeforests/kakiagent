@@ -176,5 +176,41 @@
       },
       { "type": "promotion", "quote": "Early-bird offer", "validUntil": "2099-01-15" }
     ]
+  },
+  {
+    "id": "file-ocr-price-list",
+    "fast": true,
+    "fileName": "scanned-menu.pdf",
+    "url": "page/1",
+    "title": "",
+    "text": "Menu\nEgg tarts (6 pieces) - S$12.60\nSourdough loaf (800 g) - S$9.80",
+    "expected": [
+      {
+        "type": "product",
+        "quote": "Egg tarts (6 pieces) - S$12.60",
+        "priceCents": 1260,
+        "gst": "unknown",
+        "unit": "6 pieces"
+      },
+      {
+        "type": "product",
+        "quote": "Sourdough loaf (800 g) - S$9.80",
+        "priceCents": 980,
+        "gst": "unknown",
+        "unit": "800 g"
+      }
+    ]
+  },
+  {
+    "id": "file-docx-faq",
+    "fast": true,
+    "fileName": "faq.docx",
+    "url": "part/1",
+    "title": "",
+    "text": "Kaki Bakery FAQ\t2026\nUpdated monthly\nQ: Can I collect my cake on the same day?\nA: Yes, for orders before 11 am.\nQ: Do you have halal certification?\nA: Our kitchen is halal certified.",
+    "expected": [
+      { "type": "faq", "quote": "Q: Can I collect my cake on the same day?" },
+      { "type": "faq", "quote": "Q: Do you have halal certification?" }
+    ]
   }
 ]

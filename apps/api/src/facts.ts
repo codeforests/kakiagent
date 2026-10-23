@@ -19,6 +19,7 @@ import {
   deleteFact,
   getFact,
   listFacts,
+  locationOf,
   mergePatch,
   prepareChunk,
   sgDateOf,
@@ -60,7 +61,10 @@ export function toFact(r: FactRecord): Fact {
     validUntil: null,
     sourceId: r.sourceId,
     confidence: r.confidence,
-    provenance: r.provenance && r.sourceId ? { sourceId: r.sourceId, ...r.provenance } : null,
+    provenance:
+      r.provenance && r.sourceId
+        ? { sourceId: r.sourceId, ...r.provenance, location: locationOf(r.provenance.url) }
+        : null,
   };
   switch (r.type) {
     case 'product':

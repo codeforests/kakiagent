@@ -5,6 +5,7 @@ import { Link, useNavigate } from 'react-router';
 import { api, ApiError } from '../lib/api.ts';
 import { Field } from '../lib/field.tsx';
 import { describedBy } from '../lib/form.ts';
+import { AddFilesForm } from './add-files.tsx';
 import { NoPermission } from './system.tsx';
 
 type FieldName = 'url' | 'subdomains' | 'attested';
@@ -227,7 +228,27 @@ export function AddWebsiteForm() {
   );
 }
 
-/** `/knowledge/sources/new`. */
+/** SCR-APP-007's two parts, website then files (UC-03 6 expects both on one step). */
+function SourceSections() {
+  return (
+    <>
+      <section className="add-sources__part" aria-labelledby="add-website-title">
+        <h2 className="subsection-title" id="add-website-title">
+          Your website
+        </h2>
+        <AddWebsiteForm />
+      </section>
+      <section className="add-sources__part" id="files" aria-labelledby="add-files-title">
+        <h2 className="subsection-title" id="add-files-title">
+          Files
+        </h2>
+        <AddFilesForm />
+      </section>
+    </>
+  );
+}
+
+/** `/knowledge/sources/new` (FEAT-015: "Add sources", with files). */
 export function AddWebsitePage() {
   const access = useQuery({ queryKey: ['sources'], queryFn: api.sources });
   if (access.error instanceof ApiError && access.error.status === 403) return <NoPermission />;
@@ -236,8 +257,8 @@ export function AddWebsitePage() {
       <Link className="back-link" to="/knowledge/sources">
         Sources
       </Link>
-      <h1 className="page-title">Add website</h1>
-      <AddWebsiteForm />
+      <h1 className="page-title">Add sources</h1>
+      <SourceSections />
     </div>
   );
 }
@@ -250,12 +271,12 @@ export function SetupSourcesPage() {
     <div className="add-website-page">
       <p className="page-lede">Step 2 of the setup</p>
       <h1 className="page-title">Add your sources</h1>
-      <AddWebsiteForm />
+      <SourceSections />
       <Button asChild variant="ghost">
         <Link to="/setup/review">Next: review your facts</Link>
       </Button>
       <Button asChild variant="ghost">
-        <Link to="/">Skip, I'll add files later</Link>
+        <Link to="/">Skip for now</Link>
       </Button>
     </div>
   );

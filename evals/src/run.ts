@@ -462,6 +462,7 @@ for (const subset of Subset.options) {
       url: page.url,
       title: page.title,
       content: page.text,
+      ...(page.fileName !== undefined ? { fileName: page.fileName } : {}),
     });
     const score = scoreExtraction(page, facts);
     for (const problem of score.problems) console.log(`FAIL extraction ${page.id}: ${problem}`);
