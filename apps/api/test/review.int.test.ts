@@ -196,6 +196,7 @@ describe('the queue and summary (AC-2)', () => {
     expect(summary.json()).toEqual({
       needsReview: 2,
       conflicted: 0,
+      conflicts: 0, // FEAT-014, additive
       byType: { product: 1, policy: 0, promotion: 0, faq: 1 },
       bySource: [
         { id: src, name: 'kakibakery.sg', count: 1 },

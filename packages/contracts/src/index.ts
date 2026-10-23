@@ -462,6 +462,8 @@ export type TypeCounts = z.infer<typeof TypeCounts>;
 export const ReviewSummary = z.object({
   needsReview: z.int(),
   conflicted: z.int(),
+  /** Open conflicts: entities whose sources disagree (FEAT-014). */
+  conflicts: z.int(),
   byType: TypeCounts,
   bySource: z.array(
     z.object({ id: z.uuid().nullable(), name: z.string().nullable(), count: z.int() }),
@@ -523,6 +525,60 @@ export const ApproveFactBody = z
   .strict();
 export type ApproveFactBody = z.infer<typeof ApproveFactBody>;
 export const RejectFactBody = z.object({ version: z.int().min(1) }).strict();
+
+// ---- Dashboard API: conflicts (KB-06, UC-12; FEAT-014 §3) ---------------------------
+
+const conflictExtras = {
+  /** When this source said it: its read time, or the owner's last confirmation (D4). */
+  sourceDate: z.iso.datetime({ offset: true }),
+  /** The strictly newest member, suggested (KB-17). */
+  newer: z.boolean(),
+};
+export const ConflictFact = z.discriminatedUnion('type', [
+  productFact.extend(reviewExtras).extend(conflictExtras),
+  faqFact.extend(reviewExtras).extend(conflictExtras),
+  policyFact.extend(reviewExtras).extend(conflictExtras),
+  promotionFact.extend(reviewExtras).extend(conflictExtras),
+]);
+export type ConflictFact = z.infer<typeof ConflictFact>;
+export const Conflict = z.object({
+  id: z.string().regex(/^[0-9a-f]{16}$/),
+  type: FactType,
+  facts: z.array(ConflictFact).min(1),
+  suggestedId: z.uuid().nullable(),
+});
+export type Conflict = z.infer<typeof Conflict>;
+export const ConflictList = z.object({ conflicts: z.array(Conflict) });
+export type ConflictList = z.infer<typeof ConflictList>;
+
+const resolveBase = { facts: distinctRefs(50), keepId: z.uuid() };
+const keptAmong = (b: { facts: FactRef[]; keepId: string }) =>
+  b.facts.some((f) => f.id === b.keepId);
+export const ResolveConflictBody = z
+  .discriminatedUnion('action', [
+    z
+      .object({
+        action: z.literal('use'),
+        ...resolveBase,
+        gstTreatment: ManualGstTreatment.optional(),
+      })
+      .strict(),
+    z
+      .object({
+        action: z.literal('enter'),
+        ...resolveBase,
+        value: z.record(z.string(), z.unknown()),
+        gstTreatment: ManualGstTreatment.optional(),
+        validFrom: SgDate.nullable().optional(),
+        validUntil: SgDate.optional(),
+      })
+      .strict(),
+    z.object({ action: z.literal('disable'), ...resolveBase }).strict(),
+  ])
+  .refine(keptAmong, { message: 'Keep one of the facts', path: ['keepId'] });
+export type ResolveConflictBody = z.infer<typeof ResolveConflictBody>;
+export const ResolveConflictResponse = z.object({ fact: Fact, rejected: z.array(FactRef) });
+export type ResolveConflictResponse = z.infer<typeof ResolveConflictResponse>;
 
 // ---- Dashboard API: assistant settings (AGT-08, AGT-11; FEAT-024 §3) ----------------
 
