@@ -60,6 +60,8 @@ const config = loadConfig(
         .min(1)
         .max(8)
         .default(DEFAULT_FILE_LIMITS.ocrConcurrency),
+      /** Data rows read per spreadsheet (FEAT-016 D10). */
+      SHEET_ROW_LIMIT: z.coerce.number().int().min(1).default(DEFAULT_FILE_LIMITS.sheetRows),
     }),
 );
 const stopTelemetry = startTelemetry('ingest-worker', config.OTEL_EXPORTER_OTLP_ENDPOINT);
@@ -103,6 +105,7 @@ const files: FileDeps = {
     pages: config.FILE_PAGE_LIMIT,
     ocrPages: config.OCR_PAGE_LIMIT,
     ocrConcurrency: config.OCR_CONCURRENCY,
+    sheetRows: config.SHEET_ROW_LIMIT,
   },
 };
 // Tesseract's languages don't change while the worker runs: checked once (§5.8).

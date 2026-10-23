@@ -17,7 +17,7 @@
       Done when: kb integration tests pass: the preview's counts, samples, rejects, `existing`, `conflicts` and `gstReview` (GST-registered and not); nothing written by preview; confirm stores the mapping with an audit entry and one outbox job; confirm with no importable row fails `no_valid_rows`; wrong state and stale version refused; editing an imported product keeps its SKU and stock.
 - [x] T7 — Fixtures: `generate.ts` gains the §5.10 files; committed (design §5.10)
       Done when: `pnpm --filter @kaki/ingest-worker fixtures:files` regenerates every file and the committed files match what T3–T5 and T8 tests expect.
-- [ ] T8 — Worker wiring: `SHEET_ROW_LIMIT` config and `.env.example`, logs; integration test running the real fixtures through scan (ClamAV) and parse (design §5.9; AC-2, AC-3)
+- [x] T8 — Worker wiring: `SHEET_ROW_LIMIT` config and `.env.example`, logs; integration test running the real fixtures through scan (ClamAV) and parse (design §5.9; AC-2, AC-3)
       Done when: ingest-worker integration tests pass: `price-list.xlsx` and `services.csv` scan clean and parse to their expected layout; `protected.xlsx`, `legacy.xls` and `latin1.csv` are refused with their reasons; EICAR as `prices.csv` fails `malware`.
 - [ ] T9 — API: the spreadsheet body of `POST /kb/sources`, `POST /:id/preview`, `POST /:id/import`, `bad_mapping`, `toSource` with `sheet`, pages with `cells`, the extension lists (design §3.2; AC-1, AC-4, AC-6, AC-8, AC-9)
       Done when: api integration tests pass for every designed success and error, including tenant B's 404 on tenant A's source.
