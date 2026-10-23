@@ -19,7 +19,7 @@
       Done when: `pnpm --filter @kaki/ingest-worker fixtures:files` regenerates every file and the committed files match what T3–T5 and T8 tests expect.
 - [x] T8 — Worker wiring: `SHEET_ROW_LIMIT` config and `.env.example`, logs; integration test running the real fixtures through scan (ClamAV) and parse (design §5.9; AC-2, AC-3)
       Done when: ingest-worker integration tests pass: `price-list.xlsx` and `services.csv` scan clean and parse to their expected layout; `protected.xlsx`, `legacy.xls` and `latin1.csv` are refused with their reasons; EICAR as `prices.csv` fails `malware`.
-- [ ] T9 — API: the spreadsheet body of `POST /kb/sources`, `POST /:id/preview`, `POST /:id/import`, `bad_mapping`, `toSource` with `sheet`, pages with `cells`, the extension lists (design §3.2; AC-1, AC-4, AC-6, AC-8, AC-9)
+- [x] T9 — API: the spreadsheet body of `POST /kb/sources`, `POST /:id/preview`, `POST /:id/import`, `bad_mapping`, `toSource` with `sheet`, pages with `cells`, the extension lists (design §3.2; AC-1, AC-4, AC-6, AC-8, AC-9)
       Done when: api integration tests pass for every designed success and error, including tenant B's 404 on tenant A's source.
 - [ ] T10 — Dashboard: spreadsheets on SCR-APP-007 (the files part takes `.csv`/`.xlsx`), spreadsheet rows on SCR-APP-023, SCR-APP-025 at `/knowledge/sources/:id` for a spreadsheet (mapping, preview, importing, done with rejects, failed), row provenance with SKU and stock on SCR-APP-028 (ui-design.md)
       Done when: `pnpm --filter @kaki/dashboard build` passes and every state in ui-design.md renders against the running stack at 1280 px and 390 px.

@@ -291,7 +291,7 @@ describe('spreadsheet stages (KB-03; FEAT-016 §5.2–§5.8)', () => {
       '"Cut; wash";25',
       ...Array.from({ length: 60 }, (_, i) => `Colour ${i};${80 + i}`),
     ].join('\r\n');
-    const s = await addSheet(files, new TextEncoder().encode(`﻿${csv}`), 'services.csv');
+    const s = await addSheet(files, new TextEncoder().encode(`\uFEFF${csv}`), 'services.csv');
     await drain(s, files);
     const src = await sourceRow(s.id);
     expect(src).toMatchObject({

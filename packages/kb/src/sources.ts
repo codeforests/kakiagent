@@ -32,6 +32,8 @@ export interface PageRecord {
   httpStatus: number | null;
   facts: number;
   ocrConfidence: number | null;
+  /** A spreadsheet row's cells (FEAT-016); null for other pages. */
+  cells: string[] | null;
 }
 
 /** Where a tenant's upload waits for its checks: the quarantine bucket (ADR-018 d2). */
@@ -250,6 +252,7 @@ export async function getSource(
       httpStatus: p.httpStatus,
       facts: p.factsCount,
       ocrConfidence: p.ocrConfidence,
+      cells: p.cells,
     })
     .from(p)
     .where(and(eq(p.tenantId, ctx.tenantId), eq(p.sourceId, id), eq(p.attempt, source.attempt)))
