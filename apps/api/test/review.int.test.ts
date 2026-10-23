@@ -133,11 +133,20 @@ describe('access (AC-8)', () => {
       facts: [{ id, version: 1 }],
     });
     expect(bulk.json()).toEqual({ approved: [], skipped: [{ id, reason: 'not_found' }] });
+    const bulkReject = await call('POST', '/api/v1/kb/review/reject', asB, {
+      facts: [{ id, version: 1 }],
+    });
+    expect(bulkReject.json()).toEqual({ rejected: [], skipped: [{ id, reason: 'not_found' }] });
     const preview = (await call('GET', '/api/v1/kb/review/preview', asB)).json();
     await call('POST', '/api/v1/kb/review/approve-all', asB, {
       previewHash: preview.previewHash,
     });
     expect(await status(id)).toEqual({ status: 'needs_review', version: 1 });
+    // A's decision can't be undone from B.
+    await call('POST', `/api/v1/kb/facts/${id}/approve`, asA, { version: 1 });
+    const undo = await call('POST', '/api/v1/kb/review/undo', asB, { facts: [{ id, version: 2 }] });
+    expect(undo.json()).toEqual({ restored: 0, skipped: [{ id, reason: 'not_found' }] });
+    expect(await status(id)).toEqual({ status: 'approved', version: 2 });
   });
 });
 

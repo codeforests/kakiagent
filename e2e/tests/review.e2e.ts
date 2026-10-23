@@ -6,7 +6,7 @@ import { expectNoSeriousA11yViolations, openShadowRoots, signIn } from './suppor
  * reviews its facts on SCR-APP-019: approves one and undoes it, approves by keyboard,
  * edits and approves one, rejects one, gives a GST-unknown price its treatment, cancels
  * and then confirms Approve all for the source, and the widget answers with an approved
- * price. Approve all is scoped to the source, so the dev seed's fact in review (S$70,
+ * price, and the empty and error states render. Approve all is scoped to the source, so the dev seed's fact in review (S$70,
  * FEAT-022's E2E) stays out of answers.
  */
 test.setTimeout(240_000);
@@ -164,7 +164,31 @@ test('the owner reviews crawled facts one by one and with Approve all', async ({
   await expect(page.getByRole('status').filter({ hasText: `${n} facts approved.` })).toBeVisible();
   // Left: the GST-unknown prices.
   await expect(page.getByTestId('review-card')).toHaveCount(unknown);
-  await expect(page.getByTestId('review-card').first()).toContainText('GST treatment unknown');
+  const left = page.getByTestId('review-card').first();
+  await expect(left).toContainText('GST treatment unknown');
+  // Approving one of them asks for the GST choice.
+  await left.getByRole('button', { name: 'Approve', exact: true }).click();
+  await expect(left).toContainText('Choose whether the price includes GST');
+  await expect(page.getByTestId('review-card')).toHaveCount(unknown);
+
+  // Empty (filtered): this source's FAQs are all approved.
+  const types = page.getByLabel('Type');
+  await types.selectOption(
+    (await types.locator('option', { hasText: 'FAQs' }).getAttribute('value'))!,
+  );
+  await expect(page.getByText('No facts to review here')).toBeVisible();
+  await page.getByRole('button', { name: 'Show all facts' }).click();
+  await expect(page.getByTestId('review-card').first()).toBeVisible();
+
+  // Error: the queue can't load, then Try again loads it.
+  await page.route('**/api/v1/kb/review/facts**', (route) =>
+    route.fulfill({ status: 500, contentType: 'application/json', body: '{"error":"x"}' }),
+  );
+  await page.reload();
+  await expect(page.getByText("We couldn't load your facts")).toBeVisible();
+  await page.unroute('**/api/v1/kb/review/facts**');
+  await page.getByRole('button', { name: 'Try again' }).click();
+  await expect(page.getByTestId('review-card').first()).toBeVisible();
 
   // The widget answers with an approved price.
   const visitorContext = await browser.newContext();
@@ -188,4 +212,13 @@ test('the owner reviews crawled facts one by one and with Approve all', async ({
   await expectNoSeriousA11yViolations(page);
 
   await clearSources(page);
+
+  // Empty: the second tenant has nothing waiting.
+  const otherContext = await browser.newContext();
+  const other = await otherContext.newPage();
+  await signIn(other, 'owner@second-tenant.test');
+  await other.goto('/review');
+  await expect(other.getByText('No facts waiting for review')).toBeVisible();
+  await expect(other.getByRole('link', { name: 'Add a source' })).toBeVisible();
+  await otherContext.close();
 });
