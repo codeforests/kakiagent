@@ -20,7 +20,7 @@
 - [x] T8 — Worker wiring: `CHAT_MESSAGE_LIMIT`, `CHAT_PART_LIMIT` config and `.env.example`, the fake provider routing `mine`, logs (design §5.7)
       Done when: ingest-worker typecheck and unit tests pass; the worker starts against the local stack.
       Note: this session had no Docker, so the worker wasn't started against the stack; typecheck, lint and the worker's unit tests (including the committed chat fixtures) pass, and CI's E2E job starts it.
-- [ ] T9 — API: the chat body of `POST /kb/sources`, `toSource` with `chat` (no `businessNames`), extension lists (design §3.2; AC-1, AC-6, AC-8)
+- [x] T9 — API: the chat body of `POST /kb/sources`, `toSource` with `chat` (no `businessNames`), extension lists (design §3.2; AC-1, AC-6, AC-8)
       Done when: api integration tests pass for every designed success and error, including tenant B's 404 on tenant A's source.
 - [ ] T10 — Dashboard: chat exports on SCR-APP-007, chat rows on SCR-APP-023, SCR-APP-026 at `/knowledge/sources/:id` for a chat (reading, suggestions, empty, failed), chat provenance on SCR-APP-028 (ui-design.md)
       Done when: `pnpm --filter @kaki/dashboard build` passes and every state in ui-design.md renders against the running stack.
