@@ -19,6 +19,7 @@ import {
   type FactType,
 } from './facts.js';
 import { NO_VALIDITY } from './types.js';
+import { moveFacts } from './writes.js';
 
 /**
  * Fact review (KB-16, ADR-010 decisions 1–3; FEAT-013 §5.1): the queue of facts waiting
@@ -345,76 +346,42 @@ export async function approveAll(
 
 // ---- Writes ------------------------------------------------------------------------
 
-type Decision = 'approved' | 'rejected' | 'needs_review';
-type Mode = 'single' | 'edited' | 'bulk' | 'all';
+type Decision = 'approved' | 'rejected' | 'needs_review' | 'disabled';
+type Mode = 'single' | 'edited' | 'bulk' | 'all' | 'conflict';
 
 const ACTION: Record<Decision, string> = {
   approved: 'fact.approved',
   rejected: 'fact.rejected',
   needs_review: 'fact.review_undone',
+  disabled: 'fact.disabled',
 };
 
 /**
- * Moves locked, checked rows to `status` set-based (D7): the facts, their version rows
- * and their chunks' versions, then one audit entry per fact. Approval records the
- * confirmation time (KB-17). Returns the new versions.
+ * Moves locked, checked rows to `status` set-based (D7) as the dashboard user, with one
+ * audit entry per fact. Returns the new versions.
  */
-async function decideRows(
+export async function decideRows(
   ctx: DashboardKbContext,
   rows: { id: string; status?: string }[],
   status: Decision,
   mode: Mode | null,
   batch?: string,
 ): Promise<FactRef[]> {
-  if (!rows.length) return [];
-  const ids = rows.map((r) => r.id);
   const from = new Map(rows.map((r) => [r.id, r.status]));
-  const updated = await ctx.tx
-    .update(f)
-    .set({
-      status,
-      version: sql`${f.version} + 1`,
-      updatedBy: ctx.userId,
-      updatedAt: sql`now()`,
-      ...(status === 'approved' ? { lastConfirmedAt: sql`now()` } : {}),
-    })
-    .where(and(eq(f.tenantId, ctx.tenantId), inArray(f.id, ids)))
-    .returning({ id: f.id, version: f.version });
-  await ctx.tx.execute(sql`
-    insert into fact_versions (tenant_id, fact_id, version, status, value, gst_treatment,
-                               valid_from, valid_until, changed_by)
-    select tenant_id, id, version, status, value, gst_treatment, valid_from, valid_until,
-           ${ctx.userId}
-    from facts
-    where tenant_id = ${ctx.tenantId} and id in (${sql.join(
-      ids.map((id) => sql`${id}::uuid`),
-      sql`, `,
-    )})`);
-  await ctx.tx.execute(sql`
-    update kb_chunks c set fact_version = f.version
-    from facts f
-    where c.tenant_id = ${ctx.tenantId} and f.tenant_id = c.tenant_id and f.id = c.fact_id
-      and f.id in (${sql.join(
-        ids.map((id) => sql`${id}::uuid`),
-        sql`, `,
-      )})`);
-  const byId = new Map(updated.map((u) => [u.id, u.version]));
-  const refs = ids.map((id) => ({ id, version: byId.get(id)! }));
-  for (const ref of refs) {
-    const payload: Record<string, AuditPayload[string]> = { version: ref.version };
-    if (mode) payload.mode = auditCode(mode);
-    if (status === 'needs_review') payload.from = auditCode(from.get(ref.id) ?? 'approved');
-    if (batch) payload.batch = auditId(batch);
-    await audit.append(ctx.tx, ctx.tenantId, {
-      action: ACTION[status],
-      actorType: 'user',
-      actorId: ctx.userId,
-      subjectType: 'fact',
-      subjectId: ref.id,
-      payload,
-    });
-  }
-  return refs;
+  return moveFacts(
+    ctx.tx,
+    ctx.tenantId,
+    { type: 'user', id: ctx.userId },
+    rows.map((r) => r.id),
+    status,
+    (ref) => {
+      const payload: Record<string, AuditPayload[string]> = { version: ref.version };
+      if (mode) payload.mode = auditCode(mode);
+      if (status === 'needs_review') payload.from = auditCode(from.get(ref.id) ?? 'approved');
+      if (batch) payload.batch = auditId(batch);
+      return { action: ACTION[status], payload };
+    },
+  );
 }
 
 async function lockFact(ctx: DashboardKbContext, id: string) {
