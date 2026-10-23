@@ -3,6 +3,7 @@ import { AssistantPage } from './pages/assistant.tsx';
 import { BusinessProfilePage, SetupProfilePage } from './pages/business-profile.tsx';
 import { AddWebsitePage, SetupSourcesPage } from './pages/add-website.tsx';
 import { Placeholder } from './pages/placeholder.tsx';
+import { ConflictsPage } from './pages/conflicts.tsx';
 import { ReviewPage, ReviewPlaceholder, SetupReviewPage } from './pages/review.tsx';
 import { SourcePage } from './pages/source.tsx';
 import { SourcesPage } from './pages/sources.tsx';
@@ -43,12 +44,9 @@ export const router = createBrowserRouter([
       { path: 'approvals', element: <Placeholder title="Approvals" feature="FEAT-055" /> },
       // Its review step (FEAT-013, SCR-APP-008 partial).
       { path: 'setup/review', element: <SetupReviewPage /> },
-      // Review → Facts (FEAT-013); Conflicts and Corrections follow (FEAT-014, FEAT-018).
+      // Review → Facts (FEAT-013), Conflicts (FEAT-014); Corrections follow (FEAT-018).
       { path: 'review', element: <ReviewPage /> },
-      {
-        path: 'review/conflicts',
-        element: <ReviewPlaceholder title="Conflicts" feature="FEAT-014" />,
-      },
+      { path: 'review/conflicts', element: <ConflictsPage /> },
       {
         path: 'review/corrections',
         element: <ReviewPlaceholder title="Corrections" feature="FEAT-018" />,
