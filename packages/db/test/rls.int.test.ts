@@ -1356,8 +1356,8 @@ describe('knowledge sources, pages and staged facts (FEAT-012)', () => {
   /** A source with one page and one staged fact for `tenant`, as the owner. */
   async function seedSource(tenant: string, domain: string) {
     const src = await owner.query<{ id: string }>(
-      `insert into kb_sources (tenant_id, kind, url, domain, page_limit, attested_by, attested_at, created_by)
-       values ($1, 'website', $2, $3, 100, 'u', now(), 'u') returning id`,
+      `insert into kb_sources (tenant_id, kind, name, url, domain, page_limit, attested_by, attested_at, created_by)
+       values ($1, 'website', $3, $2, $3, 100, 'u', now(), 'u') returning id`,
       [tenant, `https://${domain}/`, domain],
     );
     const page = await owner.query<{ id: string }>(
@@ -1406,8 +1406,8 @@ describe('knowledge sources, pages and staged facts (FEAT-012)', () => {
           const insert =
             role === 'app_dashboard'
               ? c.query(
-                  `insert into kb_sources (tenant_id, kind, url, domain, page_limit, attested_by, attested_at, created_by)
-                   values ($1, 'website', 'https://c.example/', 'c.example', 100, 'u', now(), 'u')`,
+                  `insert into kb_sources (tenant_id, kind, name, url, domain, page_limit, attested_by, attested_at, created_by)
+                   values ($1, 'website', 'c.example', 'https://c.example/', 'c.example', 100, 'u', now(), 'u')`,
                   [TENANT_A],
                 )
               : c.query(
@@ -1459,8 +1459,8 @@ describe('knowledge sources, pages and staged facts (FEAT-012)', () => {
         `select * from sessions`,
         `select * from memberships`,
         `delete from kb_sources`,
-        `insert into kb_sources (tenant_id, kind, url, domain, page_limit, attested_by, attested_at, created_by)
-           values ('${TENANT_B}', 'website', 'https://x.example/', 'x.example', 100, 'u', now(), 'u')`,
+        `insert into kb_sources (tenant_id, kind, name, url, domain, page_limit, attested_by, attested_at, created_by)
+           values ('${TENANT_B}', 'website', 'x.example', 'https://x.example/', 'x.example', 100, 'u', now(), 'u')`,
       ])
         await expect(
           asRole('app_ingest', TENANT_B, (c) => c.query(stmt)),
@@ -1522,6 +1522,43 @@ describe('knowledge sources, pages and staged facts (FEAT-012)', () => {
         (await c.query(`select value->>'name' as name from visitor_facts`)).rows.map((r) => r.name),
       );
       expect(visible).not.toContain('Extracted cake');
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("file sources (FEAT-015): tenant B can't see or change tenant A's, and the kind's checks hold", async () => {
+    const file = (tenant: string, key: string) =>
+      owner.query<{ id: string }>(
+        `insert into kb_sources (tenant_id, kind, name, upload_key, file_size, created_by)
+         values ($1, 'file', 'menu.pdf', $2, 1024, 'u') returning id`,
+        [tenant, key],
+      );
+    const a = (await file(TENANT_A, `uploads/${TENANT_A}/1`)).rows[0]!.id;
+    await file(TENANT_B, `uploads/${TENANT_B}/1`);
+    try {
+      for (const role of ['app_dashboard', 'app_ingest'] as const)
+        await asRole(role, TENANT_B, async (c) => {
+          const rows = (await c.query(`select tenant_id from kb_sources where kind = 'file'`)).rows;
+          expect(rows.map((r) => r.tenant_id)).toEqual([TENANT_B]);
+          expect(
+            (await c.query(`update kb_sources set file_key = 'x' where id = $1`, [a])).rowCount,
+          ).toBe(0);
+        });
+      // A file needs its upload key and size; a website still needs its URL and attestation.
+      await expect(
+        owner.query(
+          `insert into kb_sources (tenant_id, kind, name, created_by) values ($1, 'file', 'x.pdf', 'u')`,
+          [TENANT_A],
+        ),
+      ).rejects.toThrow(/kb_sources_file_ck/);
+      await expect(
+        owner.query(
+          `insert into kb_sources (tenant_id, kind, name, created_by) values ($1, 'website', 'x.sg', 'u')`,
+          [TENANT_A],
+        ),
+      ).rejects.toThrow(/kb_sources_website_ck/);
+      await expect(file(TENANT_A, `uploads/${TENANT_A}/1`)).rejects.toThrow(/kb_sources_upload_uq/);
     } finally {
       await cleanup();
     }

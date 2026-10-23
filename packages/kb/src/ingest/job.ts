@@ -138,6 +138,8 @@ export async function runIngestJob(
         return { result: 'next', stage: 'promote' };
       case 'promote':
         return { result: 'ready', facts: await promoteSource(zdb, source, deps.llm) };
+      default:
+        throw new Error(`no runner for stage ${job.stage}`);
     }
   } catch (err) {
     if (err instanceof StaleRunError) return { result: 'stale' };

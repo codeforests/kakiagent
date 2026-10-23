@@ -322,15 +322,24 @@ export const FactResponse = z.object({ fact: Fact });
 
 // ---- Dashboard API: knowledge sources (KB-01, KB-12, KB-13; FEAT-012 §3) ------------
 
-export const SourceKind = z.enum(['website']);
+export const SourceKind = z.enum(['website', 'file']);
 export const SourceStatus = z.enum(['queued', 'processing', 'ready', 'failed']);
 export type SourceStatus = z.infer<typeof SourceStatus>;
-export const SourceStage = z.enum(['crawl', 'extract', 'promote']);
+export const SourceStage = z.enum(['scan', 'parse', 'crawl', 'extract', 'promote']);
 export const SourceFailure = z.enum([
   'no_pages',
   'site_unreachable',
   'extraction_unavailable',
   'internal',
+  // Files (FEAT-015 §3.1): the safety checks (KB-11), then reading (KB-02).
+  'upload_missing',
+  'too_large',
+  'unsupported_type',
+  'encrypted',
+  'malware',
+  'scan_unavailable',
+  'unreadable',
+  'no_text',
 ]);
 export type SourceFailure = z.infer<typeof SourceFailure>;
 export const PageStatus = z.enum(['included', 'excluded', 'failed', 'skipped']);
@@ -345,31 +354,60 @@ export const PageReason = z.enum([
   'blocked_address',
   'load_error',
   'plan_limit',
+  'no_text',
+  'page_limit',
+  'ocr_limit',
 ]);
 export type PageReason = z.infer<typeof PageReason>;
 
+/** Where in a file a page is (FEAT-015 §3.1): its pages, slides, parts, or the image. */
+export const FileLocation = z.object({
+  unit: z.enum(['page', 'slide', 'part', 'image']),
+  number: z.int().min(1),
+});
+export type FileLocation = z.infer<typeof FileLocation>;
+
 export const Provenance = z.object({
   sourceId: z.uuid(),
+  /** A web page's URL, or a file page's locator (`page/3`, `slide/2`, `part/1`, `image/1`). */
   url: z.string(),
   title: z.string().nullable(),
   quote: z.string(),
   start: z.int().min(0),
   end: z.int().min(0),
+  /** Set for facts from files. */
+  location: FileLocation.nullable(),
 });
 export type Provenance = z.infer<typeof Provenance>;
+
+export const FileType = z.enum(['pdf', 'docx', 'pptx', 'txt', 'jpeg', 'png']);
+export type FileType = z.infer<typeof FileType>;
 
 export const Source = z.object({
   id: z.uuid(),
   kind: SourceKind,
   status: SourceStatus,
   stage: SourceStage.nullable(),
-  /** The domain, e.g. "kakibakery.sg". */
+  /** The domain, e.g. "kakibakery.sg", or the file's name. */
   name: z.string(),
-  url: z.string(),
-  domain: z.string(),
+  /** Websites only; null for files. */
+  url: z.string().nullable(),
+  domain: z.string().nullable(),
   subdomains: z.array(z.string()),
-  pageLimit: z.int(),
+  pageLimit: z.int().nullable(),
   failure: SourceFailure.nullable(),
+  /** Failed for a reason a retry can fix; files rejected by the safety checks can't be (D7). */
+  retryable: z.boolean(),
+  /** Files only (FEAT-015): `type` is what the bytes showed, null until the scan. */
+  file: z
+    .object({
+      name: z.string(),
+      sizeBytes: z.int(),
+      type: FileType.nullable(),
+      ocrPages: z.int(),
+      scannedAt: z.iso.datetime({ offset: true }).nullable(),
+    })
+    .nullable(),
   counts: z.object({
     pagesFound: z.int(),
     pagesIncluded: z.int(),
@@ -380,7 +418,7 @@ export const Source = z.object({
     facts: z.int(),
     factsNeedingReview: z.int(),
   }),
-  attestedAt: z.iso.datetime({ offset: true }),
+  attestedAt: z.iso.datetime({ offset: true }).nullable(),
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
   finishedAt: z.iso.datetime({ offset: true }).nullable(),
@@ -396,6 +434,8 @@ export const SourcePage = z.object({
   reason: PageReason.nullable(),
   httpStatus: z.int().nullable(),
   facts: z.int(),
+  /** 0..1 when the page was read by OCR (FEAT-015). */
+  ocrConfidence: z.number().min(0).max(1).nullable(),
 });
 export type SourcePage = z.infer<typeof SourcePage>;
 

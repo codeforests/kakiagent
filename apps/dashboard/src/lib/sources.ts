@@ -16,6 +16,8 @@ export const SOURCE_STATE: Record<
 };
 
 export const STAGE_LABEL: Record<NonNullable<Source['stage']>, string> = {
+  scan: 'Checking the file',
+  parse: 'Reading the file',
   crawl: 'Reading pages',
   extract: 'Finding facts',
   promote: 'Saving facts',
@@ -27,6 +29,20 @@ export const FAILURE_TEXT: Record<SourceFailure, string> = {
   extraction_unavailable:
     'Finding facts failed after several tries. Your pages are saved; try again in a few minutes.',
   internal: 'Something went wrong on our side. Try again; if it fails again, contact support.',
+  // Files (FEAT-015 ui-design).
+  upload_missing: "The upload didn't finish, so there's nothing to read. Upload the file again.",
+  too_large: 'This file is over 25 MB. Upload a smaller file, or split it.',
+  unsupported_type:
+    "This isn't a file type we can read. Upload a PDF, Word, PowerPoint, text, JPG or PNG file.",
+  encrypted:
+    'This file is password-protected or encrypted. Save a copy without a password and upload that.',
+  malware:
+    'This file contains malware, so we deleted it without reading it. Check your computer with antivirus software.',
+  scan_unavailable: "We couldn't check this file for malware just now. Try again in a few minutes.",
+  unreadable:
+    "This file seems damaged and couldn't be read. Open and save it again, then upload the copy.",
+  no_text:
+    "We couldn't find any text in this file, even in its images. Upload a clearer scan or a text version.",
 };
 
 export const PAGE_STATE: Record<
@@ -62,6 +78,12 @@ export function pageResult(p: SourcePage): string {
       return "Failed: couldn't load";
     case 'plan_limit':
       return 'Skipped: plan limit';
+    case 'no_text':
+      return 'Excluded: no text found';
+    case 'page_limit':
+      return 'Skipped: over the 200-page limit';
+    case 'ocr_limit':
+      return 'Skipped: over the limit of 50 scanned pages';
   }
 }
 

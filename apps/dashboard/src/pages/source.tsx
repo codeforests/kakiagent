@@ -127,14 +127,20 @@ export function SourcePage() {
       <div className="source-page__head">
         <div>
           <h1 className="page-title">{source.name}</h1>
-          <p className="source-page__meta">
-            <a href={source.url} target="_blank" rel="noreferrer noopener">
-              {source.url}
-              <span aria-hidden="true"> ↗</span>
-              <span className="sr-only"> (opens in a new tab)</span>
-            </a>
-          </p>
-          <p className="source-page__meta">Confirmed by you on {updatedLabel(source.attestedAt)}</p>
+          {source.url && (
+            <p className="source-page__meta">
+              <a href={source.url} target="_blank" rel="noreferrer noopener">
+                {source.url}
+                <span aria-hidden="true"> ↗</span>
+                <span className="sr-only"> (opens in a new tab)</span>
+              </a>
+            </p>
+          )}
+          {source.attestedAt && (
+            <p className="source-page__meta">
+              Confirmed by you on {updatedLabel(source.attestedAt)}
+            </p>
+          )}
         </div>
         <SourceState source={source} />
       </div>

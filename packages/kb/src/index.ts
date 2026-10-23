@@ -41,6 +41,7 @@ export {
   createFact,
   DEFAULT_PAGE_SIZE,
   deleteFact,
+  fileLocator,
   getFact,
   listFacts,
   mergePatch,
@@ -52,6 +53,8 @@ export {
   type FactRecord,
   type FactStatus,
   type FactType,
+  type FileUnit,
+  locationOf,
   type Provenance,
 } from './facts.js';
 export {
@@ -85,6 +88,8 @@ export {
   deleteSource,
   getSource,
   listSources,
+  NOT_RETRYABLE,
+  retryable,
   retrySource,
   sourceFactCounts,
   type PageReason,

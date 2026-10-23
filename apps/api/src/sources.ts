@@ -16,6 +16,7 @@ import {
   getSource,
   listSources,
   parseWebsite,
+  retryable,
   retrySource,
   sourceFactCounts,
   SourceNotFoundError,
@@ -42,12 +43,23 @@ function toSource(r: SourceRecord, counts: Counts | undefined): Source {
     kind: r.kind,
     status: r.status,
     stage: r.stage,
-    name: r.domain,
+    name: r.name,
     url: r.url,
     domain: r.domain,
     subdomains: r.subdomains,
     pageLimit: r.pageLimit,
     failure: r.failure,
+    retryable: retryable(r),
+    file:
+      r.kind === 'file'
+        ? {
+            name: r.name,
+            sizeBytes: r.fileSize ?? 0,
+            type: r.fileType,
+            ocrPages: r.ocrPages,
+            scannedAt: r.scannedAt?.toISOString() ?? null,
+          }
+        : null,
     counts: {
       pagesFound: r.pagesFound,
       pagesIncluded: r.pagesIncluded,
@@ -58,7 +70,7 @@ function toSource(r: SourceRecord, counts: Counts | undefined): Source {
       facts: counts?.facts ?? 0,
       factsNeedingReview: counts?.needsReview ?? 0,
     },
-    attestedAt: r.attestedAt.toISOString(),
+    attestedAt: r.attestedAt?.toISOString() ?? null,
     createdAt: r.createdAt.toISOString(),
     updatedAt: r.updatedAt.toISOString(),
     finishedAt: r.finishedAt?.toISOString() ?? null,

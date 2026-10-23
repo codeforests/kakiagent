@@ -18,11 +18,8 @@ export interface PageFetcher {
 export type PageFetcherFactory = (scope: { hosts: readonly string[] }) => Promise<PageFetcher>;
 
 /** The hosts a source's pages may be on (KB-13): the domain, its www host, listed subdomains. */
-export const hostsOf = (source: Pick<SourceRecord, 'domain' | 'subdomains'>): string[] => [
-  source.domain,
-  `www.${source.domain}`,
-  ...source.subdomains,
-];
+export const hostsOf = (source: Pick<SourceRecord, 'domain' | 'subdomains'>): string[] =>
+  source.domain ? [source.domain, `www.${source.domain}`, ...source.subdomains] : [];
 
 export type FetchedPage =
   | {
@@ -90,7 +87,10 @@ export async function crawlSource(
   const concurrency = opts.concurrency ?? 4;
   const sleep = opts.sleep ?? ((ms) => new Promise<void>((r) => setTimeout(r, ms)));
   const hosts = hostsOf(source);
-  const { tenantId, id: sourceId, attempt } = source;
+  const { tenantId, id: sourceId, attempt, url: startUrl } = source;
+  // `kb_sources_website_ck` guarantees both for a website, the only kind that is crawled.
+  if (startUrl === null || source.pageLimit === null) throw new Error('not a website source');
+  const pageLimit: number = source.pageLimit;
 
   // A redelivered crawl starts again: the attempt's pages from a crashed run go first.
   await withTenant(zdb, tenantId, async (tx) => {
@@ -177,7 +177,7 @@ export async function crawlSource(
     counts.found += 1;
     queue.push({ url, seq: nextSeq++ });
   }
-  discover(source.url);
+  discover(startUrl);
 
   let inFlight = 0;
   let waiters: (() => void)[] = [];
@@ -256,12 +256,12 @@ export async function crawlSource(
         await changed();
         continue;
       }
-      if (counts.included >= source.pageLimit) {
+      if (counts.included >= pageLimit) {
         if (counts.skipped < MAX_SKIPPED_ROWS)
           await write({ ...item, status: 'skipped', reason: 'plan_limit' });
         continue;
       }
-      if (counts.included + inFlight >= source.pageLimit) {
+      if (counts.included + inFlight >= pageLimit) {
         // The limit may be reached by pages still loading: decide after they finish.
         queue.unshift(item);
         await changed();

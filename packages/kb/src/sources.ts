@@ -29,6 +29,7 @@ export interface PageRecord {
   reason: PageReason | null;
   httpStatus: number | null;
   facts: number;
+  ocrConfidence: number | null;
 }
 
 /** The ingest job for a source's next stage (ADR-018 decision 1), in the caller's transaction. */
@@ -44,6 +45,21 @@ export async function enqueueStage(
     payload: { tenantId: source.tenantId, sourceId: source.id, attempt: source.attempt, stage },
   });
 }
+
+/** File failures only a new upload fixes: the file is gone or can't change (FEAT-015 D7). */
+export const NOT_RETRYABLE: readonly SourceFailure[] = [
+  'upload_missing',
+  'too_large',
+  'unsupported_type',
+  'encrypted',
+  'malware',
+  'unreadable',
+  'no_text',
+];
+
+/** A failed source that Retry can run again (KB-12): every website, and files not rejected. */
+export const retryable = (s: Pick<SourceRecord, 'kind' | 'status' | 'failure'>) =>
+  s.status === 'failed' && !(s.kind === 'file' && s.failure && NOT_RETRYABLE.includes(s.failure));
 
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 
@@ -75,6 +91,7 @@ export async function createWebsiteSource(
       kind: 'website',
       status: 'queued',
       stage: 'crawl',
+      name: scope.domain,
       url: scope.url,
       domain: scope.domain,
       subdomains: scope.subdomains,
@@ -144,6 +161,7 @@ export async function getSource(
       reason: p.reason,
       httpStatus: p.httpStatus,
       facts: p.factsCount,
+      ocrConfidence: p.ocrConfidence,
     })
     .from(p)
     .where(and(eq(p.tenantId, ctx.tenantId), eq(p.sourceId, id), eq(p.attempt, source.attempt)))
