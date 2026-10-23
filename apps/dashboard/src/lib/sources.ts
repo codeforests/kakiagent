@@ -19,6 +19,9 @@ export const SOURCE_STATE: Record<
 export const STAGE_LABEL: Record<NonNullable<Source['stage']>, string> = {
   scan: 'Checking the file',
   parse: 'Reading the file',
+  // Spreadsheets (FEAT-016 ui-design).
+  map: 'Waiting for you: map the columns',
+  import: 'Importing rows',
   crawl: 'Reading pages',
   extract: 'Finding facts',
   promote: 'Saving facts',
@@ -44,6 +47,28 @@ export const FAILURE_TEXT: Record<SourceFailure, string> = {
     "This file seems damaged and couldn't be read. Open and save it again, then upload the copy.",
   no_text:
     "We couldn't find any text in this file, even in its images. Upload a clearer scan or a text version.",
+  // Spreadsheets (FEAT-016 ui-design).
+  no_rows:
+    "We couldn't find a table with a header row and at least one row below it. Check the first sheet, then upload it again.",
+  no_valid_rows:
+    'None of the rows could be imported with that mapping. Retry to map the columns again.',
+};
+
+/** A spreadsheet's own words for the safety failures that name a file type (FEAT-016). */
+const SHEET_FAILURE_TEXT: Partial<Record<SourceFailure, string>> = {
+  unsupported_type:
+    'This isn\'t a spreadsheet we can read. Upload an .xlsx file, or a CSV saved as "CSV UTF-8".',
+  encrypted: 'This workbook is password-protected. Save a copy without a password and upload that.',
+  unreadable:
+    "This spreadsheet seems damaged and couldn't be read. Open it, save it again as .xlsx, and upload the copy.",
+};
+
+/** The failure in words, for the source's kind. */
+export const failureText = (s: Pick<Source, 'kind' | 'failure'>) => {
+  const failure = s.failure ?? 'internal';
+  return (
+    (s.kind === 'spreadsheet' ? SHEET_FAILURE_TEXT[failure] : undefined) ?? FAILURE_TEXT[failure]
+  );
 };
 
 export const PAGE_STATE: Record<
@@ -87,8 +112,31 @@ export function pageResult(p: SourcePage): string {
       return 'Skipped: over the 200-page limit';
     case 'ocr_limit':
       return 'Skipped: over the limit of 50 scanned pages';
+    default:
+      return ROW_REASON_TEXT[p.reason];
   }
 }
+
+/** Why a spreadsheet row wasn't imported (FEAT-016 ui-design, cross-screen). */
+export const ROW_REASON_TEXT: Record<SheetRowReason, string> = {
+  empty_row: 'Empty row',
+  no_name: 'No product or service name',
+  no_price: 'No price',
+  bad_price: "The price isn't an amount in dollars, like 12.50",
+  not_sgd: "The price isn't in Singapore dollars",
+  bad_stock: "Stock isn't a whole number",
+  too_long: 'A name, unit or SKU is too long',
+  duplicate: 'Same as an earlier row',
+};
+export type SheetRowReason =
+  | 'empty_row'
+  | 'no_name'
+  | 'no_price'
+  | 'bad_price'
+  | 'not_sgd'
+  | 'bad_stock'
+  | 'too_long'
+  | 'duplicate';
 
 /** Files (FEAT-015 ui-design, cross-screen). */
 export const FILE_TYPE_LABEL: Record<FileType, string> = {
@@ -98,6 +146,8 @@ export const FILE_TYPE_LABEL: Record<FileType, string> = {
   txt: 'Text file',
   jpeg: 'JPG image',
   png: 'PNG image',
+  xlsx: 'Excel workbook',
+  csv: 'CSV file',
 };
 const EXTENSION_TYPE: Record<string, FileType> = {
   pdf: 'pdf',
@@ -107,6 +157,8 @@ const EXTENSION_TYPE: Record<string, FileType> = {
   jpg: 'jpeg',
   jpeg: 'jpeg',
   png: 'png',
+  xlsx: 'xlsx',
+  csv: 'csv',
 };
 
 /** The type the scan named, or, before it has, the one the extension suggests. */
@@ -191,7 +243,7 @@ export function sourceSummary(s: Source): string {
     return c.facts === 0
       ? `No facts found${pages}`
       : `${c.facts} ${c.facts === 1 ? 'fact' : 'facts'} · ${c.factsNeedingReview} need review${pages}`;
-  if (s.status === 'failed') return FAILURE_TEXT[s.failure ?? 'internal'];
+  if (s.status === 'failed') return failureText(s);
   const stage = s.stage ? STAGE_LABEL[s.stage] : 'Waiting';
   // A queued source that started a stage is waiting for a retry (UC-03 5c).
   if (s.status === 'queued' && s.stage && s.stage !== 'crawl') return `${stage} · waiting to retry`;

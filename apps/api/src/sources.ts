@@ -74,6 +74,7 @@ function toSource(r: SourceRecord, counts: Counts | undefined): Source {
             scannedAt: r.scannedAt?.toISOString() ?? null,
           }
         : null,
+    sheet: null,
     counts: {
       pagesFound: r.pagesFound,
       pagesIncluded: r.pagesIncluded,
@@ -137,6 +138,8 @@ export function registerSourceRoutes(
   app.post('/api/v1/kb/sources', async (req, reply) => {
     const s = await manager(req);
     const body = CreateSourceBody.parse(req.body);
+    // Spreadsheets are created from FEAT-016 T9 on.
+    if (body.kind === 'spreadsheet') throw new UnsupportedFileError();
     if (body.kind === 'file') {
       checkFile(body.fileName, body.sizeBytes);
       const source = await withKb(s, async (ctx) =>

@@ -213,6 +213,10 @@ export async function runIngestJob(
         return { result: 'next', stage: 'promote' };
       case 'promote':
         return { result: 'ready', facts: await promoteSource(zdb, source, deps.llm) };
+      // Waiting for the owner (FEAT-016 D3): no job runs at `map`; `import` arrives with T5.
+      case 'map':
+      case 'import':
+        return { result: 'stale' };
     }
   } catch (err) {
     if (err instanceof StaleRunError) return { result: 'stale' };

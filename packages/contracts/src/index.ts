@@ -281,7 +281,15 @@ export const Fact = z.discriminatedUnion('type', [
   z.object({
     ...factBase,
     type: z.literal('product'),
-    value: z.object({ name: z.string(), price: Money, unit: z.string().optional() }),
+    value: z.object({
+      name: z.string(),
+      price: Money,
+      unit: z.string().optional(),
+      /** From an imported spreadsheet (FEAT-016 D8): shown, never quoted (architecture Q6). */
+      sku: z.string().optional(),
+      stock: z.int().min(0).optional(),
+      stockAsOf: z.string().optional(),
+    }),
     gstTreatment: GstTreatment,
   }),
   z.object({
@@ -322,10 +330,19 @@ export const FactResponse = z.object({ fact: Fact });
 
 // ---- Dashboard API: knowledge sources (KB-01, KB-12, KB-13; FEAT-012 §3) ------------
 
-export const SourceKind = z.enum(['website', 'file']);
+export const SourceKind = z.enum(['website', 'file', 'spreadsheet']);
 export const SourceStatus = z.enum(['queued', 'processing', 'ready', 'failed']);
 export type SourceStatus = z.infer<typeof SourceStatus>;
-export const SourceStage = z.enum(['scan', 'parse', 'crawl', 'extract', 'promote']);
+/** `map`: waiting for the owner's column mapping (FEAT-016 D3); `import`: applying it. */
+export const SourceStage = z.enum([
+  'scan',
+  'parse',
+  'map',
+  'import',
+  'crawl',
+  'extract',
+  'promote',
+]);
 export const SourceFailure = z.enum([
   'no_pages',
   'site_unreachable',
@@ -340,6 +357,9 @@ export const SourceFailure = z.enum([
   'scan_unavailable',
   'unreadable',
   'no_text',
+  // Spreadsheets (FEAT-016 §3.1).
+  'no_rows',
+  'no_valid_rows',
 ]);
 export type SourceFailure = z.infer<typeof SourceFailure>;
 export const PageStatus = z.enum(['included', 'excluded', 'failed', 'skipped']);
@@ -357,12 +377,23 @@ export const PageReason = z.enum([
   'no_text',
   'page_limit',
   'ocr_limit',
+  // Spreadsheet rows (FEAT-016 §5.5).
+  'empty_row',
+  'no_name',
+  'no_price',
+  'bad_price',
+  'not_sgd',
+  'bad_stock',
+  'too_long',
 ]);
 export type PageReason = z.infer<typeof PageReason>;
 
-/** Where in a file a page is (FEAT-015 §3.1): its pages, slides, parts, or the image. */
+/**
+ * Where in a file a page is (FEAT-015 §3.1): its pages, slides, parts, or the image; or a
+ * spreadsheet's row (FEAT-016), numbered as in the sheet.
+ */
 export const FileLocation = z.object({
-  unit: z.enum(['page', 'slide', 'part', 'image']),
+  unit: z.enum(['page', 'slide', 'part', 'image', 'row']),
   number: z.int().min(1),
 });
 export type FileLocation = z.infer<typeof FileLocation>;
@@ -380,7 +411,7 @@ export const Provenance = z.object({
 });
 export type Provenance = z.infer<typeof Provenance>;
 
-export const FileType = z.enum(['pdf', 'docx', 'pptx', 'txt', 'jpeg', 'png']);
+export const FileType = z.enum(['pdf', 'docx', 'pptx', 'txt', 'jpeg', 'png', 'xlsx', 'csv']);
 export type FileType = z.infer<typeof FileType>;
 
 export const Source = z.object({
@@ -408,6 +439,8 @@ export const Source = z.object({
       scannedAt: z.iso.datetime({ offset: true }).nullable(),
     })
     .nullable(),
+  /** Spreadsheets only (FEAT-016 §3.1), once the parse has read the sheet. */
+  sheet: z.lazy(() => SheetLayout).nullable(),
   counts: z.object({
     pagesFound: z.int(),
     pagesIncluded: z.int(),
@@ -436,11 +469,17 @@ export const SourcePage = z.object({
   facts: z.int(),
   /** 0..1 when the page was read by OCR (FEAT-015). */
   ocrConfidence: z.number().min(0).max(1).nullable(),
+  /** A spreadsheet row's cells, masked (FEAT-016); null for other pages. */
+  cells: z.array(z.string()).nullable(),
 });
 export type SourcePage = z.infer<typeof SourcePage>;
 
 /** The file names an upload may have (KB-02); the bytes decide what a file is (FEAT-015 D5). */
 export const FILE_EXTENSIONS = ['.pdf', '.docx', '.pptx', '.txt', '.jpg', '.jpeg', '.png'] as const;
+/** Spreadsheets imported row by row (KB-03; FEAT-016). */
+export const SHEET_EXTENSIONS = ['.xlsx', '.csv'] as const;
+/** What `POST /kb/uploads` accepts: files and spreadsheets share the upload path. */
+export const UPLOAD_EXTENSIONS = [...FILE_EXTENSIONS, ...SHEET_EXTENSIONS] as const;
 /** KB-02: up to 25 MB each. */
 export const MAX_FILE_BYTES = 25 * 1024 * 1024;
 const FileName = z
@@ -458,18 +497,28 @@ const WebsiteSourceBody = z
     attested: z.boolean().optional(),
   })
   .strict();
-/** An uploaded file becomes a source once its PUT is done (FEAT-015 §3.2, D2). */
-const FileSourceBody = z
-  .object({
-    kind: z.literal('file'),
-    uploadId: z.uuid(),
-    fileName: FileName,
-    /** As declared for the upload; the scan stores the object's real size. */
-    sizeBytes: z.int().min(1),
-  })
-  .strict();
+/**
+ * An uploaded file becomes a source once its PUT is done (FEAT-015 §3.2, D2); a
+ * spreadsheet the same way, with its own kind (FEAT-016 §3.2).
+ */
+const fileBody = <K extends 'file' | 'spreadsheet'>(kind: K) =>
+  z
+    .object({
+      kind: z.literal(kind),
+      uploadId: z.uuid(),
+      fileName: FileName,
+      /** As declared for the upload; the scan stores the object's real size. */
+      sizeBytes: z.int().min(1),
+    })
+    .strict();
+const FileSourceBody = fileBody('file');
+const SpreadsheetSourceBody = fileBody('spreadsheet');
 /** `attested` is checked by the route, so a missing one gets its own error (UC-03 4b). */
-export const CreateSourceBody = z.discriminatedUnion('kind', [WebsiteSourceBody, FileSourceBody]);
+export const CreateSourceBody = z.discriminatedUnion('kind', [
+  WebsiteSourceBody,
+  FileSourceBody,
+  SpreadsheetSourceBody,
+]);
 export type CreateSourceBody = z.infer<typeof CreateSourceBody>;
 
 /** A presigned upload to the quarantine bucket (KB-11; FEAT-015 §3.2). */
@@ -497,6 +546,83 @@ export type SourceList = z.infer<typeof SourceList>;
 export const SourceResponse = z.object({ source: Source });
 export const SourceDetail = z.object({ source: Source, pages: z.array(SourcePage) });
 export type SourceDetail = z.infer<typeof SourceDetail>;
+
+// ---- Dashboard API: spreadsheet import (KB-03; FEAT-016 §3) -------------------------
+
+/** The fields a column can map to; product and service both name the fact (§3.1). */
+export const SheetField = z.enum(['product', 'service', 'price', 'unit', 'sku', 'stock']);
+export type SheetField = z.infer<typeof SheetField>;
+export const SHEET_FIELDS = SheetField.options;
+/** Field → 0-based column index; checked against the sheet by the route (`bad_mapping`). */
+export const ColumnMapping = z
+  .object(
+    Object.fromEntries(SHEET_FIELDS.map((f) => [f, z.int().min(0).max(49).optional()])) as Record<
+      SheetField,
+      z.ZodOptional<z.ZodInt>
+    >,
+  )
+  .strict();
+export type ColumnMapping = z.infer<typeof ColumnMapping>;
+/** The import's GST choice (UC-10 step 4); `unknown` holds a registered tenant's prices back. */
+export const SheetGst = GstTreatment;
+export type SheetGst = z.infer<typeof SheetGst>;
+
+export const SheetLayout = z.object({
+  /** The worksheet read (XLSX); null for CSV. */
+  name: z.string().nullable(),
+  headerRow: z.int().min(1),
+  rows: z.int().min(0),
+  rowsSkipped: z.int().min(0),
+  columns: z.array(z.object({ index: z.int(), header: z.string(), samples: z.array(z.string()) })),
+  suggested: z.object({ columns: ColumnMapping, gst: SheetGst.nullable() }),
+  mapping: z
+    .object({
+      columns: ColumnMapping,
+      gst: SheetGst,
+      confirmedAt: z.iso.datetime({ offset: true }),
+    })
+    .nullable(),
+});
+export type SheetLayout = z.infer<typeof SheetLayout>;
+
+export const ImportBody = z.object({ mapping: ColumnMapping, gst: SheetGst }).strict();
+export type ImportBody = z.infer<typeof ImportBody>;
+export const ConfirmImportBody = ImportBody.extend({ version: z.int().min(1) }).strict();
+export type ConfirmImportBody = z.infer<typeof ConfirmImportBody>;
+
+export const PreviewRow = z.object({
+  row: z.int(),
+  cells: z.array(z.string()),
+  reason: PageReason.nullable(),
+  fact: z
+    .object({
+      name: z.string(),
+      price: Money,
+      unit: z.string().nullable(),
+      sku: z.string().nullable(),
+      stock: z.int().nullable(),
+    })
+    .nullable(),
+  /** Disagrees with a fact the tenant has, or with another row (KB-06). */
+  conflict: z.boolean(),
+});
+export type PreviewRow = z.infer<typeof PreviewRow>;
+export const ImportPreview = z.object({
+  rows: z.int(),
+  importable: z.int(),
+  rejected: z.int(),
+  empty: z.int(),
+  duplicates: z.int(),
+  /** Rows the KB already has with the same value; not written again. */
+  existing: z.int(),
+  /** Importable rows that will be written conflicted. */
+  conflicts: z.int(),
+  /** Importable rows held back from visitors until their GST treatment is set (KB-15). */
+  gstReview: z.int(),
+  sample: z.array(PreviewRow),
+  rejects: z.array(PreviewRow),
+});
+export type ImportPreview = z.infer<typeof ImportPreview>;
 
 // ---- Dashboard API: fact review (KB-16; FEAT-013 §3) --------------------------------
 
@@ -965,7 +1091,7 @@ export const IngestJob = z.union([
     tenantId: z.uuid(),
     sourceId: z.uuid(),
     attempt: z.number().int().min(1),
-    stage: z.enum(['scan', 'parse', 'crawl', 'extract', 'promote']),
+    stage: z.enum(['scan', 'parse', 'import', 'crawl', 'extract', 'promote']),
   }),
   z.object({
     tenantId: z.uuid(),
