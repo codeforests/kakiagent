@@ -138,6 +138,7 @@ export {
   EXTRACTION_SCHEMA,
   EXTRACTION_SYSTEM,
   ExtractionUnavailableError,
+  FILE_EXTRACTION_SYSTEM,
   extractPage,
   extractSource,
   locateQuote,
@@ -167,3 +168,20 @@ export {
   type StageJobBody,
   type IngestOutcome,
 } from './ingest/job.js';
+export {
+  DEFAULT_FILE_LIMITS,
+  MAX_FILE_BYTES,
+  OcrUnavailableError,
+  ScannerUnavailableError,
+  type Bucket,
+  type FileDeps,
+  type FileLimits,
+  type FileStore,
+  type FileType,
+  type MalwareScanner,
+  type OcrEngine,
+  type PdfRasterizer,
+} from './ingest/files/ports.js';
+export { sniffType, type Sniffed } from './ingest/files/sniff.js';
+export { parseFile, type ParsedPage, type ParseOutcome } from './ingest/files/parse.js';
+export { scanFile, type ScanOutcome } from './ingest/files/scan-stage.js';

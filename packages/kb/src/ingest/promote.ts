@@ -86,9 +86,10 @@ export async function promoteSource(
       confidence: number;
       url: string;
       title: string | null;
+      ocr_confidence: number | null;
     }>(sql`
       select s.type, s.value, s.gst_treatment, s.valid_from, s.valid_until, s.quote,
-             s.quote_start, s.quote_end, s.confidence, p.url, p.title
+             s.quote_start, s.quote_end, s.confidence, p.url, p.title, p.ocr_confidence
       from kb_staged_facts s
         join kb_source_pages p on p.tenant_id = s.tenant_id and p.id = s.page_id
       where s.tenant_id = ${tenantId} and s.source_id = ${sourceId} and s.attempt = ${attempt}
@@ -104,7 +105,9 @@ export async function promoteSource(
         : undefined;
     return {
       input: { type: r.type, value: r.value, gstTreatment: r.gst_treatment, validity } as FactInput,
-      confidence: r.confidence,
+      // A fact read from an OCR'd page is no surer than the OCR (FEAT-015 D6).
+      confidence:
+        r.ocr_confidence === null ? r.confidence : Math.min(r.confidence, r.ocr_confidence),
       provenance: {
         url: r.url,
         title: r.title,
@@ -161,7 +164,7 @@ export async function promoteSource(
           gstTreatment: c.input.gstTreatment,
           validFrom: c.input.validity?.validFrom ?? null,
           validUntil: c.input.validity?.validUntil ?? null,
-          source: 'website',
+          source: source.kind,
           sourceId,
           confidence: c.confidence,
           provenance: c.provenance,

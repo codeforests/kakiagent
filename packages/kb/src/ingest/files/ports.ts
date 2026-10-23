@@ -56,3 +56,6 @@ export interface FileDeps {
   rasterizer: PdfRasterizer;
   limits?: Partial<FileLimits>;
 }
+
+/** KB-02: up to 25 MB each (the API checks the declared size; the scan the real one). */
+export const MAX_FILE_BYTES = 25 * 1024 * 1024;

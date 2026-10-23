@@ -17,6 +17,11 @@ import {
 } from './crawl.js';
 import { ExtractionUnavailableError, extractSource, type ExtractOptions } from './extract.js';
 import { promoteSource } from './promote.js';
+import { audit, auditCode, type AuditPayload } from '@kaki/governance';
+import type { Tx } from '@kaki/db';
+import { ScannerUnavailableError, type FileDeps } from './files/ports.js';
+import { scanFile } from './files/scan-stage.js';
+import { parseFileSource } from './files/parse-stage.js';
 
 export interface StageJobBody {
   tenantId: string;
@@ -43,6 +48,8 @@ export interface IngestDeps {
   fetcher: PageFetcher | PageFetcherFactory;
   crawl?: CrawlOptions;
   extract?: ExtractOptions;
+  /** The file stages' storage, scanner and OCR (FEAT-015 §5.1). */
+  files?: FileDeps;
   /**
    * The receive on which a transiently failing stage gives up and fails the source, one
    * below the queue's DLQ threshold so a source never stays `processing` (§5.1 step 3).
@@ -52,6 +59,7 @@ export interface IngestDeps {
 
 export type IngestOutcome =
   | { result: 'stale' }
+  | { result: 'purged' }
   | { result: 'next'; stage: SourceStage }
   | { result: 'ready'; facts: number }
   | { result: 'failed'; failure: SourceFailure };
@@ -91,7 +99,13 @@ export async function runIngestJob(
   job: IngestJobBody,
   receiveCount: number,
 ): Promise<IngestOutcome> {
-  if (job.stage === 'purge') throw new Error('purge has no runner yet');
+  if (job.stage === 'purge') {
+    // The source row is gone; deleting a missing object is a no-op (FEAT-015 §5.7).
+    const store = needFiles(deps).store;
+    if (job.keys.quarantine) await store.delete('quarantine', job.keys.quarantine);
+    if (job.keys.sources) await store.delete('sources', job.keys.sources);
+    return { result: 'purged' };
+  }
   const { zdb } = deps;
   const source = await withTenant(zdb, job.tenantId, async (tx) => {
     const [row] = await tx.select().from(schema.kbSources).where(ofSource(job)).for('update');
@@ -111,20 +125,68 @@ export async function runIngestJob(
   });
   if (!source) return { result: 'stale' };
 
-  const next = (stage: SourceStage) =>
+  const next = (
+    stage: SourceStage,
+    set: Partial<typeof schema.kbSources.$inferInsert> = {},
+    also?: (tx: Tx) => Promise<unknown>,
+  ) =>
     withTenant(zdb, job.tenantId, async (tx) => {
       const [current] = await tx.select().from(schema.kbSources).where(ofSource(job)).for('update');
       if (!current || current.attempt !== job.attempt || current.status !== 'processing')
         throw new StaleRunError('source changed');
       await tx
         .update(schema.kbSources)
-        .set({ stage, updatedAt: sql`now()` })
+        .set({ ...set, stage, updatedAt: sql`now()` })
         .where(ofSource(job));
       await enqueueStage(tx, current, stage);
+      await also?.(tx);
+    });
+  const sourceAudit = (tx: Tx, action: string, payload: AuditPayload) =>
+    audit.append(tx, job.tenantId, {
+      action,
+      actorType: 'system',
+      actorId: 'ingest-worker',
+      subjectType: 'kb_source',
+      subjectId: job.sourceId,
+      payload,
     });
 
   try {
     switch (job.stage) {
+      case 'scan': {
+        const outcome = await scanFile(source, needFiles(deps));
+        if (outcome.next === 'failed') {
+          // KB-11: the file was deleted unread; the rejection is audited with the failure.
+          await fail(zdb, job, outcome.failure, (tx) =>
+            sourceAudit(tx, 'kb_source.rejected', { reason: auditCode(outcome.failure) }),
+          );
+          return { result: 'failed', failure: outcome.failure };
+        }
+        await next(
+          'parse',
+          {
+            fileType: outcome.type,
+            fileKey: outcome.fileKey,
+            fileSize: outcome.size,
+            scannedAt: new Date(),
+          },
+          (tx) =>
+            sourceAudit(tx, 'kb_source.scanned', {
+              type: auditCode(outcome.type),
+              verdict: auditCode('clean'),
+            }),
+        );
+        return { result: 'next', stage: 'parse' };
+      }
+      case 'parse': {
+        const outcome = await parseFileSource(zdb, source, needFiles(deps));
+        if (outcome.next === 'failed') {
+          await fail(zdb, job, outcome.failure);
+          return { result: 'failed', failure: outcome.failure };
+        }
+        await next('extract');
+        return { result: 'next', stage: 'extract' };
+      }
       case 'crawl': {
         const fetcher =
           typeof deps.fetcher === 'function'
@@ -149,8 +211,6 @@ export async function runIngestJob(
         return { result: 'next', stage: 'promote' };
       case 'promote':
         return { result: 'ready', facts: await promoteSource(zdb, source, deps.llm) };
-      default:
-        throw new Error(`no runner for stage ${job.stage}`);
     }
   } catch (err) {
     if (err instanceof StaleRunError) return { result: 'stale' };
@@ -158,7 +218,9 @@ export async function runIngestJob(
       const failure: SourceFailure =
         err instanceof ExtractionUnavailableError || err instanceof EmbeddingUnavailableError
           ? 'extraction_unavailable'
-          : 'internal';
+          : err instanceof ScannerUnavailableError
+            ? 'scan_unavailable'
+            : 'internal';
       await fail(zdb, job, failure);
       return { result: 'failed', failure };
     }
@@ -168,8 +230,19 @@ export async function runIngestJob(
   }
 }
 
+/** A file job on a worker wired without file deps: a configuration error, never retried away. */
+function needFiles(deps: IngestDeps): FileDeps {
+  if (!deps.files) throw new Error('this worker has no file storage, scanner or OCR');
+  return deps.files;
+}
+
 /** Fails the run: the reason, no stage, and the attempt's staging removed (KB-12). */
-async function fail(zdb: ZoneDb, job: StageJobBody, failure: SourceFailure) {
+async function fail(
+  zdb: ZoneDb,
+  job: StageJobBody,
+  failure: SourceFailure,
+  also?: (tx: Tx) => Promise<unknown>,
+) {
   await withTenant(zdb, job.tenantId, async (tx) => {
     const [current] = await tx.select().from(schema.kbSources).where(ofSource(job)).for('update');
     if (!current || current.attempt !== job.attempt) return;
@@ -187,5 +260,6 @@ async function fail(zdb: ZoneDb, job: StageJobBody, failure: SourceFailure) {
         version: sql`${schema.kbSources.version} + 1`,
       })
       .where(ofSource(job));
+    await also?.(tx);
   });
 }
