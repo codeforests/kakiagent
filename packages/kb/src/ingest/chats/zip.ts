@@ -15,5 +15,5 @@ export function chatTextFromZip(
   const chat =
     names.find((n) => /(^|\/)_chat\.txt$/i.test(n)) ?? (names.length === 1 ? names[0] : undefined);
   if (chat === undefined) return { ok: false, failure: 'chat_format' };
-  return { ok: true, text: files.get(chat)!.replace(/^﻿/, '') };
+  return { ok: true, text: files.get(chat)!.replace(/^\ufeff/, '') };
 }

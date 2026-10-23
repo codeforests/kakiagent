@@ -1,8 +1,8 @@
 import { sgTime, type ChatMessage, type ReadOutcome } from './messages.js';
 
 // Direction and formatting marks WhatsApp puts around names and media notes.
-const MARKS = /[‎‏‪-‮⁦-⁩﻿]/g;
-const SPACES = /[  ]/g;
+const MARKS = /[\u200e\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g;
+const SPACES = /[\u00a0\u202f]/g;
 const STAMP = String.raw`(\d{1,2})[/.-](\d{1,2})[/.-](\d{2,4}),?\s(\d{1,2})[:.](\d{2})(?:[:.](\d{2}))?\s?([AaPp]\.?\s?[Mm]\.?)?`;
 /** iOS: `[12/10/2026, 2:05:33 PM] Name: text`. */
 const IOS = new RegExp(String.raw`^\[${STAMP}\]\s(.*)$`);

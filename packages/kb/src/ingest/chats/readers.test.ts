@@ -36,8 +36,8 @@ describe('readWhatsApp (FEAT-017 §5.3)', () => {
     const r = ok(
       readWhatsApp(
         [
-          '[13/10/2026, 2:05:33 PM] Mdm Tan: ‎image omitted',
-          '[13/10/2026, 2:05:40 PM] ‎Mdm Tan: Open on Sunday?',
+          '[13/10/2026, 2:05:33 PM] Mdm Tan: \u200eimage omitted',
+          '[13/10/2026, 2:05:40\u202fPM] \u200eMdm Tan: Open on Sunday?',
           '[13/10/2026, 12:10:00 AM] Kaki Bakery: Yes 9am to 5pm',
         ].join('\n'),
       ),
@@ -147,7 +147,7 @@ describe('readTelegram (FEAT-017 §5.3)', () => {
 describe('chatTextFromZip (FEAT-017 §5.3 step 2)', () => {
   it('takes _chat.txt beside media, and the only .txt otherwise', () => {
     const withMedia = zipSync({
-      '_chat.txt': strToU8('﻿[13/10/2026, 2:05:33 PM] A: Hi'),
+      '_chat.txt': strToU8('\ufeff[13/10/2026, 2:05:33 PM] A: Hi'),
       '00000012-PHOTO-2026-10-13.jpg': new Uint8Array([0xff, 0xd8, 0xff]),
     });
     expect(chatTextFromZip(withMedia)).toEqual({
