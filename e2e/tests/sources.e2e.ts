@@ -35,8 +35,8 @@ test('the owner adds a website, watches it crawl, and sees what was read', async
   await expectNoSeriousA11yViolations(page);
 
   // SCR-APP-007: the attestation blocks the start until ticked.
-  await page.getByRole('link', { name: 'Add website' }).click();
-  await expect(page.getByRole('heading', { name: 'Add website' })).toBeVisible();
+  await page.getByRole('link', { name: 'Add sources' }).click();
+  await expect(page.getByRole('heading', { name: 'Add sources' })).toBeVisible();
   await expect(page.getByText(/Your plan reads up to \d+ pages\./)).toBeVisible();
   await page.getByLabel('Website address (required)').fill('https://kakibakery.test');
   await page.getByRole('button', { name: 'Start reading pages' }).click();

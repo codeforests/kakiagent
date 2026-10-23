@@ -1,5 +1,8 @@
 import type { Fact } from '@kaki/contracts';
+import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
+import { api } from '../lib/api.ts';
+import { locationWords } from '../lib/sources.ts';
 
 /**
  * SCR-APP-028's Source section (KB-05; FEAT-012 ui-design): the passage a fact was found
@@ -7,7 +10,18 @@ import { Link } from 'react-router';
  */
 export function FactProvenance({ fact }: { fact: Fact }) {
   const p = fact.provenance;
+  // A file's name comes from the sources list (FEAT-015); "the file" until it loads, or
+  // for a role that can't list sources.
+  const sources = useQuery({
+    queryKey: ['sources'],
+    queryFn: api.sources,
+    enabled: Boolean(p?.location),
+    retry: false,
+  });
   if (!p) return null;
+  const fileName = p.location
+    ? (sources.data?.sources.find((s) => s.id === p.sourceId)?.name ?? 'the file')
+    : null;
   let place = p.url;
   let domain = '';
   try {
@@ -28,12 +42,16 @@ export function FactProvenance({ fact }: { fact: Fact }) {
       </blockquote>
       <p className="fact-source__meta">
         From{' '}
-        <a href={p.url} target="_blank" rel="noreferrer noopener">
-          {place}
-          {domain && place !== domain ? ` on ${domain}` : ''}
-          <span aria-hidden="true"> ↗</span>
-          <span className="sr-only"> (opens in a new tab)</span>
-        </a>
+        {p.location ? (
+          `${locationWords(p.location)} of ${fileName}`
+        ) : (
+          <a href={p.url} target="_blank" rel="noreferrer noopener">
+            {place}
+            {domain && place !== domain ? ` on ${domain}` : ''}
+            <span aria-hidden="true"> ↗</span>
+            <span className="sr-only"> (opens in a new tab)</span>
+          </a>
+        )}
         {confidence !== null && (
           <span className={confidence < 70 ? 'fact-source__low' : undefined}>
             {' '}

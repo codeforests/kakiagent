@@ -21,6 +21,7 @@ import {
   SourceDetail,
   SourceList,
   SourceResponse,
+  UploadTicket,
   type ApproveFactBody,
   type AssistantSettingsBody,
   type BusinessProfileBody,
@@ -33,6 +34,7 @@ import {
   type ReviewListQuery,
   type ReviewScopeQuery,
   type UpdateFactBody,
+  type UploadRequestBody,
 } from '@kaki/contracts';
 import type { z } from 'zod';
 
@@ -159,6 +161,9 @@ export const api = {
     request('POST', `/api/v1/kb/sources/${encodeURIComponent(id)}/retry`, SourceResponse, {
       version,
     }),
+  /** FEAT-015 §3.2: a presigned PUT into quarantine; nothing is saved yet. */
+  requestUpload: (body: UploadRequestBody) =>
+    request('POST', '/api/v1/kb/uploads', UploadTicket, body),
   deleteSource: async (id: string, version: number) =>
     void (await send('DELETE', `/api/v1/kb/sources/${encodeURIComponent(id)}?version=${version}`)),
   /** FEAT-013 §3: SCR-APP-019 and SCR-APP-008. */
@@ -187,3 +192,34 @@ export const api = {
   resolveConflict: (body: ResolveConflictBody) =>
     request('POST', '/api/v1/kb/conflicts/resolve', ResolveConflictResponse, body),
 };
+
+/** The PUT to storage failed: the network, or storage refused it. */
+export class UploadError extends Error {}
+
+/**
+ * PUTs a file to its presigned URL with XHR, which reports upload progress (`fetch` has
+ * no upload progress). Resolves when storage has the whole file.
+ */
+export function putFile(
+  ticket: UploadTicket,
+  file: Blob,
+  onProgress: (percent: number) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', ticket.url);
+    for (const [k, v] of Object.entries(ticket.headers)) xhr.setRequestHeader(k, v);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress(Math.min(100, Math.round((e.loaded / e.total) * 100)));
+    };
+    xhr.onload = () =>
+      xhr.status >= 200 && xhr.status < 300
+        ? resolve()
+        : reject(new UploadError(`storage answered ${xhr.status}`));
+    xhr.onerror = () => reject(new UploadError('network error'));
+    xhr.onabort = () => reject(new UploadError('aborted'));
+    signal?.addEventListener('abort', () => xhr.abort());
+    xhr.send(file);
+  });
+}
