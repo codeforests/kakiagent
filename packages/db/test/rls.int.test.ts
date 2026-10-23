@@ -1448,7 +1448,11 @@ describe('knowledge sources, pages and staged facts (FEAT-012)', () => {
       });
       for (const stmt of [
         `delete from facts`,
-        `update facts set status = 'approved'`,
+        // FEAT-014 D8: it may move a fact's status and version (conflicts), nothing else.
+        `update facts set value = '{}'`,
+        `update facts set gst_treatment = 'inclusive'`,
+        `update facts set provenance = null`,
+        `update kb_chunks set content = 'x'`,
         `select * from conversations`,
         `select * from messages`,
         `select * from users`,
@@ -1464,6 +1468,40 @@ describe('knowledge sources, pages and staged facts (FEAT-012)', () => {
         ).rejects.toThrow(/permission denied/);
     } finally {
       await cleanup();
+    }
+  });
+
+  it('the ingest role moves facts to conflicted in its own tenant only (FEAT-014 D8)', async () => {
+    const insert = (tenant: string) =>
+      owner.query<{ id: string }>(
+        `insert into facts (tenant_id, type, status, value, gst_treatment)
+         values ($1, 'product', 'approved', '{"name":"Pandan chiffon cake","priceCents":2600,"currency":"SGD","unit":"20 cm"}',
+           'inclusive') returning id`,
+        [tenant],
+      );
+    const a = (await insert(TENANT_A)).rows[0]!.id;
+    const b = (await insert(TENANT_B)).rows[0]!.id;
+    await owner.query(
+      `insert into kb_chunks (tenant_id, fact_id, fact_version, content, embedding)
+       select tenant_id, id, 1, 'c', array_fill(0.1, array[1024])::vector from facts where id in ($1, $2)`,
+      [a, b],
+    );
+    try {
+      await asRole('app_ingest', TENANT_B, async (c) => {
+        const moved = await c.query(
+          `update facts set status = 'conflicted', version = version + 1, updated_by = 'ingest-worker',
+             updated_at = now() where id in ($1, $2) returning id`,
+          [a, b],
+        );
+        expect(moved.rows.map((r) => r.id)).toEqual([b]);
+        expect(
+          (await c.query(`update kb_chunks set fact_version = 2 where fact_id in ($1, $2)`, [a, b]))
+            .rowCount,
+        ).toBe(1);
+      });
+    } finally {
+      await owner.query(`delete from kb_chunks where fact_id in ($1, $2)`, [a, b]);
+      await owner.query(`delete from facts where id in ($1, $2)`, [a, b]);
     }
   });
 

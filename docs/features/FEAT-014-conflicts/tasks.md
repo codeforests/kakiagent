@@ -3,7 +3,7 @@
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
 > Status: not started · Last updated: 2026-10-23
 
-- [ ] T1 — Migration and grants: `0022_kb_conflicts_grants.sql` (column-level UPDATE on `facts` and `kb_chunks` for `app_ingest`), journal entry; RLS suite cases for the ingest role (design §4; D8; AC-9)
+- [x] T1 — Migration and grants: `0022_kb_conflicts_grants.sql` (column-level UPDATE on `facts` and `kb_chunks` for `app_ingest`), journal entry; RLS suite cases for the ingest role (design §4; D8; AC-9)
       Done when: `pnpm db:setup` applies it on the local stack, and the db integration suite passes with new cases: `app_ingest` can update a fact's status and version and a chunk's version in its tenant, can't update a fact's value, GST or provenance, can't delete a fact, and can't touch another tenant's rows.
 - [ ] T2 — kb conflict logic: `conflicts.ts` with `entityKey` (moved from `extract.ts`), `sameValue`, `conflictId`, `planPromotion`; the set-based writer generalised from `decideRows` (actor, `conflicted`/`disabled`) (design §5.1, §5.2 step 1–3; D2, D3, D5; AC-2, AC-3)
       Done when: unit tests pass for `sameValue` per type (prices, GST unknown vs stated, inclusive vs exclusive, promotion dates and details, normalised policy and FAQ texts) and for `planPromotion` (within-run same value collapsed, different values both kept and conflicted, duplicates of any status dropped, live facts flagged, rejected/disabled never joining), and the existing extract and review unit tests pass unchanged.
@@ -21,3 +21,5 @@
       Done when: all of the above pass in one fresh run, with the evidence recorded here.
 
 ## Evidence
+
+- T1: `pnpm db:setup` applies `0022` on the local stack (the column grants show in `information_schema.column_privileges`). The db RLS suite passes, 95 tests, with the new case "the ingest role moves facts to conflicted in its own tenant only". FEAT-012's ingest-role test listed `update facts set status = 'approved'` as forbidden; D8 now allows status and version, so that line became the still-forbidden updates of `value`, `gst_treatment`, `provenance` and chunk `content` (four statements in place of one; the test keeps its intent: no content writes, no deletes).
