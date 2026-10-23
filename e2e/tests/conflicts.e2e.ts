@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Browser, type Page } from '@playwright/test';
 import { expectNoSeriousA11yViolations, openShadowRoots, signIn } from './support.ts';
 
 /**
@@ -93,6 +93,22 @@ test.afterEach(async ({ page }) => {
   await clearOwnerFacts(page);
 });
 
+/** A visitor asks on the widget host page; resolves to the panel's text once answered. */
+async function askWidget(browser: Browser, question: string) {
+  const context = await browser.newContext();
+  const visitor = await context.newPage();
+  await openShadowRoots(visitor);
+  await visitor.goto(WIDGET_HOST);
+  await visitor.getByRole('button', { name: /^Chat with / }).click();
+  const panel = visitor.getByRole('dialog');
+  await panel.getByLabel('Message').fill(question);
+  await panel.getByRole('button', { name: 'Send' }).click();
+  await expect(panel.locator('[data-author="agent"]:not([data-pending])')).toBeVisible();
+  const text = await panel.innerText();
+  await context.close();
+  return text;
+}
+
 const toast = (page: Page, text: string) => page.getByRole('status').filter({ hasText: text });
 
 test('the owner resolves conflicts between their prices and the website', async ({
@@ -126,6 +142,7 @@ test('the owner resolves conflicts between their prices and the website', async 
   await expect(columns).toHaveCount(2);
   await expect(columns.nth(0)).toContainText('Newer');
   await expect(columns.nth(0)).toContainText('S$28.50');
+  await expect(columns.nth(0)).toContainText(/read \d{1,2} [A-Z][a-z]{2} \d{4}/);
   await expect(columns.nth(0).locator('mark')).toHaveText(
     'Pandan chiffon cake (20 cm) — S$28.50 (GST incl.)',
   );
@@ -133,6 +150,10 @@ test('the owner resolves conflicts between their prices and the website', async 
   await expect(columns.nth(1)).toContainText('Entered by you');
   await expect(columns.nth(1)).not.toContainText('Newer');
   await expectNoSeriousA11yViolations(page);
+  // While the sources disagree, a visitor gets neither price (KB-06).
+  const conflicted = await askWidget(browser, 'how much is the pandan chiffon cake?');
+  expect(conflicted).not.toContain('S$28.50');
+  expect(conflicted).not.toContain('S$27.00');
   // Phone width, tall enough that the fixed tab bar covers no target (axe target-size).
   await page.setViewportSize({ width: 390, height: 5000 });
   await expectNoSeriousA11yViolations(page);
@@ -151,6 +172,7 @@ test('the owner resolves conflicts between their prices and the website', async 
     .click();
   const enter = page.getByRole('dialog', { name: 'Enter the right value' });
   await expect(enter.getByLabel('Price in S$ (required)')).toHaveValue('12.60');
+  await expectNoSeriousA11yViolations(page);
   await enter.getByLabel('Price in S$ (required)').fill('12.00');
   await enter.getByRole('button', { name: 'Use this value' }).click();
   await expect(enter).toBeHidden();
@@ -176,6 +198,8 @@ test('the owner resolves conflicts between their prices and the website', async 
   await confirm.getByRole('button', { name: 'Cancel' }).click();
   await expect(sourdough).toBeVisible();
   await sourdough.getByRole('button', { name: 'Disable this fact…' }).click();
+  await expect(confirm).toBeVisible();
+  await expectNoSeriousA11yViolations(page);
   await confirm.getByRole('button', { name: 'Disable fact' }).click();
   await expect(toast(page, "Disabled. Your assistant won't use")).toBeVisible();
   await expect(page.getByRole('article', { name: /Sourdough loaf.*disabled/ })).toBeVisible();
@@ -221,15 +245,7 @@ test('the owner resolves conflicts between their prices and the website', async 
   await expect(page.getByText('No conflicts')).toBeVisible();
 
   // The widget answers with the price the owner chose.
-  const visitorContext = await browser.newContext();
-  const visitor = await visitorContext.newPage();
-  await openShadowRoots(visitor);
-  await visitor.goto(WIDGET_HOST);
-  await visitor.getByRole('button', { name: /^Chat with / }).click();
-  const panel = visitor.getByRole('dialog');
-  await panel.getByLabel('Message').fill('how much is the pandan chiffon cake?');
-  await panel.getByRole('button', { name: 'Send' }).click();
-  await expect(panel.locator('[data-author="agent"]:not([data-pending])')).toContainText('S$28.50');
-  expect(await panel.innerText()).not.toContain('S$27.00');
-  await visitorContext.close();
+  const answered = await askWidget(browser, 'how much is the pandan chiffon cake?');
+  expect(answered).toContain('S$28.50');
+  expect(answered).not.toContain('S$27.00');
 });
