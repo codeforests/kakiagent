@@ -85,7 +85,7 @@ const consuming = queue.consume<unknown>(
       outboxId: msg.id,
       tenantId: job.tenantId,
       sourceId: job.sourceId,
-      attempt: job.attempt,
+      attempt: 'attempt' in job ? job.attempt : undefined,
       stage: job.stage,
     });
     const started = Date.now();

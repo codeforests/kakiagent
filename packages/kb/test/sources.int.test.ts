@@ -5,7 +5,13 @@ import { startTestDatabase, TENANT_A, TENANT_B, type TestDatabase } from '@kaki/
 import pg from 'pg';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import {
+  createFileSource,
   createWebsiteSource,
+  FileLimitError,
+  NotRetryableError,
+  quarantineKey,
+  retryable,
+  listReviewFacts,
   dashboardKb,
   deleteSource,
   getSource,
@@ -293,6 +299,147 @@ describe('website sources (FEAT-012 §5.5)', () => {
       event_type: 'kb_source.deleted',
       actor_ref: USER,
       payload: { kind: 'website', facts: 2 },
+    });
+  });
+});
+
+describe('file sources (FEAT-015 §5.6, §5.7)', () => {
+  const UPLOAD = '00000000-0000-4000-8000-0000000000f1';
+  const addFile = (
+    tenantId: string,
+    uploadId = UPLOAD,
+    fileLimit = 50,
+    fileName = 'Price list.pdf',
+  ) =>
+    dash(tenantId, (ctx) =>
+      createFileSource(ctx, { uploadId, fileName, sizeBytes: 2048 }, { fileLimit }),
+    );
+  const jobs = async (id: string) =>
+    (
+      await owner.query(`select payload from outbox where group_key = $1 order by created_at`, [id])
+    ).rows.map((r) => r.payload);
+
+  it('adds an upload as a source queued at scan, audited without its name, with the scan job', async () => {
+    const s = await addFile(TENANT_A);
+    expect(s).toMatchObject({
+      kind: 'file',
+      status: 'queued',
+      stage: 'scan',
+      name: 'Price list.pdf',
+      uploadKey: `uploads/${TENANT_A}/${UPLOAD}`,
+      fileSize: 2048,
+      fileKey: null,
+      url: null,
+      domain: null,
+      attestedAt: null,
+    });
+    expect(quarantineKey(TENANT_A, UPLOAD)).toBe(s.uploadKey);
+    expect(await auditOf(s.id)).toEqual([
+      {
+        event_type: 'kb_source.created',
+        actor_ref: USER,
+        payload: { kind: 'file', ext: 'pdf', sizeBytes: 2048 },
+      },
+    ]);
+    expect(JSON.stringify(await auditOf(s.id))).not.toContain('Price list');
+    expect(await jobs(s.id)).toEqual([
+      { tenantId: TENANT_A, sourceId: s.id, attempt: 1, stage: 'scan' },
+    ]);
+    // The upload is the tenant's own: tenant B's key for the same ID is a different object.
+    const b = await addFile(TENANT_B);
+    expect(b.uploadKey).toBe(`uploads/${TENANT_B}/${UPLOAD}`);
+    await expect(dash(TENANT_A, (ctx) => getSource(ctx, b.id))).rejects.toBeInstanceOf(
+      SourceNotFoundError,
+    );
+  });
+
+  it('refuses a second source for the same upload and a file over the plan limit', async () => {
+    const s = await addFile(TENANT_A);
+    await expect(addFile(TENANT_A)).rejects.toMatchObject({ sourceId: s.id });
+    await expect(addFile(TENANT_A)).rejects.toBeInstanceOf(SourceExistsError);
+    await addFile(TENANT_A, '00000000-0000-4000-8000-0000000000f2', 2);
+    await expect(
+      addFile(TENANT_A, '00000000-0000-4000-8000-0000000000f3', 2),
+    ).rejects.toBeInstanceOf(FileLimitError);
+    // Websites don't count towards the file limit.
+    await add(TENANT_A);
+    expect(
+      (await dash(TENANT_A, (ctx) => listSources(ctx))).filter((x) => x.kind === 'file'),
+    ).toHaveLength(2);
+  });
+
+  it('retries a file from parse with a stored copy, from scan without, and never after a rejection', async () => {
+    const s = await addFile(TENANT_A);
+    const failAs = (failure: string, fileKey: string | null) =>
+      owner.query(
+        `update kb_sources set status = 'failed', stage = null, failure = $2, file_key = $3,
+           version = version + 1 where id = $1 returning version`,
+        [s.id, failure, fileKey],
+      );
+    for (const failure of [
+      'upload_missing',
+      'too_large',
+      'unsupported_type',
+      'encrypted',
+      'malware',
+      'unreadable',
+      'no_text',
+    ]) {
+      const v = (await failAs(failure, null)).rows[0].version;
+      expect(retryable({ kind: 'file', status: 'failed', failure: failure as never })).toBe(false);
+      await expect(dash(TENANT_A, (ctx) => retrySource(ctx, s.id, v))).rejects.toBeInstanceOf(
+        NotRetryableError,
+      );
+    }
+    let v = (await failAs('scan_unavailable', null)).rows[0].version;
+    expect(await dash(TENANT_A, (ctx) => retrySource(ctx, s.id, v))).toMatchObject({
+      status: 'queued',
+      stage: 'scan',
+      attempt: 2,
+    });
+    v = (await failAs('extraction_unavailable', `files/${TENANT_A}/${s.id}`)).rows[0].version;
+    expect(await dash(TENANT_A, (ctx) => retrySource(ctx, s.id, v))).toMatchObject({
+      status: 'queued',
+      stage: 'parse',
+      attempt: 3,
+    });
+    expect((await jobs(s.id)).map((j) => j.stage)).toEqual(['scan', 'scan', 'parse']);
+    // A website's failure is always retryable.
+    expect(retryable({ kind: 'website', status: 'failed', failure: 'no_pages' })).toBe(true);
+  });
+
+  it('deletes a file source and writes the purge job for its objects; review names it by file name', async () => {
+    const s = await addFile(TENANT_A);
+    await owner.query(
+      `update kb_sources set status = 'ready', stage = null, file_key = $2, finished_at = now() where id = $1`,
+      [s.id, `files/${TENANT_A}/${s.id}`],
+    );
+    await owner.query(
+      `insert into kb_source_pages (tenant_id, source_id, attempt, seq, url, status, content)
+       values ($1, $2, 1, 0, 'page/1', 'included', 'Q: Open on Sunday? A: Yes')`,
+      [TENANT_A, s.id],
+    );
+    await owner.query(
+      `insert into facts (tenant_id, type, status, value, gst_treatment, source, source_id, confidence, provenance)
+       values ($1, 'faq', 'needs_review', '{"question":"Open on Sunday?","answer":"Yes"}', null, 'file', $2, 0.9,
+         '{"url":"page/1","title":null,"quote":"Open on Sunday?","start":3,"end":18}')`,
+      [TENANT_A, s.id],
+    );
+    const review = await dash(TENANT_A, (ctx) => listReviewFacts(ctx, { sourceId: s.id }));
+    expect(review.facts[0]).toMatchObject({
+      sourceName: 'Price list.pdf',
+      passage: { quote: 'Open on Sunday?' },
+    });
+    expect(await dash(TENANT_A, (ctx) => deleteSource(ctx, s.id, 1))).toBe(1);
+    expect((await jobs(s.id)).at(-1)).toEqual({
+      tenantId: TENANT_A,
+      sourceId: s.id,
+      stage: 'purge',
+      keys: { quarantine: `uploads/${TENANT_A}/${UPLOAD}`, sources: `files/${TENANT_A}/${s.id}` },
+    });
+    expect((await auditOf(s.id)).at(-1)).toMatchObject({
+      event_type: 'kb_source.deleted',
+      payload: { kind: 'file', facts: 1 },
     });
   });
 });

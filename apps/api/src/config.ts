@@ -32,6 +32,8 @@ export const schema = envSchemas.base.extend(envSchemas.valkey.shape).extend({
   ANTHROPIC_API_KEY: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
   /** The page limit a new website source gets, until plans exist (FEAT-012 D8, FEAT-067). */
   CRAWL_PAGE_LIMIT: z.coerce.number().int().min(1).max(2000).default(100),
+  /** The file sources a tenant may have, until plans exist (D2 Starter; FEAT-015, FEAT-067). */
+  FILE_LIMIT: z.coerce.number().int().min(1).max(1000).default(50),
   /** Dev-only: accept hosts on private addresses, such as the fixture site (FEAT-012 §5.6). */
   CRAWL_ALLOW_PRIVATE_HOSTS: z
     .preprocess((v) => v === 'true' || v === '1', z.boolean())

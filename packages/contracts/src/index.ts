@@ -439,8 +439,18 @@ export const SourcePage = z.object({
 });
 export type SourcePage = z.infer<typeof SourcePage>;
 
-/** `attested` is checked by the route, so a missing one gets its own error (UC-03 4b). */
-export const CreateSourceBody = z
+/** The file names an upload may have (KB-02); the bytes decide what a file is (FEAT-015 D5). */
+export const FILE_EXTENSIONS = ['.pdf', '.docx', '.pptx', '.txt', '.jpg', '.jpeg', '.png'] as const;
+/** KB-02: up to 25 MB each. */
+export const MAX_FILE_BYTES = 25 * 1024 * 1024;
+const FileName = z
+  .string()
+  .trim()
+  .min(1)
+  .max(200)
+  .refine((n) => !/[/\\\p{Cc}]/u.test(n), { message: 'Not a file name' });
+
+const WebsiteSourceBody = z
   .object({
     kind: z.literal('website'),
     url: z.string().trim().min(1).max(2000),
@@ -448,9 +458,41 @@ export const CreateSourceBody = z
     attested: z.boolean().optional(),
   })
   .strict();
+/** An uploaded file becomes a source once its PUT is done (FEAT-015 §3.2, D2). */
+const FileSourceBody = z
+  .object({
+    kind: z.literal('file'),
+    uploadId: z.uuid(),
+    fileName: FileName,
+    /** As declared for the upload; the scan stores the object's real size. */
+    sizeBytes: z.int().min(1),
+  })
+  .strict();
+/** `attested` is checked by the route, so a missing one gets its own error (UC-03 4b). */
+export const CreateSourceBody = z.discriminatedUnion('kind', [WebsiteSourceBody, FileSourceBody]);
 export type CreateSourceBody = z.infer<typeof CreateSourceBody>;
+
+/** A presigned upload to the quarantine bucket (KB-11; FEAT-015 §3.2). */
+export const UploadRequestBody = z
+  .object({ fileName: FileName, sizeBytes: z.int().min(1) })
+  .strict();
+export type UploadRequestBody = z.infer<typeof UploadRequestBody>;
+export const UploadTicket = z.object({
+  uploadId: z.uuid(),
+  url: z.string(),
+  /** Headers the PUT must send as they are (the signed length). */
+  headers: z.record(z.string(), z.string()),
+  expiresAt: z.iso.datetime({ offset: true }),
+});
+export type UploadTicket = z.infer<typeof UploadTicket>;
 export const RetrySourceBody = z.object({ version: z.int().min(1) }).strict();
-export const SourceList = z.object({ sources: z.array(Source), pageLimit: z.int() });
+export const SourceList = z.object({
+  sources: z.array(Source),
+  pageLimit: z.int(),
+  /** How many file sources the plan holds, and the size limit (FEAT-015). */
+  fileLimit: z.int(),
+  maxFileBytes: z.int(),
+});
 export type SourceList = z.infer<typeof SourceList>;
 export const SourceResponse = z.object({ source: Source });
 export const SourceDetail = z.object({ source: Source, pages: z.array(SourcePage) });
@@ -914,11 +956,22 @@ export const TurnJob = z.object({
 });
 export type TurnJob = z.infer<typeof TurnJob>;
 
-/** One stage of a source's ingestion run (ADR-018 decision 1; FEAT-012 §5.1). */
-export const IngestJob = z.object({
-  tenantId: z.uuid(),
-  sourceId: z.uuid(),
-  attempt: z.number().int().min(1),
-  stage: z.enum(['crawl', 'extract', 'promote']),
-});
+/**
+ * One stage of a source's ingestion run (ADR-018 decision 1; FEAT-012 §5.1), or the purge
+ * of a deleted file's objects (FEAT-015 §5.7).
+ */
+export const IngestJob = z.union([
+  z.object({
+    tenantId: z.uuid(),
+    sourceId: z.uuid(),
+    attempt: z.number().int().min(1),
+    stage: z.enum(['scan', 'parse', 'crawl', 'extract', 'promote']),
+  }),
+  z.object({
+    tenantId: z.uuid(),
+    sourceId: z.uuid(),
+    stage: z.literal('purge'),
+    keys: z.object({ quarantine: z.string().optional(), sources: z.string().optional() }),
+  }),
+]);
 export type IngestJob = z.infer<typeof IngestJob>;

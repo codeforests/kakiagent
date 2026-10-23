@@ -39,7 +39,7 @@ No design tool is connected (the design MCP servers failed to connect in this se
      - added (201) → the source's `status-badge` (Queued…) and a `link` "View" to SCR-APP-024; from then on the row follows the source through polling until Ready or Failed (with the reason text);
      - upload failed (network, 4xx/5xx from the presign, the PUT or the create) → danger caption "Upload failed" and a `ghost sm` "Try again" for that file.
   5. Files upload two at a time; the rest wait with "Waiting to upload".
-- **Content and data mapping:** per file: `POST /api/v1/kb/uploads { fileName, sizeBytes }` → `PUT url` (XHR, for upload progress, with the returned `headers`) → `POST /api/v1/kb/sources { kind: 'file', uploadId, fileName }`. Errors: 400 `unsupported_type` and `file_too_large` show the browser messages above; 409 `file_limit_reached` shows "Your plan's file limit is reached" and stops the queue; 409 `source_exists` (a double submit) is treated as added.
+- **Content and data mapping:** per file: `POST /api/v1/kb/uploads { fileName, sizeBytes }` → `PUT url` (XHR, for upload progress, with the returned `headers`) → `POST /api/v1/kb/sources { kind: 'file', uploadId, fileName, sizeBytes }`. Errors: 400 `unsupported_type` and `file_too_large` show the browser messages above; 409 `file_limit_reached` shows "Your plan's file limit is reached" and stops the queue; 409 `source_exists` (a double submit) is treated as added.
 
 ### default
 The help text, the drop card and the plan line; no upload list.

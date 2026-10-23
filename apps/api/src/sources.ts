@@ -1,5 +1,7 @@
 import {
   CreateSourceBody,
+  FILE_EXTENSIONS,
+  MAX_FILE_BYTES,
   RetrySourceBody,
   SourceDetail,
   SourceList,
@@ -10,6 +12,7 @@ import { withTenant } from '@kaki/db';
 import { can } from '@kaki/identity';
 import {
   assertPublicHost,
+  createFileSource,
   createWebsiteSource,
   dashboardKb,
   deleteSource,
@@ -31,6 +34,17 @@ import type { App, Deps } from './server.js';
 
 /** `attested` missing or false (KB-13, UC-03 4b): nothing is written. */
 export class AttestationRequiredError extends Error {}
+/** A file name without an allowed extension (KB-02; FEAT-015 §3.2). */
+export class UnsupportedFileError extends Error {}
+/** Over the 25 MB a file may be (KB-02). */
+export class FileTooLargeError extends Error {}
+
+/** The early checks on a file's name and declared size; the scan decides what it is (D5). */
+export function checkFile(fileName: string, sizeBytes: number) {
+  const name = fileName.toLowerCase();
+  if (!FILE_EXTENSIONS.some((ext) => name.endsWith(ext))) throw new UnsupportedFileError();
+  if (sizeBytes > MAX_FILE_BYTES) throw new FileTooLargeError();
+}
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DeleteQuery = z.object({ version: z.coerce.number().int().min(1) });
@@ -112,12 +126,24 @@ export function registerSourceRoutes(
       const [rows, counts] = await Promise.all([listSources(ctx), sourceFactCounts(ctx)]);
       return { sources: rows.map((r) => toSource(r, counts.get(r.id))) };
     });
-    return SourceList.parse({ ...body, pageLimit: config.CRAWL_PAGE_LIMIT });
+    return SourceList.parse({
+      ...body,
+      pageLimit: config.CRAWL_PAGE_LIMIT,
+      fileLimit: config.FILE_LIMIT,
+      maxFileBytes: MAX_FILE_BYTES,
+    });
   });
 
   app.post('/api/v1/kb/sources', async (req, reply) => {
     const s = await manager(req);
     const body = CreateSourceBody.parse(req.body);
+    if (body.kind === 'file') {
+      checkFile(body.fileName, body.sizeBytes);
+      const source = await withKb(s, async (ctx) =>
+        withCounts(ctx, await createFileSource(ctx, body, { fileLimit: config.FILE_LIMIT })),
+      );
+      return reply.code(201).send(SourceResponse.parse({ source }));
+    }
     if (body.attested !== true) throw new AttestationRequiredError();
     const scope = parseWebsite(body.url, body.subdomains ?? []);
     await assertPublicHost(new URL(scope.url).hostname, {

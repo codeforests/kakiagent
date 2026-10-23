@@ -18,12 +18,22 @@ import {
 import { ExtractionUnavailableError, extractSource, type ExtractOptions } from './extract.js';
 import { promoteSource } from './promote.js';
 
-export interface IngestJobBody {
+export interface StageJobBody {
   tenantId: string;
   sourceId: string;
   attempt: number;
   stage: SourceStage;
 }
+
+/** Deletes a deleted file's objects (FEAT-015 §5.7); the source row is already gone. */
+export interface PurgeJobBody {
+  tenantId: string;
+  sourceId: string;
+  stage: 'purge';
+  keys: { quarantine?: string | undefined; sources?: string | undefined };
+}
+
+export type IngestJobBody = StageJobBody | PurgeJobBody;
 
 export interface IngestDeps {
   /** The ingest trust zone (FEAT-012 §4). */
@@ -48,13 +58,13 @@ export type IngestOutcome =
 
 export const DEFAULT_MAX_ATTEMPTS = 5;
 
-const ofSource = (job: IngestJobBody) =>
+const ofSource = (job: StageJobBody) =>
   and(eq(schema.kbSources.tenantId, job.tenantId), eq(schema.kbSources.id, job.sourceId));
 
 /** Sets the source's status (and more) only while it is still this job's run. */
 async function transition(
   zdb: ZoneDb,
-  job: IngestJobBody,
+  job: StageJobBody,
   from: readonly SourceRecord['status'][],
   set: Partial<typeof schema.kbSources.$inferInsert>,
 ): Promise<void> {
@@ -81,6 +91,7 @@ export async function runIngestJob(
   job: IngestJobBody,
   receiveCount: number,
 ): Promise<IngestOutcome> {
+  if (job.stage === 'purge') throw new Error('purge has no runner yet');
   const { zdb } = deps;
   const source = await withTenant(zdb, job.tenantId, async (tx) => {
     const [row] = await tx.select().from(schema.kbSources).where(ofSource(job)).for('update');
@@ -158,7 +169,7 @@ export async function runIngestJob(
 }
 
 /** Fails the run: the reason, no stage, and the attempt's staging removed (KB-12). */
-async function fail(zdb: ZoneDb, job: IngestJobBody, failure: SourceFailure) {
+async function fail(zdb: ZoneDb, job: StageJobBody, failure: SourceFailure) {
   await withTenant(zdb, job.tenantId, async (tx) => {
     const [current] = await tx.select().from(schema.kbSources).where(ofSource(job)).for('update');
     if (!current || current.attempt !== job.attempt) return;

@@ -22,12 +22,14 @@ import {
 import {
   EmbeddingUnavailableError,
   FactNotFoundError,
+  FileLimitError,
   GstRequiredError,
   InvalidCursorError,
   InvalidFactError,
   InvalidStateError,
   InvalidWebsiteError,
   NonPublicHostError,
+  NotRetryableError,
   PreviewStaleError,
   ConflictChangedError,
   SourceExistsError,
@@ -57,7 +59,12 @@ import { createServer, type Deps } from './server.js';
 import { registerConflictRoutes, toConflict } from './conflicts.js';
 import { registerReviewRoutes, toPreview } from './review.js';
 import { registerSettingsRoutes } from './settings.js';
-import { AttestationRequiredError, registerSourceRoutes } from './sources.js';
+import {
+  AttestationRequiredError,
+  FileTooLargeError,
+  registerSourceRoutes,
+  UnsupportedFileError,
+} from './sources.js';
 
 export type { App, Deps } from './server.js';
 
@@ -106,8 +113,27 @@ export async function buildApp(deps: Deps) {
     if (err instanceof SourceExistsError)
       return reply.code(409).send({
         error: 'source_exists',
-        message: 'This website is already a source.',
+        message: 'This is already a source.',
         sourceId: err.sourceId,
+      });
+    if (err instanceof UnsupportedFileError)
+      return reply.code(400).send({
+        error: 'unsupported_type',
+        message: 'Upload a PDF, Word, PowerPoint, text, JPG or PNG file.',
+      });
+    if (err instanceof FileTooLargeError)
+      return reply
+        .code(400)
+        .send({ error: 'file_too_large', message: 'Files can be up to 25 MB.' });
+    if (err instanceof FileLimitError)
+      return reply.code(409).send({
+        error: 'file_limit_reached',
+        message: "Your plan's file limit is reached.",
+      });
+    if (err instanceof NotRetryableError)
+      return reply.code(409).send({
+        error: 'not_retryable',
+        message: 'Upload the file again instead.',
       });
     if (
       err instanceof NotFoundError ||

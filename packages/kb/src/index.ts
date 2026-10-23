@@ -26,6 +26,8 @@ export {
 export {
   EmbeddingUnavailableError,
   FactNotFoundError,
+  FileLimitError,
+  NotRetryableError,
   GstRequiredError,
   InvalidCursorError,
   InvalidFactError,
@@ -84,7 +86,12 @@ export {
   type TypeCounts,
 } from './review.js';
 export {
+  countFileSources,
+  createFileSource,
   createWebsiteSource,
+  extensionOf,
+  quarantineKey,
+  sourcesKey,
   deleteSource,
   getSource,
   listSources,
@@ -156,5 +163,7 @@ export {
   runIngestJob,
   type IngestDeps,
   type IngestJobBody,
+  type PurgeJobBody,
+  type StageJobBody,
   type IngestOutcome,
 } from './ingest/job.js';

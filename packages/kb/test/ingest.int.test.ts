@@ -20,6 +20,7 @@ import {
   visitorKb,
   type FetchedPage,
   type IngestJobBody,
+  type StageJobBody,
   type PageFetcher,
 } from '../src/index.js';
 
@@ -371,7 +372,7 @@ describe('extract and promote (KB-05, KB-12, KB-16; FEAT-012 §5.3–5.4)', () =
       ),
       ROBOTS,
     );
-    const job = (stage: IngestJobBody['stage']): IngestJobBody => ({
+    const job = (stage: StageJobBody['stage']): StageJobBody => ({
       tenantId: TENANT_B,
       sourceId: t.id,
       attempt: 1,
@@ -424,7 +425,7 @@ describe('extract and promote (KB-05, KB-12, KB-16; FEAT-012 §5.3–5.4)', () =
     const s = await addSource();
     const { fetcher } = fakeSite(BAKERY, ROBOTS);
     const zdb = tdb.zone('ingest');
-    const job = (stage: IngestJobBody['stage']): IngestJobBody => ({
+    const job = (stage: StageJobBody['stage']): StageJobBody => ({
       tenantId: TENANT_A,
       sourceId: s.id,
       attempt: 1,
