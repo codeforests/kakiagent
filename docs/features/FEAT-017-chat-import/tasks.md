@@ -9,7 +9,7 @@
       Done when: typecheck passes across the workspace with the new enum values handled (dashboard records included); gateway unit tests pass with `mine` routed to Haiku.
 - [x] T3 — Chat readers: `whatsapp.ts`, `telegram.ts`, `zip.ts` (design §5.3 steps 2–3)
       Done when: unit tests pass for Android and iOS line forms, d/m and m/d, 12- and 24-hour clocks, U+200E marks, multi-line messages, system and media lines dropped, the message limit keeping the latest; Telegram single and full exports, text parts, service messages skipped; `_chat.txt` picked from a zip with media, no text entry → `chat_format`.
-- [ ] T4 — Redaction and grouping: `redact.ts`, `exchanges.ts` (business detection, exchanges, parts) (design §5.3 steps 4–6; D3, D4, D7, D9; AC-3 logic)
+- [x] T4 — Redaction and grouping: `redact.ts`, `exchanges.ts` (business detection, exchanges, parts) (design §5.3 steps 4–6; D3, D4, D7, D9; AC-3 logic)
       Done when: unit tests pass for every redaction rule with counts, name-word redaction, business matching (normalised, contains, Telegram `from_id`), the 48-hour rule, part size and limit.
 - [ ] T5 — Mining: `mine.ts` (`MINING_SYSTEM`, schema, `parseMining`), `fake-mine.ts`, `minePart` in `extractSource` for chat sources (design §5.4; D8; AC-4)
       Done when: unit tests pass for every check of §5.4 with drop counts, the 20-pair cap, and the fake's output.
