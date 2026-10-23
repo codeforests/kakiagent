@@ -16,6 +16,7 @@ import {
   type PageFetcher,
   type PageFetcherFactory,
 } from './crawl.js';
+import { minePart } from './chats/mine.js';
 import { ExtractionUnavailableError, extractSource, type ExtractOptions } from './extract.js';
 import { parseFileSource } from './files/parse-stage.js';
 import { ScannerUnavailableError, type FileDeps, type FileType } from './files/ports.js';
@@ -225,7 +226,12 @@ export async function runIngestJob(
         return { result: 'next', stage: 'extract' };
       }
       case 'extract':
-        await extractSource(zdb, source, deps.llm, deps.extract);
+        await extractSource(
+          zdb,
+          source,
+          deps.llm,
+          source.kind === 'chat' ? { ...deps.extract, read: minePart } : deps.extract,
+        );
         await next('promote');
         return { result: 'next', stage: 'promote' };
       case 'promote':

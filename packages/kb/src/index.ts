@@ -151,6 +151,8 @@ export {
   type StagedFact,
 } from './ingest/extract.js';
 export { fakeExtractScript } from './ingest/fake-extract.js';
+export { fakeMineScript } from './ingest/chats/fake-mine.js';
+export { MINING_SYSTEM, parseMining, minePart } from './ingest/chats/mine.js';
 export { promoteSource } from './ingest/promote.js';
 export { conflictId, entityKey, sameValue } from './conflicts.js';
 export {
