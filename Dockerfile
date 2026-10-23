@@ -37,10 +37,14 @@ COPY --from=build --chown=node:node /out/package.json ./package.json
 COPY --from=build --chown=node:node /out/node_modules ./node_modules
 COPY --from=build --chown=node:node /out/dist ./dist
 # ingest-worker crawls with Chromium (FEAT-012 D3): playwright-core's headless shell,
-# the exact build its version drives, with the shared libraries it needs.
+# the exact build its version drives, with the shared libraries it needs. It reads files
+# with Tesseract (English and simplified Chinese) and poppler's pdftoppm (FEAT-015 §5.4).
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 RUN if [ "$ROLE" = "ingest-worker" ]; then \
       node node_modules/playwright-core/cli.js install --with-deps --only-shell chromium \
+      && apt-get update \
+      && apt-get install -y --no-install-recommends \
+           tesseract-ocr tesseract-ocr-eng tesseract-ocr-chi-sim poppler-utils \
       && rm -rf /var/lib/apt/lists/*; \
     fi
 USER node

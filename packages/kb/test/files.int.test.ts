@@ -206,7 +206,7 @@ describe('a clean file through scan, parse, extract and promote (KB-02; FEAT-015
     const pdf = makePdf([{ lines: MENU }, { lines: ['Thank you for choosing Kaki Bakery!'] }]);
     const s = await upload(files, pdf);
     expect(await drain(s, files, { llm })).toEqual([
-      { result: 'next', stage: 'parse' },
+      { result: 'next', stage: 'parse', type: 'pdf' },
       { result: 'next', stage: 'extract' },
       { result: 'next', stage: 'promote' },
       { result: 'ready', facts: 3 },
@@ -297,7 +297,9 @@ describe('the safety checks before anything reads a file (KB-11; FEAT-015 §5.3)
     const files = fileDeps();
     const { llm, systems } = recordingLlm();
     const s = await upload(files, EICAR, 'test.pdf');
-    expect(await drain(s, files, { llm })).toEqual([{ result: 'failed', failure: 'malware' }]);
+    expect(await drain(s, files, { llm })).toEqual([
+      { result: 'failed', failure: 'malware', signature: 'Eicar-Test-Signature' },
+    ]);
     expect(await sourceRow(s.id)).toMatchObject({
       status: 'failed',
       failure: 'malware',

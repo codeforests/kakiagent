@@ -1,7 +1,7 @@
 # Tasks: FEAT-015 — File upload with content-type and malware checks; parsing and Tesseract OCR
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: in progress (T1–T7 done) · Last updated: 2026-10-23
+> Status: in progress (T1–T8 done) · Last updated: 2026-10-23
 
 - [x] T1 — Schema: `kb_sources` kind `file`, `name` (backfilled), nullable website columns with `kb_sources_website_ck`, the file columns with `kb_sources_file_ck` and the unique upload key, the new stages and failures, the page reasons and `ocr_confidence` (drizzle schema + `0023`); RLS suite case for file sources (design §4; AC-8 schema half)
       Done when: `pnpm db:setup` applies 0023 on a database at 0022 with a website source in it (its `name` equals its domain) and is idempotent; `drizzle-kit generate` reports no drift; the RLS suite passes with the file-source case.
@@ -17,7 +17,7 @@
       Done when: ingest-worker integration tests pass: S3 head/get/copy/delete against LocalStack; ClamAV says clean for a fixture and `FOUND` for EICAR, and unavailable for a closed port; GuardDuty maps each tag value with a fake S3 client and never treats a missing tag as clean; Tesseract reads the English fixtures' prices and the Chinese fixture at ≥ 90% character accuracy; pdftoppm renders a scanned page.
 - [x] T7 — Fixtures: `fixtures/files/generate.ts` and the committed files of design §5.9; the runtime EICAR builder (design §5.9)
       Done when: `pnpm --filter @kaki/ingest-worker fixtures:files` regenerates every file; the committed files match what T3–T6 tests expect.
-- [ ] T8 — Worker wiring and local stack: `main.ts` config and deps, health checks, `.env.example`, `gen-local-env.mjs`, `02-buckets.sh` (buckets, lifecycle, CORS), ClamAV out of the compose profile with a health check, Dockerfile packages (design §5.8; D9)
+- [x] T8 — Worker wiring and local stack: `main.ts` config and deps, health checks, `.env.example`, `gen-local-env.mjs`, `02-buckets.sh` (buckets, lifecycle, CORS), ClamAV out of the compose profile with a health check, Dockerfile packages (design §5.8; D9)
       Done when: on the local stack, a file put into the quarantine bucket and a source row created by hand runs to `ready` in the dev worker; `/readyz` reports scanner and OCR; the ingest-worker image builds with Tesseract and poppler.
 - [ ] T9 — API: `POST /api/v1/kb/uploads` with the S3 presigner, the file body of `POST /api/v1/kb/sources`, `fileLimit`/`maxFileBytes` on the list, `not_retryable`, `toSource` for files, config and `.env.example` (design §3.2, §5.8; D2; AC-1, AC-6 retry, AC-8 tenant key)
       Done when: api integration tests pass for every designed success and error, and a PUT to the returned URL against LocalStack stores the object under the session tenant's prefix.
@@ -31,3 +31,11 @@
       Done when: the spec passes in Chromium against the local stack with `pnpm test:e2e --project=chromium`.
 - [ ] T14 — Verify: every AC in design §6 demonstrated, NFR-16 timings measured (AC-9), lint, boundaries, typecheck, unit, integration, coverage and E2E green; scaffold notes updated (design §6)
       Done when: the evidence for each AC is recorded at the end of this file and every command above is green.
+
+## Implementation notes
+
+- **T6/T7 order:** the fixtures (T7) were committed just before the adapters (T6), whose integration tests read them.
+- **OCR fixtures use a hyphen:** with `eng+chi_sim`, Tesseract reads a lone em dash between Latin words as 一. The text-layer fixtures keep the em dash; the OCR'd ones (`scanned-menu.pdf`, `menu-photo.*`) use ` - `, which the fake extractor accepts too. A real model reads either.
+- **S3 endpoint (design §5.8):** the worker (and the API in T9) use the existing `AWS_ENDPOINT_URL` for LocalStack, as the scheduler's anchor store does, rather than a new `S3_ENDPOINT_URL`.
+- **Job outcome:** `runIngestJob`'s outcome gains `type` (scan → parse) and `signature` (malware), so the worker logs them; neither is audited (NFR-11).
+- **T8 evidence:** on the local stack, `price-list.pdf` and `scanned-menu.pdf` put into `kaki-local-quarantine` with a source created through `createFileSource` ran scan → parse → extract → promote to `ready` in the dev worker (3 pages and 7 facts; 2 OCR pages and 4 facts). `/readyz` reports `{"database":true,"browser":true,"scanner":true,"ocr":true}`. clamd accepts a 25 MB stream. The image build couldn't run here (the sandbox's TLS proxy isn't trusted inside `docker build`, and Docker Hub rate-limited the base image), so CI builds the ingest-worker image and checks its Tesseract languages (T10).

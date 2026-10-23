@@ -1,4 +1,5 @@
-import { and, eq, schema, sql, withTenant, type ZoneDb } from '@kaki/db';
+import { and, eq, schema, sql, withTenant, type Tx, type ZoneDb } from '@kaki/db';
+import { audit, auditCode, type AuditPayload } from '@kaki/governance';
 import type { LlmGateway } from '@kaki/llm-gateway';
 import { EmbeddingUnavailableError } from '../errors.js';
 import {
@@ -16,12 +17,10 @@ import {
   type PageFetcherFactory,
 } from './crawl.js';
 import { ExtractionUnavailableError, extractSource, type ExtractOptions } from './extract.js';
-import { promoteSource } from './promote.js';
-import { audit, auditCode, type AuditPayload } from '@kaki/governance';
-import type { Tx } from '@kaki/db';
-import { ScannerUnavailableError, type FileDeps } from './files/ports.js';
-import { scanFile } from './files/scan-stage.js';
 import { parseFileSource } from './files/parse-stage.js';
+import { ScannerUnavailableError, type FileDeps, type FileType } from './files/ports.js';
+import { scanFile } from './files/scan-stage.js';
+import { promoteSource } from './promote.js';
 
 export interface StageJobBody {
   tenantId: string;
@@ -60,9 +59,10 @@ export interface IngestDeps {
 export type IngestOutcome =
   | { result: 'stale' }
   | { result: 'purged' }
-  | { result: 'next'; stage: SourceStage }
+  | { result: 'next'; stage: SourceStage; type?: FileType }
   | { result: 'ready'; facts: number }
-  | { result: 'failed'; failure: SourceFailure };
+  /** `signature` is the scanner's name for the malware: logged, never audited (NFR-11). */
+  | { result: 'failed'; failure: SourceFailure; signature?: string };
 
 export const DEFAULT_MAX_ATTEMPTS = 5;
 
@@ -160,7 +160,9 @@ export async function runIngestJob(
           await fail(zdb, job, outcome.failure, (tx) =>
             sourceAudit(tx, 'kb_source.rejected', { reason: auditCode(outcome.failure) }),
           );
-          return { result: 'failed', failure: outcome.failure };
+          return outcome.signature
+            ? { result: 'failed', failure: outcome.failure, signature: outcome.signature }
+            : { result: 'failed', failure: outcome.failure };
         }
         await next(
           'parse',
@@ -176,7 +178,7 @@ export async function runIngestJob(
               verdict: auditCode('clean'),
             }),
         );
-        return { result: 'next', stage: 'parse' };
+        return { result: 'next', stage: 'parse', type: outcome.type };
       }
       case 'parse': {
         const outcome = await parseFileSource(zdb, source, needFiles(deps));
