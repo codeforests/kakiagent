@@ -1,7 +1,7 @@
 # Tasks: FEAT-017 — Chat-history import (WhatsApp, Telegram) to suggested FAQs, with redaction
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: pending · Last updated: 2026-10-23
+> Status: developer-done · Last updated: 2026-10-23
 
 - [x] T1 — Schema: `kb_sources` kind `chat`, failures `chat_format`/`business_not_found`, file types `json`/`zip` with `kb_sources_chat_type_ck`, the widened `kb_sources_file_ck`, `chat` with `kb_sources_chat_ck` (drizzle schema + `0025`); RLS suite case for chat sources and parts (design §4; AC-8 schema half)
       Done when: `pnpm db:setup` applies 0025 on a database at 0024; `drizzle-kit generate` reports no drift; the RLS suite passes with the chat case.
@@ -28,5 +28,21 @@
 - [x] T11 — E2E: `e2e/tests/chats.e2e.ts`: upload `whatsapp-android.txt`, redaction notice, suggestions, approve, edit and approve, discard, export-deleted note, axe on SCR-APP-026 (AC-9; UC-11)
       Done when: the spec passes in Chromium against the local stack, or (per Ken's rule) is left to CI with the reason recorded.
       Note: written, linted and typechecked; this session has no Docker for the local stack, so the spec runs first in CI's E2E job (Ken's rule: CI runs the full suite).
-- [ ] T12 — Verify: every AC in design §6 demonstrated; format, lint, boundaries, typecheck and this feature's unit and integration tests green; scaffold notes updated (design §6)
+- [x] T12 — Verify: every AC in design §6 demonstrated; format, lint, boundaries, typecheck and this feature's unit and integration tests green; scaffold notes updated (design §6)
       Done when: the evidence for each AC is recorded at the end of this file.
+
+## Verification evidence (T12, 2026-10-23)
+
+Run in a session without Docker: integration tests used a local Postgres 16 + pgvector (`KAKI_TEST_DATABASE_URL`) and the in-memory file store; the E2E spec runs in CI.
+
+- **AC-1:** `apps/api/test/chats.int.test.ts` (6 passed): 201 `queued` at `scan` named "Chat export", the audit without file or business names, one job, `.pdf` as chat 400, missing/empty `businessNames` 400, the file limit, `agent` 403.
+- **AC-2:** `packages/kb/test/chats.int.test.ts` (EICAR `chat.txt` → `malware`, encrypted zip, PDF as `.txt`, no copy to `sources`); `sniff` unit tests.
+- **AC-3:** `packages/kb/test/chats.int.test.ts` reads all four fixtures and asserts no fixture PII or file name in any stored row, the parts' tokens, the counts, the object deleted, `exportDeletedAt` and `kb_source.export_deleted`; `readers`, `redact` and `exchanges` unit tests (218 kb unit tests pass).
+- **AC-4:** `mine.test.ts` (every `parseMining` drop reason counted, the 20-pair cap, `MINING_SYSTEM`); `router.test.ts` routes `mine` to Haiku with purpose `extract` (37 gateway tests pass).
+- **AC-5:** `packages/kb/test/chats.int.test.ts`: `ready` with `needs_review` FAQs, `source 'chat'`, provenance and `location { unit: 'chat' }`, none in `visitor_facts`; approving puts one in `visitor_facts`, rejecting removes it.
+- **AC-6:** `packages/kb/test/chats.int.test.ts` (`not-a-chat.*` → `chat_format`, unknown names → `business_not_found`, export deleted) and `apps/api/test/chats.int.test.ts` (retry 409 `not_retryable`).
+- **AC-7:** `packages/kb/test/chats.int.test.ts`: model failure → `extraction_unavailable`, retry from kept parts → `ready`; stale job no-op; resume after delete; delete purges parts and FAQs.
+- **AC-8:** `packages/db/test/rls.int.test.ts` chat case (98 passed); `apps/api/test/chats.int.test.ts` tenant B 404 and empty scoped review.
+- **AC-9:** `e2e/tests/chats.e2e.ts` written, linted and typechecked; runs in CI's E2E job (no Docker here).
+- **Checks:** `pnpm format:check`, `pnpm lint` (ESLint and dependency-cruiser: no violations), `pnpm typecheck` pass; dashboard build passes; kb integration (chats, files, sheets: 44 passed). `apps/api/test/uploads.int.test.ts` "the S3 presigner" needs Docker or `KAKI_TEST_S3_ENDPOINT` and was not run here (FEAT-015's test; CI runs it).
+- **Recorded:** `apps/ingest-worker/fixtures/files/` added to `.prettierignore`, because the generated JSON fixtures are compared byte for byte with their generator.
