@@ -17,8 +17,9 @@
       Done when: kb integration tests with the in-memory file store pass: each fixture runs to `ready` with `needs_review` FAQs, no fixture PII in any stored row, the object deleted and audited; `chat_format` and `business_not_found` delete the object and aren't retryable; model failure then retry ends `ready` from kept parts; a crash after delete resumes; approving a suggestion puts it in `visitor_facts`.
 - [x] T7 — Fixtures: `generate.ts` gains the §5.8 files; committed (design §5.8)
       Done when: the generator regenerates every file and the committed files match what T3–T6 tests expect.
-- [ ] T8 — Worker wiring: `CHAT_MESSAGE_LIMIT`, `CHAT_PART_LIMIT` config and `.env.example`, the fake provider routing `mine`, logs (design §5.7)
+- [x] T8 — Worker wiring: `CHAT_MESSAGE_LIMIT`, `CHAT_PART_LIMIT` config and `.env.example`, the fake provider routing `mine`, logs (design §5.7)
       Done when: ingest-worker typecheck and unit tests pass; the worker starts against the local stack.
+      Note: this session had no Docker, so the worker wasn't started against the stack; typecheck, lint and the worker's unit tests (including the committed chat fixtures) pass, and CI's E2E job starts it.
 - [ ] T9 — API: the chat body of `POST /kb/sources`, `toSource` with `chat` (no `businessNames`), extension lists (design §3.2; AC-1, AC-6, AC-8)
       Done when: api integration tests pass for every designed success and error, including tenant B's 404 on tenant A's source.
 - [ ] T10 — Dashboard: chat exports on SCR-APP-007, chat rows on SCR-APP-023, SCR-APP-026 at `/knowledge/sources/:id` for a chat (reading, suggestions, empty, failed), chat provenance on SCR-APP-028 (ui-design.md)
