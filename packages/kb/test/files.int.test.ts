@@ -1,3 +1,4 @@
+import { strToU8, zipSync } from 'fflate';
 import { readFileSync } from 'node:fs';
 import { withTenant } from '@kaki/db';
 import { startTestDatabase, TENANT_A, type TestDatabase } from '@kaki/db/testing';
@@ -251,6 +252,80 @@ describe('a clean file through scan, parse, extract and promote (KB-02; FEAT-015
     expect((await auditOf(s.id))[1].payload).toEqual({ type: 'pdf', verdict: 'clean' });
   });
 
+  it('passes through processing at each stage on the way to ready (AC-6)', async () => {
+    const files = fileDeps();
+    const s = await upload(files, makePdf([{ lines: MENU }]));
+    expect(await sourceRow(s.id)).toMatchObject({ status: 'queued', stage: 'scan' });
+    for (const stage of ['parse', 'extract', 'promote']) {
+      await drain(s, files, { jobs: 1 });
+      expect(await sourceRow(s.id)).toMatchObject({ status: 'processing', stage });
+    }
+    await drain(s, files, { jobs: 1 });
+    expect(await sourceRow(s.id)).toMatchObject({ status: 'ready', stage: null, facts_count: 3 });
+  });
+
+  const slide = (t: string) =>
+    strToU8(
+      `<p:sld><p:cSld>${t
+        .split('\n')
+        .map((l) => `<a:p><a:r><a:t>${l}</a:t></a:r></a:p>`)
+        .join('')}</p:cSld></p:sld>`,
+    );
+  it.each<[string, string, () => Uint8Array, string]>([
+    [
+      'a PDF',
+      'Price list.pdf',
+      () => makePdf([{ lines: ['Welcome to Kaki Bakery, Tiong Bahru'] }, { lines: MENU }]),
+      'page/2',
+    ],
+    [
+      'a PPTX',
+      'promo.pptx',
+      () =>
+        zipSync({
+          '[Content_Types].xml': strToU8('<Types/>'),
+          'ppt/presentation.xml': strToU8('<p/>'),
+          'ppt/slides/slide1.xml': slide('Kaki Bakery'),
+          'ppt/slides/slide2.xml': slide('Welcome'),
+          'ppt/slides/slide3.xml': slide(MENU.join('\n')),
+        }),
+      'slide/3',
+    ],
+    [
+      'a DOCX',
+      'faq.docx',
+      () =>
+        zipSync({
+          '[Content_Types].xml': strToU8('<Types/>'),
+          'word/document.xml': strToU8(
+            `<?xml version="1.0"?><w:document xmlns:w="w"><w:body>${MENU.map(
+              (l) => `<w:p><w:r><w:t xml:space="preserve">${l}</w:t></w:r></w:p>`,
+            ).join('')}</w:body></w:document>`,
+          ),
+        }),
+      'part/1',
+    ],
+    ['a TXT', 'policies.txt', () => strToU8(MENU.join('\r\n')), 'part/1'],
+  ])(
+    'reads %s (%s) to ready with needs_review facts at its location (AC-4)',
+    async (_, name, make, location) => {
+      const files = fileDeps();
+      const s = await upload(files, make(), name);
+      expect((await drain(s, files)).at(-1)).toEqual({ result: 'ready', facts: 3 });
+      const pages = await pageRows(s.id);
+      const page = pages.find((p) => p.url === location)!;
+      expect(page).toMatchObject({ status: 'included', ocr_confidence: null });
+      expect(page.content).toBe(MENU.join('\n'));
+      const facts = await factRows(s.id);
+      expect(facts).toHaveLength(3);
+      for (const f of facts) {
+        expect(f).toMatchObject({ status: 'needs_review', source: 'file' });
+        expect(f.provenance.url).toBe(location);
+        expect(f.provenance.quote).toBe(page.content.slice(f.provenance.start, f.provenance.end));
+      }
+    },
+  );
+
   it("OCRs an image, counts the OCR page and caps each fact's confidence at the OCR's", async () => {
     const files = fileDeps({ ocrConfidence: 0.6 });
     const s = await upload(
@@ -276,6 +351,15 @@ describe('a clean file through scan, parse, extract and promote (KB-02; FEAT-015
     expect((await pageRows(s.id))[0]).toMatchObject({ url: 'image/1', status: 'included' });
     expect((await pageRows(s.id))[0].ocr_confidence).toBeCloseTo(0.6, 5);
     for (const f of await factRows(s.id)) expect(f.confidence).toBeCloseTo(0.6, 5);
+  });
+
+  it('reads a PNG named .jpg as an image (AC-3)', async () => {
+    const files = fileDeps();
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0x0d]);
+    files.deps.ocr.recognize = async () => ({ text: MENU.join('\n'), confidence: 0.9 });
+    const s = await upload(files, png, 'menu.jpg');
+    expect((await drain(s, files)).at(-1)).toEqual({ result: 'ready', facts: 3 });
+    expect(await sourceRow(s.id)).toMatchObject({ file_type: 'png', ocr_pages: 1 });
   });
 
   it('fails no_text when nothing in the file has text, even after OCR', async () => {
@@ -347,6 +431,21 @@ describe('the safety checks before anything reads a file (KB-11; FEAT-015 §5.3)
       'encrypted',
     ],
     ['binary bytes named .txt', new Uint8Array([0x41, 0, 0x42]), 'notes.txt', 'unsupported_type'],
+    [
+      'an XLSX named .docx',
+      zipSync({
+        '[Content_Types].xml': strToU8('<Types/>'),
+        'xl/workbook.xml': strToU8('<w/>'),
+      }),
+      'prices.docx',
+      'unsupported_type',
+    ],
+    [
+      'a ZIP of images named .pptx',
+      zipSync({ 'menu.jpg': new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1]) }),
+      'menu.pptx',
+      'unsupported_type',
+    ],
   ])('rejects %s and deletes it from quarantine', async (_, bytes, name, failure) => {
     const files = fileDeps();
     const s = await upload(files, bytes, name);

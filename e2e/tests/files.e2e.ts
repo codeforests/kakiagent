@@ -114,6 +114,7 @@ test('the owner uploads files, sees them checked and read, and a fact names its 
   const rows = page.getByTestId('page-row');
   await expect(rows).toHaveCount(3);
   await expect(rows.first()).toContainText('Page 1');
+  await expect(rows.first().locator('.chip')).toHaveText('Read');
   await expect(rows.first().getByRole('link')).toHaveCount(0);
   await expectNoSeriousA11yViolations(page);
 
@@ -129,7 +130,9 @@ test('the owner uploads files, sees them checked and read, and a fact names its 
   // The photo was read by OCR.
   await page.goto('/knowledge/sources');
   await photoRow.getByRole('link', { name: 'menu-photo.png' }).click();
+  // An image has no Pages section (ui-design SCR-APP-024): its one page is the OCR line.
   await expect(page.getByText('1 read with OCR')).toBeVisible();
+  await expect(page.getByTestId('page-table')).toHaveCount(0);
 });
 
 test('a file with malware is deleted unread and must be uploaded again', async ({ page }) => {
