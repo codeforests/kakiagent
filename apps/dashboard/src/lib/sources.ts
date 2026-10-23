@@ -102,7 +102,7 @@ export function sourceSummary(s: Source): string {
 }
 
 /** True while the page is visible (polling stops when the tab is hidden, D6). */
-function useVisible() {
+export function useVisible() {
   const [visible, setVisible] = useState(() => document.visibilityState === 'visible');
   useEffect(() => {
     const on = () => setVisible(document.visibilityState === 'visible');
@@ -182,17 +182,6 @@ export function useRetry(onRetried: (s: Source) => void) {
       await queryClient.invalidateQueries({ queryKey: ['sources'] });
     },
   });
-}
-
-/**
- * The failed-sources count on the Knowledge nav entry (KB-12 in-app alert; FEAT-012
- * ui-design), for roles that manage knowledge.
- */
-export function useNavCounts(): Partial<Record<string, number>> {
-  const me = useQuery({ queryKey: ['me'], queryFn: api.me });
-  const manages = me.data?.role === 'owner' || me.data?.role === 'admin';
-  const sources = useSources(manages);
-  return { '/knowledge': failedCount(sources.data?.sources) };
 }
 
 export const failedCount = (sources: Source[] | undefined) =>

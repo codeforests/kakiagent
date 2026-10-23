@@ -9,15 +9,26 @@ import {
   FactList,
   FactResponse,
   Me,
+  ApproveAllResponse,
+  ApprovePreview,
+  ApproveSelectionResponse,
+  RejectSelectionResponse,
+  ReviewList,
+  ReviewSummary,
+  UndoResponse,
   SourceDetail,
   SourceList,
   SourceResponse,
+  type ApproveFactBody,
   type AssistantSettingsBody,
   type BusinessProfileBody,
   type CreateFactBody,
   type CreateSourceBody,
   type CreateWorkspaceBody,
   type FactListQuery,
+  type FactRef,
+  type ReviewListQuery,
+  type ReviewScopeQuery,
   type UpdateFactBody,
 } from '@kaki/contracts';
 import type { z } from 'zod';
@@ -95,6 +106,13 @@ async function request<S extends z.ZodType>(
 
 const getJson = <S extends z.ZodType>(path: string, schema: S) => request('GET', path, schema);
 
+function query(params: Record<string, string | number | undefined>) {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== '') q.set(k, String(v));
+  const qs = q.toString();
+  return qs ? `?${qs}` : '';
+}
+
 export const api = {
   me: () => getJson('/api/v1/me', Me),
   authOptions: () => getJson('/api/v1/auth/options', AuthOptions),
@@ -140,4 +158,26 @@ export const api = {
     }),
   deleteSource: async (id: string, version: number) =>
     void (await send('DELETE', `/api/v1/kb/sources/${encodeURIComponent(id)}?version=${version}`)),
+  /** FEAT-013 §3: SCR-APP-019 and SCR-APP-008. */
+  reviewFacts: (q: ReviewListQuery) => getJson(`/api/v1/kb/review/facts${query(q)}`, ReviewList),
+  reviewSummary: () => getJson('/api/v1/kb/review/summary', ReviewSummary),
+  approvePreview: (scope: ReviewScopeQuery) =>
+    getJson(`/api/v1/kb/review/preview${query(scope)}`, ApprovePreview),
+  approveAll: (scope: ReviewScopeQuery, previewHash: string) =>
+    request('POST', '/api/v1/kb/review/approve-all', ApproveAllResponse, {
+      ...scope,
+      previewHash,
+    }),
+  approveFact: (id: string, body: ApproveFactBody) =>
+    request('POST', `/api/v1/kb/facts/${encodeURIComponent(id)}/approve`, FactResponse, body),
+  rejectFact: (id: string, version: number) =>
+    request('POST', `/api/v1/kb/facts/${encodeURIComponent(id)}/reject`, FactResponse, {
+      version,
+    }),
+  approveSelected: (facts: FactRef[]) =>
+    request('POST', '/api/v1/kb/review/approve', ApproveSelectionResponse, { facts }),
+  rejectSelected: (facts: FactRef[]) =>
+    request('POST', '/api/v1/kb/review/reject', RejectSelectionResponse, { facts }),
+  undoReview: (facts: FactRef[]) =>
+    request('POST', '/api/v1/kb/review/undo', UndoResponse, { facts }),
 };

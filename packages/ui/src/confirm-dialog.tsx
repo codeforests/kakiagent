@@ -15,6 +15,8 @@ export interface ConfirmDialogProps {
   onConfirm: () => void;
   /** While the action runs: the confirm button shows it, and the dialog can't be closed. */
   busy?: boolean;
+  /** The confirm button alone is unavailable (e.g. while its counts load); Cancel still works. */
+  confirmDisabled?: boolean;
   /** An inline alert shown above the buttons (a failed attempt). */
   alert?: ReactNode;
   cancelLabel?: string;
@@ -35,6 +37,7 @@ export function ConfirmDialog({
   confirmVariant = 'primary',
   onConfirm,
   busy = false,
+  confirmDisabled = false,
   alert,
   cancelLabel = 'Cancel',
 }: ConfirmDialogProps) {
@@ -71,7 +74,7 @@ export function ConfirmDialog({
             <Button
               variant={confirmVariant}
               onClick={onConfirm}
-              disabled={busy}
+              disabled={busy || confirmDisabled}
               aria-busy={busy || undefined}
             >
               {busy ? 'Working…' : confirmLabel}

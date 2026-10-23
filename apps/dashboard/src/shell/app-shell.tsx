@@ -6,7 +6,7 @@ import { api } from '../lib/api.ts';
 import { Offline, TenantSuspended } from '../pages/system.tsx';
 import { AccountMenu } from './account-menu.tsx';
 import { Icon } from './icon.tsx';
-import { useNavCounts } from '../lib/sources.ts';
+import { useNavCounts } from '../lib/nav-counts.ts';
 import { NavCount } from './nav-count.tsx';
 import { SIDEBAR, TAB_BAR } from './nav.ts';
 
@@ -49,7 +49,7 @@ export function AppShell() {
               <NavLink to={item.to} end={item.to === '/'} className="nav-item">
                 <Icon name={item.icon} />
                 <span className="nav-item__label">{item.label}</span>
-                <NavCount count={counts[item.to]} />
+                <NavCount value={counts[item.to]} />
               </NavLink>
             </li>
           ))}
@@ -74,6 +74,7 @@ export function AppShell() {
           <NavLink key={item.to} to={item.to} end={item.to === '/'} className="tab-bar-item">
             <Icon name={item.icon} size={24} />
             <span>{item.label}</span>
+            <NavCount value={counts[item.to]} />
           </NavLink>
         ))}
       </nav>
