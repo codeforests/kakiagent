@@ -23,13 +23,25 @@
       Done when: api integration tests pass for every designed success and error, including tenant B's 404 on tenant A's source.
 - [x] T10 — Dashboard: spreadsheets on SCR-APP-007 (the files part takes `.csv`/`.xlsx`), spreadsheet rows on SCR-APP-023, SCR-APP-025 at `/knowledge/sources/:id` for a spreadsheet (mapping, preview, importing, done with rejects, failed), row provenance with SKU and stock on SCR-APP-028 (ui-design.md)
       Done when: `pnpm --filter @kaki/dashboard build` passes and every state in ui-design.md renders against the running stack at 1280 px and 390 px.
-- [ ] T11 — NFR-16 timing: `price-list-500.csv` from confirm to `ready` on the local stack (AC-10)
+- [x] T11 — NFR-16 timing: `price-list-500.csv` from confirm to `ready` on the local stack (AC-10)
       Done when: the measured time is under 1 minute and recorded below.
-- [ ] T12 — E2E: `e2e/tests/spreadsheets.e2e.ts`: upload `price-list.xlsx`, map with the suggestion, see rejects with reasons, change a column, choose GST, import, done state, a fact's "From row … of price-list.xlsx" with SKU and stock, axe on SCR-APP-025 (AC-11; UC-10)
+- [x] T12 — E2E: `e2e/tests/spreadsheets.e2e.ts`: upload `price-list.xlsx`, map with the suggestion, see rejects with reasons, change a column, choose GST, import, done state, a fact's "From row … of price-list.xlsx" with SKU and stock, axe on SCR-APP-025 (AC-11; UC-10)
       Done when: the spec passes in Chromium against the local stack with `pnpm test:e2e --project=chromium`.
 - [ ] T13 — Verify: every AC in design §6 demonstrated; format, lint, boundaries, typecheck, unit, integration, coverage and E2E green; scaffold notes updated (design §6)
       Done when: the evidence for each AC is recorded at the end of this file and every command above is green.
 
 ## Implementation notes
 
+- **Fixture counts (T7).** `price-list.xlsx` has 12 lines under its header (rows 4–15). Row 7 is empty in the sheet, so the parse never stores it (an empty line isn't a row); `empty_row` is for a row whose mapped columns are all empty. That leaves 11 rows: 6 import, 4 are rejected and row 12 repeats row 4. AC-11's done figure was corrected from "8 imported" to "6 rows imported · 4 not imported" to match. `protected.xlsx` and `legacy.xls` are copies of FEAT-015's OLE container (`protected.docx`), which is what both look like to the sniffer. XLSX fixtures are zipped at a fixed time so regenerating them gives the same bytes.
+- **CSV line breaks.** A line break inside a quoted CSV field is kept as written (`\r\n` in `services.csv`), as RFC 4180 reads it.
+- **Suggestion help text.** The ui-design has two help texts, "Suggested from the column name" and "Suggested from its values", but the stored suggestion doesn't record which rule matched, so the screen says "Suggested from your sheet." for both. Recording the rule would mean a `basis` field in `sheet.suggested`; not worth a contract change for a hint.
+- **Upload refusal message.** `unsupported_type` from the API now names Excel (.xlsx) and CSV. FEAT-015's upload test that refused `menu.xlsx` now refuses `menu.xls`, since `.xlsx` is an upload from this feature on (design §3.2); nothing else in that test changed.
+- **Fact API.** `toFact` carries a product's `sku`, `stock` and `stockAsOf` when present (design §3.1), so the fact page can show them; the agent's chunk text still uses name, unit and price only (D8).
+- **Done state links.** The conflict and GST links in the done alert count the source's `conflicted` and GST-unknown facts with two fact-list queries (up to 200 each), since `counts` has neither.
+- **Permission text.** A role without `kb.manage` gets the shared permission state (SCR-APP-024's), not a spreadsheet-specific sentence.
+- **Environment.** Docker Hub rate-limited the images, so the local stack ran on the same images from `mirror.gcr.io`. `qpdf` and Tesseract were installed with apt to run the fixture generator and the OCR tests.
+
 ## Acceptance evidence (T13)
+
+- **AC-10 (NFR-16), measured 2026-10-23 on the local stack** (fake provider and embeddings, one ingest worker), from the confirm on SCR-APP-025 to `ready`, `price-list-500.csv`: 3.06 s, 3.02 s and 2.92 s over three runs, each with 500 approved facts. To re-measure with real embeddings at MD.
+- **AC-11:** `e2e/tests/spreadsheets.e2e.ts` passes in Chromium against the local stack, with no serious axe violations on SCR-APP-007, SCR-APP-025 (mapping, preview, done) and SCR-APP-028.
