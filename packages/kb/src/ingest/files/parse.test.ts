@@ -1,4 +1,5 @@
 import { strToU8, zipSync } from 'fflate';
+import { crc32, deflateRawSync } from 'node:zlib';
 import { describe, expect, it, vi } from 'vitest';
 import { makePdf } from '../../../test/fixtures/pdf.js';
 import {
@@ -25,6 +26,36 @@ function fakeDeps(over: Partial<ParseDeps> = {}) {
     render: vi.fn(async (_pdf: Uint8Array, n: number) => strToU8(`${MENU}\nScanned page ${n}`)),
   };
   return { deps: { ocr, rasterizer, ...over }, ocr, rasterizer };
+}
+/**
+ * A one-entry ZIP deflated by Node's zlib: fflate's JavaScript deflate takes tens of
+ * seconds on a 100 MB entry under coverage, zlib a fraction of one.
+ */
+function zipOne(name: string, data: Uint8Array): Uint8Array {
+  const file = Buffer.from(name);
+  const body = deflateRawSync(data, { level: 1 });
+  const fields = (head: Buffer, at: number) => {
+    head.writeUInt16LE(20, at); // version needed
+    head.writeUInt16LE(8, at + 4); // deflate
+    head.writeUInt32LE(crc32(data), at + 10);
+    head.writeUInt32LE(body.length, at + 14);
+    head.writeUInt32LE(data.length, at + 18);
+    head.writeUInt16LE(file.length, at + 22);
+  };
+  const local = Buffer.alloc(30);
+  local.writeUInt32LE(0x04034b50, 0);
+  fields(local, 4);
+  const central = Buffer.alloc(46);
+  central.writeUInt32LE(0x02014b50, 0);
+  central.writeUInt16LE(20, 4); // version made by
+  fields(central, 6);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(1, 8);
+  end.writeUInt16LE(1, 10);
+  end.writeUInt32LE(central.length + file.length, 12);
+  end.writeUInt32LE(local.length + file.length + body.length, 16);
+  return Buffer.concat([local, file, body, central, file, end]);
 }
 const docx = (body: string) =>
   zipSync({
@@ -179,10 +210,7 @@ describe('parseFile (KB-02; FEAT-015 §5.4, D8)', () => {
   });
 
   it('calls a DOCX that unzips past the cap, or without its document, unreadable', async () => {
-    const bomb = zipSync(
-      { 'word/document.xml': new Uint8Array(MAX_UNZIPPED_BYTES + 1) },
-      { level: 1 },
-    );
+    const bomb = zipOne('word/document.xml', new Uint8Array(MAX_UNZIPPED_BYTES + 1));
     expect(await parseFile(bomb, 'docx', fakeDeps().deps)).toEqual({
       ok: false,
       failure: 'unreadable',
