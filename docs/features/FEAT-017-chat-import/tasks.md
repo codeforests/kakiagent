@@ -25,7 +25,8 @@
 - [x] T10 — Dashboard: chat exports on SCR-APP-007, chat rows on SCR-APP-023, SCR-APP-026 at `/knowledge/sources/:id` for a chat (reading, suggestions, empty, failed), chat provenance on SCR-APP-028 (ui-design.md)
       Done when: `pnpm --filter @kaki/dashboard build` passes and every state in ui-design.md renders against the running stack.
       Note: build, typecheck and lint pass; with no Docker in this session the states weren't rendered against the stack, so T11's E2E spec in CI is the render check.
-- [ ] T11 — E2E: `e2e/tests/chats.e2e.ts`: upload `whatsapp-android.txt`, redaction notice, suggestions, approve, edit and approve, discard, export-deleted note, axe on SCR-APP-026 (AC-9; UC-11)
+- [x] T11 — E2E: `e2e/tests/chats.e2e.ts`: upload `whatsapp-android.txt`, redaction notice, suggestions, approve, edit and approve, discard, export-deleted note, axe on SCR-APP-026 (AC-9; UC-11)
       Done when: the spec passes in Chromium against the local stack, or (per Ken's rule) is left to CI with the reason recorded.
+      Note: written, linted and typechecked; this session has no Docker for the local stack, so the spec runs first in CI's E2E job (Ken's rule: CI runs the full suite).
 - [ ] T12 — Verify: every AC in design §6 demonstrated; format, lint, boundaries, typecheck and this feature's unit and integration tests green; scaffold notes updated (design §6)
       Done when: the evidence for each AC is recorded at the end of this file.
