@@ -72,7 +72,7 @@ No new endpoint: approving, editing and discarding a suggestion is FEAT-013's re
 
 ## 4. Schema changes
 
-Migration `0025_chat_sources` (drizzle-kit DDL from `schema.ts`), against 0000–0024. No grants change (FEAT-015/016 grants cover the columns used).
+Migration `0025_chat_sources` (drizzle-kit DDL from `schema.ts`), against 0000–0024, and the hand-written `0026_chat_retry_grants`: `app_dashboard` gets `UPDATE (attempt, extracted_at, facts_count)` on `kb_source_pages`, so Retry can carry a chat's parts to the new attempt (§5.6, D5). Other grants are FEAT-015/016's.
 
 | Change | Conceptual entity | Definition |
 |---|---|---|

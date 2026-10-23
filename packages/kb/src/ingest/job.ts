@@ -18,6 +18,7 @@ import {
 } from './crawl.js';
 import { minePart } from './chats/mine.js';
 import { ExtractionUnavailableError, extractSource, type ExtractOptions } from './extract.js';
+import { parseChatSource } from './chats/parse-stage.js';
 import { parseFileSource } from './files/parse-stage.js';
 import { ScannerUnavailableError, type FileDeps, type FileType } from './files/ports.js';
 import { scanFile } from './files/scan-stage.js';
@@ -185,6 +186,27 @@ export async function runIngestJob(
         return { result: 'next', stage: 'parse', type: outcome.type };
       }
       case 'parse': {
+        if (source.kind === 'chat') {
+          const outcome = await parseChatSource(zdb, source, needFiles(deps));
+          if (outcome.next === 'failed') {
+            await fail(zdb, job, outcome.failure);
+            return { result: 'failed', failure: outcome.failure };
+          }
+          // The export is deleted (KB-04): recorded with the move to `extract` (§5.3 step 7).
+          const deletedAt = new Date().toISOString();
+          await next(
+            'extract',
+            {
+              chat: sql`coalesce(${schema.kbSources.chat}, '{}'::jsonb) || jsonb_build_object('exportDeletedAt', ${deletedAt}::text)`,
+            },
+            (tx) =>
+              sourceAudit(tx, 'kb_source.export_deleted', {
+                parts: outcome.parts,
+                messages: outcome.messages,
+              }),
+          );
+          return { result: 'next', stage: 'extract' };
+        }
         if (source.kind === 'spreadsheet') {
           const outcome = await parseSheetSource(zdb, source, needFiles(deps));
           if (outcome.next === 'failed') {

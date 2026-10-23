@@ -47,6 +47,10 @@ export interface FileLimits {
   ocrConcurrency: number;
   /** A spreadsheet's data rows read; later ones are only counted (FEAT-016 D10). */
   sheetRows: number;
+  /** A chat export's messages read, the latest kept (FEAT-017 D9). */
+  chatMessages: number;
+  /** A chat export's conversation parts stored (FEAT-017 §5.3 step 6). */
+  chatParts: number;
 }
 
 export const DEFAULT_FILE_LIMITS: FileLimits = {
@@ -54,6 +58,8 @@ export const DEFAULT_FILE_LIMITS: FileLimits = {
   ocrPages: 50,
   ocrConcurrency: 2,
   sheetRows: 2000,
+  chatMessages: 20_000,
+  chatParts: 200,
 };
 
 export interface FileDeps {

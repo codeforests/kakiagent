@@ -30,6 +30,7 @@ const ADDRESS = [
 const USERNAME = /(?<![\w@])@[A-Za-z][\w]{3,31}\b/g;
 const CJK = /[\p{Script=Han}\p{Script=Hangul}\p{Script=Hiragana}\p{Script=Katakana}]/u;
 
+const tokens = (s: string) => s.split('[name]').length - 1;
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const words = (s: string) =>
   s
@@ -85,8 +86,12 @@ export function createRedactor(customerNames: string[], businessNames: string[])
       out = piiMask(out);
     }
     for (const re of ADDRESS) out = out.replace(re, () => (counts.addresses++, '[address]'));
-    if (names) out = out.replace(names, () => (counts.names++, '[name]'));
-    out = out.replace(USERNAME, () => (counts.names++, '[name]'));
+    const before = tokens(out);
+    if (names) out = out.replace(names, '[name]');
+    out = out.replace(USERNAME, '[name]');
+    // "Mdm Tan" of "Mdm Tan Mei Ling" is two words: one name, one token.
+    out = out.replace(/\[name\](?:\s+\[name\])+/g, '[name]');
+    counts.names += tokens(out) - before;
     return out;
   };
 }

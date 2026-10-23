@@ -18,4 +18,8 @@ export interface ChatSummaryRecord {
  * `kb_sources.chat` (FEAT-017 §4): the owner's business names from the upload, and the
  * summary once the parse has run.
  */
-export type ChatRecord = { businessNames: string[] } & Partial<ChatSummaryRecord>;
+export type ChatRecord = {
+  businessNames: string[];
+  /** The upload's extension (`txt`, `zip`, `json`), for the scan: the file name isn't kept. */
+  ext?: string;
+} & Partial<ChatSummaryRecord>;

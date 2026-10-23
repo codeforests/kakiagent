@@ -15,7 +15,7 @@ describe('createRedactor (FEAT-017 §5.3 step 5)', () => {
     const c = counts();
     const out = redact(
       'Hi Mei Ling, mail tanml@example.com or call 9123 4567 / +65 6123-4567 / +44 20 7946 0958. ' +
-        'NRIC S1234567D. Deliver to Blk 123 Ang Mo Kio Ave 3 #05-12 Singapore 560123. @ahkow_sg 陈太太 says hi. ' +
+        'NRIC S1234567D. Deliver to Blk 123 Ang Mo Kio Ave 3 #05-12 Singapore 560123. @ahkow_sg and 陈太太 say hi. ' +
         'Kaki Bakery thanks Ah Kow.',
       c,
     );
@@ -25,7 +25,7 @@ describe('createRedactor (FEAT-017 §5.3 step 5)', () => {
     expect(out).toContain('Kaki Bakery'); // the business's own word "Kaki" is kept
     expect(out).toContain('[email]');
     expect(out).toContain('[NRIC ');
-    expect(c).toEqual({ names: 5, phones: 3, emails: 1, ids: 1, addresses: 3 });
+    expect(c).toEqual({ names: 4, phones: 3, emails: 1, ids: 1, addresses: 3 });
     expect(REDACTED.test(out)).toBe(true);
   });
 

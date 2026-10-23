@@ -1,4 +1,5 @@
 import type { SourceFailure, SourceRecord } from '../../sources.js';
+import type { ChatRecord } from '../chats/record.js';
 import { sourcesKey } from '../../sources.js';
 import { openPdf } from './pdf.js';
 import { MAX_FILE_BYTES, type FileDeps, type FileType } from './ports.js';
@@ -11,7 +12,8 @@ export type Rejection = Extract<
 >;
 
 export type ScanOutcome =
-  | { next: 'parse'; type: FileType; size: number; fileKey: string }
+  /** `fileKey` is null for a chat export, which stays in quarantine for its parse (FEAT-017). */
+  | { next: 'parse'; type: FileType; size: number; fileKey: string | null }
   | { next: 'failed'; failure: Rejection; signature?: string };
 
 /**
@@ -45,16 +47,25 @@ export async function scanFile(source: SourceRecord, files: FileDeps): Promise<S
 
   const verdict = await files.scanner.scan({ key, bytes });
   if (verdict.infected) return reject('malware', verdict.signature);
+  // A chat export's name is "Chat export"; its kind's extension came with the upload key.
   const sniffed = sniffType(
     bytes,
-    source.name,
-    source.kind === 'spreadsheet' ? 'spreadsheet' : 'file',
+    source.kind === 'chat'
+      ? `export.${(source.chat as ChatRecord | null)?.ext ?? ''}`
+      : source.name,
+    source.kind === 'spreadsheet' || source.kind === 'chat' ? source.kind : 'file',
   );
   if (!sniffed.ok) return reject(sniffed.failure);
   if (sniffed.type === 'pdf') {
     const pdf = await openPdf(bytes);
     if (!pdf.ok) return reject(pdf.failure);
     await pdf.close();
+  }
+  // A chat export is never copied to `sources`: it is read, redacted and deleted from
+  // quarantine by its parse (FEAT-017 §5.2, D2).
+  if (source.kind === 'chat') {
+    if (!head) return { next: 'failed', failure: 'upload_missing' };
+    return { next: 'parse', type: sniffed.type, size: bytes.length, fileKey: null };
   }
   if (head) {
     await store.copyToSources(key, fileKey);
