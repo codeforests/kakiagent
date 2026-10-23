@@ -171,7 +171,10 @@
       "feature": "FEAT-013",
       "strategy": "code-native",
       "source": {
-        "spec": "features/FEAT-013-fact-review/ui-design.md#scr-app-008--wizard--review-your-facts-partial"
+        "spec": "features/FEAT-013-fact-review/ui-design.md#scr-app-008--wizard--review-your-facts-partial",
+        "extended_by": [
+          "features/FEAT-014-conflicts/ui-design.md#scr-app-008--wizard--review-your-facts-partial"
+        ]
       },
       "states": {
         "covered": [
@@ -179,11 +182,11 @@
           "still-extracting",
           "populated",
           "all-approved",
-          "error"
+          "error",
+          "conflict alert"
         ],
         "gaps": [
           "wizard frame (FEAT-035)",
-          "conflicts (FEAT-014)",
           "coverage summary (FEAT-019)"
         ],
         "supplements": []
@@ -246,7 +249,8 @@
         "spec": "02-design/anchor-screens.md#scr-app-019--review--facts",
         "prototype": "02-design/anchors/scr-app-019-review-facts.html",
         "extended_by": [
-          "features/FEAT-013-fact-review/ui-design.md#scr-app-019--review--facts"
+          "features/FEAT-013-fact-review/ui-design.md#scr-app-019--review--facts",
+          "features/FEAT-014-conflicts/ui-design.md#scr-app-019--review--facts-partial"
         ]
       },
       "states": {
@@ -289,6 +293,45 @@
       },
       "status": "designed",
       "designed_at": "2026-10-22"
+    },
+    "SCR-APP-020": {
+      "name": "Review · Conflicts",
+      "surface": "APP",
+      "feature": "FEAT-014",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-014-conflicts/ui-design.md#scr-app-020--review--conflicts"
+      },
+      "states": {
+        "covered": [
+          "default",
+          "gst-unknown column",
+          "enter dialog",
+          "disable confirm",
+          "resolved row",
+          "working and error",
+          "loading",
+          "empty",
+          "error",
+          "permission"
+        ],
+        "gaps": [],
+        "supplements": []
+      },
+      "contract_bindings": [
+        "GET /api/v1/kb/conflicts",
+        "GET /api/v1/kb/review/summary",
+        "POST /api/v1/kb/conflicts/resolve"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [
+          "columns wrap two per row for conflicts with more than two sources (design.md conflict-compare names two columns)"
+        ],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-10-23"
     },
     "SCR-APP-023": {
       "name": "Sources",
