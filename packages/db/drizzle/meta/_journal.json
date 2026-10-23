@@ -176,6 +176,13 @@
       "when": 1792751083355,
       "tag": "0024_spreadsheet_sources",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1792757939664,
+      "tag": "0025_chat_sources",
+      "breakpoints": true
     }
   ]
 }

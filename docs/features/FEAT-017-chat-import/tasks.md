@@ -3,7 +3,7 @@
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
 > Status: pending · Last updated: 2026-10-23
 
-- [ ] T1 — Schema: `kb_sources` kind `chat`, failures `chat_format`/`business_not_found`, file types `json`/`zip` with `kb_sources_chat_type_ck`, the widened `kb_sources_file_ck`, `chat` with `kb_sources_chat_ck` (drizzle schema + `0025`); RLS suite case for chat sources and parts (design §4; AC-8 schema half)
+- [x] T1 — Schema: `kb_sources` kind `chat`, failures `chat_format`/`business_not_found`, file types `json`/`zip` with `kb_sources_chat_type_ck`, the widened `kb_sources_file_ck`, `chat` with `kb_sources_chat_ck` (drizzle schema + `0025`); RLS suite case for chat sources and parts (design §4; AC-8 schema half)
       Done when: `pnpm db:setup` applies 0025 on a database at 0024; `drizzle-kit generate` reports no drift; the RLS suite passes with the chat case.
 - [ ] T2 — Contracts and gateway: §3.1 shapes, `CHAT_EXTENSIONS`/`UPLOAD_EXTENSIONS`, the chat body with `businessNames`, `FileLocation` unit `chat`; logical model `mine` in `LogicalModel` and both registries (design §3.1, §5.7)
       Done when: typecheck passes across the workspace with the new enum values handled (dashboard records included); gateway unit tests pass with `mine` routed to Haiku.
