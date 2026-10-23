@@ -9,7 +9,14 @@ import {
 import pg from 'pg';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
+  BadMappingError,
+  confirmImport,
   createFileSource,
+  InvalidStateError,
+  prepareChunk,
+  previewImport,
+  updateFact,
+  VersionConflictError,
   dashboardKb,
   deleteSource,
   fakeExtractScript,
@@ -48,6 +55,7 @@ afterEach(async () => {
   await owner.query(`delete from facts`);
   await owner.query(`delete from kb_sources`);
   await owner.query(`delete from outbox`);
+  await owner.query(`delete from business_profiles where tenant_id = $1`, [TENANT_A]);
 });
 
 function memFiles() {
@@ -516,5 +524,209 @@ describe('spreadsheet stages (KB-03; FEAT-016 §5.2–§5.8)', () => {
     expect(await rowsOf(s.id)).toEqual([]);
     expect(await drain(s, files)).toEqual([{ result: 'purged' }]);
     expect(files.buckets.sources.size).toBe(0);
+  });
+});
+
+describe('preview and confirm (FEAT-016 §5.6; AC-4, AC-6, AC-8)', () => {
+  async function mapped(bytes = PRICE_LIST) {
+    const files = memFiles();
+    const s = await addSheet(files, bytes);
+    await drain(s, files);
+    return { files, s, src: await sourceRow(s.id) };
+  }
+  const outboxCount = async () => (await owner.query(`select 1 from outbox`)).rowCount;
+  const auditCount = async () => (await owner.query(`select 1 from audit_entries`)).rowCount;
+
+  it('previews the rows: counts, reasons and samples, and writes nothing', async () => {
+    const { s, src } = await mapped();
+    const before = [await outboxCount(), await auditCount()];
+    const p = await dash((ctx) => previewImport(ctx, s.id, { mapping: MAPPING, gst: 'inclusive' }));
+    expect(p).toMatchObject({
+      rows: 8,
+      importable: 2,
+      rejected: 4,
+      empty: 1,
+      duplicates: 1,
+      existing: 0,
+      conflicts: 0,
+      gstReview: 0,
+    });
+    expect(p.rejects.map((r) => [r.row, r.reason])).toEqual([
+      [7, 'no_price'],
+      [8, 'bad_price'],
+      [9, 'bad_stock'],
+      [11, 'not_sgd'],
+    ]);
+    expect(p.rejects[1]!.cells).toEqual(['PC-04', 'Durian cake', '1 kg', 'TBC', '']);
+    expect(p.sample[0]).toEqual({
+      row: 4,
+      cells: ['PC-01', 'Pandan chiffon', 'whole', '38', '12'],
+      reason: null,
+      fact: { name: 'Pandan chiffon', price: '38.00', unit: 'whole', sku: 'PC-01', stock: 12 },
+      conflict: false,
+    });
+    expect([await outboxCount(), await auditCount()]).toEqual(before);
+    expect((await sourceRow(s.id)).version).toBe(src.version);
+    // Without the stock column, the negative stock no longer rejects its row.
+    const { stock: _stock, ...noStock } = MAPPING;
+    const q = await dash((ctx) => previewImport(ctx, s.id, { mapping: noStock, gst: 'inclusive' }));
+    expect([q.importable, q.rejected]).toEqual([3, 3]);
+  });
+
+  it('refuses a mapping without a name or price column, or with one column twice', async () => {
+    const { s } = await mapped();
+    for (const mapping of [
+      { price: 3 },
+      { product: 1 },
+      { product: 1, price: 1 },
+      { product: 1, price: 9 },
+    ])
+      await expect(
+        dash((ctx) => previewImport(ctx, s.id, { mapping, gst: 'inclusive' })),
+      ).rejects.toThrow(BadMappingError);
+  });
+
+  it('counts rows the KB already has and rows that would conflict', async () => {
+    const { s } = await mapped();
+    for (const [name, unit, cents] of [
+      ['Pandan chiffon', 'whole', 3800],
+      ['Ondeh ondeh cake', '1 kg', 4000],
+    ] as const)
+      await owner.query(
+        `insert into facts (tenant_id, type, status, value, gst_treatment, source)
+         values ($1, 'product', 'approved', $2, 'inclusive', 'manual')`,
+        [TENANT_A, JSON.stringify({ name, unit, priceCents: cents, currency: 'SGD' })],
+      );
+    const p = await dash((ctx) => previewImport(ctx, s.id, { mapping: MAPPING, gst: 'inclusive' }));
+    expect([p.importable, p.existing, p.conflicts]).toEqual([2, 1, 1]);
+    expect(p.sample.map((r) => [r.row, r.conflict])).toEqual([
+      [4, false],
+      [5, true],
+    ]);
+  });
+
+  it('holds back GST-unknown prices of a GST-registered business, not of others (KB-15, UC-10 4a)', async () => {
+    const visible = () =>
+      withTenant(tdb.zone('visitor'), TENANT_A, async (tx) =>
+        (
+          await tx.execute<{ name: string }>(sql`select value->>'name' as name from visitor_facts`)
+        ).rows.map((r) => r.name),
+      );
+    await owner.query(
+      `insert into business_profiles (tenant_id, gst_registered) values ($1, true)`,
+      [TENANT_A],
+    );
+    const { files, s, src } = await mapped();
+    const choice = { mapping: MAPPING, gst: 'unknown' as const };
+    expect((await dash((ctx) => previewImport(ctx, s.id, choice))).gstReview).toBe(2);
+    await dash((ctx) => confirmImport(ctx, s.id, { ...choice, version: src.version }));
+    await drain(s, files);
+    expect((await factsOf(s.id)).map((f) => [f.status, f.gst_treatment])).toEqual([
+      ['approved', 'unknown'],
+      ['approved', 'unknown'],
+    ]);
+    expect(await visible()).not.toContain('Pandan chiffon');
+    await owner.query(`update business_profiles set gst_registered = false where tenant_id = $1`, [
+      TENANT_A,
+    ]);
+    expect(await visible()).toEqual(expect.arrayContaining(['Pandan chiffon', 'Ondeh ondeh cake']));
+    const other = await mapped(
+      makeXlsx([
+        ['Product', 'Price'],
+        ['Kopi', '1.80'],
+      ]),
+    );
+    expect(
+      (
+        await dash((ctx) =>
+          previewImport(ctx, other.s.id, { mapping: { product: 0, price: 1 }, gst: 'unknown' }),
+        )
+      ).gstReview,
+    ).toBe(0);
+  });
+
+  it('confirms: the mapping, an audit entry and one import job; the import then runs to ready', async () => {
+    const { files, s, src } = await mapped();
+    const confirmed = await dash((ctx) =>
+      confirmImport(ctx, s.id, { mapping: MAPPING, gst: 'inclusive', version: src.version }),
+    );
+    expect(confirmed).toMatchObject({
+      status: 'queued',
+      stage: 'import',
+      version: src.version + 1,
+    });
+    expect(confirmed.mapping).toMatchObject({
+      columns: MAPPING,
+      gst: 'inclusive',
+      confirmedBy: USER,
+    });
+    expect(await pendingJobs(s.id)).toBe(1);
+    expect((await auditOf(s.id)).at(-1)).toEqual({
+      event_type: 'kb_source.import_confirmed',
+      actor_id: USER,
+      payload: { rows: 8, importable: 2, rejected: 4, gst: 'inclusive' },
+    });
+    // Confirmed once: neither a second confirm nor a preview applies.
+    await expect(
+      dash((ctx) =>
+        confirmImport(ctx, s.id, {
+          mapping: MAPPING,
+          gst: 'inclusive',
+          version: confirmed.version,
+        }),
+      ),
+    ).rejects.toThrow(InvalidStateError);
+    await expect(
+      dash((ctx) => previewImport(ctx, s.id, { mapping: MAPPING, gst: 'inclusive' })),
+    ).rejects.toThrow(InvalidStateError);
+    expect((await drain(s, files)).at(-1)).toEqual({ result: 'ready', facts: 2 });
+    expect((await factsOf(s.id)).every((f) => f.created_by === USER)).toBe(true);
+  });
+
+  it('refuses a stale version, and fails no_valid_rows when no row is valid (UC-10 5a)', async () => {
+    const { s, src } = await mapped();
+    await expect(
+      dash((ctx) =>
+        confirmImport(ctx, s.id, { mapping: MAPPING, gst: 'inclusive', version: src.version - 1 }),
+      ),
+    ).rejects.toThrow(VersionConflictError);
+    const failed = await dash((ctx) =>
+      confirmImport(ctx, s.id, {
+        mapping: { product: 1, price: 2 },
+        gst: 'inclusive',
+        version: src.version,
+      }),
+    );
+    expect(failed).toMatchObject({
+      status: 'failed',
+      failure: 'no_valid_rows',
+      stage: null,
+      mapping: null,
+    });
+    expect(await pendingJobs(s.id)).toBe(0);
+    expect((await auditOf(s.id)).at(-1)?.payload).toMatchObject({ importable: 0 });
+  });
+
+  it('keeps an imported SKU and stock when the fact is edited (D8)', async () => {
+    const { files, s, src } = await mapped();
+    await dash((ctx) =>
+      confirmImport(ctx, s.id, { mapping: MAPPING, gst: 'inclusive', version: src.version }),
+    );
+    await drain(s, files);
+    const fact = (await factsOf(s.id)).find((f) => f.value.name === 'Pandan chiffon')!;
+    const value = {
+      name: 'Pandan chiffon cake',
+      priceCents: 3900,
+      currency: 'SGD' as const,
+      unit: 'whole',
+    };
+    const llm = fakeLlm();
+    const chunk = await prepareChunk(llm, TENANT_A, {
+      type: 'product',
+      value,
+      gstTreatment: 'inclusive',
+    });
+    const updated = await dash((ctx) => updateFact(ctx, fact.id, { version: 1, value }, chunk));
+    expect(updated.value).toEqual({ ...value, sku: 'PC-01', stock: 12, stockAsOf: '2026-10-23' });
   });
 });

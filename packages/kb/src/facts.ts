@@ -292,14 +292,21 @@ export function mergePatch(current: FactRecord, patch: FactPatch): FactInput {
     throw new InvalidFactError(`a ${current.type} has no validity`);
   let next: FactInput;
   switch (current.type) {
-    case 'product':
+    case 'product': {
+      // An imported SKU and stock count aren't editable; an edit keeps them (FEAT-016 D8).
+      const { sku, stock, stockAsOf } = current.value;
+      const kept = Object.fromEntries(
+        Object.entries({ sku, stock, stockAsOf }).filter(([, v]) => v !== undefined),
+      );
+      const edited = patch.value as ProductValue | undefined;
       next = {
         type: 'product',
-        value: (patch.value as ProductValue | undefined) ?? current.value,
+        value: edited ? { ...edited, ...kept } : current.value,
         gstTreatment: (patch.gstTreatment as GstTreatment | undefined) ?? current.gstTreatment,
         validity: current.validity,
       };
       break;
+    }
     case 'faq':
     case 'policy':
       if (patch.gstTreatment) throw new InvalidFactError(`a ${current.type} has no GST`);

@@ -211,3 +211,12 @@ export {
   type MappingRecord,
   type SheetRecord,
 } from './ingest/sheets/stages.js';
+export {
+  confirmImport,
+  previewImport,
+  PREVIEW_REJECTS,
+  PREVIEW_SAMPLE,
+  type ImportChoice,
+  type ImportPreviewRecord,
+  type PreviewRowRecord,
+} from './sheets.js';
