@@ -216,6 +216,45 @@
       "status": "designed",
       "designed_at": "2026-10-22"
     },
+    "SCR-APP-010": {
+      "name": "Wizard · Test your assistant",
+      "surface": "APP",
+      "feature": "FEAT-027",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-027-coaching/ui-design.md#scr-app-010--wizard--test-your-assistant-partial",
+        "extends": "features/FEAT-027-coaching/ui-design.md#cross-screen-the-coach-chat-coach-chat"
+      },
+      "states": {
+        "covered": [
+          "empty (suggestions)",
+          "no approved facts",
+          "answering",
+          "populated",
+          "proposed change",
+          "confirmed",
+          "error"
+        ],
+        "gaps": [
+          "wizard frame (FEAT-035)"
+        ],
+        "supplements": []
+      },
+      "contract_bindings": [
+        "POST /api/v1/coach/sessions",
+        "POST /api/v1/coach/sessions/:id/messages",
+        "POST /api/v1/coach/corrections/:id/confirm",
+        "POST /api/v1/coach/corrections/:id/dismiss",
+        "GET /api/v1/coach/suggestions"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-10-24"
+    },
     "SCR-APP-015": {
       "name": "Conversation",
       "surface": "APP",
@@ -262,7 +301,8 @@
         "extended_by": [
           "features/FEAT-013-fact-review/ui-design.md#scr-app-019--review--facts",
           "features/FEAT-014-conflicts/ui-design.md#scr-app-019--review--facts-partial",
-          "features/FEAT-015-file-upload/ui-design.md#scr-app-028--fact-and-scr-app-019--review--facts-extended-file-provenance"
+          "features/FEAT-015-file-upload/ui-design.md#scr-app-028--fact-and-scr-app-019--review--facts-extended-file-provenance",
+          "features/FEAT-027-coaching/ui-design.md#quick-coach-panel-quick-coach-panel-on-scr-app-019-and-scr-app-028"
         ]
       },
       "states": {
@@ -293,7 +333,11 @@
         "POST /api/v1/kb/facts/:id/reject",
         "POST /api/v1/kb/review/approve",
         "POST /api/v1/kb/review/reject",
-        "POST /api/v1/kb/review/undo"
+        "POST /api/v1/kb/review/undo",
+        "POST /api/v1/coach/sessions",
+        "POST /api/v1/coach/sessions/:id/messages",
+        "POST /api/v1/coach/corrections/:id/confirm",
+        "POST /api/v1/coach/corrections/:id/dismiss"
       ],
       "conformance": {
         "result": "pass",
@@ -559,7 +603,8 @@
           "features/FEAT-012-website-crawl/ui-design.md#scr-app-028--fact-extended-provenance",
           "features/FEAT-015-file-upload/ui-design.md#scr-app-028--fact-and-scr-app-019--review--facts-extended-file-provenance",
           "features/FEAT-016-spreadsheet-import/ui-design.md#scr-app-028--fact-extended-a-rows-provenance-sku-and-stock",
-          "features/FEAT-017-chat-import/ui-design.md#scr-app-028--fact-extended-a-suggestions-provenance"
+          "features/FEAT-017-chat-import/ui-design.md#scr-app-028--fact-extended-a-suggestions-provenance",
+          "features/FEAT-027-coaching/ui-design.md#quick-coach-panel-quick-coach-panel-on-scr-app-019-and-scr-app-028"
         ]
       },
       "states": {
@@ -585,7 +630,11 @@
         "GET /api/v1/kb/facts/:id",
         "POST /api/v1/kb/facts",
         "PATCH /api/v1/kb/facts/:id",
-        "DELETE /api/v1/kb/facts/:id"
+        "DELETE /api/v1/kb/facts/:id",
+        "POST /api/v1/coach/sessions",
+        "POST /api/v1/coach/sessions/:id/messages",
+        "POST /api/v1/coach/corrections/:id/confirm",
+        "POST /api/v1/coach/corrections/:id/dismiss"
       ],
       "conformance": {
         "result": "pass",
@@ -596,6 +645,54 @@
       },
       "status": "designed",
       "designed_at": "2026-10-19"
+    },
+    "SCR-APP-030": {
+      "name": "Coach",
+      "surface": "APP",
+      "feature": "FEAT-027",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-027-coaching/ui-design.md#scr-app-030--coach",
+        "extends": "features/FEAT-027-coaching/ui-design.md#cross-screen-the-coach-chat-coach-chat"
+      },
+      "states": {
+        "covered": [
+          "empty (suggestions)",
+          "loading",
+          "answering",
+          "populated",
+          "explainer",
+          "unreviewed included",
+          "proposed change",
+          "confirmed with before/after",
+          "not now",
+          "stale",
+          "error",
+          "not-found",
+          "permission"
+        ],
+        "gaps": [
+          "corrections queue link target (FEAT-018)",
+          "replay (FEAT-028, SCR-APP-031)"
+        ],
+        "supplements": []
+      },
+      "contract_bindings": [
+        "GET /api/v1/coach/sessions",
+        "POST /api/v1/coach/sessions",
+        "GET /api/v1/coach/sessions/:id",
+        "POST /api/v1/coach/sessions/:id/messages",
+        "POST /api/v1/coach/corrections/:id/confirm",
+        "POST /api/v1/coach/corrections/:id/dismiss",
+        "GET /api/v1/coach/suggestions"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-10-24"
     },
     "SCR-APP-041": {
       "name": "Assistant",
