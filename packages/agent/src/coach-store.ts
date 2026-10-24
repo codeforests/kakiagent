@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, lt, ne, or, schema, sql, type Tx } from '@kaki/db';
+import { and, desc, eq, inArray, lt, or, schema, sql, type Tx } from '@kaki/db';
 
 /**
  * Coaching sessions and their messages (FEAT-027 §5.3), on the dashboard zone. Nothing

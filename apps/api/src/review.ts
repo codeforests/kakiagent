@@ -10,6 +10,8 @@ import {
   ReviewList,
   ReviewListQuery,
   ReviewScopeQuery,
+  ReviewIntervalsBody,
+  ReviewIntervalsResponse,
   ReviewSummary,
   SelectionBody,
   UndoBody,
@@ -18,6 +20,7 @@ import {
 } from '@kaki/contracts';
 import { withTenant } from '@kaki/db';
 import { can } from '@kaki/identity';
+import { reviewIntervals, saveReviewIntervals } from '@kaki/tenancy';
 import {
   approveAll,
   approveFact,
@@ -38,6 +41,7 @@ import {
 } from '@kaki/kb';
 import type { FastifyRequest } from 'fastify';
 import type { TenantSession } from './auth.js';
+import { bodyOf } from './corrections.js';
 import { FactNotFound, ForbiddenError, patchOf, toFact } from './facts.js';
 import type { App, Deps } from './server.js';
 
@@ -96,6 +100,24 @@ export function registerReviewRoutes(
   app.get('/api/v1/kb/review/summary', async (req) => {
     const s = await reviewer(req);
     return ReviewSummary.parse(await inTenant(s, reviewSummary));
+  });
+
+  // Review intervals per fact type (KB-17; FEAT-018 §3, D6): last write wins.
+  app.get('/api/v1/kb/review-intervals', async (req) => {
+    const s = await reviewer(req);
+    const intervals = await withTenant(dashboardDb, s.tenantId, (tx) =>
+      reviewIntervals(tx, s.tenantId),
+    );
+    return ReviewIntervalsResponse.parse({ intervals });
+  });
+
+  app.put('/api/v1/kb/review-intervals', async (req) => {
+    const s = await reviewer(req);
+    const { intervals } = bodyOf(ReviewIntervalsBody, req.body);
+    const saved = await withTenant(dashboardDb, s.tenantId, (tx) =>
+      saveReviewIntervals(tx, s.tenantId, s.userId, intervals),
+    );
+    return ReviewIntervalsResponse.parse({ intervals: saved });
   });
 
   app.get('/api/v1/kb/review/preview', async (req) => {

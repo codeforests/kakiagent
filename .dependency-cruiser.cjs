@@ -22,6 +22,7 @@ module.exports = {
           '^packages/platform/src/(outbox|pii-mask)\\.ts$',
           '^packages/db/src/(setup|testing)\\.ts$',
           '^packages/identity/src/testing\\.ts$',
+          '^packages/kb/src/stale\\.ts$',
           '^packages/ui/src/styles\\.css$',
         ],
       },

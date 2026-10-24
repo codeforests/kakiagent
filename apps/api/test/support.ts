@@ -8,6 +8,7 @@ import {
   createLogger,
   memoryRateLimiter,
   type Email,
+  type RateLimiter,
   type Mailer,
   type Publisher,
 } from '@kaki/platform';
@@ -79,6 +80,7 @@ export async function testApp(
     resolve?: Resolver;
     uploads?: UploadSigner;
     llm?: LlmGateway;
+    rateLimiter?: RateLimiter;
   } = {},
 ) {
   return buildApp({
@@ -90,7 +92,7 @@ export async function testApp(
     publisher: opts.publisher ?? { publish: async () => {}, close: async () => {} },
     llm: opts.llm ?? gatewayFromConfig({ provider: 'fake', fakeScript: fakeAgentScript }),
     mailer: opts.mailer ?? fakeMailer(),
-    rateLimiter: memoryRateLimiter(),
+    rateLimiter: opts.rateLimiter ?? memoryRateLimiter(),
     google: opts.google ?? null,
     uploads: opts.uploads ?? fakeSigner(),
     ...(opts.resolve ? { resolve: opts.resolve } : {}),

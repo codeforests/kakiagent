@@ -13,7 +13,7 @@
       Done when: scheduler-worker typecheck passes; a unit test with a fake zone checks the run logs counts and survives an error.
 - [x] T5 — Inbox and agent: `pastQuestionsUsing`; `startCorrectionReplay`, `getCorrectionReplay`, `correctionReplayNext`; `replay.ts` changes (`replay_conversation_id`, per-conversation abuse count, origin checks, `originalRepliesFor` exported); `listSessions` excludes `correction` (design §5.3, §5.4; D3–D5, D9; AC-7, AC-8)
       Done when: agent and inbox integration tests on the fake provider pass: 25 matching questions → 20 newest before acceptance, `matched` 25; a replayed answer renders the new value; order, 409 after the last; idempotent start; add_faq, hours and reconfirm have no replay; no `conversations`/`messages`/`outbox` writes and usage rows carry `coaching_session_id`; a deleted conversation drops its question; FEAT-028's replay tests still pass.
-- [ ] T6 — API: `registerCorrectionRoutes` (list, detail, accept, close, replay next), review-interval routes, summary fields, coach confirm starting the replay, error mapping (`not_editable`), rate limit (design §3, §5.5; AC-1, AC-3, AC-4, AC-7, AC-10, AC-12)
+- [x] T6 — API: `registerCorrectionRoutes` (list, detail, accept, close, replay next), review-interval routes, summary fields, coach confirm starting the replay, error mapping (`not_editable`), rate limit (design §3, §5.5; AC-1, AC-3, AC-4, AC-7, AC-10, AC-12)
       Done when: api integration tests pass for every designed success and error, including agent-role 403, 401, tenant B's 404s and empty list, 409 `correction_closed`/`correction_stale`, 422 `invalid_correction`/`not_editable`, the 429, the lazy replay start, and one `…/replay/next` under 8 s on the fake provider.
 
 ## Build session 2 (UI)

@@ -10,9 +10,11 @@ import {
   replayNext,
   runCoachingTurn,
   sessionMessages,
+  startCorrectionReplay,
   startReplay,
   type CoachingMessageRow,
   type CoachingSessionRow,
+  type CorrectionReplayView,
   type ReplayTurnRow,
   type ReplayView,
 } from '@kaki/agent';
@@ -61,7 +63,7 @@ import {
   type FactInput,
 } from '@kaki/kb';
 import { getBusinessProfile, INDUSTRY_TEMPLATES, questionKey, sgDay } from '@kaki/tenancy';
-import type { FastifyRequest } from 'fastify';
+import type { FastifyBaseLogger, FastifyRequest } from 'fastify';
 import type { ZodType } from 'zod';
 import { UnavailableError, type TenantSession } from './auth.js';
 import { ForbiddenError, fromCents } from './facts.js';
@@ -134,7 +136,7 @@ export function toCorrection(c: CorrectionRecord): Correction {
 }
 
 /** Messages in contract shape, each with its correction read in the same transaction. */
-async function toMessages(
+export async function toMessages(
   tx: Tx,
   tenantId: string,
   rows: CoachingMessageRow[],
@@ -183,6 +185,23 @@ async function toReplay(tx: Tx, tenantId: string, r: ReplayView): Promise<Replay
       toReplayTurn(t, t.replayed ? (messages.get(t.replayed.id) ?? null) : null),
     ),
   };
+}
+
+/**
+ * Starts a correction's replay after acceptance (FEAT-018 §5.5). A failure is logged and
+ * the detail GET starts it lazily, so accepting never fails on the replay.
+ */
+export async function startReplaySafely(
+  deps: Pick<Deps, 'dashboardDb'>,
+  log: FastifyBaseLogger,
+  input: { tenantId: string; userId: string; correctionId: string },
+): Promise<CorrectionReplayView | null> {
+  try {
+    return await startCorrectionReplay({ zdb: deps.dashboardDb }, input);
+  } catch (err) {
+    log.error({ err, correctionId: input.correctionId }, 'correction replay start failed');
+    return null;
+  }
 }
 
 function bodyOf<T>(schema: ZodType<T>, body: unknown): T {
@@ -245,7 +264,9 @@ export function registerCoachRoutes(
     const id = sessionId(req.params.id);
     return withTenant(dashboardDb, s.tenantId, async (tx) => {
       const session = await getSession(tx, s.tenantId, id);
-      if (!session) throw new CoachingSessionNotFoundError('session not found');
+      // A correction replay is shown on its correction, not in Coach (FEAT-018 §3).
+      if (!session || session.origin === 'correction')
+        throw new CoachingSessionNotFoundError('session not found');
       const rows = await sessionMessages(tx, s.tenantId, id);
       return CoachSessionDetail.parse({
         session: toSession(session),
@@ -313,10 +334,17 @@ export function registerCoachRoutes(
         [before, after].filter((m) => m !== null),
       ),
     );
+    // The old-versus-new comparison on the correction's screen (FEAT-018 §3, AC-7).
+    const replay = await startReplaySafely(deps, req.log, {
+      tenantId: s.tenantId,
+      userId: s.userId,
+      correctionId: id,
+    });
     return CorrectionConfirmResponse.parse({
       correction: toCorrection(done),
       before: before ? shown.find((m) => m.id === before.id) : null,
       after: after ? shown.find((m) => m.id === after.id) : null,
+      replayQuestions: replay?.turns.length ?? 0,
     });
   });
 

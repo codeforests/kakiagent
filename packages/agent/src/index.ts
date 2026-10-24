@@ -127,6 +127,7 @@ export {
   appendMessages,
   CoachingSessionNotFoundError,
   createSession,
+  getMessage as getCoachingMessage,
   getSession,
   InvalidSessionCursorError,
   listSessions,

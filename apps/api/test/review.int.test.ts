@@ -204,6 +204,8 @@ describe('the queue and summary (AC-2)', () => {
       ],
       approvedInUse: 0,
       sourcesBusy: 0,
+      openCorrections: 0,
+      overdueFacts: 0,
     });
   });
 });
