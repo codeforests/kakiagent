@@ -1,7 +1,7 @@
 # Tasks: FEAT-019 — Coverage report (template topics before go-live, gaps after)
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: developer-done · Last updated: 2026-10-24
+> Status: accepted · Last updated: 2026-10-24
 
 - [x] T1 — Schema: `0030_coverage.sql` and Drizzle: `messages.gap_reason`, `gap_embedding`, `gap_correction_id` (FK, checks, two partial indexes, visitor column grant); `business_profiles.coverage_skipped_topics` (check, dashboard column grant); role `kaki_gap_cluster`, its grants and policies, and `kb_gap_cluster()` executable by `app_outbox` only (design §4; D2, D3, D5)
       Done when: `pnpm db:setup` applies 0030 on a database at 0029; `drizzle-kit generate` reports no drift; the RLS suite passes with tenant-B cases for gap columns and a `coverage_gap` item; db integration tests (crafted vectors): two near gaps form one item and a far one a second; a gap near an accepted item opens a new one; a gap older than 60 days isn't joined; an item whose messages were deleted closes automatically; the visitor role can set only the two gap columns; no login role but `app_outbox` can execute the function.
