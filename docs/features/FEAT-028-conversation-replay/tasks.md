@@ -13,6 +13,8 @@
       Done when: agent integration tests on the fake provider pass: a replayed answer equals `runVisitorTurn`'s for the same KB and history; a changed fact gives the new value; `includeUnreviewed` respected; no `conversations`/`messages`/`outbox` writes and usage rows carry `coaching_session_id`; concurrent `replayNext` stores one row; 34 questions → 20 turns, total 34; audit payloads codes and IDs only; no visitor text in `coaching_*`.
 - [ ] T5 — API: the four routes in `apps/api/src/coach.ts`, rate limit `replay:{userId}` 30/min, error mapping; the sessions list excludes replay sessions (design §3, §5.3; AC-1, AC-7, AC-8, AC-11)
       Done when: api integration tests pass for every designed success and error, including tenant B's 404s and empty candidates, staff 403, 409 `replay_complete`, 404 `conversation_gone`, the 429, and one `…/next` under 8 s on the fake provider.
+## Build session 2 (UI)
+
 - [ ] T6 — Dashboard: `lib/replay.ts` (client, helpers), `pages/replay.tsx` (picker with dialog; comparison with progress, pause/continue, `answer-compare` rows, effects, "Teach a fix" → quick panel), routes, the Coach page-head link (ui-design SCR-APP-031)
       Done when: dashboard typecheck and unit tests pass (`lib/replay.test.ts`: progress text, "first 20 of N", effect sentences, the drive loop stops on error and on pause).
       Note: no local stack in cloud sessions; renders are checked by T7's E2E in CI.
