@@ -136,3 +136,32 @@ export {
   type CoachingOrigin,
   type CoachingSessionRow,
 } from './coach-store.js';
+export {
+  abuseTurns,
+  effectsOf,
+  replayContext,
+  ReplayPorts,
+  replayRegistry,
+  stubAll,
+  type ReplayEffect,
+} from './replay-dispatch.js';
+export {
+  CANDIDATES_PAGE,
+  ConversationGoneError,
+  getReplay,
+  InvalidReplayCursorError,
+  NothingToReplayError,
+  REPLAY_LIMIT,
+  replayCandidates,
+  ReplayCompleteError,
+  ReplayConversationNotFoundError,
+  replayNext,
+  replayQuestion,
+  startReplay,
+  type OriginalReplyRow,
+  type ReplayCandidateRow,
+  type ReplayDeps,
+  type ReplayQuestionInput,
+  type ReplayTurnRow,
+  type ReplayView,
+} from './replay.js';

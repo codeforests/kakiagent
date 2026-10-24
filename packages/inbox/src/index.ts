@@ -1,5 +1,5 @@
 import type { ConversationSummary, Message } from '@kaki/contracts';
-import { and, asc, desc, eq, gt, gte, lte, schema, sql, type Tx } from '@kaki/db';
+import { and, asc, desc, eq, gt, gte, lt, lte, or, schema, sql, type Tx } from '@kaki/db';
 import { audit, auditCode } from '@kaki/governance';
 import { piiMask } from '@kaki/platform';
 import { enqueue } from '@kaki/platform/outbox';
@@ -13,10 +13,10 @@ import { enqueue } from '@kaki/platform/outbox';
 
 export class NotFoundError extends Error {}
 
-type MessageRow = typeof schema.messages.$inferSelect;
+export type MessageRow = typeof schema.messages.$inferSelect;
 export type NoticeKind = (typeof schema.NOTICE_KINDS)[number];
 export type FlagReason = (typeof schema.FLAG_REASONS)[number];
-type ConversationRow = typeof schema.conversations.$inferSelect;
+export type ConversationRow = typeof schema.conversations.$inferSelect;
 
 export function toMessage(row: MessageRow): Message {
   return {
@@ -453,4 +453,68 @@ export async function endAiConversation(
     payload: { reason: auditCode(reason) },
   });
   return true;
+}
+
+/** A conversation with at least one visitor message, for replay (FEAT-028 §3). */
+export interface AskedConversation {
+  conversation: ConversationRow;
+  /** The first visitor message, masked at the edge. */
+  firstQuestion: string;
+  /** How many visitor messages it has. */
+  questions: number;
+}
+
+const visitorMessagesOf = sql`from messages m
+  where m.tenant_id = "conversations"."tenant_id" and m.conversation_id = "conversations"."id"
+    and m.author = 'visitor'`;
+
+/**
+ * The tenant's conversations that have a visitor message, newest last message first,
+ * after the `(lastMessageAt, id)` keyset position when given (FEAT-028 replay picker).
+ */
+export async function listAskedConversations(
+  tx: Tx,
+  tenantId: string,
+  input: { after?: { lastMessageAt: Date; id: string }; limit: number },
+): Promise<AskedConversation[]> {
+  const c = schema.conversations;
+  const after = input.after;
+  const rows = await tx
+    .select({
+      conversation: c,
+      firstQuestion: sql<string>`(select m.body ${visitorMessagesOf} order by m.seq limit 1)`,
+      questions: sql<number>`(select count(*)::int ${visitorMessagesOf})`,
+    })
+    .from(c)
+    .where(
+      and(
+        eq(c.tenantId, tenantId),
+        sql`exists (select 1 ${visitorMessagesOf})`,
+        after
+          ? or(
+              lt(c.lastMessageAt, after.lastMessageAt),
+              and(eq(c.lastMessageAt, after.lastMessageAt), lt(c.id, after.id)),
+            )
+          : undefined,
+      ),
+    )
+    .orderBy(desc(c.lastMessageAt), desc(c.id))
+    .limit(input.limit);
+  return rows.map((r) => ({ ...r, questions: Number(r.questions) }));
+}
+
+/** How many visitor messages a conversation has. */
+export async function visitorMessageCount(
+  tx: Tx,
+  tenantId: string,
+  conversationId: string,
+): Promise<number> {
+  const m = schema.messages;
+  const [row] = await tx
+    .select({ n: sql<number>`count(*)::int` })
+    .from(m)
+    .where(
+      and(eq(m.tenantId, tenantId), eq(m.conversationId, conversationId), eq(m.author, 'visitor')),
+    );
+  return Number(row?.n ?? 0);
 }
