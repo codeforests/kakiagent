@@ -1109,7 +1109,7 @@ export type BusinessProfileResponse = z.infer<typeof BusinessProfileResponse>;
 
 // ---- Dashboard API: coaching (AGT-17, ONB-05; FEAT-027 §3) ---------------------------
 
-export const CoachOrigin = z.enum(['coach', 'setup', 'panel']);
+export const CoachOrigin = z.enum(['coach', 'setup', 'panel', 'replay']);
 export type CoachOrigin = z.infer<typeof CoachOrigin>;
 export const CoachSessionCreate = z.object({ origin: CoachOrigin });
 export const CoachSession = z.object({
@@ -1136,6 +1136,8 @@ export const CoachOutcome = z.enum([
   'unsure',
   'refused',
   'unavailable',
+  /** A safety task ended the turn (replay only, FEAT-028 §3). */
+  'ended',
 ]);
 export type CoachOutcome = z.infer<typeof CoachOutcome>;
 export const ReasonCode = z.enum([
@@ -1152,6 +1154,9 @@ export const ReasonCode = z.enum([
   'escalated',
   'hours_slot',
   'unreviewed_used',
+  'crisis',
+  'abuse_warning',
+  'abuse_ended',
 ]);
 export type ReasonCode = z.infer<typeof ReasonCode>;
 export const ExplainedFact = z.object({
@@ -1218,7 +1223,7 @@ export const CoachMessage = z.object({
   id: z.uuid(),
   seq: z.int(),
   author: z.enum(['owner', 'agent']),
-  kind: z.enum(['question', 'answer', 'proposal', 'after']),
+  kind: z.enum(['question', 'answer', 'proposal', 'after', 'replay']),
   text: z.string(),
   includeUnreviewed: z.boolean(),
   createdAt: z.iso.datetime({ offset: true }),
@@ -1246,6 +1251,79 @@ export const CorrectionConfirmResponse = z.object({
 export type CorrectionConfirmResponse = z.infer<typeof CorrectionConfirmResponse>;
 export const CorrectionResponse = z.object({ correction: Correction });
 export const CoachSuggestions = z.object({ questions: z.array(z.string()).max(6) });
+
+// ---- Dashboard API: replay (AGT-17, UC-04 4b; FEAT-028 §3) ----------------------------
+
+/** The first 20 visitor questions of a conversation are replayed (D5). */
+export const REPLAY_LIMIT = 20;
+export const ReplayCandidate = z.object({
+  id: z.uuid(),
+  channel: z.string(),
+  status: z.enum(['ai', 'human', 'closed']),
+  startedAt: z.iso.datetime({ offset: true }),
+  lastMessageAt: z.iso.datetime({ offset: true }),
+  /** Masked, at most 120 characters. */
+  firstQuestion: z.string(),
+  questions: z.int().min(1),
+  flagged: z.boolean(),
+  lastReplayId: z.uuid().nullable(),
+});
+export type ReplayCandidate = z.infer<typeof ReplayCandidate>;
+export const ReplayCandidateList = z.object({
+  conversations: z.array(ReplayCandidate),
+  nextCursor: z.string().nullable(),
+});
+export const ReplayCandidateQuery = z.object({
+  cursor: z.string().min(1).max(200).optional(),
+});
+export const ReplayCreate = z.object({
+  conversationId: z.uuid(),
+  includeUnreviewed: z.boolean(),
+});
+export type ReplayCreate = z.infer<typeof ReplayCreate>;
+export const OriginalReply = z.object({
+  author: z.enum(['agent', 'staff', 'system']),
+  text: z.string(),
+  factIds: z.array(z.uuid()),
+  createdAt: z.iso.datetime({ offset: true }),
+});
+export type OriginalReply = z.infer<typeof OriginalReply>;
+/** What the dispatcher would have done live, as codes (task kinds from `@kaki/agent`). */
+export const ReplayEffect = z.object({
+  task: z.string().regex(/^[a-z_]+$/),
+  outcome: z.enum(['done', 'refused', 'unhandled']),
+});
+export type ReplayEffect = z.infer<typeof ReplayEffect>;
+export const ReplayTurn = z
+  .object({
+    messageId: z.uuid(),
+    index: z.int().min(0),
+    question: z.string(),
+    askedAt: z.iso.datetime({ offset: true }),
+    original: z.array(OriginalReply),
+    status: z.enum(['pending', 'done']),
+    replayed: CoachMessage.nullable(),
+    effects: z.array(ReplayEffect),
+    factsChanged: z.boolean().nullable(),
+  })
+  .refine((t) => (t.status === 'done') === (t.replayed !== null), {
+    message: 'a done turn has its replayed answer, a pending one none',
+    path: ['replayed'],
+  });
+export type ReplayTurn = z.infer<typeof ReplayTurn>;
+export const Replay = z.object({
+  id: z.uuid(),
+  conversationId: z.uuid(),
+  includeUnreviewed: z.boolean(),
+  createdAt: z.iso.datetime({ offset: true }),
+  totalQuestions: z.int().min(0),
+  turns: z.array(ReplayTurn).max(REPLAY_LIMIT),
+});
+export type Replay = z.infer<typeof Replay>;
+export const ReplayResponse = z.object({ replay: Replay });
+export const ReplayNextRequest = z.object({}).strict();
+export const ReplayNextResponse = z.object({ turn: ReplayTurn, remaining: z.int().min(0) });
+export type ReplayNextResponse = z.infer<typeof ReplayNextResponse>;
 
 // ---- Realtime events (Valkey pub/sub payloads, SSE and WebSocket frames; ADR-017) --
 

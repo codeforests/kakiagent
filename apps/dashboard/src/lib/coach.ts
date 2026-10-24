@@ -31,6 +31,9 @@ const REASON_TEXT: Record<ReasonCode, string> = {
   escalated: 'It offered to pass this to your team.',
   hours_slot: 'Opening hours come from your business profile.',
   unreviewed_used: "It used a fact you haven't reviewed.",
+  crisis: 'It would share crisis contacts and flag the chat for your team.',
+  abuse_warning: 'It would warn the customer about their language.',
+  abuse_ended: 'It would end its part in the chat and flag it for your team.',
 };
 
 const UNAVAILABLE_TEXT =
