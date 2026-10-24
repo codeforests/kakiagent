@@ -738,6 +738,10 @@ export const ReviewSummary = z.object({
   ),
   approvedInUse: z.int(),
   sourcesBusy: z.int(),
+  /** Open items in the corrections queue (KB-18, FEAT-018). */
+  openCorrections: z.int(),
+  /** Approved facts past their review interval (KB-17, FEAT-018). */
+  overdueFacts: z.int(),
 });
 export type ReviewSummary = z.infer<typeof ReviewSummary>;
 export const ApprovePreview = z.object({
@@ -1208,6 +1212,15 @@ export const ProposedChange = z.discriminatedUnion('kind', [
     before: WeeklyHoursInput.partial(),
     after: WeeklyHoursInput.partial(),
   }),
+  /** A stale fact (KB-17, FEAT-018): accepting it re-confirms the fact and changes no value. */
+  z.object({
+    kind: z.literal('reconfirm'),
+    factId: z.uuid(),
+    factVersion: z.int().min(1),
+    factType: FactType,
+    label: z.string(),
+    lastConfirmedAt: z.iso.datetime({ offset: true }),
+  }),
 ]);
 export type ProposedChange = z.infer<typeof ProposedChange>;
 export const CorrectionStatus = z.enum(['open', 'accepted', 'edited_and_accepted', 'dismissed']);
@@ -1247,6 +1260,8 @@ export const CorrectionConfirmResponse = z.object({
   correction: Correction,
   before: CoachMessage.nullable(),
   after: CoachMessage.nullable(),
+  /** Past visitor questions the accepted fix replays (FEAT-018 §3); 0 when nothing replays. */
+  replayQuestions: z.int().min(0),
 });
 export type CorrectionConfirmResponse = z.infer<typeof CorrectionConfirmResponse>;
 export const CorrectionResponse = z.object({ correction: Correction });
@@ -1324,6 +1339,137 @@ export const ReplayResponse = z.object({ replay: Replay });
 export const ReplayNextRequest = z.object({}).strict();
 export const ReplayNextResponse = z.object({ turn: ReplayTurn, remaining: z.int().min(0) });
 export type ReplayNextResponse = z.infer<typeof ReplayNextResponse>;
+
+// ---- Dashboard API: corrections (KB-18, KB-17, UC-16; FEAT-018 §3) --------------------
+
+export const CorrectionSource = z.enum([
+  'thumbs_down',
+  'staff_reply',
+  'staff_edit',
+  'coaching',
+  'oversight',
+  'stale',
+  'coverage_gap',
+]);
+export type CorrectionSource = z.infer<typeof CorrectionSource>;
+/** Each fact a correction refers to, as it is now. */
+export const CorrectionFact = z.object({
+  id: z.uuid(),
+  label: z.string(),
+  type: FactType,
+  status: z.union([FactStatus, z.literal('deleted')]),
+  version: z.int().min(0),
+  lastConfirmedAt: z.iso.datetime({ offset: true }).nullable(),
+  overdue: z.boolean(),
+});
+export type CorrectionFact = z.infer<typeof CorrectionFact>;
+export const CorrectionItem = z.object({
+  id: z.uuid(),
+  status: CorrectionStatus,
+  source: CorrectionSource,
+  proposedBy: z.enum(['system', 'coaching', 'staff']),
+  change: ProposedChange,
+  /** What was accepted when the fix was edited (D7). */
+  acceptedChange: ProposedChange.nullable(),
+  facts: z.array(CorrectionFact),
+  coachingSessionId: z.uuid().nullable(),
+  conversationId: z.uuid().nullable(),
+  createdAt: z.iso.datetime({ offset: true }),
+  decidedAt: z.iso.datetime({ offset: true }).nullable(),
+  /** A stale item the scan closed because its fact moved on (D8). */
+  closedBySystem: z.boolean(),
+});
+export type CorrectionItem = z.infer<typeof CorrectionItem>;
+export const CorrectionContext = z.object({
+  coaching: z.object({ question: z.string().nullable(), proposal: z.string() }).nullable(),
+  /** The last 6 messages up to the item's creation, masked. */
+  conversation: z.array(OriginalReply.extend({ author: MessageAuthor })).nullable(),
+});
+export type CorrectionContext = z.infer<typeof CorrectionContext>;
+export const CorrectionEdit = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('edit_fact'), after: FactValueView }),
+  z.object({
+    kind: z.literal('add_faq'),
+    question: z.string().trim().min(1).max(500),
+    answer: z.string().trim().min(1).max(2000),
+  }),
+]);
+export type CorrectionEdit = z.infer<typeof CorrectionEdit>;
+export const CorrectionReplayTurn = z
+  .object({
+    messageId: z.uuid(),
+    conversationId: z.uuid(),
+    index: z.int().min(0),
+    question: z.string(),
+    askedAt: z.iso.datetime({ offset: true }),
+    original: z.array(OriginalReply),
+    status: z.enum(['pending', 'done']),
+    replayed: CoachMessage.nullable(),
+    effects: z.array(ReplayEffect),
+    /** The replayed text differs from the first original agent reply's; null while pending. */
+    answerChanged: z.boolean().nullable(),
+  })
+  .refine((t) => (t.status === 'done') === (t.replayed !== null), {
+    message: 'a done turn has its replayed answer, a pending one none',
+    path: ['replayed'],
+  });
+export type CorrectionReplayTurn = z.infer<typeof CorrectionReplayTurn>;
+export const CorrectionReplay = z.object({
+  status: z.enum(['replaying', 'complete']),
+  /** All past questions that used the corrected facts; at most 20 replay (D4). */
+  matched: z.int().min(0),
+  turns: z.array(CorrectionReplayTurn).max(REPLAY_LIMIT),
+});
+export type CorrectionReplay = z.infer<typeof CorrectionReplay>;
+export const CorrectionListQuery = z.object({
+  status: z.enum(['open', 'closed']).default('open'),
+  source: CorrectionSource.optional(),
+  cursor: z.string().min(1).max(200).optional(),
+});
+export type CorrectionListQuery = z.infer<typeof CorrectionListQuery>;
+export const CorrectionList = z.object({
+  corrections: z.array(CorrectionItem),
+  nextCursor: z.string().nullable(),
+});
+export type CorrectionList = z.infer<typeof CorrectionList>;
+export const CorrectionDetail = z.object({
+  correction: CorrectionItem,
+  context: CorrectionContext,
+  replay: CorrectionReplay.nullable(),
+});
+export type CorrectionDetail = z.infer<typeof CorrectionDetail>;
+export const CorrectionAccept = z.object({ edit: CorrectionEdit.nullable() }).strict();
+export type CorrectionAccept = z.infer<typeof CorrectionAccept>;
+export const CorrectionAcceptResponse = z.object({
+  correction: CorrectionItem,
+  replay: CorrectionReplay.nullable(),
+});
+export type CorrectionAcceptResponse = z.infer<typeof CorrectionAcceptResponse>;
+export const CorrectionItemResponse = z.object({ correction: CorrectionItem });
+export const CorrectionReplayNextResponse = z.object({
+  turn: CorrectionReplayTurn,
+  remaining: z.int().min(0),
+});
+export type CorrectionReplayNextResponse = z.infer<typeof CorrectionReplayNextResponse>;
+const ReviewMonths = z.int().min(1).max(24);
+/** Months before an approved fact of each type is due for re-confirmation (KB-17, D6). */
+export const ReviewIntervals = z
+  .object({
+    product: ReviewMonths,
+    faq: ReviewMonths,
+    policy: ReviewMonths,
+    promotion: ReviewMonths,
+  })
+  .strict();
+export type ReviewIntervals = z.infer<typeof ReviewIntervals>;
+export const DEFAULT_REVIEW_INTERVALS: ReviewIntervals = {
+  product: 6,
+  faq: 6,
+  policy: 6,
+  promotion: 6,
+};
+export const ReviewIntervalsBody = z.object({ intervals: ReviewIntervals }).strict();
+export const ReviewIntervalsResponse = z.object({ intervals: ReviewIntervals });
 
 // ---- Realtime events (Valkey pub/sub payloads, SSE and WebSocket frames; ADR-017) --
 

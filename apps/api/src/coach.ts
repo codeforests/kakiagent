@@ -83,7 +83,8 @@ const SUGGESTED_FROM_FACTS = 3;
 function toSession(r: CoachingSessionRow): CoachSession {
   return {
     id: r.id,
-    origin: r.origin,
+    // Correction replays never reach Coach (FEAT-018 §3): `listSessions` leaves them out.
+    origin: r.origin as CoachSession['origin'],
     title: r.title,
     createdAt: r.createdAt.toISOString(),
     updatedAt: r.updatedAt.toISOString(),
