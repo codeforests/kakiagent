@@ -1,5 +1,5 @@
 # Handoff: FEAT-027 — Coaching mode
-Branch: feat/FEAT-027-coaching · PR: draft (see the build thread) · Updated: 2026-10-24 by build
+Branch: feat/FEAT-027-coaching · PR: https://github.com/codeforests/kakiagent/pull/25 (draft) · Updated: 2026-10-24 by build
 Stage done: build (T1–T12 of 12), developer-done
 Next: verify — kickoff: "Verify FEAT-027 on branch feat/FEAT-027-coaching. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
 
