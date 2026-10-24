@@ -9,7 +9,7 @@ A fresh session runs exactly one stage, writes everything the next stage needs t
 
 ## Inputs, always
 
-1. `docs/build/STATE.md` (order, rules, environment). If it has a "While GitHub Actions is out" section, that overrides the CI steps below.
+1. `docs/build/STATE.md` (order, rules, environment).
 2. The feature branch named in the kickoff. Design creates it from `main`; build and verify `git fetch origin <branch> && git checkout <branch>`. The kickoff naming it is Ken's permission to push there.
 3. `docs/features/FEAT-NNN-<slug>/handoff.md` (build and verify).
 
@@ -35,16 +35,16 @@ A fresh session runs exactly one stage, writes everything the next stage needs t
 2. Inputs: `handoff.md`, `technical-design.md`, `tasks.md`, `ui-design.md` (sections for the task at hand). Start at the first unticked task.
 3. Per task: implement, run its "Done when", tick it, one commit. At most 3 fix attempts, then stop honestly with a note.
 4. If the session has done about six tasks or feels long, stop at a task boundary: update `handoff.md`, push, and reply with the same build kickoff so a fresh session resumes.
-5. After the last task: status `developer-done`, push, open a **draft** PR (title `FEAT-NNN: <name>`, body starts with the project's attribution block; assign and request review from `codeforests`) so CI runs the full suite. Reply with the verify kickoff.
+5. After the last task: status `developer-done`, push, open a **draft** PR (title `FEAT-NNN: <name>`, body starts with the project's attribution block; assign `codeforests`). Don't start CI; the verify stage decides (STATE.md, CI cadence). Reply with the verify kickoff.
 
 ## Stage: verify
 
 1. Load `agentic-sdlc-kit:acceptance-verification`. This session is the independent verifier: it didn't write the code.
-2. Inputs: `handoff.md`, the design's §6, `tasks.md` evidence, `git diff main...HEAD`, and the draft PR's CI results.
-3. Re-run this feature's tests fresh; read CI for E2E and the rest of the suite. Review the test diff and the invariants in `AGENTS.md`.
+2. Inputs: `handoff.md`, the design's §6, `tasks.md` evidence, `git diff main...HEAD`.
+3. Re-run this feature's tests fresh, then the full local checks (STATE.md, CI cadence). Start CI only when the cadence calls for it, and read its E2E results. Review the test diff and the invariants in `AGENTS.md`.
 4. Write `acceptance-report.md`; on acceptance, append the RTM Test ref and set `tasks.md` status `accepted`.
-5. Update `docs/build/STATE.md` in the same PR: move the feature to Merged, set the next feature, and the remaining order.
-6. Mark the PR ready, subscribe to it, and drive CI to green. Reply once with the PR link. Ken approves; squash-merge only with his go-ahead.
+5. Update `docs/build/STATE.md` in the same PR: move the feature to Merged, set the next feature and the remaining order, and the features-since-CI count.
+6. Put the local check results in the PR body, mark it ready, subscribe to it, and drive any CI run to green. Reply once with the PR link. Ken approves; squash-merge only with his go-ahead.
 7. After the merge, post the remaining build order with the next feature first, and the design kickoff for it.
 8. Rework goes back to a build session (kickoff in `handoff.md`); a design defect goes to a design session.
 

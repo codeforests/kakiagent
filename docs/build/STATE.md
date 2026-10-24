@@ -39,16 +39,19 @@ The design session names the branch in its `handoff.md` and final reply; later k
 ## Ken's rules
 
 - One feature at a time, in the order above. Don't start the next one until Ken says so.
-- One PR per feature, from `feat/FEAT-NNN-<slug>`. Squash-merge only after CI is green and Ken approves. The PR body starts with the project's attribution block; assign and request review from `codeforests`.
-- Locally, run only this feature's tests (the packages it touches). CI runs the full suite, including E2E on three browsers.
+- One PR per feature, from `feat/FEAT-NNN-<slug>`. Squash-merge only with Ken's approval, after the local checks (and CI when the cadence calls for it) are green. The PR body starts with the project's attribution block; assign and request review from `codeforests`.
+- Locally, run only this feature's tests while building; the verify stage runs the full local checks above. CI runs per the cadence above.
 - After a merge, post the remaining build order with the next feature first.
 - Owner decisions and later checks go to the project file `/mnt/project-files/pending-actions.md` (feature, when due, what to check), not into chat.
 
-## While GitHub Actions is out of minutes (from 2026-10-24 until the monthly reset)
+## CI cadence (Ken, 2026-10-24)
 
-- CI can't run, so Ken merges after a local check instead of green CI. The verify stage runs, through `scripts/test-env.sh`, `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test` and `test:coverage` for every package the feature touches, and lists the results in the PR body.
-- E2E and screen renders can't run anywhere (no Docker), so the verify stage records them as "pending CI" in the acceptance report and adds a line to `pending-actions.md`. Once Actions is back, re-run CI on `main` and fix anything red before the next merge.
-- Add `[skip ci]` to commit messages so pushes don't queue jobs that fail at once. Delete this section when Actions is back.
+CI no longer runs on every push or PR; it is started by hand (`workflow_dispatch`) to stay inside the monthly Actions minutes.
+
+- **Every feature:** the verify stage runs the full local checks through `scripts/test-env.sh` (`pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `test:coverage` for each package the feature touches) and lists the results in the PR body. Ken merges on those.
+- **Run CI** on the PR's branch before merging when: it's the third feature since the last CI run, a milestone closes, or the feature touches the widget (size budget), `infra/`, `.github/` or the lockfile. Start it with the GitHub tool `actions_run_trigger` (`run_workflow`, `ci.yml`, the branch as `ref`).
+- **E2E** runs only in CI. Between runs, specs and screen renders are "pending CI" in the acceptance report; a red E2E in the next CI run is fixed before that PR merges.
+- **Features since the last CI run:** 0 (counted from FEAT-027). The verify stage updates this line; reset it to 0 after a CI run.
 
 ## Environment
 

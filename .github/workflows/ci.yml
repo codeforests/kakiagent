@@ -1,19 +1,21 @@
-# CI for every PR and for main (plan §7 engineering foundations, ADR-022).
-# Required checks on main: every job below. CD to the launch environment is added at
-# MD (ADR-023); the dev → staging → prod promotion returns at the prod trigger.
+# CI (plan §7 engineering foundations, ADR-022). Run by hand, not on every push or PR,
+# to stay inside the monthly Actions minutes (owner, 2026-10-24): once every three
+# features, at each milestone close, and when a feature touches the widget, infra, CI
+# or dependencies (docs/build/STATE.md, "CI cadence"). Start it from the Actions tab
+# (Run workflow, pick the PR's branch) or `gh workflow run ci.yml --ref <branch>`.
+# CD to the launch environment is added at MD (ADR-023); the dev → staging → prod
+# promotion returns at the prod trigger.
 name: CI
 
 on:
-  pull_request:
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: true
 
 env:
   TURBO_TELEMETRY_DISABLED: '1'
