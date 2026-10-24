@@ -118,7 +118,8 @@ describe('readXlsx (FEAT-016 §5.3 step 3)', () => {
       { level: 0 },
     );
     expect(readXlsx(bytes)).toEqual({ ok: false, failure: 'unreadable' });
-  });
+    // Building the 101 MB entry takes about 1 s alone and passed 5 s on a loaded CI runner.
+  }, 30_000);
 
   it('converts column letters and numbers', () => {
     expect(['A', 'Z', 'AA', 'xfd'].map(columnIndex)).toEqual([0, 25, 26, 16383]);
