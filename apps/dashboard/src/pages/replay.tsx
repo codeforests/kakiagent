@@ -6,21 +6,18 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router';
 import { api, ApiError } from '../lib/api.ts';
 import { askHref, relativeTime, useBotName } from '../lib/coach.ts';
 import {
-  authorLabel,
   completeLine,
   dateLabel,
   driveReplay,
-  effectSentences,
   hasPending,
   limitCaption,
   limitHeader,
   progressText,
   RATE_LIMIT_PAUSE_MS,
-  timeLabel,
   withTurn,
   type ReplayFailure,
 } from '../lib/replay.ts';
-import { AnswerExplainer } from './coach-chat.tsx';
+import { AnswerCompare } from './answer-compare.tsx';
 import { CoachPanelButton } from './quick-coach-panel.tsx';
 
 function ReplayForbidden() {
@@ -402,7 +399,7 @@ export function ReplayPage() {
   );
 }
 
-/** design.md §4.6 `answer-compare`: one customer question, what they got and what it says now. */
+/** FEAT-028's turn in the shared `answer-compare`, with its own foot. */
 function TurnRow({
   turn,
   total,
@@ -420,69 +417,29 @@ function TurnRow({
   onRetry: () => void;
   unreviewed: boolean;
 }) {
-  const label = `Question ${turn.index + 1} of ${total}`;
   return (
-    <li className="answer-compare" aria-label={label} data-testid="replay-turn">
-      <div className="coach-bubble coach-bubble--visitor">
-        <span className="coach-bubble__who">Customer · {timeLabel(turn.askedAt)}</span>
-        <p className="coach-bubble__text">{turn.question}</p>
-      </div>
-      <div className="answer-compare__columns">
-        <section className="answer-compare__column" data-testid="replay-original">
-          <h3 className="answer-compare__heading">What the customer got</h3>
-          {turn.original.length === 0 && <p className="field__help">No one answered this.</p>}
-          {turn.original.map((r, i) => (
-            <div key={i} className="coach-bubble coach-bubble--original">
-              <span className="coach-bubble__who">{authorLabel(r.author, botName)}</span>
-              <p className="coach-bubble__text">{r.text}</p>
-            </div>
-          ))}
-        </section>
-        <section className="answer-compare__column" data-testid="replay-now">
-          <h3 className="answer-compare__heading">What your assistant says now</h3>
-          {turn.replayed ? (
-            <div className="coach-bubble coach-bubble--agent">
-              <span className="coach-bubble__who">{botName} · replay</span>
-              <p className="coach-bubble__text">{turn.replayed.text}</p>
-              {turn.replayed.explainer && <AnswerExplainer explainer={turn.replayed.explainer} />}
-            </div>
-          ) : answering ? (
-            <div className="coach-bubble coach-bubble--agent coach-bubble--typing">
-              <span className="spinner" aria-hidden="true" /> Your assistant is answering…
-            </div>
-          ) : (
-            <div className="coach-skeleton__bubble replay-waiting">
-              <span className="sr-only">Waiting to replay</span>
-            </div>
-          )}
-          {failed && (
-            <div className="alert alert--danger" role="alert">
-              <p>Couldn't replay this question.</p>
-              <Button variant="secondary" onClick={onRetry}>
-                Retry
-              </Button>
-            </div>
-          )}
-        </section>
-      </div>
-      {effectSentences(turn.effects).map((s) => (
-        <p key={s} className="field__help replay-effect">
-          {s}
-        </p>
-      ))}
-      {(turn.factsChanged || turn.replayed) && (
-        <div className="answer-compare__foot">
-          {turn.factsChanged && <span className="chip chip--accent">Uses different facts</span>}
-          {turn.replayed && (
-            <CoachPanelButton
-              label="Teach a fix"
-              prefill={turn.question}
-              unreviewed={unreviewed}
-              narrowHref={askHref(turn.question, unreviewed)}
-            />
-          )}
-        </div>
-      )}
-    </li>
+    <AnswerCompare
+      turn={turn}
+      label={`Question ${turn.index + 1} of ${total}`}
+      botName={botName}
+      answering={answering}
+      failed={failed}
+      onRetry={onRetry}
+      foot={
+        (turn.factsChanged || turn.replayed) && (
+          <>
+            {turn.factsChanged && <span className="chip chip--accent">Uses different facts</span>}
+            {turn.replayed && (
+              <CoachPanelButton
+                label="Teach a fix"
+                prefill={turn.question}
+                unreviewed={unreviewed}
+                narrowHref={askHref(turn.question, unreviewed)}
+              />
+            )}
+          </>
+        )
+      }
+    />
   );
 }

@@ -35,6 +35,7 @@ import {
   ConflictChangedError,
   CorrectionClosedError,
   CorrectionNotFoundError,
+  NotEditableError,
   CorrectionStaleError,
   InvalidCorrectionError,
   SourceExistsError,
@@ -50,6 +51,7 @@ import {
   InvalidReplayCursorError,
   InvalidSessionCursorError,
   NothingToReplayError,
+  CorrectionReplayNotFoundError,
   ReplayCompleteError,
   ReplayConversationNotFoundError,
 } from '@kaki/agent';
@@ -80,6 +82,7 @@ import { createServer, type Deps } from './server.js';
 import { registerUploadRoutes } from './uploads.js';
 import { registerConflictRoutes, toConflict } from './conflicts.js';
 import { registerReviewRoutes, toPreview } from './review.js';
+import { InvalidBodyError, InvalidQueryError, registerCorrectionRoutes } from './corrections.js';
 import { registerSettingsRoutes } from './settings.js';
 import {
   AttestationRequiredError,
@@ -169,7 +172,8 @@ export async function buildApp(deps: Deps) {
       err instanceof SourceNotFoundError ||
       err instanceof CoachingSessionNotFoundError ||
       err instanceof ReplayConversationNotFoundError ||
-      err instanceof CorrectionNotFoundError
+      err instanceof CorrectionNotFoundError ||
+      err instanceof CorrectionReplayNotFoundError
     )
       return reply.code(404).send({ error: 'not_found', message: 'Not found' });
     if (err instanceof TokenError)
@@ -234,6 +238,16 @@ export async function buildApp(deps: Deps) {
         error: 'correction_stale',
         message: 'This changed since the proposal. Ask again to get a new one.',
       });
+    if (err instanceof NotEditableError)
+      return reply
+        .code(422)
+        .send({ error: 'not_editable', message: "This fix can't be edited here." });
+    if (err instanceof InvalidQueryError)
+      return reply.code(422).send({ error: 'invalid_query', message: 'Check the filters.' });
+    if (err instanceof InvalidBodyError)
+      return reply
+        .code(422)
+        .send({ error: 'invalid_body', message: 'Check the values and try again.' });
     if (err instanceof InvalidCorrectionError)
       return reply
         .code(422)
@@ -429,6 +443,7 @@ export async function buildApp(deps: Deps) {
   registerUploadRoutes(app, deps, sessionFrom);
   registerSettingsRoutes(app, deps, sessionFrom);
   registerCoachRoutes(app, deps, sessionFrom);
+  registerCorrectionRoutes(app, deps, sessionFrom);
 
   return app;
 }

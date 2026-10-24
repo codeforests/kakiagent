@@ -401,6 +401,9 @@ importers:
       '@kaki/identity':
         specifier: workspace:*
         version: link:../../packages/identity
+      '@kaki/kb':
+        specifier: workspace:*
+        version: link:../../packages/kb
       '@kaki/platform':
         specifier: workspace:*
         version: link:../../packages/platform

@@ -26,7 +26,15 @@ interface Toast {
 }
 
 /** The Review hub tabs (FEAT-013 ui-design cross-screen): route links, like Knowledge's. */
-export function ReviewTabs({ count, conflicts }: { count?: number; conflicts?: number }) {
+export function ReviewTabs({
+  count,
+  conflicts,
+  corrections,
+}: {
+  count?: number;
+  conflicts?: number;
+  corrections?: number;
+}) {
   return (
     <nav className="tabs knowledge-tabs" aria-label="Review">
       <NavLink to="/review" end className="tabs__tab">
@@ -49,6 +57,12 @@ export function ReviewTabs({ count, conflicts }: { count?: number; conflicts?: n
       </NavLink>
       <NavLink to="/review/corrections" className="tabs__tab">
         Corrections
+        {corrections ? (
+          <span className="count-pill count-pill--warning">
+            {corrections}
+            <span className="sr-only"> open</span>
+          </span>
+        ) : null}
       </NavLink>
     </nav>
   );
@@ -335,6 +349,7 @@ export function ReviewQueue({
         <ReviewTabs
           count={summary.data && summary.data.needsReview + summary.data.conflicted}
           conflicts={summary.data?.conflicts}
+          corrections={summary.data?.openCorrections}
         />
       )}
       {embedded && approvable && !empty && (
@@ -616,25 +631,6 @@ export function ReviewPage() {
   return (
     <div className="review">
       <ReviewQueue />
-    </div>
-  );
-}
-
-/** `/review/conflicts` and `/review/corrections` until FEAT-014 and FEAT-018 build them. */
-export function ReviewPlaceholder({ title, feature }: { title: string; feature: string }) {
-  const summary = useReviewSummary();
-  return (
-    <div className="review">
-      <div className="page-header">
-        <div className="page-header__text">
-          <h1 className="page-title">Review</h1>
-        </div>
-      </div>
-      <ReviewTabs
-        count={summary.data && summary.data.needsReview + summary.data.conflicted}
-        conflicts={summary.data?.conflicts}
-      />
-      <EmptyState title={`${title} aren't built yet`}>This tab arrives with {feature}.</EmptyState>
     </div>
   );
 }

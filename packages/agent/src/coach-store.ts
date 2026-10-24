@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, lt, ne, or, schema, sql, type Tx } from '@kaki/db';
+import { and, desc, eq, inArray, lt, or, schema, sql, type Tx } from '@kaki/db';
 
 /**
  * Coaching sessions and their messages (FEAT-027 §5.3), on the dashboard zone. Nothing
@@ -72,7 +72,8 @@ export async function listSessions(
     .where(
       and(
         eq(s.tenantId, tenantId),
-        ne(s.origin, 'replay'),
+        // Replays and correction replays have their own screens (FEAT-028, FEAT-018 §3).
+        sql`${s.origin} not in ('replay', 'correction')`,
         after
           ? or(lt(s.updatedAt, after.ts), and(eq(s.updatedAt, after.ts), lt(s.id, after.id)))
           : undefined,
@@ -185,6 +186,53 @@ export async function createReplaySession(
   return row!;
 }
 
+/**
+ * A correction's replay session (FEAT-018 §5.4): the visitor questions chosen at
+ * acceptance, newest first. One per correction; a concurrent start gets the stored one.
+ */
+export async function createCorrectionReplaySession(
+  tx: Tx,
+  input: {
+    tenantId: string;
+    userId: string;
+    correctionId: string;
+    questionIds: string[];
+    matched: number;
+  },
+): Promise<{ session: CoachingSessionRow; created: boolean }> {
+  const s = schema.coachingSessions;
+  const [row] = await tx
+    .insert(s)
+    .values({
+      tenantId: input.tenantId,
+      createdBy: input.userId,
+      origin: 'correction',
+      correctionId: input.correctionId,
+      replayQuestionIds: input.questionIds,
+      replayMatched: input.matched,
+    })
+    .onConflictDoNothing({ target: [s.tenantId, s.correctionId] })
+    .returning();
+  if (row) return { session: row, created: true };
+  return {
+    session: (await correctionReplaySession(tx, input.tenantId, input.correctionId))!,
+    created: false,
+  };
+}
+
+export async function correctionReplaySession(
+  tx: Tx,
+  tenantId: string,
+  correctionId: string,
+): Promise<CoachingSessionRow | null> {
+  const s = schema.coachingSessions;
+  const [row] = await tx
+    .select()
+    .from(s)
+    .where(and(eq(s.tenantId, tenantId), eq(s.correctionId, correctionId)));
+  return row ?? null;
+}
+
 /** A replay's stored answers. */
 export async function replayMessages(
   tx: Tx,
@@ -202,7 +250,7 @@ export async function replayMessages(
 export type NewReplayMessage = Pick<
   typeof schema.coachingMessages.$inferInsert,
   'body' | 'includeUnreviewed' | 'outcome' | 'factIds' | 'explainer'
-> & { replayOf: string };
+> & { replayOf: string; replayConversationId: string };
 
 /**
  * Stores a replayed answer under a lock on the session; a second answer for the same

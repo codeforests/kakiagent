@@ -12,7 +12,9 @@ import {
   getMessage,
   listConversations,
   messagesSince,
+  messagesUpTo,
   NotFoundError,
+  pastQuestionsUsing,
   recordAbuse,
   toMessage,
   toSummary,
@@ -218,5 +220,77 @@ describe('inbox repository (visitor trust zone)', () => {
     await expect(
       withTenant(visitor, TENANT_B, (tx) => recordAbuse(tx, TENANT_B, conv.id, turn1)),
     ).rejects.toBeInstanceOf(NotFoundError);
+  });
+
+  it('finds past questions whose reply used a fact, newest first, before a time (FEAT-018 D4)', async () => {
+    const visitor = tdb.zone('visitor');
+    const fact = randomUUID();
+    const other = randomUUID();
+    const asked: string[] = [];
+    let conversationId = '';
+    for (let i = 0; i < 4; i++) {
+      const visitorId = randomUUID();
+      const conv = await withTenant(visitor, TENANT_A, (tx) =>
+        createConversation(tx, TENANT_A, visitorId),
+      );
+      conversationId = conv.id;
+      const { message } = await withTenant(visitor, TENANT_A, (tx) =>
+        appendVisitorMessage(tx, {
+          tenantId: TENANT_A,
+          conversationId: conv.id,
+          visitorId,
+          text: `q${i}`,
+          clientMessageId: `c-pq-00${i}`,
+        }),
+      );
+      await withTenant(visitor, TENANT_A, (tx) =>
+        appendAgentReply(tx, {
+          tenantId: TENANT_A,
+          conversationId: conv.id,
+          inReplyTo: message.id,
+          text: `a${i}`,
+          // The third reply cited another fact only.
+          factIds: i === 2 ? [other] : [fact],
+        }),
+      );
+      asked.push(message.id);
+    }
+    const before = new Date(Date.now() + 1000);
+    const found = await withTenant(tdb.zone('dashboard'), TENANT_A, (tx) =>
+      pastQuestionsUsing(tx, { tenantId: TENANT_A, factIds: [fact], before, limit: 2 }),
+    );
+    expect(found.matched).toBe(3);
+    expect(found.questions.map((q) => q.messageId)).toEqual([asked[3], asked[1]]);
+    expect(found.questions[0]!.conversationId).toBe(conversationId);
+    const earlier = await withTenant(tdb.zone('dashboard'), TENANT_A, (tx) =>
+      pastQuestionsUsing(tx, {
+        tenantId: TENANT_A,
+        factIds: [fact],
+        before: new Date(0),
+        limit: 20,
+      }),
+    );
+    expect(earlier).toEqual({ questions: [], matched: 0 });
+    expect(
+      await withTenant(tdb.zone('dashboard'), TENANT_A, (tx) =>
+        pastQuestionsUsing(tx, { tenantId: TENANT_A, factIds: [], before, limit: 20 }),
+      ),
+    ).toEqual({ questions: [], matched: 0 });
+    expect(
+      (
+        await withTenant(tdb.zone('dashboard'), TENANT_B, (tx) =>
+          pastQuestionsUsing(tx, { tenantId: TENANT_B, factIds: [fact], before, limit: 20 }),
+        )
+      ).matched,
+    ).toBe(0);
+
+    const excerpt = await withTenant(tdb.zone('dashboard'), TENANT_A, (tx) =>
+      messagesUpTo(tx, { tenantId: TENANT_A, conversationId, upTo: before, limit: 1 }),
+    );
+    expect(excerpt.map((m) => m.body)).toEqual(['a3']);
+    const both = await withTenant(tdb.zone('dashboard'), TENANT_A, (tx) =>
+      messagesUpTo(tx, { tenantId: TENANT_A, conversationId, upTo: before, limit: 5 }),
+    );
+    expect(both.map((m) => m.body)).toEqual(['q3', 'a3']);
   });
 });

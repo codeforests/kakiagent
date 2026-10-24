@@ -127,6 +127,7 @@ export {
   appendMessages,
   CoachingSessionNotFoundError,
   createSession,
+  getMessage as getCoachingMessage,
   getSession,
   InvalidSessionCursorError,
   listSessions,
@@ -165,3 +166,11 @@ export {
   type ReplayTurnRow,
   type ReplayView,
 } from './replay.js';
+export {
+  correctionReplayNext,
+  CorrectionReplayNotFoundError,
+  getCorrectionReplay,
+  startCorrectionReplay,
+  type CorrectionReplayTurnRow,
+  type CorrectionReplayView,
+} from './correction-replay.js';

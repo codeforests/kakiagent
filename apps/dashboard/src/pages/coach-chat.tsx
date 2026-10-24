@@ -381,6 +381,8 @@ function ProposalCard({
 }) {
   const c = message.correction!;
   const [problem, setProblem] = useState<DecisionError | null>(null);
+  // Past visitor questions the accepted fix replays on SCR-APP-022 (FEAT-018 ui-design).
+  const [replayQuestions, setReplayQuestions] = useState(0);
   const confirmRef = useRef<HTMLButtonElement>(null);
   const titleId = useId();
 
@@ -393,11 +395,14 @@ function ProposalCard({
   const decide = useMutation({
     mutationFn: async (
       action: 'confirm' | 'dismiss',
-    ): Promise<{ correction: Correction; after: CoachMessage | null }> =>
+    ): Promise<{ correction: Correction; after: CoachMessage | null; replayQuestions?: number }> =>
       action === 'confirm'
         ? api.confirmCorrection(c.id)
         : { ...(await api.dismissCorrection(c.id)), after: null },
-    onSuccess: (r) => onDecided(r.correction, r.after),
+    onSuccess: (r) => {
+      setReplayQuestions(r.replayQuestions ?? 0);
+      onDecided(r.correction, r.after);
+    },
     onError: async (err) => {
       if (err instanceof ApiError && err.code === 'correction_closed') {
         // Decided elsewhere: refresh the card from the session.
@@ -439,6 +444,14 @@ function ProposalCard({
       <div className="coach-confirmed">
         <div className="coach-decided coach-decided--success" role="status">
           {confirmedLine(c.change)} {factLink && <Link to={factLink}>View the fact</Link>}
+          {replayQuestions > 0 && (
+            <>
+              {' '}
+              <Link to={`/review/corrections/${c.id}`}>
+                See {replayQuestions} past {replayQuestions === 1 ? 'answer' : 'answers'}
+              </Link>
+            </>
+          )}
         </div>
         {before && after && (
           <div className="coach-before-after">

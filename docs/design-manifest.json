@@ -389,6 +389,103 @@
       "status": "designed",
       "designed_at": "2026-10-23"
     },
+    "SCR-APP-021": {
+      "name": "Review · Corrections",
+      "surface": "APP",
+      "feature": "FEAT-018",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-018-correction-queue/ui-design.md#scr-app-021--review--corrections"
+      },
+      "states": {
+        "covered": [
+          "open list",
+          "closed list",
+          "filtered",
+          "inline re-confirm",
+          "re-confirm conflict",
+          "empty open",
+          "empty closed",
+          "empty filtered",
+          "loading",
+          "error",
+          "review intervals dialog",
+          "intervals validation",
+          "permission"
+        ],
+        "gaps": [
+          "Home KB health tiles (FEAT-065, SCR-APP-013)"
+        ],
+        "supplements": []
+      },
+      "contract_bindings": [
+        "GET /api/v1/corrections",
+        "GET /api/v1/kb/review-intervals",
+        "PUT /api/v1/kb/review-intervals",
+        "GET /api/v1/kb/review/summary"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-10-24"
+    },
+    "SCR-APP-022": {
+      "name": "Correction",
+      "surface": "APP",
+      "feature": "FEAT-018",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-018-correction-queue/ui-design.md#scr-app-022--correction"
+      },
+      "states": {
+        "covered": [
+          "open",
+          "open stale",
+          "open hours",
+          "editing",
+          "edit invalid",
+          "applying",
+          "stale conflict",
+          "already decided",
+          "applied",
+          "replaying",
+          "paused",
+          "comparison",
+          "answer changed",
+          "no replay",
+          "turn error",
+          "rate limited",
+          "closed",
+          "closed automatically",
+          "edited and accepted",
+          "not-found",
+          "loading",
+          "error",
+          "permission"
+        ],
+        "gaps": [
+          "Conversation link (FEAT-042, SCR-APP-015)",
+          "Add FAQ for coverage gaps (FEAT-019, UC-16 3b)"
+        ],
+        "supplements": []
+      },
+      "contract_bindings": [
+        "GET /api/v1/corrections/:id",
+        "POST /api/v1/corrections/:id/accept",
+        "POST /api/v1/corrections/:id/close",
+        "POST /api/v1/corrections/:id/replay/next"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-10-24"
+    },
     "SCR-APP-023": {
       "name": "Sources",
       "surface": "APP",
@@ -654,7 +751,10 @@
       "source": {
         "spec": "features/FEAT-027-coaching/ui-design.md#scr-app-030--coach",
         "extends": "features/FEAT-027-coaching/ui-design.md#cross-screen-the-coach-chat-coach-chat",
-        "amended_by": "features/FEAT-028-conversation-replay/ui-design.md#scr-app-030--coach-extended"
+        "amended_by": [
+          "features/FEAT-028-conversation-replay/ui-design.md#scr-app-030--coach-extended",
+          "features/FEAT-018-correction-queue/ui-design.md#scr-app-030--coach-extended"
+        ]
       },
       "states": {
         "covered": [

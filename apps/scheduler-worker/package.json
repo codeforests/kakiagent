@@ -16,6 +16,7 @@
     "@kaki/db": "workspace:*",
     "@kaki/governance": "workspace:*",
     "@kaki/identity": "workspace:*",
+    "@kaki/kb": "workspace:*",
     "@kaki/platform": "workspace:*",
     "zod": "4.6.7"
   },

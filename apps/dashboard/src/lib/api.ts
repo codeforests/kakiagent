@@ -6,6 +6,15 @@ import {
   CoachTurnResponse,
   CorrectionConfirmResponse,
   CorrectionResponse,
+  CorrectionAcceptResponse,
+  CorrectionDetail,
+  CorrectionItemResponse,
+  CorrectionList,
+  CorrectionReplayNextResponse,
+  ReviewIntervalsResponse,
+  type CorrectionEdit,
+  type CorrectionListQuery,
+  type ReviewIntervals,
   type CoachOrigin,
   type CoachTurnRequest,
   ReplayCandidateList,
@@ -250,6 +259,35 @@ export const api = {
     getJson(`/api/v1/coach/replays/${encodeURIComponent(id)}`, ReplayResponse),
   replayNext: (id: string) =>
     request('POST', `/api/v1/coach/replays/${encodeURIComponent(id)}/next`, ReplayNextResponse, {}),
+  /** FEAT-018 §3: SCR-APP-021, SCR-APP-022. */
+  corrections: (q: Partial<CorrectionListQuery>) =>
+    getJson(`/api/v1/corrections${query(q)}`, CorrectionList),
+  correction: (id: string) =>
+    getJson(`/api/v1/corrections/${encodeURIComponent(id)}`, CorrectionDetail),
+  acceptCorrection: (id: string, edit: CorrectionEdit | null) =>
+    request(
+      'POST',
+      `/api/v1/corrections/${encodeURIComponent(id)}/accept`,
+      CorrectionAcceptResponse,
+      { edit },
+    ),
+  closeCorrection: (id: string) =>
+    request(
+      'POST',
+      `/api/v1/corrections/${encodeURIComponent(id)}/close`,
+      CorrectionItemResponse,
+      {},
+    ),
+  correctionReplayNext: (id: string) =>
+    request(
+      'POST',
+      `/api/v1/corrections/${encodeURIComponent(id)}/replay/next`,
+      CorrectionReplayNextResponse,
+      {},
+    ),
+  reviewIntervals: () => getJson('/api/v1/kb/review-intervals', ReviewIntervalsResponse),
+  saveReviewIntervals: (intervals: ReviewIntervals) =>
+    request('PUT', '/api/v1/kb/review-intervals', ReviewIntervalsResponse, { intervals }),
 };
 
 /** The PUT to storage failed: the network, or storage refused it. */

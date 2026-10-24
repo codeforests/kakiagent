@@ -165,6 +165,8 @@ export function diffRows(change: ProposedChange): DiffRow[] {
         was: change.before[d] ? hoursLabel(d, change.before[d]!) : null,
         now: hoursLabel(d, change.after[d]!),
       }));
+    case 'reconfirm':
+      return [];
   }
 }
 
@@ -172,6 +174,7 @@ export function diffRows(change: ProposedChange): DiffRow[] {
 export function changeSubject(change: ProposedChange): string {
   switch (change.kind) {
     case 'edit_fact':
+    case 'reconfirm':
       return `${TYPE_LABEL[change.factType]} · ${change.label}`;
     case 'add_faq':
       return 'New FAQ';
@@ -182,6 +185,7 @@ export function changeSubject(change: ProposedChange): string {
 
 /** "Changed. Customers get the new price now." */
 export function confirmedLine(change: ProposedChange): string {
+  if (change.kind === 'reconfirm') return 'Confirmed. Customers keep getting this answer.';
   const what =
     change.kind === 'edit_hours'
       ? 'hours'

@@ -52,6 +52,11 @@ export const tenants = pgTable(
     routeMinConfidence: real('route_min_confidence').notNull().default(0.5),
     costGovernorStep: smallint('cost_governor_step').notNull().default(0),
     costGovernorChangedAt: timestamp('cost_governor_changed_at', { withTimezone: true }),
+    /** Months before an approved fact of each type is due for re-confirmation (KB-17, FEAT-018 D6). */
+    factReviewMonths: jsonb('fact_review_months')
+      .$type<{ product: number; faq: number; policy: number; promotion: number }>()
+      .notNull()
+      .default(sql`'{"product":6,"faq":6,"policy":6,"promotion":6}'::jsonb`),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -61,6 +66,10 @@ export const tenants = pgTable(
     ),
     check('tenants_route_min_confidence_ck', sql`${t.routeMinConfidence} between 0 and 1`),
     check('tenants_cost_governor_step_ck', sql`${t.costGovernorStep} between 0 and 3`),
+    check(
+      'tenants_fact_review_months_ck',
+      sql`jsonb_typeof(${t.factReviewMonths} -> 'product') = 'number' and (${t.factReviewMonths} -> 'product')::numeric in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24) and jsonb_typeof(${t.factReviewMonths} -> 'faq') = 'number' and (${t.factReviewMonths} -> 'faq')::numeric in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24) and jsonb_typeof(${t.factReviewMonths} -> 'policy') = 'number' and (${t.factReviewMonths} -> 'policy')::numeric in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24) and jsonb_typeof(${t.factReviewMonths} -> 'promotion') = 'number' and (${t.factReviewMonths} -> 'promotion')::numeric in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24)`,
+    ),
   ],
 );
 
@@ -284,6 +293,8 @@ export const messages = pgTable(
       t.clientMessageId,
     ),
     uniqueIndex('messages_in_reply_to_uq').on(t.tenantId, t.inReplyTo),
+    /** "Past questions that used this fact" (FEAT-018 §5.3). */
+    index('messages_fact_ids_gin').using('gin', t.factIds),
     check(
       'messages_notice_ck',
       sql`(${t.notice} is null) = (${t.noticeKind} is null) and (${t.noticeKind} is null or ${t.noticeKind} in ('after_hours', 'chat_ended'))`,
@@ -966,99 +977,6 @@ export const usageEvents = pgTable(
   ],
 );
 
-export const COACHING_ORIGINS = ['coach', 'setup', 'panel', 'replay'] as const;
-export const COACHING_MESSAGE_KINDS = [
-  'question',
-  'answer',
-  'proposal',
-  'after',
-  'replay',
-] as const;
-
-/**
- * Coaching (AGT-17, ONB-05; FEAT-027 §4): the owner's playground chat with the assistant.
- * Shared by the tenant's Owner and Admins (D8). Dashboard trust zone only, never the
- * visitor role (ADR-009).
- */
-export const coachingSessions = pgTable(
-  'coaching_sessions',
-  {
-    tenantId: uuid('tenant_id')
-      .notNull()
-      .references(() => tenants.id),
-    id: uuid('id').notNull().defaultRandom(),
-    createdBy: uuid('created_by').notNull(),
-    origin: text('origin', { enum: COACHING_ORIGINS }).notNull(),
-    /** The first question, cut to 80 characters. */
-    title: text('title'),
-    /** A replay's conversation (FEAT-028 §4): replays go with their conversation (ADR-015). */
-    replayConversationId: uuid('replay_conversation_id'),
-    /** A replay's include-unreviewed choice, made once (FEAT-028 D6). */
-    includeUnreviewed: boolean('include_unreviewed').notNull().default(false),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [
-    primaryKey({ columns: [t.tenantId, t.id] }),
-    index('coaching_sessions_tenant_updated_idx').on(t.tenantId, t.updatedAt.desc(), t.id.desc()),
-    index('coaching_sessions_tenant_replay_idx').on(
-      t.tenantId,
-      t.replayConversationId,
-      t.createdAt.desc(),
-    ),
-    foreignKey({
-      columns: [t.tenantId, t.replayConversationId],
-      foreignColumns: [conversations.tenantId, conversations.id],
-    }).onDelete('cascade'),
-    check('coaching_sessions_origin_ck', sql`${t.origin} in ('coach', 'setup', 'panel', 'replay')`),
-    check(
-      'coaching_sessions_replay_ck',
-      sql`(${t.origin} = 'replay') = (${t.replayConversationId} is not null)`,
-    ),
-  ],
-);
-
-/** A coaching session's content, masked at the edge (D9). */
-export const coachingMessages = pgTable(
-  'coaching_messages',
-  {
-    tenantId: uuid('tenant_id').notNull(),
-    id: uuid('id').notNull().defaultRandom(),
-    sessionId: uuid('session_id').notNull(),
-    seq: integer('seq').notNull(),
-    author: text('author', { enum: ['owner', 'agent'] }).notNull(),
-    kind: text('kind', { enum: COACHING_MESSAGE_KINDS }).notNull(),
-    body: text('body').notNull(),
-    includeUnreviewed: boolean('include_unreviewed').notNull().default(false),
-    outcome: text('outcome'),
-    factIds: uuid('fact_ids')
-      .array()
-      .notNull()
-      .default(sql`'{}'::uuid[]`),
-    /** The answer's explainer, built in code (D3). */
-    explainer: jsonb('explainer'),
-    correctionId: uuid('correction_id'),
-    /** A replayed answer's original visitor message (FEAT-028 §4); no FK, it goes with its conversation. */
-    replayOf: uuid('replay_of'),
-    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [
-    primaryKey({ columns: [t.tenantId, t.id] }),
-    foreignKey({
-      columns: [t.tenantId, t.sessionId],
-      foreignColumns: [coachingSessions.tenantId, coachingSessions.id],
-    }).onDelete('cascade'),
-    uniqueIndex('coaching_messages_session_seq_uq').on(t.tenantId, t.sessionId, t.seq),
-    uniqueIndex('coaching_messages_session_replay_uq').on(t.tenantId, t.sessionId, t.replayOf),
-    check('coaching_messages_author_ck', sql`${t.author} in ('owner', 'agent')`),
-    check(
-      'coaching_messages_kind_ck',
-      sql`${t.kind} in ('question', 'answer', 'proposal', 'after', 'replay')`,
-    ),
-    check('coaching_messages_replay_ck', sql`(${t.kind} = 'replay') = (${t.replayOf} is not null)`),
-  ],
-);
-
 export const CORRECTION_SOURCES = [
   'thumbs_down',
   'staff_reply',
@@ -1097,6 +1015,8 @@ export const corrections = pgTable(
       .notNull()
       .default(sql`'{}'::uuid[]`),
     proposedChange: jsonb('proposed_change').notNull(),
+    /** What was accepted when the owner edited the fix (FEAT-018 D7); the proposal stays as proposed. */
+    acceptedChange: jsonb('accepted_change'),
     status: text('status', { enum: CORRECTION_STATUSES }).notNull().default('open'),
     createdBy: uuid('created_by'),
     decidedBy: uuid('decided_by'),
@@ -1107,6 +1027,15 @@ export const corrections = pgTable(
   (t) => [
     primaryKey({ columns: [t.tenantId, t.id] }),
     index('corrections_tenant_status_created_idx').on(t.tenantId, t.status, t.createdAt.desc()),
+    index('corrections_tenant_status_decided_idx').on(t.tenantId, t.status, t.decidedAt.desc()),
+    /** One open stale item per fact (ADR-010 "de-duplicated by fact"). */
+    uniqueIndex('corrections_open_stale_uq')
+      .on(t.tenantId, sql`(${t.factRefs}[1])`)
+      .where(sql`${t.sourceType} = 'stale' and ${t.status} = 'open'`),
+    check(
+      'corrections_accepted_change_ck',
+      sql`(${t.status} = 'edited_and_accepted') = (${t.acceptedChange} is not null)`,
+    ),
     check(
       'corrections_source_ck',
       sql`${t.sourceType} in ('thumbs_down', 'staff_reply', 'staff_edit', 'coaching', 'oversight', 'stale', 'coverage_gap')`,
@@ -1120,6 +1049,130 @@ export const corrections = pgTable(
     check(
       'corrections_coaching_ck',
       sql`${t.sourceType} <> 'coaching' or ${t.coachingSessionId} is not null`,
+    ),
+  ],
+);
+
+export const COACHING_ORIGINS = ['coach', 'setup', 'panel', 'replay', 'correction'] as const;
+export const COACHING_MESSAGE_KINDS = [
+  'question',
+  'answer',
+  'proposal',
+  'after',
+  'replay',
+] as const;
+
+/**
+ * Coaching (AGT-17, ONB-05; FEAT-027 §4): the owner's playground chat with the assistant.
+ * Shared by the tenant's Owner and Admins (D8). Dashboard trust zone only, never the
+ * visitor role (ADR-009).
+ */
+export const coachingSessions = pgTable(
+  'coaching_sessions',
+  {
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id),
+    id: uuid('id').notNull().defaultRandom(),
+    createdBy: uuid('created_by').notNull(),
+    origin: text('origin', { enum: COACHING_ORIGINS }).notNull(),
+    /** The first question, cut to 80 characters. */
+    title: text('title'),
+    /** A replay's conversation (FEAT-028 §4): replays go with their conversation (ADR-015). */
+    replayConversationId: uuid('replay_conversation_id'),
+    /** A replay's include-unreviewed choice, made once (FEAT-028 D6). */
+    includeUnreviewed: boolean('include_unreviewed').notNull().default(false),
+    /** A correction replay's correction (FEAT-018 §4): one replay per accepted correction. */
+    correctionId: uuid('correction_id'),
+    /** The visitor messages a correction replay re-answers, chosen at acceptance, newest first (D4). */
+    replayQuestionIds: uuid('replay_question_ids')
+      .array()
+      .notNull()
+      .default(sql`'{}'::uuid[]`),
+    /** All past questions that used the corrected facts, of which at most 20 replay. */
+    replayMatched: integer('replay_matched'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.id] }),
+    index('coaching_sessions_tenant_updated_idx').on(t.tenantId, t.updatedAt.desc(), t.id.desc()),
+    index('coaching_sessions_tenant_replay_idx').on(
+      t.tenantId,
+      t.replayConversationId,
+      t.createdAt.desc(),
+    ),
+    foreignKey({
+      columns: [t.tenantId, t.replayConversationId],
+      foreignColumns: [conversations.tenantId, conversations.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [t.tenantId, t.correctionId],
+      foreignColumns: [corrections.tenantId, corrections.id],
+    }),
+    uniqueIndex('coaching_sessions_correction_uq').on(t.tenantId, t.correctionId),
+    check(
+      'coaching_sessions_origin_ck',
+      sql`${t.origin} in ('coach', 'setup', 'panel', 'replay', 'correction')`,
+    ),
+    check(
+      'coaching_sessions_correction_ck',
+      sql`(${t.origin} = 'correction') = (${t.correctionId} is not null)`,
+    ),
+    check(
+      'coaching_sessions_replay_ck',
+      sql`(${t.origin} = 'replay') = (${t.replayConversationId} is not null)`,
+    ),
+  ],
+);
+
+/** A coaching session's content, masked at the edge (D9). */
+export const coachingMessages = pgTable(
+  'coaching_messages',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    id: uuid('id').notNull().defaultRandom(),
+    sessionId: uuid('session_id').notNull(),
+    seq: integer('seq').notNull(),
+    author: text('author', { enum: ['owner', 'agent'] }).notNull(),
+    kind: text('kind', { enum: COACHING_MESSAGE_KINDS }).notNull(),
+    body: text('body').notNull(),
+    includeUnreviewed: boolean('include_unreviewed').notNull().default(false),
+    outcome: text('outcome'),
+    factIds: uuid('fact_ids')
+      .array()
+      .notNull()
+      .default(sql`'{}'::uuid[]`),
+    /** The answer's explainer, built in code (D3). */
+    explainer: jsonb('explainer'),
+    correctionId: uuid('correction_id'),
+    /** A replayed answer's original visitor message (FEAT-028 §4); no FK, it goes with its conversation. */
+    replayOf: uuid('replay_of'),
+    /** The replayed question's conversation: each answer goes with it (FEAT-018 D9, ADR-015). */
+    replayConversationId: uuid('replay_conversation_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.id] }),
+    foreignKey({
+      columns: [t.tenantId, t.sessionId],
+      foreignColumns: [coachingSessions.tenantId, coachingSessions.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [t.tenantId, t.replayConversationId],
+      foreignColumns: [conversations.tenantId, conversations.id],
+    }).onDelete('cascade'),
+    uniqueIndex('coaching_messages_session_seq_uq').on(t.tenantId, t.sessionId, t.seq),
+    uniqueIndex('coaching_messages_session_replay_uq').on(t.tenantId, t.sessionId, t.replayOf),
+    check('coaching_messages_author_ck', sql`${t.author} in ('owner', 'agent')`),
+    check(
+      'coaching_messages_kind_ck',
+      sql`${t.kind} in ('question', 'answer', 'proposal', 'after', 'replay')`,
+    ),
+    check('coaching_messages_replay_ck', sql`(${t.kind} = 'replay') = (${t.replayOf} is not null)`),
+    check(
+      'coaching_messages_replay_conversation_ck',
+      sql`(${t.kind} = 'replay') = (${t.replayConversationId} is not null)`,
     ),
   ],
 );

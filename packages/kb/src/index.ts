@@ -30,6 +30,7 @@ export {
   CorrectionNotFoundError,
   CorrectionStaleError,
   InvalidCorrectionError,
+  NotEditableError,
   EmbeddingUnavailableError,
   FactNotFoundError,
   FileLimitError,
@@ -235,15 +236,27 @@ export {
 } from './sheets.js';
 export { searchCoachingFacts, type CoachingFact } from './coaching.js';
 export {
+  acceptCorrection,
   attachCorrectionMessage,
   confirmCorrection,
   contentOf,
+  correctionCounts,
   correctionFactInput,
+  correctionFacts,
+  CORRECTIONS_PAGE,
   dismissCorrection,
+  editedChange,
+  effectiveChange,
   factLabel,
   getCorrection,
+  listCorrections,
   proposeCorrection,
+  reconfirmFact,
   type ApplyHours,
+  type CorrectionEdit,
+  type CorrectionFactView,
+  type CorrectionOrigin,
+  type CorrectionSource,
   type CorrectionRecord,
   type CorrectionStatus,
   type FactContent,
@@ -251,3 +264,4 @@ export {
   type ProposalInput,
   type ProposedChange,
 } from './corrections.js';
+export { runStaleScan, type StaleScanRow } from './stale.js';

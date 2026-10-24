@@ -13,6 +13,7 @@ import {
 } from '@kaki/platform';
 import { createDispatcher } from '@kaki/platform/outbox';
 import { z } from 'zod';
+import { staleScanOnce } from './stale-scan.js';
 
 const config = loadConfig(
   envSchemas.base
@@ -50,6 +51,12 @@ const config = loadConfig(
         .int()
         .positive()
         .default(DEFAULT_GOVERNOR.minConversations),
+      /** The stale-fact scan (KB-17, FEAT-018 §5.5): daily, first run at start-up. */
+      STALE_SCAN_INTERVAL_MS: z.coerce
+        .number()
+        .int()
+        .positive()
+        .default(24 * 60 * 60_000),
     }),
 );
 const stopTelemetry = startTelemetry('scheduler-worker', config.OTEL_EXPORTER_OTLP_ENDPOINT);
@@ -136,12 +143,21 @@ async function governOnce() {
 const governorRun = governOnce();
 const governorTimer = setInterval(() => void governOnce(), config.COST_GOVERNOR_INTERVAL_MS);
 
+// The stale-fact scan (FEAT-018 §5.5): flags approved facts past their review interval
+// as corrections and closes items whose fact moved on.
+const staleRun = staleScanOnce(outboxDb, logger);
+const staleTimer = setInterval(
+  () => void staleScanOnce(outboxDb, logger),
+  config.STALE_SCAN_INTERVAL_MS,
+);
+
 async function shutdown() {
   abort.abort();
   clearInterval(anchorTimer);
   clearInterval(linkTimer);
   clearInterval(governorTimer);
-  await Promise.all([running.catch(() => {}), anchorRun, sweeping, governorRun]);
+  clearInterval(staleTimer);
+  await Promise.all([running.catch(() => {}), anchorRun, sweeping, governorRun, staleRun]);
   health.close();
   await mailer.close();
   await Promise.all([outboxDb.pool.end(), identityDb.pool.end()]);

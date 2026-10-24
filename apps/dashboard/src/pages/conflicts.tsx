@@ -454,6 +454,7 @@ export function ConflictsPage() {
       <ReviewTabs
         count={summary.data && summary.data.needsReview + summary.data.conflicted}
         conflicts={summary.data?.conflicts}
+        corrections={summary.data?.openCorrections}
       />
       <div className="review-queue">
         {forbidden && (

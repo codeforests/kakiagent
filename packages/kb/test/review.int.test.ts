@@ -410,6 +410,8 @@ describe('the queue (KB-16; AC-2)', () => {
       ],
       approvedInUse: 1,
       sourcesBusy: 1,
+      openCorrections: 0,
+      overdueFacts: 0,
     });
   });
 });
