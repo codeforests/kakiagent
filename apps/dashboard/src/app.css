@@ -2292,6 +2292,10 @@ a.settings-row:hover {
 }
 .answer-explainer__toggle {
   align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  /* WCAG 2.2 target size: at least 24 px tall. */
+  min-height: calc(var(--space-6) + var(--space-2));
   padding: 0;
   border: 0;
   background: none;
@@ -2329,7 +2333,7 @@ a.settings-row:hover {
   align-items: center;
   gap: var(--space-1);
   padding: 0 var(--space-3);
-  min-height: calc(var(--space-5) + var(--space-2));
+  min-height: calc(var(--space-6) + var(--space-2));
   border: 1px solid var(--color-accent-default);
   border-radius: var(--radius-full);
   color: var(--color-text-primary);
