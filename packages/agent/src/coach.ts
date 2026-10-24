@@ -47,7 +47,7 @@ import { replyLanguage } from './language.js';
 import { routeSignals, triage, type TurnPlan } from './plan.js';
 import { HISTORY_LIMIT, type HistoryMessage } from './prompt.js';
 import { candidatesOf, proposeChange } from './propose.js';
-import { textsFor } from './texts.js';
+import { textsFor, type SafetyKey } from './texts.js';
 
 /**
  * Coaching (AGT-17, ONB-05; FEAT-027 §5.2, ADR-026): the owner's playground turn, run
@@ -58,7 +58,7 @@ import { textsFor } from './texts.js';
  */
 
 export type CoachOutcome =
-  'answered' | 'escalated' | 'out_of_scope' | 'unsure' | 'refused' | 'unavailable';
+  'answered' | 'escalated' | 'out_of_scope' | 'unsure' | 'refused' | 'unavailable' | 'ended';
 export type ReasonCode =
   | 'matched_facts'
   | 'no_matching_fact'
@@ -72,7 +72,8 @@ export type ReasonCode =
   | 'segment_blocked'
   | 'escalated'
   | 'hours_slot'
-  | 'unreviewed_used';
+  | 'unreviewed_used'
+  | SafetyKey;
 export type VisitorsWouldGet = 'same' | 'without_unreviewed' | 'fallback_paused' | 'not_live';
 
 export interface ExplainedFact {
@@ -147,9 +148,13 @@ const REPLY_REASONS: Record<ReplyKey, ReasonCode> = {
   impersonation: 'impersonation',
 };
 
-/** D3: why the answer is what it is, from what the pipeline actually did. */
+/**
+ * D3: why the answer is what it is, from what the pipeline actually did. A replay's
+ * safety task that ended the turn (FEAT-028) gives outcome `ended` and its reason.
+ */
 export function explain(input: {
   plan: TurnPlan | null;
+  safety?: SafetyKey;
   facts: CoachingFact[];
   answer: AnswerResult | null;
   outcome: CoachOutcome;
@@ -183,10 +188,11 @@ export function explain(input: {
   if (input.answer?.slots.some((s) => s.startsWith('hours') || s === 'next_open'))
     reasons.add('hours_slot');
   if (unreviewedUsed) reasons.add('unreviewed_used');
+  if (input.safety) reasons.add(input.safety);
   const route =
     input.route === 'reply.simple' || input.route === 'reply.complex' ? input.route : null;
   return {
-    outcome: input.outcome,
+    outcome: input.safety ? 'ended' : input.outcome,
     facts,
     usedFactIds: [...used],
     reasons: [...reasons],
@@ -241,16 +247,19 @@ interface Answered {
   plan: TurnPlan | null;
 }
 
-/** Step 4 of the turn: dispatch, then the verified answer on the coaching facts. */
-async function answerStep(
+/**
+ * Step 4 of the turn: the verified answer on the coaching facts, given what the
+ * dispatcher did with the plan (coaching's registry, or a replay's stubbed one).
+ */
+export async function answerStep(
   deps: CoachDeps,
-  input: CoachTurnInput,
-  prep: Prep,
+  input: Pick<CoachTurnInput, 'tenantId' | 'sessionId'>,
+  prep: Pick<Prep, 'tenant' | 'hours'>,
   text: string,
   history: HistoryMessage[],
   plan: TurnPlan | null,
   facts: CoachingFact[] | null,
-  ctx: DispatchContext,
+  dispatch: { replies: ReplyKey[] } | null,
 ): Promise<Answered> {
   const { tenant } = prep;
   const persona = tenant.persona;
@@ -260,7 +269,7 @@ async function answerStep(
     aiPaused: tenant.aiPaused,
     channelLive,
   };
-  if (!plan || !facts) {
+  if (!plan || !facts || !dispatch) {
     const t = textsFor(replyLanguage(null, text), persona);
     return {
       body: t.fallback,
@@ -279,7 +288,6 @@ async function answerStep(
     };
   }
   const language = replyLanguage(plan, text);
-  const dispatch = await dispatchPlan(coachingRegistry, plan, ctx);
   let route: LogicalModel | null = routeReply(routeSignals(plan, false), tenant.routePolicy);
   const answer = await answerTurn(
     {
@@ -499,7 +507,10 @@ export async function runCoachingTurn(
         channelLive: deps.channelLive ? await deps.channelLive() : true,
       }),
     };
-  } else answer = await answerStep(deps, input, prep, text, history, p, facts, ctx);
+  } else {
+    const dispatch = p && facts ? await dispatchPlan(coachingRegistry, p, ctx) : null;
+    answer = await answerStep(deps, input, prep, text, history, p, facts, dispatch);
+  }
 
   const unreviewedUsed = answer.explainer.reasons.includes('unreviewed_used');
   return withTenant(deps.zdb, input.tenantId, async (tx) => {
@@ -603,7 +614,18 @@ export async function reanswer(
   // A re-asked question is answered, never treated as a correction.
   const answerPlan = p ? { ...p, tasks: p.tasks.filter((t) => t.kind !== 'correct') } : null;
   if (answerPlan && !answerPlan.tasks.length) answerPlan.tasks = [{ kind: 'answer', args: {} }];
-  const answer = await answerStep(deps, turn, prep, turn.text, history, answerPlan, facts, ctx);
+  const dispatch =
+    answerPlan && facts ? await dispatchPlan(coachingRegistry, answerPlan, ctx) : null;
+  const answer = await answerStep(
+    deps,
+    turn,
+    prep,
+    turn.text,
+    history,
+    answerPlan,
+    facts,
+    dispatch,
+  );
   const after = await withTenant(deps.zdb, tenantId, async (tx) => {
     const [row] = await appendMessages(tx, {
       tenantId,
