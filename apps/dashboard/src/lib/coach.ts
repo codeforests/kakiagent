@@ -214,8 +214,13 @@ export const PANEL_MIN_WIDTH = 768;
 
 /** Where "Ask Coach" goes on a narrow screen: `/coach?ask=…` (and `&unreviewed=1`). */
 export function coachAskHref(f: Pick<Fact, 'type' | 'value' | 'status'>): string {
-  const q = new URLSearchParams({ ask: prefillFor(f) });
-  if (f.status === 'needs_review') q.set('unreviewed', '1');
+  return askHref(prefillFor(f), f.status === 'needs_review');
+}
+
+/** `/coach?ask=…` for any question (Replay's "Teach a fix", FEAT-028). */
+export function askHref(question: string, unreviewed: boolean): string {
+  const q = new URLSearchParams({ ask: question });
+  if (unreviewed) q.set('unreviewed', '1');
   return `/coach?${q.toString()}`;
 }
 

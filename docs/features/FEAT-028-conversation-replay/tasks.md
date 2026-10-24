@@ -15,9 +15,10 @@
       Done when: api integration tests pass for every designed success and error, including tenant B's 404s and empty candidates, staff 403, 409 `replay_complete`, 404 `conversation_gone`, the 429, and one `…/next` under 8 s on the fake provider.
 ## Build session 2 (UI)
 
-- [ ] T6 — Dashboard: `lib/replay.ts` (client, helpers), `pages/replay.tsx` (picker with dialog; comparison with progress, pause/continue, `answer-compare` rows, effects, "Teach a fix" → quick panel), routes, the Coach page-head link (ui-design SCR-APP-031)
+- [x] T6 — Dashboard: `lib/replay.ts` (client, helpers), `pages/replay.tsx` (picker with dialog; comparison with progress, pause/continue, `answer-compare` rows, effects, "Teach a fix" → quick panel), routes, the Coach page-head link (ui-design SCR-APP-031)
       Done when: dashboard typecheck and unit tests pass (`lib/replay.test.ts`: progress text, "first 20 of N", effect sentences, the drive loop stops on error and on pause).
       Note: no local stack in cloud sessions; renders are checked by T7's E2E in CI.
+      Done 2026-10-24: dashboard typecheck green, `lib/replay.test.ts` 12 cases green. The quick panel is generalised as `CoachPanelButton` ("Ask Coach" wraps it). Deviation: the Coach page head keeps the "Replay a conversation" link at every width (the header wraps) instead of a below-768 overflow menu, which no component provides yet.
 - [ ] T7 — E2E: `e2e/tests/replay.e2e.ts`: a widget conversation asks a price → the owner changes the fact → replays the conversation → the "now" column shows the new price with "Uses different facts", the original column the old; axe on picking and comparison (design §6; AC-3, AC-10)
       Done when: the spec passes in CI's E2E job.
       Note: E2E runs only in CI (STATE.md); written and typechecked here, pending CI.

@@ -19,6 +19,35 @@ export function AskCoachButton({
   fact: Pick<Fact, 'type' | 'value' | 'status'>;
   onConfirmed?: (c: Correction) => void;
 }) {
+  return (
+    <CoachPanelButton
+      label="Ask Coach"
+      prefill={prefillFor(fact)}
+      unreviewed={fact.status === 'needs_review'}
+      narrowHref={coachAskHref(fact)}
+      onConfirmed={onConfirmed}
+    />
+  );
+}
+
+/**
+ * The same panel opened with any question prefilled: Replay's "Teach a fix" (FEAT-028
+ * ui-design) prefills the customer's question.
+ */
+export function CoachPanelButton({
+  label,
+  prefill,
+  unreviewed,
+  narrowHref,
+  onConfirmed,
+}: {
+  label: string;
+  prefill: string;
+  unreviewed: boolean;
+  /** Where the button goes below 768 px: `/coach?ask=…`. */
+  narrowHref: string;
+  onConfirmed?: (c: Correction) => void;
+}) {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -26,7 +55,7 @@ export function AskCoachButton({
   const botName = useBotName();
 
   const start = () => {
-    if (!opensPanel(window.innerWidth)) return void navigate(coachAskHref(fact));
+    if (!opensPanel(window.innerWidth)) return void navigate(narrowHref);
     setSessionId(null);
     setRound((n) => n + 1);
     setOpen(true);
@@ -38,7 +67,7 @@ export function AskCoachButton({
         <span className="kaki-btn__icon" aria-hidden="true">
           <Icon name="coach" size={16} />
         </span>
-        Ask Coach
+        {label}
       </Button>
       <SlideOver
         open={open}
@@ -46,9 +75,7 @@ export function AskCoachButton({
         title="Coach"
         closeLabel="Close coach"
         actions={
-          <Link to={sessionId ? `/coach?session=${sessionId}` : coachAskHref(fact)}>
-            Open in Coach
-          </Link>
+          <Link to={sessionId ? `/coach?session=${sessionId}` : narrowHref}>Open in Coach</Link>
         }
       >
         {open && (
@@ -58,8 +85,8 @@ export function AskCoachButton({
             sessionId={sessionId}
             onSession={setSessionId}
             botName={botName}
-            initialText={prefillFor(fact)}
-            initialUnreviewed={fact.status === 'needs_review'}
+            initialText={prefill}
+            initialUnreviewed={unreviewed}
             onConfirmed={onConfirmed}
             autoFocus
           />
