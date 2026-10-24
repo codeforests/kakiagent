@@ -93,15 +93,16 @@ export type DriveResult =
 /**
  * Drives the replay one `…/next` at a time (D1) until nothing is left, the owner pauses
  * (`shouldStop`, checked before each call; the call in flight still lands) or a call fails.
- * 409 `replay_complete` means another tab finished it, so it counts as done.
+ * 409 `replay_complete` means another tab finished it, so it counts as done. SCR-APP-022's
+ * correction replay (FEAT-018) drives its own `…/replay/next` the same way.
  */
-export async function driveReplay(
-  next: () => Promise<ReplayNextResponse>,
-  onTurn: (res: ReplayNextResponse) => void,
+export async function driveReplay<R extends { remaining: number } = ReplayNextResponse>(
+  next: () => Promise<R>,
+  onTurn: (res: R) => void,
   shouldStop: () => boolean,
 ): Promise<DriveResult> {
   while (!shouldStop()) {
-    let res: ReplayNextResponse;
+    let res: R;
     try {
       res = await next();
     } catch (err) {

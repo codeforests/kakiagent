@@ -18,9 +18,10 @@
 
 ## Build session 2 (UI)
 
-- [ ] T7 — Dashboard: shared `pages/answer-compare.tsx` (moved from `replay.tsx`, FEAT-028 unchanged), `lib/corrections.ts`, `pages/corrections.tsx` (SCR-APP-021 with filters, closed view, review-intervals dialog), `pages/correction.tsx` (SCR-APP-022: open, stale, editing, applying, applied with replay drive loop, closed), Corrections tab and count in `ReviewTabs`, Review nav count, coach confirm card link (ui-design SCR-APP-021, SCR-APP-022)
+- [x] T7 — Dashboard: shared `pages/answer-compare.tsx` (moved from `replay.tsx`, FEAT-028 unchanged), `lib/corrections.ts`, `pages/corrections.tsx` (SCR-APP-021 with filters, closed view, review-intervals dialog), `pages/correction.tsx` (SCR-APP-022: open, stale, editing, applying, applied with replay drive loop, closed), Corrections tab and count in `ReviewTabs`, Review nav count, coach confirm card link (ui-design SCR-APP-021, SCR-APP-022)
       Done when: dashboard typecheck and unit tests pass (`lib/corrections.test.ts`: origin labels, diff rows for each change kind, effective change, "{k} of {n}" copy, the drive loop stops on error and pause); `lib/replay.test.ts` still passes.
       Note: no local stack in cloud sessions; renders are checked by T8's E2E in CI.
+      Done: dashboard typecheck, ESLint and 39 unit tests green (19 new in `lib/corrections.test.ts`). `driveReplay` is now generic over the next-response type. The Review nav pill reads "items to review" (it now counts open corrections, AC-10), so `review.e2e.ts` matches that text. The closed banner shows the decision and time, not the decider's name (the contract carries no name).
 - [ ] T8 — E2E: `e2e/tests/corrections.e2e.ts`: a widget visitor asks a price → the owner teaches a new price in Coach without confirming → Review › Corrections lists it → the owner edits the fix and accepts → the comparison shows the old price under "What the customer got" and the new one under "What your assistant says now"; a stale item (the spec moves the fact's `last_confirmed_at` back and runs `kb_stale_scan()` over a superuser connection, as other specs seed state) re-confirmed in one tap; axe on both screens (design §6; AC-3, AC-6, AC-7, AC-11)
       Done when: the spec passes in CI's E2E job.
       Note: E2E runs only in CI (STATE.md); written and typechecked here, pending CI.

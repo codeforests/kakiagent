@@ -61,7 +61,7 @@ test('the owner reviews crawled facts one by one and with Approve all', async ({
 
   // The Review nav entry shows how many facts wait.
   const nav = page.getByRole('navigation', { name: 'Main' }).first();
-  await expect(nav.getByRole('link', { name: /Review/ })).toContainText(/\d+ facts to review/);
+  await expect(nav.getByRole('link', { name: /Review/ })).toContainText(/\d+ items to review/);
 
   // SCR-APP-019: groups in the KB-16 order, cards with passages.
   await nav.getByRole('link', { name: /Review/ }).click();

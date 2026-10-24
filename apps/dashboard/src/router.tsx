@@ -6,7 +6,9 @@ import { Placeholder } from './pages/placeholder.tsx';
 import { CoachPage, SetupTestPage } from './pages/coach.tsx';
 import { ConflictsPage } from './pages/conflicts.tsx';
 import { ReplayPage, ReplayPickPage } from './pages/replay.tsx';
-import { ReviewPage, ReviewPlaceholder, SetupReviewPage } from './pages/review.tsx';
+import { CorrectionPage } from './pages/correction.tsx';
+import { CorrectionsPage } from './pages/corrections.tsx';
+import { ReviewPage, SetupReviewPage } from './pages/review.tsx';
 import { SourcePage } from './pages/source.tsx';
 import { SourcesPage } from './pages/sources.tsx';
 import { FactPage } from './pages/fact.tsx';
@@ -48,13 +50,11 @@ export const router = createBrowserRouter([
       { path: 'setup/review', element: <SetupReviewPage /> },
       // Its "test your assistant" step (FEAT-027, SCR-APP-010 partial).
       { path: 'setup/test', element: <SetupTestPage /> },
-      // Review → Facts (FEAT-013), Conflicts (FEAT-014); Corrections follow (FEAT-018).
+      // Review → Facts (FEAT-013), Conflicts (FEAT-014), Corrections (FEAT-018).
       { path: 'review', element: <ReviewPage /> },
       { path: 'review/conflicts', element: <ConflictsPage /> },
-      {
-        path: 'review/corrections',
-        element: <ReviewPlaceholder title="Corrections" feature="FEAT-018" />,
-      },
+      { path: 'review/corrections', element: <CorrectionsPage /> },
+      { path: 'review/corrections/:id', element: <CorrectionPage /> },
       // Knowledge → Facts (FEAT-022, FEAT-011) and Sources (FEAT-012).
       { path: 'knowledge', element: <FactsPage /> },
       { path: 'knowledge/sources', element: <SourcesPage /> },

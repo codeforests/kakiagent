@@ -12,8 +12,8 @@ export interface NavCountValue {
 
 /**
  * The count pills on nav entries, for roles that manage knowledge: failed sources on
- * Knowledge (KB-12 in-app alert; FEAT-012 ui-design) and facts waiting on Review,
- * conflicted ones included (FEAT-013, FEAT-014 ui-design).
+ * Knowledge (KB-12 in-app alert; FEAT-012 ui-design) and items waiting on Review:
+ * facts, conflicted ones included, and open corrections (FEAT-013, 014, 018 ui-design).
  */
 export function useNavCounts(): Partial<Record<string, NavCountValue>> {
   const me = useQuery({ queryKey: ['me'], queryFn: api.me });
@@ -23,8 +23,11 @@ export function useNavCounts(): Partial<Record<string, NavCountValue>> {
   return {
     '/knowledge': { count: failedCount(sources.data?.sources), label: 'failed', tone: 'danger' },
     '/review': {
-      count: (review.data?.needsReview ?? 0) + (review.data?.conflicted ?? 0),
-      label: 'facts to review',
+      count:
+        (review.data?.needsReview ?? 0) +
+        (review.data?.conflicted ?? 0) +
+        (review.data?.openCorrections ?? 0),
+      label: 'items to review',
       tone: 'warning',
     },
   };

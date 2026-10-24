@@ -128,7 +128,8 @@ const normPrice = (p: string) => {
   return `${Number(d)}.${c.padEnd(2, '0')}`;
 };
 
-function valueOf(d: Draft) {
+/** The draft's value as stored (also a correction edit's `after.value`, FEAT-018). */
+export function valueOf(d: Draft) {
   switch (d.type) {
     case 'product':
       return { name: d.name.trim(), price: normPrice(d.price), unit: d.unit.trim() || undefined };
@@ -145,7 +146,8 @@ function valueOf(d: Draft) {
   }
 }
 
-const hasPrice = (d: Draft) => d.type === 'product' || (d.type === 'promotion' && !!d.price.trim());
+export const hasPrice = (d: Draft) =>
+  d.type === 'product' || (d.type === 'promotion' && !!d.price.trim());
 
 export function createBody(d: Draft): CreateFactBody {
   const gstTreatment = d.gst as 'inclusive' | 'exclusive';
