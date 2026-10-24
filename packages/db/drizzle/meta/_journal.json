@@ -211,6 +211,13 @@
       "when": 1792827586474,
       "tag": "0029_corrections_queue",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1792846756503,
+      "tag": "0030_coverage",
+      "breakpoints": true
     }
   ]
 }

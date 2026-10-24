@@ -2000,3 +2000,101 @@ describe('corrections queue (FEAT-018)', () => {
     expect(login.rows).toEqual([{ rolcanlogin: false }]);
   });
 });
+
+// ---- FEAT-019: coverage gaps and skipped topics (FEAT-019 §4; AC-1, AC-8) --------------
+
+describe('coverage gaps (FEAT-019)', () => {
+  const vec = `[${[1, ...new Array<number>(1023).fill(0)].join(',')}]`;
+  const ids: Record<string, { message: string; item: string }> = {};
+
+  beforeAll(async () => {
+    for (const t of [TENANT_A, TENANT_B]) {
+      const conv = await owner.query(
+        `insert into conversations (tenant_id, channel, visitor_id) values ($1, 'widget', gen_random_uuid()) returning id`,
+        [t],
+      );
+      const item = await owner.query(
+        `insert into corrections (tenant_id, source_type, proposed_by, conversation_ref, proposed_change)
+         values ($1, 'coverage_gap', 'system', $2, '{"kind":"answer_gap"}') returning id`,
+        [t, conv.rows[0].id],
+      );
+      const m = await owner.query(
+        `insert into messages (tenant_id, conversation_id, author, body, gap_reason, gap_embedding, gap_correction_id)
+         values ($1, $2, 'visitor', $3, 'unsure', $4, $5) returning id`,
+        [t, conv.rows[0].id, `gap of ${t}`, vec, item.rows[0].id],
+      );
+      ids[t] = { message: m.rows[0].id, item: item.rows[0].id };
+    }
+  });
+
+  it("tenant B can't read tenant A's gap messages or coverage_gap items", async () => {
+    await asRole('app_dashboard', TENANT_B, async (c) => {
+      const gaps = await c.query(`select id from messages where gap_reason is not null`);
+      expect(gaps.rows.map((r) => r.id)).toEqual([ids[TENANT_B]!.message]);
+      const items = await c.query(`select id from corrections where source_type = 'coverage_gap'`);
+      expect(items.rows.map((r) => r.id)).toEqual([ids[TENANT_B]!.item]);
+    });
+  });
+
+  it('the visitor role marks only the two gap columns of its own tenant', async () => {
+    await asRole('app_agent_visitor', TENANT_B, async (c) => {
+      const other = await c.query(
+        `update messages set gap_reason = 'unsure', gap_embedding = $2 where id = $1`,
+        [ids[TENANT_A]!.message, vec],
+      );
+      expect(other.rowCount).toBe(0);
+      const own = await c.query(
+        `update messages set gap_reason = 'escalated', gap_embedding = $2 where id = $1`,
+        [ids[TENANT_B]!.message, vec],
+      );
+      expect(own.rowCount).toBe(1);
+    });
+    for (const set of [`gap_correction_id = null`, `body = 'x'`])
+      await expect(
+        asRole('app_agent_visitor', TENANT_B, (c) =>
+          c.query(`update messages set ${set} where id = $1`, [ids[TENANT_B]!.message]),
+        ),
+      ).rejects.toThrow(/permission denied/);
+  });
+
+  it("the dashboard skips topics on its own tenant's profile only", async () => {
+    await asRole('app_dashboard', TENANT_B, async (c) => {
+      const other = await c.query(
+        `update business_profiles set coverage_skipped_topics = '{dine_in}' where tenant_id = $1`,
+        [TENANT_A],
+      );
+      expect(other.rowCount).toBe(0);
+      const own = await c.query(
+        `update business_profiles set coverage_skipped_topics = '{dine_in}' where tenant_id = $1`,
+        [TENANT_B],
+      );
+      expect(own.rowCount).toBe(1);
+    });
+    await expect(
+      owner.query(
+        `update business_profiles set coverage_skipped_topics = array_fill('x'::text, array[101]) where tenant_id = $1`,
+        [TENANT_A],
+      ),
+    ).rejects.toThrow(/business_profiles_coverage_skipped_ck/);
+  });
+
+  it('only the outbox zone may run the gap grouping, and it reads nothing else', async () => {
+    await asRole('app_outbox', null, (c) => c.query(`select * from kb_gap_cluster()`));
+    await expect(
+      asRole('app_outbox', null, (c) => c.query(`select * from messages`)),
+    ).rejects.toThrow(/permission denied/);
+    for (const role of [
+      'app_agent_visitor',
+      'app_dashboard',
+      'app_identity',
+      'app_ingest',
+    ] as const)
+      await expect(
+        asRole(role, TENANT_A, (c) => c.query(`select * from kb_gap_cluster()`)),
+      ).rejects.toThrow(/permission denied/);
+    const login = await owner.query(
+      `select rolcanlogin from pg_roles where rolname = 'kaki_gap_cluster'`,
+    );
+    expect(login.rows).toEqual([{ rolcanlogin: false }]);
+  });
+});

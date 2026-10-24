@@ -104,10 +104,19 @@ export const businessProfiles = pgTable(
       .array()
       .notNull()
       .default(sql`'{en}'::text[]`),
+    /** Template topic IDs the owner marked "Doesn't apply" on Coverage (FEAT-019 D8). */
+    coverageSkippedTopics: text('coverage_skipped_topics')
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
+    check(
+      'business_profiles_coverage_skipped_ck',
+      sql`cardinality(${t.coverageSkippedTopics}) <= 100`,
+    ),
     check(
       'business_profiles_hours_ck',
       sql`${t.hours} is null or jsonb_typeof(${t.hours}) = 'object'`,
@@ -210,6 +219,10 @@ export const assistantSettings = pgTable(
 
 /** System notice kinds on a message (FEAT-023 §4); later kinds extend `messages_notice_ck`. */
 export const NOTICE_KINDS = ['after_hours', 'chat_ended'] as const;
+/** Embedding dimensions: Cohere Embed Multilingual v3 (ADR-019). */
+export const EMBEDDING_DIMENSIONS = 1024;
+/** Turn outcomes that make a visitor question a coverage gap (FEAT-019 D2). */
+export const GAP_REASONS = ['unavailable', 'unsure', 'escalated'] as const;
 /** Why a conversation is flagged for staff (AGT-13, FEAT-025 §4); the inbox filters on it (FEAT-042). */
 export const FLAG_REASONS = ['abuse', 'crisis'] as const;
 
@@ -278,6 +291,13 @@ export const messages = pgTable(
     /** A system notice shown with the message, server-rendered (AGT-09 after hours, FEAT-023 D6). */
     notice: text('notice'),
     noticeKind: text('notice_kind', { enum: NOTICE_KINDS }),
+    /**
+     * Set on a visitor question the turn couldn't answer (FEAT-019 §4, D2), with the
+     * retrieval vector; the gap-grouping job files it under a `coverage_gap` correction.
+     */
+    gapReason: text('gap_reason', { enum: GAP_REASONS }),
+    gapEmbedding: vector('gap_embedding', { dimensions: EMBEDDING_DIMENSIONS }),
+    gapCorrectionId: uuid('gap_correction_id'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -298,6 +318,22 @@ export const messages = pgTable(
     check(
       'messages_notice_ck',
       sql`(${t.notice} is null) = (${t.noticeKind} is null) and (${t.noticeKind} is null or ${t.noticeKind} in ('after_hours', 'chat_ended'))`,
+    ),
+    foreignKey({
+      columns: [t.tenantId, t.gapCorrectionId],
+      foreignColumns: [corrections.tenantId, corrections.id],
+    }),
+    /** The gap-grouping job's backlog (FEAT-019 §4). */
+    index('messages_gap_backlog_idx')
+      .on(t.tenantId, t.createdAt)
+      .where(sql`${t.gapReason} is not null and ${t.gapCorrectionId} is null`),
+    /** Counts and newest asks per gap item. */
+    index('messages_gap_correction_idx')
+      .on(t.tenantId, t.gapCorrectionId, t.createdAt.desc())
+      .where(sql`${t.gapCorrectionId} is not null`),
+    check(
+      'messages_gap_ck',
+      sql`(${t.gapReason} is null) = (${t.gapEmbedding} is null) and (${t.gapCorrectionId} is null or ${t.gapReason} is not null) and (${t.gapReason} is null or ${t.gapReason} in ('unavailable', 'unsure', 'escalated'))`,
     ),
   ],
 );
@@ -633,9 +669,6 @@ export const factVersions = pgTable(
     foreignKey({ columns: [t.tenantId, t.factId], foreignColumns: [facts.tenantId, facts.id] }),
   ],
 );
-
-/** Embedding dimensions: Cohere Embed Multilingual v3 (ADR-019). */
-export const EMBEDDING_DIMENSIONS = 1024;
 
 /** Searchable chunks (ADR-005). One per fact for now; document chunks arrive with FEAT-012. */
 export const kbChunks = pgTable(
