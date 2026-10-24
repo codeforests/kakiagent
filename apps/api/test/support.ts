@@ -1,8 +1,9 @@
+import { fakeAgentScript } from '@kaki/agent';
 import { sql } from '@kaki/db';
 import type { TestDatabase } from '@kaki/db/testing';
 import { SESSION_COOKIE, startSession, type GoogleSignIn } from '@kaki/identity';
 import type { Resolver } from '@kaki/kb';
-import { gatewayFromConfig } from '@kaki/llm-gateway';
+import { gatewayFromConfig, type LlmGateway } from '@kaki/llm-gateway';
 import {
   createLogger,
   memoryRateLimiter,
@@ -77,6 +78,7 @@ export async function testApp(
     google?: GoogleSignIn | null;
     resolve?: Resolver;
     uploads?: UploadSigner;
+    llm?: LlmGateway;
   } = {},
 ) {
   return buildApp({
@@ -86,7 +88,7 @@ export async function testApp(
     visitorDb: tdb.zone('visitor'),
     identityDb: tdb.zone('identity'),
     publisher: opts.publisher ?? { publish: async () => {}, close: async () => {} },
-    llm: gatewayFromConfig({ provider: 'fake' }),
+    llm: opts.llm ?? gatewayFromConfig({ provider: 'fake', fakeScript: fakeAgentScript }),
     mailer: opts.mailer ?? fakeMailer(),
     rateLimiter: memoryRateLimiter(),
     google: opts.google ?? null,
