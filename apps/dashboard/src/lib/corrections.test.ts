@@ -86,6 +86,7 @@ const item = (over: Partial<CorrectionItem> = {}): CorrectionItem => ({
   createdAt: '2026-10-23T04:00:00.000Z',
   decidedAt: null,
   closedBySystem: false,
+  gap: null,
   ...over,
 });
 

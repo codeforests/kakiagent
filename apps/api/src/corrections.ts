@@ -85,6 +85,7 @@ export function toItem(c: CorrectionRecord, facts: CorrectionFactView[]): Correc
     createdAt: c.createdAt.toISOString(),
     decidedAt: iso(c.decidedAt),
     closedBySystem: c.status === 'dismissed' && c.decidedBy === null,
+    gap: null,
   };
 }
 
@@ -153,7 +154,7 @@ async function contextOf(
         createdAt: m.createdAt.toISOString(),
       }))
     : null;
-  return { coaching, conversation };
+  return { coaching, conversation, gap: null };
 }
 
 /**

@@ -81,6 +81,8 @@ export function fixSummary(change: ProposedChange, now = new Date()): string {
         .join(', ')}`;
     case 'reconfirm':
       return `Re-confirm: ${change.label}, last confirmed ${agoLabel(change.lastConfirmedAt, now)}`;
+    case 'answer_gap':
+      return 'Customers asked something your assistant couldn’t answer';
   }
 }
 
@@ -108,6 +110,7 @@ export const acceptedLine = (change: ProposedChange) =>
 export function noReplayCaption(change: ProposedChange): string | null {
   switch (change.kind) {
     case 'add_faq':
+    case 'answer_gap':
       return "No past answers used this yet, so there's nothing to compare.";
     case 'edit_hours':
       return "Opening-hours answers aren't linked to past chats, so there's nothing to compare.";

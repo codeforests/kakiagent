@@ -1212,6 +1212,11 @@ export const ProposedChange = z.discriminatedUnion('kind', [
     before: WeeklyHoursInput.partial(),
     after: WeeklyHoursInput.partial(),
   }),
+  /**
+   * A group of visitor questions the assistant couldn't answer (KB-09, FEAT-019 D3): no
+   * question text; accepting it needs an `add_faq` edit with the owner's FAQ.
+   */
+  z.object({ kind: z.literal('answer_gap') }),
   /** A stale fact (KB-17, FEAT-018): accepting it re-confirms the fact and changes no value. */
   z.object({
     kind: z.literal('reconfirm'),
@@ -1363,6 +1368,16 @@ export const CorrectionFact = z.object({
   overdue: z.boolean(),
 });
 export type CorrectionFact = z.infer<typeof CorrectionFact>;
+export const GapReason = z.enum(['unavailable', 'unsure', 'escalated']);
+export type GapReason = z.infer<typeof GapReason>;
+export const GapQuestion = z.object({
+  messageId: z.uuid(),
+  conversationId: z.uuid(),
+  body: z.string(),
+  askedAt: z.iso.datetime({ offset: true }),
+  reason: GapReason,
+});
+export type GapQuestion = z.infer<typeof GapQuestion>;
 export const CorrectionItem = z.object({
   id: z.uuid(),
   status: CorrectionStatus,
@@ -1378,12 +1393,23 @@ export const CorrectionItem = z.object({
   decidedAt: z.iso.datetime({ offset: true }).nullable(),
   /** A stale item the scan closed because its fact moved on (D8). */
   closedBySystem: z.boolean(),
+  /** A coverage gap's newest ask (masked) and count, for the list row (FEAT-019). */
+  gap: z.object({ question: z.string(), asksTotal: z.int().min(0) }).nullish(),
 });
 export type CorrectionItem = z.infer<typeof CorrectionItem>;
 export const CorrectionContext = z.object({
   coaching: z.object({ question: z.string().nullable(), proposal: z.string() }).nullable(),
   /** The last 6 messages up to the item's creation, masked. */
   conversation: z.array(OriginalReply.extend({ author: MessageAuthor })).nullable(),
+  /** A coverage gap's counts and newest asked questions, masked (FEAT-019 §3). */
+  gap: z
+    .object({
+      asks30d: z.int().min(0),
+      asksTotal: z.int().min(0),
+      lastAskedAt: z.iso.datetime({ offset: true }).nullable(),
+      questions: z.array(GapQuestion).max(5),
+    })
+    .nullable(),
 });
 export type CorrectionContext = z.infer<typeof CorrectionContext>;
 export const CorrectionEdit = z.discriminatedUnion('kind', [
@@ -1470,6 +1496,61 @@ export const DEFAULT_REVIEW_INTERVALS: ReviewIntervals = {
 };
 export const ReviewIntervalsBody = z.object({ intervals: ReviewIntervals }).strict();
 export const ReviewIntervalsResponse = z.object({ intervals: ReviewIntervals });
+
+// ---- Dashboard API: coverage (KB-09, UC-16 3b; FEAT-019 §3) ----------------------------
+
+export const CoverageTopicState = z.enum(['covered', 'missing', 'skipped']);
+export type CoverageTopicState = z.infer<typeof CoverageTopicState>;
+export const CoverageTopic = z
+  .object({
+    id: z.string(),
+    question: z.string(),
+    hint: z.string(),
+    state: CoverageTopicState,
+    /** The approved fact that answers the topic; null unless covered. */
+    coveredBy: z.object({ factId: z.uuid(), type: FactType, label: z.string() }).nullable(),
+  })
+  .refine((t) => (t.state === 'covered') === (t.coveredBy !== null), {
+    message: 'a covered topic names its fact, and only a covered one',
+    path: ['coveredBy'],
+  });
+export type CoverageTopic = z.infer<typeof CoverageTopic>;
+export const CoverageGap = z.object({
+  correctionId: z.uuid(),
+  /** The newest ask, masked. */
+  question: z.string(),
+  asks30d: z.int().min(0),
+  asksTotal: z.int().min(1),
+  firstAskedAt: z.iso.datetime({ offset: true }),
+  lastAskedAt: z.iso.datetime({ offset: true }),
+  reasons: z.array(GapReason).min(1),
+});
+export type CoverageGap = z.infer<typeof CoverageGap>;
+/** Top gaps shown on Coverage (D6); the queue holds every open item. */
+export const COVERAGE_GAP_LIMIT = 20;
+export const CoverageReport = z.object({
+  /** `live` once the tenant has a conversation, until FEAT-034's channel-live flag (D4). */
+  stage: z.enum(['pre_live', 'live']),
+  template: z
+    .object({
+      industry: Industry,
+      topics: z.array(CoverageTopic),
+      /** `question_only` when the topics couldn't be embedded: key matching only (D7). */
+      checked: z.enum(['meaning', 'question_only']),
+    })
+    .nullable(),
+  gaps: z.array(CoverageGap).max(COVERAGE_GAP_LIMIT),
+  summary: z.object({
+    topicsTotal: z.int().min(0),
+    topicsMissing: z.int().min(0),
+    openGaps: z.int().min(0),
+  }),
+});
+export type CoverageReport = z.infer<typeof CoverageReport>;
+export const CoverageTopicBody = z.object({ skipped: z.boolean() }).strict();
+export type CoverageTopicBody = z.infer<typeof CoverageTopicBody>;
+export const CoverageTopicResponse = z.object({ topic: CoverageTopic });
+export type CoverageTopicResponse = z.infer<typeof CoverageTopicResponse>;
 
 // ---- Realtime events (Valkey pub/sub payloads, SSE and WebSocket frames; ADR-017) --
 
