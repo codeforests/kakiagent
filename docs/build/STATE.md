@@ -4,7 +4,7 @@ The one file a fresh build session reads first. Keep it under 80 lines. The veri
 
 ## Where the build is
 
-- **Next feature:** FEAT-018 (correction queue, stale-fact scan, old-versus-new replay), branch `feat/FEAT-018-<slug>` (the design session names it). Stage: not started; next: design, once Ken says go. It reuses FEAT-028's `replayQuestion` (KB-18).
+- **Next feature:** FEAT-018 (correction queue, stale-fact scan, old-versus-new replay), branch `feat/FEAT-018-correction-queue`. Stage: designed (2026-10-24); next: build (backend, T1–T6), then build (UI). It reuses FEAT-028's `replayQuestion` (KB-18).
 - **M2 order from here:** 018 → 019 → 032 → 033 → 058 → 034 → 057 → 006 → 054 → 035. After M2, follow plan §5 (`grep -n '^| \*\*M3' docs/03-planning/implementation-plan.md`).
 - **Demos:** the interim demo after FEAT-027 (coaching) is due; it can now include replay (FEAT-028). M2 closes after FEAT-035 with `pipeline-verify` and a live demo of J1, J8 and J11, signed off by Ken.
 - **Merged:** 001 (skeleton), 002, 003, 004, 005, 009, 011, 012, 013, 014, 015, 016, 017, 022, 023, 024, 025, 027 (merged 2026-10-24 on Ken's local CI without a verify stage: its acceptance report and RTM Test ref are still to write), 028 (accepted 2026-10-24). Each has `docs/features/FEAT-NNN-*/`.
@@ -24,15 +24,15 @@ Each stage follows `.claude/skills/feature-stage/SKILL.md`. A stage never reads 
 ## Kickoff prompts (paste into a new thread)
 
 ```
-Design FEAT-018. Branch feat/FEAT-018-<slug> (create it from main).
+Design FEAT-018. Branch feat/FEAT-018-correction-queue (create it from main).
 Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage design.
 ```
 ```
-Build FEAT-018 (backend) on branch feat/FEAT-018-<slug>.
+Build FEAT-018 (backend) on branch feat/FEAT-018-correction-queue.
 Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage build.
 ```
 ```
-Verify FEAT-018 on branch feat/FEAT-018-<slug>.
+Verify FEAT-018 on branch feat/FEAT-018-correction-queue.
 Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify.
 ```
 
