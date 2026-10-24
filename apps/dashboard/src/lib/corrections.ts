@@ -218,11 +218,12 @@ export function intervalError(raw: string): string | undefined {
     : 'Enter 1 to 24 months.';
 }
 
-/** Invalidates what a decision on an item changes: the lists, the item, the counts. */
+/** Invalidates what a decision on an item changes: the lists, the item, the counts, Coverage. */
 export function useCorrectionsChanged() {
   const queryClient = useQueryClient();
   return () => {
     void queryClient.invalidateQueries({ queryKey: ['corrections'] });
     void queryClient.invalidateQueries({ queryKey: ['review-summary'] });
+    void queryClient.invalidateQueries({ queryKey: ['coverage'] });
   };
 }

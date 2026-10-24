@@ -4,6 +4,7 @@ import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, NavLink } from 'react-router';
 import { api, ApiError } from '../lib/api.ts';
+import { topicsLine, useCoverage } from '../lib/coverage.ts';
 import {
   approveAllLabel,
   GROUPS,
@@ -637,7 +638,7 @@ export function ReviewPage() {
 
 /**
  * `/setup/review`: SCR-APP-008 (partial), the setup's review step (UC-03, UC-15); FEAT-035
- * adds the wizard frame and FEAT-019 the coverage summary.
+ * adds the wizard frame; FEAT-019 added the coverage summary.
  */
 export function SetupReviewPage() {
   return (
@@ -648,6 +649,7 @@ export function SetupReviewPage() {
         Approve what your assistant may tell customers. You can change any fact later in Knowledge.
       </p>
       <ReviewQueue setup />
+      <CoverageSummary />
       <div className="review-setup__footer">
         <Button asChild>
           <Link to="/setup/test">Continue</Link>
@@ -655,5 +657,32 @@ export function SetupReviewPage() {
         <p className="review-setup__caption">Facts you haven't approved stay out of answers.</p>
       </div>
     </div>
+  );
+}
+
+/**
+ * SCR-APP-008's coverage card (FEAT-019 ui-design): hidden without a template, omitted on
+ * error so the setup step works without it.
+ */
+function CoverageSummary() {
+  const report = useCoverage();
+  if (report.isPending)
+    return (
+      <div className="card review-setup__coverage" aria-busy="true" aria-label="Loading coverage">
+        <div className="skeleton-field" />
+      </div>
+    );
+  const template = report.data?.template;
+  if (!template) return null;
+  return (
+    <section className="card review-setup__coverage" aria-labelledby="setup-coverage">
+      <h2 id="setup-coverage" className="section-title">
+        Coverage
+      </h2>
+      <p>{topicsLine(template.topics)}</p>
+      <Button variant="secondary" asChild>
+        <Link to="/knowledge/coverage">Check coverage</Link>
+      </Button>
+    </section>
   );
 }

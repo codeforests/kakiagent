@@ -18,9 +18,9 @@
 
 ## Build session 2 (UI)
 
-- [ ] T7 — Dashboard Coverage: `lib/coverage.ts`, `pages/coverage.tsx` (SCR-APP-029: pre-live, live, all covered, no template, question-only notice, add-FAQ dialogs for topics and gaps, Doesn't apply / Undo, Not something to answer), Knowledge "Coverage" tab, setup review coverage summary (SCR-APP-008 partial) (ui-design SCR-APP-029, SCR-APP-008)
+- [x] T7 — Dashboard Coverage: `lib/coverage.ts`, `pages/coverage.tsx` (SCR-APP-029: pre-live, live, all covered, no template, question-only notice, add-FAQ dialogs for topics and gaps, Doesn't apply / Undo, Not something to answer), Knowledge "Coverage" tab, setup review coverage summary (SCR-APP-008 partial) (ui-design SCR-APP-029, SCR-APP-008)
       Done when: dashboard typecheck and unit tests pass (`lib/coverage.test.ts`: section order per stage, counts copy, topic state chips, gap reason copy, "{n} times" plurals).
-      Note: no local stack in cloud sessions; renders are checked by T9's E2E in CI.
+      Note: no local stack in cloud sessions; renders are checked by T9's E2E in CI. The topic counts leave skipped topics out ("{covered} of {applying}"), so the summary and the collapsed "All {n} … answered" line agree; the FAQ dialog is shared as `pages/faq-dialog.tsx` (Coverage and the gap item); `INDUSTRY_LABEL` is exported from `business-profile.tsx`.
 - [ ] T8 — Dashboard Corrections: `answer_gap` in `lib/corrections.ts` (summary, label), SCR-APP-021 row, SCR-APP-022 "Customers asked" context and "Add an FAQ" accept dialog (ui-design SCR-APP-021/022 extended)
       Done when: dashboard typecheck and unit tests pass (`lib/corrections.test.ts` new cases for `answer_gap`); FEAT-018's cases still pass.
 - [ ] T9 — E2E: `e2e/tests/coverage.e2e.ts`: pre-live Coverage lists the F&B topics as missing → the owner adds an FAQ for one and marks another "Doesn't apply" → a widget visitor asks something the KB can't answer → the spec runs `kb_gap_cluster()` over a superuser connection (as `corrections.e2e.ts` runs the stale scan) → Coverage is live and lists the gap → the owner adds an FAQ from it → it leaves Coverage and Review › Corrections; axe on Coverage and on the gap item (design §6; AC-3, AC-4–AC-7, AC-10)

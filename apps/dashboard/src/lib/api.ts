@@ -11,6 +11,8 @@ import {
   CorrectionItemResponse,
   CorrectionList,
   CorrectionReplayNextResponse,
+  CoverageReport,
+  CoverageTopicResponse,
   ReviewIntervalsResponse,
   type CorrectionEdit,
   type CorrectionListQuery,
@@ -260,6 +262,14 @@ export const api = {
   replayNext: (id: string) =>
     request('POST', `/api/v1/coach/replays/${encodeURIComponent(id)}/next`, ReplayNextResponse, {}),
   /** FEAT-018 §3: SCR-APP-021, SCR-APP-022. */
+  coverage: () => getJson('/api/v1/kb/coverage', CoverageReport),
+  setCoverageTopic: (topicId: string, skipped: boolean) =>
+    request(
+      'PUT',
+      `/api/v1/kb/coverage/topics/${encodeURIComponent(topicId)}`,
+      CoverageTopicResponse,
+      { skipped },
+    ),
   corrections: (q: Partial<CorrectionListQuery>) =>
     getJson(`/api/v1/corrections${query(q)}`, CorrectionList),
   correction: (id: string) =>

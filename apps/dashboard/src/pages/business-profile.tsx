@@ -36,7 +36,7 @@ const INDUSTRY_OPTIONS: { value: Industry; label: string }[] = [
   { value: 'home_services', label: 'Home services' },
   { value: 'other', label: 'Other' },
 ];
-const INDUSTRY_LABEL = Object.fromEntries(INDUSTRY_OPTIONS.map((o) => [o.value, o.label]));
+export const INDUSTRY_LABEL = Object.fromEntries(INDUSTRY_OPTIONS.map((o) => [o.value, o.label]));
 
 const LANGUAGE_OPTIONS: { value: ProfileLanguage; label: string; lang: string }[] = [
   { value: 'en', label: 'English', lang: 'en' },

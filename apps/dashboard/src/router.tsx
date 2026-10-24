@@ -12,6 +12,7 @@ import { ReviewPage, SetupReviewPage } from './pages/review.tsx';
 import { SourcePage } from './pages/source.tsx';
 import { SourcesPage } from './pages/sources.tsx';
 import { FactPage } from './pages/fact.tsx';
+import { CoveragePage } from './pages/coverage.tsx';
 import { FactsPage } from './pages/facts.tsx';
 import { HomePage } from './pages/home.tsx';
 import { InboxPage } from './pages/inbox.tsx';
@@ -55,9 +56,10 @@ export const router = createBrowserRouter([
       { path: 'review/conflicts', element: <ConflictsPage /> },
       { path: 'review/corrections', element: <CorrectionsPage /> },
       { path: 'review/corrections/:id', element: <CorrectionPage /> },
-      // Knowledge → Facts (FEAT-022, FEAT-011) and Sources (FEAT-012).
+      // Knowledge → Facts (FEAT-022, FEAT-011), Sources (FEAT-012) and Coverage (FEAT-019).
       { path: 'knowledge', element: <FactsPage /> },
       { path: 'knowledge/sources', element: <SourcesPage /> },
+      { path: 'knowledge/coverage', element: <CoveragePage /> },
       { path: 'knowledge/sources/new', element: <AddWebsitePage /> },
       { path: 'knowledge/sources/:id', element: <SourcePage /> },
       { path: 'knowledge/facts/new', element: <FactPage /> },
