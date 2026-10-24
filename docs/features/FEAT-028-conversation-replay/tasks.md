@@ -1,7 +1,7 @@
 # Tasks: FEAT-028 — Replay a past conversation against the current KB
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: developer-done · Last updated: 2026-10-24
+> Status: accepted · Last updated: 2026-10-24 ([acceptance-report.md](acceptance-report.md))
 
 - [x] T1 — Schema: `0028_replay.sql` and Drizzle: `coaching_sessions` origin `replay`, `replay_conversation_id` (FK to conversations, on delete cascade), `include_unreviewed`, checks and index; `coaching_messages` kind `replay`, `replay_of`, unique key, FK to sessions on delete cascade; RLS suite: tenant-B case for a replay session, still no visitor-role grant (design §4; AC-8 schema half)
       Done when: `pnpm db:setup` applies 0028 on a database at 0027; `drizzle-kit generate` reports no drift; the RLS suite passes; deleting a conversation removes its replay sessions and messages (db integration test).
