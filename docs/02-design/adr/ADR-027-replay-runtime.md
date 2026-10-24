@@ -1,6 +1,6 @@
 # ADR-027: Conversation replay runs in the api, one question per request
 
-**Status:** Proposed (FEAT-028 design, 2026-10-24; accepted when Ken accepts FEAT-028 D1). Amends ADR-026 decision 2 (its replay clause) and lapses ADR-026's reservation of task kind `replay`. ADR-026's other decisions are unchanged.
+**Status:** Accepted (product owner, 2026-10-24; proposed in the FEAT-028 design as D1). Amends ADR-026 decision 2 (its replay clause) and lapses ADR-026's reservation of task kind `replay`. ADR-026's other decisions are unchanged.
 
 **Requirements addressed:** AGT-17 (replay clause), UC-04 4b, KB-18 (replay after an accepted correction)
 

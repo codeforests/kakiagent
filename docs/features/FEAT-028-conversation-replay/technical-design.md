@@ -2,7 +2,7 @@
 
 > Feature from: [implementation-plan.md](../../03-planning/implementation-plan.md) §4 (E3) · Milestone: M2
 > Implements: AGT-17 (p: "replay a real past conversation against the current KB") · Realizes: UC-04 4b · Screens: SCR-APP-031 (see [ui-design.md](ui-design.md))
-> Status: Designed (D1 pending Ken's decision card; ADR-027 proposed) · Date: 2026-10-24
+> Status: Designed (D1 decided and ADR-027 accepted by Ken, 2026-10-24) · Date: 2026-10-24
 
 ## 1. Intent
 
@@ -96,7 +96,7 @@ No new eval set: replay reuses the visitor triage, retrieval and verifier pipeli
 
 ## 7. Decisions
 
-- **D1 — Replay runs in the api, one question per request** (pending Ken; ADR-027). Driver: coaching already runs there (FEAT-027 D1); results appear as they arrive; no queue, infra or dashboard-zone worker. Rejected: an agent-worker job (ADR-026 as written) needing a dashboard-zone connection, an SQS queue, an outbox topic and Terraform changes. Consequence: the replay advances only while SCR-APP-031 is open and resumes from the next pending question.
+- **D1 — Replay runs in the api, one question per request** (Ken, 2026-10-24; ADR-027). Driver: coaching already runs there (FEAT-027 D1); results appear as they arrive; no queue, infra or dashboard-zone worker. Rejected: an agent-worker job (ADR-026 as written) needing a dashboard-zone connection, an SQS queue, an outbox topic and Terraform changes. Consequence: the replay advances only while SCR-APP-031 is open and resumes from the next pending question.
 - **D2 — No `replay` task kind.** Replay starts from the screen, not from chat text, so nothing needs triage to recognise it. ADR-026's reservation lapses (recorded in ADR-027).
 - **D3 — Each question replays against the original history** (what the visitor saw up to that point), not against earlier replayed answers. It isolates each answer's change and matches KB-18's per-question replay.
 - **D4 — Replay uses the current time and hours.** "The current KB" includes today's hours; a past "are you open now?" is answered for now. The UI says so once.
@@ -107,7 +107,7 @@ No new eval set: replay reuses the visitor triage, retrieval and verifier pipeli
 
 ## 8. Escalations and open items
 
-- **ADR-027 (proposed, accepted with D1):** replaces ADR-026 decision 2's "the agent-worker keeps … (FEAT-018/028) replay jobs" with "replay runs in the api, one question per request" and lapses the `replay` kind reservation. File: `docs/02-design/adr/ADR-027-replay-runtime.md`. If Ken picks the worker option, D1, §5.3 and tasks T4–T5 change and ADR-027 is withdrawn.
+- **ADR-027 (accepted by Ken, 2026-10-24):** replaces ADR-026 decision 2's "the agent-worker keeps … (FEAT-018/028) replay jobs" with "replay runs in the api, one question per request" and lapses the `replay` kind reservation. File: `docs/02-design/adr/ADR-027-replay-runtime.md`.
 - **Gaps left to later features:** the Replay entry point on the Conversation screen (FEAT-042, SCR-APP-015); the 20-question replay after an accepted correction (FEAT-018, through `replayQuestion`).
 
 ## 9. Self-check
