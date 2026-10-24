@@ -1,5 +1,8 @@
 import type { GenerateRequest } from '@kaki/llm-gateway';
+import { COACH_TRIAGE_SYSTEM } from './coach-prompt.js';
+import { fakeVisitorResponder } from './fake-responder.js';
 import { fakeTriage } from './fake-triage.js';
+import { PROPOSE_SYSTEM } from './propose.js';
 
 /**
  * The fake provider's coaching scripts (FEAT-027 §5.2): deterministic stand-ins for the
@@ -181,4 +184,14 @@ export function fakeProposal(req: GenerateRequest): string {
     });
   }
   return none();
+}
+
+/**
+ * The fake provider's script for the agent: triage plans for `triage` (coaching's own for
+ * its prompt), proposals for the propose step (FEAT-027), slot answers otherwise.
+ */
+export function fakeAgentScript(req: GenerateRequest): string {
+  if (req.system === PROPOSE_SYSTEM) return fakeProposal(req);
+  if (req.model !== 'triage') return fakeVisitorResponder(req);
+  return req.system === COACH_TRIAGE_SYSTEM ? fakeCoachTriage(req) : fakeTriage(req);
 }

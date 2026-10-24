@@ -10,7 +10,7 @@ import {
   type DispatchAuditEntry,
   type DispatchContext,
 } from './dispatch.js';
-import { fakeAgentScript } from './fake-triage.js';
+import { fakeAgentScript } from './fake-coach.js';
 import { parsePlan, triage, TRIAGE_SYSTEM, type TurnPlan } from './plan.js';
 import {
   candidatesOf,

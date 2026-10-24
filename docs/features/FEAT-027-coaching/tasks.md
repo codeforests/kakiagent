@@ -1,7 +1,7 @@
 # Tasks: FEAT-027 — Coaching mode
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: designed · Last updated: 2026-10-24
+> Status: developer-done · Last updated: 2026-10-24
 
 - [x] T1 — Schema: `coaching_sessions`, `coaching_messages`, `corrections`, `usage_events.coaching_session_id` (drizzle schema + `0027`, grants, forced RLS, checks); names in `TENANT_SCOPED_TABLES`; RLS suite cases for the three tables and "no visitor-role grant" (design §4; AC-8 schema half)
       Done when: `pnpm db:setup` applies 0027 on a database at 0026; `drizzle-kit generate` reports no drift; the RLS suite passes with the new cases.
@@ -32,9 +32,24 @@
 - [x] T11 — E2E: `e2e/tests/coach.e2e.ts` for J11 [UC-04]: ask → explainer → teach a price → confirm → the widget quotes the new price; the setup test step; axe on SCR-APP-030 and SCR-APP-010 (design §6; AC-6, AC-13)
       Done when: the spec passes in CI's E2E job.
       Note: E2E runs only in CI (STATE.md); pending CI until the next CI run. Written and typechecked here; not run (no local stack). Ticked as written so T12 can proceed; the verify stage owns the CI run, and a red spec there sends the feature back to build.
-- [ ] T12 — Verify: every AC in design §6 demonstrated; `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, this feature's package tests and integration tests green
+- [x] T12 — Verify: every AC in design §6 demonstrated; `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, this feature's package tests and integration tests green
       Done when: the evidence below is filled in, one bullet per AC.
+      Note: `pnpm format:check`, `pnpm lint` and `pnpm typecheck` green. Lint found a cycle (`fake-triage` ↔ `fake-coach`, from T4), fixed by moving `fakeAgentScript` into `fake-coach.ts` (same export from `@kaki/agent`). Unit: agent 312, kb 218, identity 9, llm-gateway 38, tenancy 21, evals 33, dashboard 8. Integration: db 105, kb 134, agent 59, analytics 8, api 211 (+1 skipped); api's S3 presigner case needs Docker and is left to CI. `pnpm eval`: every subset ok, coaching 18/18.
 
 ## Verification evidence
 
-- AC-1 … AC-15: _to be filled by the build's last task._
+- AC-1: `apps/api/test/coach.int.test.ts` "access": staff 403 `forbidden` and no session 401 on all 7 routes; tenant B 404 on A's session, turn, confirm and dismiss, malformed IDs 404, A's session absent from B's list, A's correction still open.
+- AC-2: api "a turn" (answer quotes $55.00 from the slot, explainer with the fact used, type, status); agent `coach.int.test.ts` "is grounded and verified".
+- AC-3: agent `coach.int.test.ts` "leaves unreviewed facts out unless asked"; kb `corrections`/coaching search tests (unreviewed by flag; rejected, conflicted, disabled never).
+- AC-4: agent "gives the AGT-04 text to an out-of-scope question".
+- AC-5: api "proposes, then a confirm…" (open edit_fact correction, price 55.00 → 58.00 in contract shape, visitor search still 5500 before the confirm); agent "stores an open proposal and makes no reply-model call".
+- AC-6: api "proposes, then a confirm…": 200 accepted, `before` $55.00, `after` $58.00, `searchVisitorFacts` returns 5800 straight after; one `correction.accepted` audit entry. E2E `coach.e2e.ts` (pending CI): the widget quotes S$14.00 after the confirm.
+- AC-7: api "dismisses with no fact change…" (price unchanged; dismiss and confirm again → 409 `correction_closed`); "is correction_stale…" (409, correction still open, fact version from the edit only).
+- AC-8: api "a turn" (no `conversations`/`messages`/`outbox` rows); agent "writes no conversations… usage is keyed by the session"; db RLS suite (no `app_agent_visitor` grant).
+- AC-9: api audit check (no fact name or price in `coach.turn`, `coach.reanswer`, `correction.accepted` payloads); agent "stores the masked text and audits codes and IDs only".
+- AC-10: agent `dispatch.test.ts` (`not_in_plan`, `scope`, `unhandled`).
+- AC-11: agent "works while paused or not live".
+- AC-12: api "confirms an hours change through the business profile" (sat 09:00–17:00 saved); agent hours test (visitor slot reads the new hours; stale profile → `CorrectionStaleError`).
+- AC-13: E2E `coach.e2e.ts` covers SCR-APP-030 (empty, answered, explainer, proposal with Confirm focused, confirmed with Before/Now) and SCR-APP-010 with axe: **pending CI**. The quick panel confirms only on the Confirm tap (same `CoachChat`); its prefill and narrow-screen route are unit-tested (`lib/coach.test.ts`).
+- AC-14: `evals/src/coaching.test.ts` (21 tests, every non-real-only case passes on the fake); `pnpm eval` coaching 18/18 ≥ 0.9. Real-model run pending (pending-actions.md).
+- AC-15: api "answers with the explainer within the 8 s bound" (elapsed asserted < 8000 ms on the fake provider).

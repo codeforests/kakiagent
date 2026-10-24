@@ -59,7 +59,7 @@ export {
 export { fakeVisitorResponder } from './fake-responder.js';
 export { leakGuard, LEAK_MARKERS, ruleText, WINDOW, type LeakGuard } from './guard.js';
 export { asData, buildVisitorPrompt } from './prompt.js';
-export { fakeAgentScript, fakeTriage } from './fake-triage.js';
+export { fakeTriage } from './fake-triage.js';
 export { aiAllowed, type GateResult } from './gate.js';
 export { formatSgd, renderPrice, renderSegment, SG_GST_PERCENT, withGst } from './render.js';
 export { verifySegment, type Violation, type ViolationKind } from './verify.js';
@@ -107,7 +107,7 @@ export {
   ProposeCorrectionArgs,
   proposeCorrectionHandler,
 } from './coach-dispatch.js';
-export { fakeCoachTriage, fakeProposal } from './fake-coach.js';
+export { fakeAgentScript, fakeCoachTriage, fakeProposal } from './fake-coach.js';
 export {
   applyHoursWith,
   COACH_TEXTS,

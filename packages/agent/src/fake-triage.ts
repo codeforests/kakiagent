@@ -1,8 +1,4 @@
 import type { GenerateRequest } from '@kaki/llm-gateway';
-import { COACH_TRIAGE_SYSTEM } from './coach-prompt.js';
-import { fakeCoachTriage, fakeProposal } from './fake-coach.js';
-import { fakeVisitorResponder } from './fake-responder.js';
-import { PROPOSE_SYSTEM } from './propose.js';
 import type { TaskKind } from './plan.js';
 
 /** Keyword rules for the fake triager, first match per kind. */
@@ -95,14 +91,4 @@ export function fakeTriage(req: GenerateRequest): string {
     flags: { complaint, injection: INJECTION.test(text), impersonation: IMPERSONATION.test(text) },
     tasks,
   });
-}
-
-/**
- * The fake provider's script for the agent: triage plans for `triage` (coaching's own for
- * its prompt), proposals for the propose step (FEAT-027), slot answers otherwise.
- */
-export function fakeAgentScript(req: GenerateRequest): string {
-  if (req.system === PROPOSE_SYSTEM) return fakeProposal(req);
-  if (req.model !== 'triage') return fakeVisitorResponder(req);
-  return req.system === COACH_TRIAGE_SYSTEM ? fakeCoachTriage(req) : fakeTriage(req);
 }
