@@ -56,6 +56,15 @@ export interface ConversationPort {
   endAi(reason: 'abuse'): Promise<void>;
 }
 
+/**
+ * Coaching's write port (FEAT-027 §5.2): the api implements it with `@kaki/kb`'s
+ * `proposeCorrection` on the dashboard zone, in the turn's transaction.
+ */
+export interface CoachingPort {
+  /** Stores an open correction; returns its ID. Throws when the proposal is invalid. */
+  propose(proposal: unknown): Promise<{ correctionId: string }>;
+}
+
 export interface DispatchContext {
   scope: Scope;
   tenantId: string;
@@ -71,6 +80,8 @@ export interface DispatchContext {
   audit(entry: DispatchAuditEntry): Promise<void>;
   /** The conversation's own flags and AI state (FEAT-025). */
   conversation: ConversationPort;
+  /** Coaching scope only (FEAT-027). */
+  coaching?: CoachingPort;
 }
 
 /**
@@ -95,6 +106,8 @@ export interface TaskResult {
    * visitor's text or language; the turn renders the key.
    */
   reply?: { key: ReplyKey };
+  /** A coaching proposal stored as an open correction (FEAT-027). */
+  proposal?: { correctionId: string };
 }
 
 export interface TaskHandler<A = unknown> {
@@ -150,7 +163,8 @@ export const OutOfScopeArgs = z
  */
 export const outOfScopeHandler: TaskHandler<z.infer<typeof OutOfScopeArgs>> = {
   kind: 'out_of_scope',
-  scopes: ['visitor'],
+  // UC-04 2a: the owner sees the same refusal a visitor would get (FEAT-027).
+  scopes: ['visitor', 'coaching'],
   args: OutOfScopeArgs,
   async run(_ctx, { topic }) {
     if (topic === 'illegal') return { reply: { key: 'illegal' } };

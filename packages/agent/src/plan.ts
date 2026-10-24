@@ -162,12 +162,17 @@ export const TRIAGE_SYSTEM = [
 /** Runs triage (ADR-025 decision 1). Never throws: any failure gives the fallback plan. */
 export async function triage(
   llm: LlmGateway,
-  input: { history: HistoryMessage[]; meta: GenerateRequest['meta'] },
+  input: {
+    history: HistoryMessage[];
+    meta: GenerateRequest['meta'];
+    /** Coaching's fixed prompt (FEAT-027 §5.2); its own cached prefix. */
+    system?: string;
+  },
 ): Promise<TurnPlan> {
   try {
     const res = await llm.generate({
       model: 'triage',
-      system: TRIAGE_SYSTEM,
+      system: input.system ?? TRIAGE_SYSTEM,
       messages: input.history.slice(-TRIAGE_HISTORY),
       outputSchema: TRIAGE_OUTPUT_SCHEMA,
       maxTokens: 400,

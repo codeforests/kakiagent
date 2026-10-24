@@ -42,6 +42,7 @@ export {
   PHASE,
   visitorRegistry,
   type BoundaryRules,
+  type CoachingPort,
   type ConversationPort,
   type DispatchAuditEntry,
   type DispatchContext,
@@ -89,3 +90,21 @@ export {
   systemSlots,
   type HoursContext,
 } from './hours-text.js';
+export { COACH_TRIAGE_SYSTEM } from './coach-prompt.js';
+export {
+  candidatesOf,
+  MAX_CANDIDATES,
+  parseProposal,
+  PROPOSE_OUTPUT_SCHEMA,
+  PROPOSE_SYSTEM,
+  proposeChange,
+  proposeMessage,
+  type Candidate,
+  type ProposeContext,
+} from './propose.js';
+export {
+  coachingRegistry,
+  ProposeCorrectionArgs,
+  proposeCorrectionHandler,
+} from './coach-dispatch.js';
+export { fakeCoachTriage, fakeProposal } from './fake-coach.js';
