@@ -184,7 +184,8 @@
       "source": {
         "spec": "features/FEAT-013-fact-review/ui-design.md#scr-app-008--wizard--review-your-facts-partial",
         "extended_by": [
-          "features/FEAT-014-conflicts/ui-design.md#scr-app-008--wizard--review-your-facts-partial"
+          "features/FEAT-014-conflicts/ui-design.md#scr-app-008--wizard--review-your-facts-partial",
+          "features/FEAT-019-coverage-report/ui-design.md#scr-app-008--wizard--review-your-facts-partial-coverage-summary"
         ]
       },
       "states": {
@@ -197,8 +198,7 @@
           "conflict alert"
         ],
         "gaps": [
-          "wizard frame (FEAT-035)",
-          "coverage summary (FEAT-019)"
+          "wizard frame (FEAT-035)"
         ],
         "supplements": []
       },
@@ -206,7 +206,8 @@
         "GET /api/v1/kb/review/facts",
         "GET /api/v1/kb/review/summary",
         "GET /api/v1/kb/review/preview",
-        "POST /api/v1/kb/review/approve-all"
+        "POST /api/v1/kb/review/approve-all",
+        "GET /api/v1/kb/coverage"
       ],
       "conformance": {
         "result": "pass",
@@ -395,7 +396,10 @@
       "feature": "FEAT-018",
       "strategy": "code-native",
       "source": {
-        "spec": "features/FEAT-018-correction-queue/ui-design.md#scr-app-021--review--corrections"
+        "spec": "features/FEAT-018-correction-queue/ui-design.md#scr-app-021--review--corrections",
+        "extended_by": [
+          "features/FEAT-019-coverage-report/ui-design.md#scr-app-021--scr-app-022--corrections-extended-coverage-gap-items"
+        ]
       },
       "states": {
         "covered": [
@@ -438,7 +442,10 @@
       "feature": "FEAT-018",
       "strategy": "code-native",
       "source": {
-        "spec": "features/FEAT-018-correction-queue/ui-design.md#scr-app-022--correction"
+        "spec": "features/FEAT-018-correction-queue/ui-design.md#scr-app-022--correction",
+        "extended_by": [
+          "features/FEAT-019-coverage-report/ui-design.md#scr-app-021--scr-app-022--corrections-extended-coverage-gap-items"
+        ]
       },
       "states": {
         "covered": [
@@ -467,8 +474,7 @@
           "permission"
         ],
         "gaps": [
-          "Conversation link (FEAT-042, SCR-APP-015)",
-          "Add FAQ for coverage gaps (FEAT-019, UC-16 3b)"
+          "Conversation link (FEAT-042, SCR-APP-015)"
         ],
         "supplements": []
       },
@@ -742,6 +748,50 @@
       },
       "status": "designed",
       "designed_at": "2026-10-19"
+    },
+    "SCR-APP-029": {
+      "name": "Coverage",
+      "surface": "APP",
+      "feature": "FEAT-019",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-019-coverage-report/ui-design.md#scr-app-029--coverage"
+      },
+      "states": {
+        "covered": [
+          "pre-live",
+          "live",
+          "all covered",
+          "all clear",
+          "no template",
+          "question-only",
+          "adding faq",
+          "skipping",
+          "already handled",
+          "loading",
+          "error",
+          "permission"
+        ],
+        "gaps": [
+          "Conversation link from a gap (FEAT-042, SCR-APP-015)",
+          "Channel live as the go-live signal (FEAT-034)"
+        ],
+        "supplements": []
+      },
+      "contract_bindings": [
+        "GET /api/v1/kb/coverage",
+        "PUT /api/v1/kb/coverage/topics/:topicId",
+        "POST /api/v1/kb/facts",
+        "POST /api/v1/corrections/:id/accept",
+        "POST /api/v1/corrections/:id/close"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-10-24"
     },
     "SCR-APP-030": {
       "name": "Coach",

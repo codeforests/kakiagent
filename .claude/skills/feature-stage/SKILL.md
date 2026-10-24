@@ -40,16 +40,16 @@ Every call re-reads the whole context, and the session's starting prompt alone i
 2. Inputs: `handoff.md`, `tasks.md`, and the design sections for the task at hand (`technical-design.md`; `ui-design.md` only in the UI session). Start at the first unticked task.
 3. Per task: implement, run its "Done when", tick it, one commit. At most 3 fix attempts, then stop honestly with a note.
 4. A backend session stops at the `## Build session 2 (UI)` heading: update `handoff.md` (what the UI session needs: routes, contract names, fakes), push, and reply with the UI kickoff. Any session that has done about six tasks or feels long stops at a task boundary the same way and replies with the kickoff that resumes it.
-5. After the last task: status `developer-done`, push, open a **draft** PR (title `FEAT-NNN: <name>`, body starts with the project's attribution block; assign `codeforests`). Don't start CI; the verify stage decides (STATE.md, CI cadence). Reply with the verify kickoff.
+5. After the last task: status `developer-done`, push, open a **draft** PR (title `FEAT-NNN: <name>`, body starts with the project's attribution block; assign `codeforests`). Never start GitHub CI; the verify stage decides whether to ask Ken for a local run (STATE.md, CI cadence). Reply with the verify kickoff.
 
 ## Stage: verify
 
 1. Load `agentic-sdlc-kit:acceptance-verification`. This session is the independent verifier: it didn't write the code.
 2. Inputs: `handoff.md`, the design's §6, `tasks.md` evidence, `git diff main...HEAD`.
-3. Re-run this feature's tests fresh, then the full local checks (STATE.md, CI cadence). Start CI only when the cadence calls for it, and read its E2E results. Review the test diff and the invariants in `AGENTS.md`.
+3. Re-run this feature's tests fresh, then the full local checks (STATE.md, CI cadence). Never start or wait on GitHub Actions: when the cadence calls for CI, ask Ken to run it locally in WSL and read the E2E results from the summary he pastes. Review the test diff and the invariants in `AGENTS.md`.
 4. Write `acceptance-report.md`; on acceptance, append the RTM Test ref and set `tasks.md` status `accepted`.
 5. Update `docs/build/STATE.md` in the same PR: move the feature to Merged, set the next feature and the remaining order, and the features-since-CI count.
-6. Put the local check results in the PR body, mark it ready, subscribe to it, and drive any CI run to green. Reply once with the PR link. Ken approves; squash-merge only with his go-ahead.
+6. Put the local check results in the PR body, mark it ready and subscribe to it; if Ken's local CI is due, ask him for it and fix anything red it shows. Reply once with the PR link. Ken approves; squash-merge only with his go-ahead.
 7. After the merge, post the remaining build order with the next feature first, and the design kickoff for it.
 8. Rework goes back to a build session (kickoff in `handoff.md`); a design defect goes to a design session.
 
@@ -74,7 +74,7 @@ Next: <stage> — kickoff: "<exact prompt>"
 ## Ending every stage
 
 1. Push the branch and update the thread checklist.
-2. **Token use** (Ken, 2026-10-24: FEAT-028, 018, 019, 032 and 033, then stop): append a section for this session to `/mnt/project-files/reviews/feat-NNN-token-use.md` (create it if missing; re-read it just before writing, other sessions write there too). Same shape as `feat-027-build-token-use.md`: new context (token budget at start minus at end), model and tool calls, cached re-reads (roughly calls × average context), output, where the new context went, a comparison table with the earlier stages, and what would save more. Keep it under 40 lines.
+2. **Token use** (Ken, 2026-10-24: every feature, ongoing): append a section for this session to `/mnt/project-files/reviews/feat-NNN-token-use.md` (create it if missing; re-read it just before writing, other sessions write there too). Same shape as `feat-027-build-token-use.md`: new context (token budget at start minus at end), model and tool calls, cached re-reads (roughly calls × average context), output, where the new context went, a comparison table with the earlier stages, and what would save more. Keep it under 40 lines.
 3. **Chain the next stage** (Ken, 2026-10-24): design → build (backend → UI) → verify run one after another, each in its own fresh thread, without waiting for Ken. If nothing is pending for Ken, ask the coordinator with `message_coordinator` to start the next stage's thread with exactly the kickoff prompt from `handoff.md`, then reply to Ken in two lines: the result, and that the next stage has started. If a decision is pending (an open decision card, a question in "Pending for Ken" that blocks the next stage, a blocked task, or a rework/design-defect verdict that needs his call), don't chain: reply with the ask and the kickoff, and chain once he answers.
 4. The chain stops at the verify stage's ready PR: merging and starting the next feature still need Ken's go-ahead (STATE.md, Ken's rules).
 5. Resolve the thread (the verify thread stays open until the PR merges).
