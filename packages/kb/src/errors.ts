@@ -36,3 +36,6 @@ export class CorrectionClosedError extends Error {}
 export class CorrectionStaleError extends Error {}
 
 export class CorrectionNotFoundError extends Error {}
+
+/** A correction whose fix can't be edited, or an edit of the wrong kind (FEAT-018 §3). */
+export class NotEditableError extends Error {}

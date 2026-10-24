@@ -107,7 +107,7 @@ function contentView(type: FactInput['type'], c: FactContent): FactValueView {
   };
 }
 
-function changeView(c: CorrectionRecord['change']): ProposedChange {
+export function changeView(c: CorrectionRecord['change']): ProposedChange {
   switch (c.kind) {
     case 'edit_fact':
       return {
@@ -119,6 +119,8 @@ function changeView(c: CorrectionRecord['change']): ProposedChange {
       return c;
     case 'edit_hours':
       return c as ProposedChange;
+    case 'reconfirm':
+      return c;
   }
 }
 

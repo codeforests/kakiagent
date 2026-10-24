@@ -15,6 +15,11 @@ export {
 } from './assistant.js';
 
 export {
+  ReviewIntervals,
+  reviewIntervals,
+  saveReviewIntervals,
+} from './review-intervals.js';
+export {
   HORIZON_DAYS,
   type ClosedReason,
   type HolidayExceptions,

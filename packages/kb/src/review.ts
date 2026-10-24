@@ -19,6 +19,7 @@ import {
   type FactType,
 } from './facts.js';
 import { entityKey, inputOf } from './conflicts.js';
+import { correctionCounts } from './corrections.js';
 import { NO_VALIDITY } from './types.js';
 import { moveFacts } from './writes.js';
 
@@ -74,6 +75,9 @@ export interface ReviewSummary {
   bySource: { id: string | null; name: string | null; count: number }[];
   approvedInUse: number;
   sourcesBusy: number;
+  /** Open corrections and overdue facts (KB-18, KB-17; FEAT-018). */
+  openCorrections: number;
+  overdueFacts: number;
 }
 
 export interface ApprovePreview {
@@ -246,6 +250,8 @@ export async function reviewSummary(ctx: DashboardKbContext): Promise<ReviewSumm
     bySource: [],
     approvedInUse: 0,
     sourcesBusy: 0,
+    openCorrections: 0,
+    overdueFacts: 0,
   };
   for (const r of byStatus) {
     if (r.status === 'approved') summary.approvedInUse += r.count;
@@ -274,6 +280,9 @@ export async function reviewSummary(ctx: DashboardKbContext): Promise<ReviewSumm
     .from(s)
     .where(and(eq(s.tenantId, ctx.tenantId), inArray(s.status, ['queued', 'processing'])));
   summary.sourcesBusy = busy?.count ?? 0;
+  const counts = await correctionCounts(ctx);
+  summary.openCorrections = counts.open;
+  summary.overdueFacts = counts.overdueFacts;
   return summary;
 }
 
