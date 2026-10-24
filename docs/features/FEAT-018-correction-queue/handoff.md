@@ -1,5 +1,5 @@
 # Handoff: FEAT-018 — Correction queue, stale-fact scan and old-versus-new replay
-Branch: feat/FEAT-018-correction-queue · PR: PR_LINK · Updated: 2026-10-24 by build (UI)
+Branch: feat/FEAT-018-correction-queue · PR: https://github.com/codeforests/kakiagent/pull/28 · Updated: 2026-10-24 by build (UI)
 Stage done: build (T1–T9 of 9), status developer-done
 Next: verify — kickoff: "Verify FEAT-018 on branch feat/FEAT-018-correction-queue. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
 
