@@ -653,7 +653,8 @@
       "strategy": "code-native",
       "source": {
         "spec": "features/FEAT-027-coaching/ui-design.md#scr-app-030--coach",
-        "extends": "features/FEAT-027-coaching/ui-design.md#cross-screen-the-coach-chat-coach-chat"
+        "extends": "features/FEAT-027-coaching/ui-design.md#cross-screen-the-coach-chat-coach-chat",
+        "amended_by": "features/FEAT-028-conversation-replay/ui-design.md#scr-app-030--coach-extended"
       },
       "states": {
         "covered": [
@@ -672,8 +673,7 @@
           "permission"
         ],
         "gaps": [
-          "corrections queue link target (FEAT-018)",
-          "replay (FEAT-028, SCR-APP-031)"
+          "corrections queue link target (FEAT-018)"
         ],
         "supplements": []
       },
@@ -685,6 +685,54 @@
         "POST /api/v1/coach/corrections/:id/confirm",
         "POST /api/v1/coach/corrections/:id/dismiss",
         "GET /api/v1/coach/suggestions"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-10-24"
+    },
+    "SCR-APP-031": {
+      "name": "Replay a conversation",
+      "surface": "APP",
+      "feature": "FEAT-028",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-028-conversation-replay/ui-design.md#scr-app-031--replay-a-conversation"
+      },
+      "states": {
+        "covered": [
+          "picking",
+          "picking empty",
+          "picking loading",
+          "picking error",
+          "confirm dialog",
+          "nothing to replay",
+          "replaying",
+          "paused",
+          "comparison",
+          "uses different facts",
+          "effects",
+          "teach a fix",
+          "turn error",
+          "rate limited",
+          "conversation gone",
+          "not-found",
+          "loading",
+          "permission"
+        ],
+        "gaps": [
+          "Conversation-screen entry point (FEAT-042, SCR-APP-015)"
+        ],
+        "supplements": []
+      },
+      "contract_bindings": [
+        "GET /api/v1/coach/replay-candidates",
+        "POST /api/v1/coach/replays",
+        "GET /api/v1/coach/replays/:id",
+        "POST /api/v1/coach/replays/:id/next"
       ],
       "conformance": {
         "result": "pass",

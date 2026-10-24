@@ -4,10 +4,10 @@ The one file a fresh build session reads first. Keep it under 80 lines. The veri
 
 ## Where the build is
 
-- **Next feature:** FEAT-027 (coaching mode). Stage: not started.
-- **M2 order from here:** 027 → 028 → 018 → 019 → 032 → 033 → 058 → 034 → 057 → 006 → 054 → 035. After M2, follow plan §5 (`grep -n '^| \*\*M3' docs/03-planning/implementation-plan.md`).
-- **Demos:** an interim demo after FEAT-027 (coaching). M2 closes after FEAT-035 with `pipeline-verify` and a live demo of J1, J8 and J11, signed off by Ken.
-- **Merged:** 001 (skeleton), 002, 003, 004, 005, 009, 011, 012, 013, 014, 015, 016, 017, 022, 023, 024, 025. Each has `docs/features/FEAT-NNN-*/`.
+- **Next feature:** FEAT-028 (conversation replay), branch `feat/FEAT-028-conversation-replay`. Stage: designed (2026-10-24); next: build.
+- **M2 order from here:** 028 → 018 → 019 → 032 → 033 → 058 → 034 → 057 → 006 → 054 → 035. After M2, follow plan §5 (`grep -n '^| \*\*M3' docs/03-planning/implementation-plan.md`).
+- **Demos:** the interim demo after FEAT-027 (coaching) is due. M2 closes after FEAT-035 with `pipeline-verify` and a live demo of J1, J8 and J11, signed off by Ken.
+- **Merged:** 001 (skeleton), 002, 003, 004, 005, 009, 011, 012, 013, 014, 015, 016, 017, 022, 023, 024, 025, 027 (merged 2026-10-24 on Ken's local CI without a verify stage: its acceptance report and RTM Test ref are still to write). Each has `docs/features/FEAT-NNN-*/`.
 
 ## One feature = three fresh sessions
 
@@ -22,15 +22,15 @@ Each stage follows `.claude/skills/feature-stage/SKILL.md`. A stage never reads 
 ## Kickoff prompts (paste into a new thread)
 
 ```
-Design FEAT-027. Branch feat/FEAT-027-<slug> (create it from main).
+Design FEAT-018. Branch feat/FEAT-018-<slug> (create it from main).
 Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage design.
 ```
 ```
-Build FEAT-027 on branch feat/FEAT-027-<slug>.
+Build FEAT-028 on branch feat/FEAT-028-conversation-replay.
 Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage build.
 ```
 ```
-Verify FEAT-027 on branch feat/FEAT-027-<slug>.
+Verify FEAT-028 on branch feat/FEAT-028-conversation-replay.
 Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify.
 ```
 
@@ -51,7 +51,7 @@ CI no longer runs on every push or PR; it is started by hand (`workflow_dispatch
 - **Every feature:** the verify stage runs the full local checks through `scripts/test-env.sh` (`pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `test:coverage` for each package the feature touches) and lists the results in the PR body. Ken merges on those.
 - **Run CI** on the PR's branch before merging when: it's the third feature since the last CI run, a milestone closes, or the feature touches the widget (size budget), `infra/`, `.github/` or the lockfile. Start it with the GitHub tool `actions_run_trigger` (`run_workflow`, `ci.yml`, the branch as `ref`).
 - **E2E** runs only in CI. Between runs, specs and screen renders are "pending CI" in the acceptance report; a red E2E in the next CI run is fixed before that PR merges.
-- **Features since the last CI run:** 0 (counted from FEAT-027). The verify stage updates this line; reset it to 0 after a CI run.
+- **Features since the last CI run:** 0 (Ken's local CI run on FEAT-027, 2026-10-24). The verify stage updates this line; reset it to 0 after a CI run.
 
 ## Environment
 
