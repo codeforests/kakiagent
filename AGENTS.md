@@ -75,7 +75,7 @@ The product owner signs off each phase before the next one starts. Don't jump ah
 | Architecture | `docs/02-design/architecture.md`, `docs/02-design/adr/ADR-001..022` | Signed off and merged 2026-10-19 |
 | UX foundations | `docs/02-design/ux-foundations.md`, `design.md`, `tokens.json`, `anchor-screens.md` + `anchors/`, `docs/design-manifest.json` | Signed off 2026-10-19 (owner decisions UX-Q1, Q4, Q5, R4 recorded) |
 | Implementation planning | `docs/03-planning/implementation-plan.md` (FEAT-001..074, milestones M0–M7, M1.5 real-model gate) | Signed off 2026-10-19 |
-| Construction | `docs/features/FEAT-NNN-<slug>/`, one PR per feature, in plan §5 order | FEAT-001 (walking skeleton) scaffolded, see `docs/scaffold-notes.md`; next is FEAT-022 |
+| Construction | `docs/features/FEAT-NNN-<slug>/`, one PR per feature, in plan §5 order | In progress: done features and the next one are in `docs/build/STATE.md`; skeleton notes in `docs/scaffold-notes.md` |
 
 ## Document rules
 
@@ -105,6 +105,8 @@ These span many documents and are easy to break by accident. Read the cited ADR 
 - **Widget budget:** loader ≤ 14 KB gz (initial load ≤ 30 KB, NFR-02), closed Shadow DOM, runtime theme detection, lazy chat panel (ADR-016).
 
 ## How features are built (from the implementation plan §3)
+
+- **Start here in a build session:** `docs/build/STATE.md` (order, rules, kickoff prompts), then the `feature-stage` skill (`.claude/skills/feature-stage/SKILL.md`). Design, build and verify each run in their own fresh session and hand off through files; `docs/build/code-map.md` says where code lives.
 
 - Build **one feature at a time in the plan's build order** (§5). Feature IDs (`FEAT-NNN`) are permanent; the next free ID is in plan §4.
 - Each feature runs the same loop, with its documents in `docs/features/FEAT-NNN-<slug>/`: detailed design (`technical-design.md`, `tasks.md`) → UI design (`ui-design.md`, manifest) → implementation (one commit per task, tests per task) → **independent acceptance verification in a fresh session** (`acceptance-report.md`) → its own PR on branch `feat/FEAT-NNN-<slug>`.
