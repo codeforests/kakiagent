@@ -1,7 +1,7 @@
 # Tasks: FEAT-018 — Correction queue, stale-fact scan and old-versus-new replay
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: developer-done (T1–T9) · Last updated: 2026-10-24
+> Status: accepted (2026-10-24, [acceptance-report.md](acceptance-report.md)) · built T1–T9 · Last updated: 2026-10-24
 
 - [x] T1 — Schema: `0029_corrections_queue.sql` and Drizzle: `corrections.accepted_change` with its check, the open-stale partial unique index and the closed-list index; `coaching_sessions` origin `correction`, `correction_id` (FK, unique), `replay_question_ids`, `replay_matched`; `coaching_messages.replay_conversation_id` (FK to conversations on delete cascade, backfilled, check); GIN index on `messages.fact_ids`; `tenants.fact_review_months` with check and the dashboard column grant; role `kaki_stale_scan`, its grants and policies, and `kb_stale_scan()` executable by `app_outbox` only (design §4; D1, D8, D9)
       Done when: `pnpm db:setup` applies 0029 on a database at 0028; `drizzle-kit generate` reports no drift; the RLS suite passes with tenant-B cases for a stale item and a correction session; db integration tests: the scan flags an overdue approved fact once, skips needs_review, disabled and expired promotions, honours a tenant's months, closes an item after re-confirmation; deleting a conversation removes a correction session's answers from it; no login role but `app_outbox` can execute the function.
