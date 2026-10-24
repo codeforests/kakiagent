@@ -1,3 +1,4 @@
+import { fakeAgentScript } from '@kaki/agent';
 import { usageSink } from '@kaki/analytics';
 import { createZoneDb } from '@kaki/db';
 import { createGoogleSignIn } from '@kaki/identity';
@@ -27,7 +28,10 @@ const deps = {
   llm: gatewayFromConfig({
     provider: config.LLM_PROVIDER,
     anthropicApiKey: config.ANTHROPIC_API_KEY,
-    // Fact embeddings are billed calls too (ADR-021, FEAT-004 §5.6).
+    // Coaching turns run here (FEAT-027 D1), so the fake model plans and answers as the
+    // agent-worker's does.
+    fakeScript: fakeAgentScript,
+    // Fact embeddings and coaching turns are billed calls too (ADR-021, FEAT-004 §5.6).
     onUsage: usageSink(dashboardDb, logger),
   }),
   identityDb: createZoneDb('identity', config.IDENTITY_DATABASE_URL),

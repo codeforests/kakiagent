@@ -79,6 +79,7 @@ describe('usage events (ADR-021, FEAT-004 AC-4)', () => {
       tenantId,
       conversationId: 'c-1',
       turnId: 'm-1',
+      coachingSessionId: null,
       purpose: 'triage',
       model: 'triage',
       provider: 'fake',
@@ -87,6 +88,16 @@ describe('usage events (ADR-021, FEAT-004 AC-4)', () => {
     expect(result.costUsd).toBe(costOf(result.usage, PRICES.haiku));
     expect(events[0]!.costUsd).toBe(result.costUsd);
     expect(events[0]!.inputTokens).toBe(result.usage.inputTokens);
+  });
+
+  it('carries a coaching session with no conversation (FEAT-027 §5.3)', async () => {
+    const { gw, events } = gateway();
+    await gw.generate({ ...req('triage'), meta: { tenantId, coachingSessionId: 's-1' } });
+    expect(events[0]).toMatchObject({
+      conversationId: null,
+      turnId: null,
+      coachingSessionId: 's-1',
+    });
   });
 
   it('emits one event when a stream finishes, priced for the routed model', async () => {

@@ -1,4 +1,13 @@
 import {
+  CoachSessionDetail,
+  CoachSessionList,
+  CoachSessionResponse,
+  CoachSuggestions,
+  CoachTurnResponse,
+  CorrectionConfirmResponse,
+  CorrectionResponse,
+  type CoachOrigin,
+  type CoachTurnRequest,
   AssistantSettingsResponse,
   AuthOptions,
   BusinessProfileResponse,
@@ -199,6 +208,35 @@ export const api = {
   conflicts: () => getJson('/api/v1/kb/conflicts', ConflictList),
   resolveConflict: (body: ResolveConflictBody) =>
     request('POST', '/api/v1/kb/conflicts/resolve', ResolveConflictResponse, body),
+  /** FEAT-027 §3: SCR-APP-030, SCR-APP-010 and the quick coach panel. */
+  coachSessions: (cursor?: string) =>
+    getJson(`/api/v1/coach/sessions${query({ cursor })}`, CoachSessionList),
+  coachSession: (id: string) =>
+    getJson(`/api/v1/coach/sessions/${encodeURIComponent(id)}`, CoachSessionDetail),
+  createCoachSession: (origin: CoachOrigin) =>
+    request('POST', '/api/v1/coach/sessions', CoachSessionResponse, { origin }),
+  coachTurn: (id: string, body: CoachTurnRequest) =>
+    request(
+      'POST',
+      `/api/v1/coach/sessions/${encodeURIComponent(id)}/messages`,
+      CoachTurnResponse,
+      body,
+    ),
+  confirmCorrection: (id: string) =>
+    request(
+      'POST',
+      `/api/v1/coach/corrections/${encodeURIComponent(id)}/confirm`,
+      CorrectionConfirmResponse,
+      {},
+    ),
+  dismissCorrection: (id: string) =>
+    request(
+      'POST',
+      `/api/v1/coach/corrections/${encodeURIComponent(id)}/dismiss`,
+      CorrectionResponse,
+      {},
+    ),
+  coachSuggestions: () => getJson('/api/v1/coach/suggestions', CoachSuggestions),
 };
 
 /** The PUT to storage failed: the network, or storage refused it. */

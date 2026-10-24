@@ -20,6 +20,18 @@ export interface VisitorKbContext {
   conversationId: string;
 }
 
+/**
+ * Coaching (AGT-17; FEAT-027 §5.1): the owner's playground in the dashboard trust zone.
+ * Its own scope, so neither a visitor path nor a plain dashboard call can use it.
+ */
+export interface CoachingKbContext {
+  readonly scope: 'coaching';
+  tx: Tx;
+  tenantId: string;
+  userId: string;
+  sessionId: string;
+}
+
 /** The ingest worker's stages (FEAT-012): one source's run, in the ingest trust zone. */
 export interface IngestKbContext {
   readonly scope: 'ingest';
@@ -48,3 +60,10 @@ export const ingestKb = (tx: Tx, tenantId: string, sourceId: string): IngestKbCo
   tenantId,
   sourceId,
 });
+
+export const coachingKb = (
+  tx: Tx,
+  tenantId: string,
+  userId: string,
+  sessionId: string,
+): CoachingKbContext => ({ scope: 'coaching', tx, tenantId, userId, sessionId });

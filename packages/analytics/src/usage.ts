@@ -7,6 +7,7 @@ async function record(tx: Tx, e: UsageEvent): Promise<void> {
     tenantId: e.tenantId,
     conversationId: e.conversationId,
     turnId: e.turnId,
+    coachingSessionId: e.coachingSessionId,
     purpose: e.purpose,
     model: e.model,
     provider: e.provider,

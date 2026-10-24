@@ -42,6 +42,7 @@ export {
   PHASE,
   visitorRegistry,
   type BoundaryRules,
+  type CoachingPort,
   type ConversationPort,
   type DispatchAuditEntry,
   type DispatchContext,
@@ -58,7 +59,7 @@ export {
 export { fakeVisitorResponder } from './fake-responder.js';
 export { leakGuard, LEAK_MARKERS, ruleText, WINDOW, type LeakGuard } from './guard.js';
 export { asData, buildVisitorPrompt } from './prompt.js';
-export { fakeAgentScript, fakeTriage } from './fake-triage.js';
+export { fakeTriage } from './fake-triage.js';
 export { aiAllowed, type GateResult } from './gate.js';
 export { formatSgd, renderPrice, renderSegment, SG_GST_PERCENT, withGst } from './render.js';
 export { verifySegment, type Violation, type ViolationKind } from './verify.js';
@@ -89,3 +90,49 @@ export {
   systemSlots,
   type HoursContext,
 } from './hours-text.js';
+export { COACH_TRIAGE_SYSTEM } from './coach-prompt.js';
+export {
+  candidatesOf,
+  MAX_CANDIDATES,
+  parseProposal,
+  PROPOSE_OUTPUT_SCHEMA,
+  PROPOSE_SYSTEM,
+  proposeChange,
+  proposeMessage,
+  type Candidate,
+  type ProposeContext,
+} from './propose.js';
+export {
+  coachingRegistry,
+  ProposeCorrectionArgs,
+  proposeCorrectionHandler,
+} from './coach-dispatch.js';
+export { fakeAgentScript, fakeCoachTriage, fakeProposal } from './fake-coach.js';
+export {
+  applyHoursWith,
+  COACH_TEXTS,
+  explain,
+  reanswer,
+  runCoachingTurn,
+  type CoachDeps,
+  type CoachOutcome,
+  type CoachTurnInput,
+  type CoachTurnResult,
+  type ExplainedFact,
+  type Explainer,
+  type ReasonCode,
+  type VisitorsWouldGet,
+} from './coach.js';
+export {
+  appendMessages,
+  CoachingSessionNotFoundError,
+  createSession,
+  getSession,
+  InvalidSessionCursorError,
+  listSessions,
+  sessionMessages,
+  SESSIONS_PAGE,
+  type CoachingMessageRow,
+  type CoachingOrigin,
+  type CoachingSessionRow,
+} from './coach-store.js';

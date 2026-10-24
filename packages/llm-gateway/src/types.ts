@@ -47,7 +47,13 @@ export interface GenerateRequest {
   outputSchema?: Record<string, unknown> | undefined;
   maxTokens: number;
   /** IDs only, for the usage ledger and traces (ADR-021). */
-  meta: { tenantId: string; conversationId?: string | undefined; turnId?: string | undefined };
+  meta: {
+    tenantId: string;
+    conversationId?: string | undefined;
+    turnId?: string | undefined;
+    /** A coaching turn (FEAT-027 §5.3): metered, never counted per conversation. */
+    coachingSessionId?: string | undefined;
+  };
 }
 
 /** Usage in one shape across providers, for the usage ledger (ADR-021, FEAT-004). */
@@ -86,7 +92,13 @@ export interface EmbedRequest {
   texts: string[];
   /** Cohere distinguishes stored documents from search queries. */
   purpose: 'document' | 'query';
-  meta: { tenantId: string; conversationId?: string | undefined; turnId?: string | undefined };
+  meta: {
+    tenantId: string;
+    conversationId?: string | undefined;
+    turnId?: string | undefined;
+    /** A coaching turn (FEAT-027 §5.3): metered, never counted per conversation. */
+    coachingSessionId?: string | undefined;
+  };
 }
 
 export interface ProviderEmbedResult {
@@ -144,6 +156,7 @@ export interface UsageEvent {
   tenantId: string;
   conversationId: string | null;
   turnId: string | null;
+  coachingSessionId: string | null;
   purpose: UsagePurpose;
   model: LogicalModel;
   provider: ProviderId;

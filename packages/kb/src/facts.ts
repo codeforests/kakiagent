@@ -252,6 +252,8 @@ export async function createFact(
   ctx: DashboardKbContext,
   input: FactInput,
   chunk: PreparedChunk,
+  /** `coaching` for an answer taught in the coach chat (FEAT-027 §5.1). */
+  source: 'manual' | 'coaching' = 'manual',
 ): Promise<FactRecord> {
   checkFact(input);
   const { validFrom, validUntil } = validityOf(input);
@@ -265,7 +267,7 @@ export async function createFact(
       gstTreatment: input.gstTreatment,
       validFrom,
       validUntil,
-      source: 'manual',
+      source,
       createdBy: ctx.userId,
       updatedBy: ctx.userId,
     })
@@ -345,10 +347,18 @@ export function mergePatch(current: FactRecord, patch: FactPatch): FactInput {
 
 const time = (d: Date | null) => d?.getTime() ?? null;
 
+/** JSON with sorted keys: jsonb reorders a stored value's keys, so plain JSON can't compare. */
+const sorted = (v: unknown): string =>
+  JSON.stringify(v, (_k, x: unknown) =>
+    x && typeof x === 'object' && !Array.isArray(x)
+      ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => (a < b ? -1 : 1)))
+      : x,
+  );
+
 export function contentChanged(current: FactRecord, next: FactInput): boolean {
   const v = validityOf(next);
   return (
-    JSON.stringify(current.value) !== JSON.stringify(next.value) ||
+    sorted(current.value) !== sorted(next.value) ||
     current.gstTreatment !== next.gstTreatment ||
     time(current.validity.validFrom) !== time(v.validFrom) ||
     time(current.validity.validUntil) !== time(v.validUntil)

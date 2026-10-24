@@ -643,6 +643,8 @@ describe('runVisitorTurn with triage, dispatch and routing (FEAT-004)', () => {
         'id',
         'conversation_id',
         'turn_id',
+        // FEAT-027: a coaching turn's session; null on a visitor turn.
+        'coaching_session_id',
         'purpose',
         'model',
         'provider',

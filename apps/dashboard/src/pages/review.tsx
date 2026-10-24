@@ -654,7 +654,7 @@ export function SetupReviewPage() {
       <ReviewQueue setup />
       <div className="review-setup__footer">
         <Button asChild>
-          <Link to="/">Continue</Link>
+          <Link to="/setup/test">Continue</Link>
         </Button>
         <p className="review-setup__caption">Facts you haven't approved stay out of answers.</p>
       </div>

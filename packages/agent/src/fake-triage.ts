@@ -1,5 +1,4 @@
 import type { GenerateRequest } from '@kaki/llm-gateway';
-import { fakeVisitorResponder } from './fake-responder.js';
 import type { TaskKind } from './plan.js';
 
 /** Keyword rules for the fake triager, first match per kind. */
@@ -92,9 +91,4 @@ export function fakeTriage(req: GenerateRequest): string {
     flags: { complaint, injection: INJECTION.test(text), impersonation: IMPERSONATION.test(text) },
     tasks,
   });
-}
-
-/** The fake provider's script for the agent: triage plans for `triage`, slot answers otherwise. */
-export function fakeAgentScript(req: GenerateRequest): string {
-  return req.model === 'triage' ? fakeTriage(req) : fakeVisitorResponder(req);
 }

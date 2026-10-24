@@ -14,6 +14,7 @@ import {
   answerTurn,
   buildVisitorPrompt,
   dispatchPlan,
+  fakeAgentScript,
   fakeTriage,
   fakeVisitorResponder,
   hoursLines,
@@ -67,6 +68,7 @@ import {
   type Reply,
   type ScoreContext,
 } from './cases.js';
+import { loadCoachingCases, runCoachingCase, scoreCoaching } from './coaching.js';
 import { extractionMetrics, loadExtractionPages, scoreExtraction } from './extraction.js';
 import { agreement, AgreementSample, checkSample, isDraft, judge, MIN_AGREEMENT } from './judge.js';
 
@@ -78,10 +80,10 @@ const thresholds = z
   .transform((o) => Object.fromEntries(Object.entries(o).filter(([k]) => !k.startsWith('$'))))
   .pipe(
     z
-      .record(z.union([Subset, ExtractionMetric]), z.number().min(0).max(1))
+      .record(z.union([Subset, ExtractionMetric, z.literal('coaching')]), z.number().min(0).max(1))
       .refine(
-        (t) => [...Subset.options, ...ExtractionMetric.options].every((k) => k in t),
-        'every subset and extraction metric needs a threshold',
+        (t) => [...Subset.options, ...ExtractionMetric.options, 'coaching'].every((k) => k in t),
+        'every subset, extraction metric and coaching needs a threshold',
       ),
   )
   .parse(JSON.parse(readFileSync(`${root}thresholds.json`, 'utf8')));
@@ -481,6 +483,29 @@ for (const subset of Subset.options) {
       `    ${metric.slice('extraction-'.length).padEnd(11)} ${metrics[metric].toFixed(3)} (threshold ${min}) ${ok ? 'ok' : 'BELOW'}`,
     );
   }
+}
+
+// FEAT-027 AC-14: the coaching subset (triage and the propose step), outside the
+// conversation cost; naturally worded cases run with the real model only.
+{
+  const all = loadCoachingCases(`${root}coaching/cases.json`).filter((c) => !fast || c.fast);
+  const run = all.filter((c) => realModel || !c.realOnly);
+  const coach = realModel ?? gatewayFromConfig({ provider: 'fake', fakeScript: fakeAgentScript });
+  const bakery = fixtures.bakery.fixture;
+  let passed = 0;
+  for (const c of run) {
+    const problems = scoreCoaching(c, bakery.facts, await runCoachingCase(coach, bakery, c));
+    for (const problem of problems) console.log(`FAIL coaching ${c.id}: ${problem}`);
+    if (!problems.length) passed++;
+  }
+  const rate = run.length ? passed / run.length : 1;
+  const min = thresholds.coaching;
+  const ok = rate >= min;
+  if (!ok) failed = true;
+  const realOnly = all.length - run.length;
+  console.log(
+    `  coaching      ${passed}/${run.length} = ${rate.toFixed(3)} (threshold ${min}) ${ok ? 'ok' : 'BELOW'}${realOnly ? `; ${realOnly} naturally worded case(s) run with the real model only` : ''}`,
+  );
 }
 
 // NFR-13 / ADR-007 decision 3: each case is one conversation. The fake prices its

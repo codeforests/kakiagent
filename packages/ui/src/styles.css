@@ -173,3 +173,55 @@
     flex: 1;
   }
 }
+
+/* The quick coach panel's frame (design.md §4.6; FEAT-027). */
+.kaki-slide-over {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  width: min(400px, 100%);
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
+  box-shadow: var(--shadow-lg);
+  z-index: var(--z-modal);
+}
+.kaki-slide-over:focus {
+  outline: none;
+}
+.kaki-slide-over__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--color-border-default);
+}
+.kaki-slide-over__head .kaki-dialog__title {
+  flex: 1;
+}
+.kaki-slide-over__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-control-md);
+  height: var(--size-control-md);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+.kaki-slide-over__close:hover {
+  background: var(--color-bg-subtle);
+}
+.kaki-slide-over__close:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+.kaki-slide-over__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-4);
+}

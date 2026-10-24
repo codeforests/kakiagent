@@ -5,7 +5,8 @@ import {
   type GenerateRequest,
 } from '@kaki/llm-gateway';
 import { describe, expect, it } from 'vitest';
-import { fakeAgentScript, fakeTriage } from './fake-triage.js';
+import { fakeAgentScript } from './fake-coach.js';
+import { fakeTriage } from './fake-triage.js';
 import {
   FALLBACK_PLAN,
   parsePlan,

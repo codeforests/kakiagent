@@ -227,6 +227,9 @@ importers:
       vite:
         specifier: 8.3.4
         version: 8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1)
+      vitest:
+        specifier: 5.0.5
+        version: 5.0.5(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(@vitest/coverage-v8@5.0.5)(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))
 
   apps/ingest-worker:
     dependencies:
@@ -518,6 +521,9 @@ importers:
       '@kaki/llm-gateway':
         specifier: workspace:*
         version: link:../llm-gateway
+      '@kaki/platform':
+        specifier: workspace:*
+        version: link:../platform
       '@kaki/tenancy':
         specifier: workspace:*
         version: link:../tenancy

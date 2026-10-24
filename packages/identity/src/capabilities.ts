@@ -10,7 +10,9 @@ export type Capability =
   | 'settings.manage'
   | 'killswitch.toggle'
   /** Create and edit facts by hand (KB-07; FEAT-022). */
-  | 'kb.manage';
+  | 'kb.manage'
+  /** Chat with the assistant in the dashboard and teach it corrections (AGT-17; FEAT-027). */
+  | 'coach.use';
 
 const POLICY: Record<Role, ReadonlySet<Capability>> = {
   owner: new Set([
@@ -19,6 +21,7 @@ const POLICY: Record<Role, ReadonlySet<Capability>> = {
     'settings.manage',
     'killswitch.toggle',
     'kb.manage',
+    'coach.use',
   ]),
   admin: new Set([
     'inbox.read',
@@ -26,6 +29,7 @@ const POLICY: Record<Role, ReadonlySet<Capability>> = {
     'settings.manage',
     'killswitch.toggle',
     'kb.manage',
+    'coach.use',
   ]),
   agent: new Set(['inbox.read', 'inbox.reply']),
 };

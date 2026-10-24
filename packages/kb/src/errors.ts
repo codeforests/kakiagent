@@ -25,3 +25,14 @@ export class NotRetryableError extends Error {}
 export class FileLimitError extends Error {}
 /** A column mapping the sheet can't take; the message says what to fix (FEAT-016 §5.6). */
 export class BadMappingError extends Error {}
+
+/** A proposed correction that can't be applied as written (FEAT-027 §5.1). */
+export class InvalidCorrectionError extends Error {}
+
+/** The correction was already accepted or dismissed. */
+export class CorrectionClosedError extends Error {}
+
+/** The fact or the hours changed since the correction was proposed. */
+export class CorrectionStaleError extends Error {}
+
+export class CorrectionNotFoundError extends Error {}

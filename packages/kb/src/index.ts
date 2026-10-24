@@ -16,14 +16,20 @@ export {
 } from './types.js';
 export { isSgDate, sgDateOf, sgDayAfter, sgDayLabel, sgDayStart, sgLastDayOf } from './dates.js';
 export {
+  coachingKb,
   dashboardKb,
   ingestKb,
   visitorKb,
+  type CoachingKbContext,
   type DashboardKbContext,
   type IngestKbContext,
   type VisitorKbContext,
 } from './context.js';
 export {
+  CorrectionClosedError,
+  CorrectionNotFoundError,
+  CorrectionStaleError,
+  InvalidCorrectionError,
   EmbeddingUnavailableError,
   FactNotFoundError,
   FileLimitError,
@@ -227,3 +233,21 @@ export {
   type ImportPreviewRecord,
   type PreviewRowRecord,
 } from './sheets.js';
+export { searchCoachingFacts, type CoachingFact } from './coaching.js';
+export {
+  attachCorrectionMessage,
+  confirmCorrection,
+  contentOf,
+  correctionFactInput,
+  dismissCorrection,
+  factLabel,
+  getCorrection,
+  proposeCorrection,
+  type ApplyHours,
+  type CorrectionRecord,
+  type CorrectionStatus,
+  type FactContent,
+  type HoursChange,
+  type ProposalInput,
+  type ProposedChange,
+} from './corrections.js';

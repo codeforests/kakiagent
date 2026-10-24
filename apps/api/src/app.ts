@@ -33,12 +33,21 @@ import {
   NotRetryableError,
   PreviewStaleError,
   ConflictChangedError,
+  CorrectionClosedError,
+  CorrectionNotFoundError,
+  CorrectionStaleError,
+  InvalidCorrectionError,
   SourceExistsError,
   SourceNotFoundError,
   VersionConflictError,
 } from '@kaki/kb';
 import { channels, signToken, TokenError, verifyToken } from '@kaki/platform';
-import { DEFAULT_BOT_NAME, DEFAULT_GREETING } from '@kaki/agent';
+import {
+  CoachingSessionNotFoundError,
+  DEFAULT_BOT_NAME,
+  DEFAULT_GREETING,
+  InvalidSessionCursorError,
+} from '@kaki/agent';
 import {
   InvalidProfileError,
   resolveWidgetKey,
@@ -55,6 +64,7 @@ import {
   UnauthenticatedError,
   UnavailableError,
 } from './auth.js';
+import { CoachRateLimitedError, InvalidCoachBodyError, registerCoachRoutes } from './coach.js';
 import { FactNotFound, ForbiddenError, registerFactRoutes } from './facts.js';
 import { createServer, type Deps } from './server.js';
 import { registerUploadRoutes } from './uploads.js';
@@ -97,6 +107,7 @@ export async function buildApp(deps: Deps) {
     if (
       err instanceof InvalidFactError ||
       err instanceof InvalidCursorError ||
+      err instanceof InvalidSessionCursorError ||
       err instanceof InvalidProfileError
     )
       return reply.code(400).send({ error: 'bad_request', message: err.message });
@@ -144,7 +155,9 @@ export async function buildApp(deps: Deps) {
       err instanceof NotFoundError ||
       err instanceof FactNotFoundError ||
       err instanceof FactNotFound ||
-      err instanceof SourceNotFoundError
+      err instanceof SourceNotFoundError ||
+      err instanceof CoachingSessionNotFoundError ||
+      err instanceof CorrectionNotFoundError
     )
       return reply.code(404).send({ error: 'not_found', message: 'Not found' });
     if (err instanceof TokenError)
@@ -173,6 +186,28 @@ export async function buildApp(deps: Deps) {
         error: 'rate_limited',
         message: 'Too many sign-in links. Try again in a few minutes.',
       });
+    if (err instanceof CoachRateLimitedError)
+      return reply.code(429).send({
+        error: 'rate_limited',
+        message: "You're sending messages quickly. Wait a minute and try again.",
+      });
+    if (err instanceof InvalidCoachBodyError)
+      return reply
+        .code(422)
+        .send({ error: 'invalid_body', message: 'Check the message and try again.' });
+    if (err instanceof CorrectionClosedError)
+      return reply
+        .code(409)
+        .send({ error: 'correction_closed', message: 'This change was already decided.' });
+    if (err instanceof CorrectionStaleError)
+      return reply.code(409).send({
+        error: 'correction_stale',
+        message: 'This changed since the proposal. Ask again to get a new one.',
+      });
+    if (err instanceof InvalidCorrectionError)
+      return reply
+        .code(422)
+        .send({ error: 'invalid_correction', message: "This change can't be saved as it is." });
     if (err instanceof UnavailableError)
       return reply.code(503).send({ error: 'unavailable', message: 'Try again shortly' });
     if (err instanceof ForbiddenError)
@@ -363,6 +398,7 @@ export async function buildApp(deps: Deps) {
   registerSourceRoutes(app, deps, sessionFrom, { resolve: deps.resolve });
   registerUploadRoutes(app, deps, sessionFrom);
   registerSettingsRoutes(app, deps, sessionFrom);
+  registerCoachRoutes(app, deps, sessionFrom);
 
   return app;
 }
