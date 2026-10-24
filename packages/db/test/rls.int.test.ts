@@ -1798,9 +1798,9 @@ describe('coaching and corrections (FEAT-027)', () => {
         [t, conv.rows[0].id],
       );
       await owner.query(
-        `insert into coaching_messages (tenant_id, session_id, seq, author, kind, body, replay_of)
-         values ($1, $2, 1, 'agent', 'replay', 'replayed', gen_random_uuid())`,
-        [t, s.rows[0].id],
+        `insert into coaching_messages (tenant_id, session_id, seq, author, kind, body, replay_of, replay_conversation_id)
+         values ($1, $2, 1, 'agent', 'replay', 'replayed', gen_random_uuid(), $3)`,
+        [t, s.rows[0].id, conv.rows[0].id],
       );
       replays[t] = conv.rows[0].id;
     }
@@ -1849,5 +1849,154 @@ describe('coaching and corrections (FEAT-027)', () => {
         [TENANT_A, ids[TENANT_A]!.session],
       ),
     ).rejects.toThrow(/usage_events_owner_ck/);
+  });
+});
+
+// ---- FEAT-018: stale items, correction replays and the stale scan (FEAT-018 §4; AC-1, AC-8) ---
+
+describe('corrections queue (FEAT-018)', () => {
+  const ids: Record<string, { fact: string; stale: string; session: string; conv: string }> = {};
+  beforeAll(async () => {
+    for (const t of [TENANT_A, TENANT_B]) {
+      const f = await owner.query(
+        `insert into facts (tenant_id, type, status, value) values ($1, 'faq', 'approved', '{"question":"q","answer":"a"}') returning id`,
+        [t],
+      );
+      const stale = await owner.query(
+        `insert into corrections (tenant_id, source_type, proposed_by, fact_refs, proposed_change)
+         values ($1, 'stale', 'system', array[$2::uuid], '{"kind":"reconfirm"}') returning id`,
+        [t, f.rows[0].id],
+      );
+      const accepted = await owner.query(
+        `insert into corrections (tenant_id, source_type, proposed_by, fact_refs, proposed_change, status, decided_at)
+         values ($1, 'stale', 'system', array[$2::uuid], '{"kind":"reconfirm"}', 'accepted', now()) returning id`,
+        [t, f.rows[0].id],
+      );
+      const conv = await owner.query(
+        `insert into conversations (tenant_id, channel, visitor_id) values ($1, 'widget', gen_random_uuid()) returning id`,
+        [t],
+      );
+      const s = await owner.query(
+        `insert into coaching_sessions (tenant_id, created_by, origin, correction_id) values ($1, gen_random_uuid(), 'correction', $2) returning id`,
+        [t, accepted.rows[0].id],
+      );
+      await owner.query(
+        `insert into coaching_messages (tenant_id, session_id, seq, author, kind, body, replay_of, replay_conversation_id)
+         values ($1, $2, 1, 'agent', 'replay', 'replayed', gen_random_uuid(), $3)`,
+        [t, s.rows[0].id, conv.rows[0].id],
+      );
+      ids[t] = {
+        fact: f.rows[0].id,
+        stale: stale.rows[0].id,
+        session: s.rows[0].id,
+        conv: conv.rows[0].id,
+      };
+    }
+  });
+
+  it("tenant B can't read or decide tenant A's stale items or correction replays", async () => {
+    await asRole('app_dashboard', TENANT_B, async (c) => {
+      const items = await c.query(
+        `select id from corrections where source_type = 'stale' and status = 'open'`,
+      );
+      expect(items.rows.map((r) => r.id)).toEqual([ids[TENANT_B]!.stale]);
+      const upd = await c.query(
+        `update corrections set status = 'dismissed', decided_at = now() where id = $1`,
+        [ids[TENANT_A]!.stale],
+      );
+      expect(upd.rowCount).toBe(0);
+      const sessions = await c.query(
+        `select tenant_id from coaching_sessions where origin = 'correction'`,
+      );
+      expect(sessions.rows.map((r) => r.tenant_id)).toEqual([TENANT_B]);
+      const answers = await c.query(
+        `select tenant_id from coaching_messages where replay_conversation_id is not null and session_id = $1`,
+        [ids[TENANT_A]!.session],
+      );
+      expect(answers.rows).toEqual([]);
+    });
+  });
+
+  it('one open stale item per fact, one replay per correction, and the checks hold', async () => {
+    await expect(
+      owner.query(
+        `insert into corrections (tenant_id, source_type, proposed_by, fact_refs, proposed_change)
+         values ($1, 'stale', 'system', array[$2::uuid], '{"kind":"reconfirm"}')`,
+        [TENANT_A, ids[TENANT_A]!.fact],
+      ),
+    ).rejects.toThrow(/corrections_open_stale_uq/);
+    await expect(
+      owner.query(
+        `update corrections set status = 'edited_and_accepted', decided_at = now() where id = $1`,
+        [ids[TENANT_A]!.stale],
+      ),
+    ).rejects.toThrow(/corrections_accepted_change_ck/);
+    await expect(
+      owner.query(
+        `insert into coaching_sessions (tenant_id, created_by, origin) values ($1, gen_random_uuid(), 'correction')`,
+        [TENANT_A],
+      ),
+    ).rejects.toThrow(/coaching_sessions_correction_ck/);
+    await expect(
+      owner.query(
+        `insert into coaching_messages (tenant_id, session_id, seq, author, kind, body, replay_of)
+         values ($1, $2, 2, 'agent', 'replay', 'x', gen_random_uuid())`,
+        [TENANT_A, ids[TENANT_A]!.session],
+      ),
+    ).rejects.toThrow(/coaching_messages_replay_conversation_ck/);
+    await expect(
+      owner.query(
+        `update tenants set fact_review_months = '{"product":0,"faq":6,"policy":6,"promotion":6}' where id = $1`,
+        [TENANT_A],
+      ),
+    ).rejects.toThrow(/tenants_fact_review_months_ck/);
+  });
+
+  it("the dashboard saves its own tenant's review intervals only", async () => {
+    await asRole('app_dashboard', TENANT_B, async (c) => {
+      const upd = await c.query(
+        `update tenants set fact_review_months = '{"product":3,"faq":6,"policy":12,"promotion":1}' where id = $1`,
+        [TENANT_A],
+      );
+      expect(upd.rowCount).toBe(0);
+      const own = await c.query(
+        `update tenants set fact_review_months = '{"product":3,"faq":6,"policy":12,"promotion":1}' where id = $1`,
+        [TENANT_B],
+      );
+      expect(own.rowCount).toBe(1);
+    });
+  });
+
+  it('deleting a conversation removes its replayed answers from a correction replay', async () => {
+    await owner.query(`delete from conversations where tenant_id = $1 and id = $2`, [
+      TENANT_A,
+      ids[TENANT_A]!.conv,
+    ]);
+    const left = await owner.query(
+      `select (select count(*) from coaching_sessions where tenant_id = $1 and id = $2)::int as sessions,
+              (select count(*) from coaching_messages where tenant_id = $1 and session_id = $2)::int as answers`,
+      [TENANT_A, ids[TENANT_A]!.session],
+    );
+    expect(left.rows[0]).toEqual({ sessions: 1, answers: 0 });
+  });
+
+  it('only the outbox zone may run the stale scan, and it reads nothing else', async () => {
+    await asRole('app_outbox', null, (c) => c.query(`select * from kb_stale_scan()`));
+    await expect(asRole('app_outbox', null, (c) => c.query(`select * from facts`))).rejects.toThrow(
+      /permission denied/,
+    );
+    for (const role of [
+      'app_agent_visitor',
+      'app_dashboard',
+      'app_identity',
+      'app_ingest',
+    ] as const)
+      await expect(
+        asRole(role, TENANT_A, (c) => c.query(`select * from kb_stale_scan()`)),
+      ).rejects.toThrow(/permission denied/);
+    const login = await owner.query(
+      `select rolcanlogin from pg_roles where rolname = 'kaki_stale_scan'`,
+    );
+    expect(login.rows).toEqual([{ rolcanlogin: false }]);
   });
 });
