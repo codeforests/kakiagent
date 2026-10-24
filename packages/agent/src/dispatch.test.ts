@@ -267,13 +267,19 @@ describe('the out_of_scope handler (FEAT-023 AC-4)', () => {
     expect(audits[0]).toEqual({ task: 'out_of_scope', outcome: 'done' });
   });
 
-  it('is refused in coaching scope and with the gate closed', async () => {
+  it('also runs in coaching scope (FEAT-027, UC-04 2a); refused with the gate closed', async () => {
     const coaching = context();
     const r1 = await dispatchPlan(visitorRegistry, planOf([['out_of_scope']]), {
       ...coaching.ctx,
       scope: 'coaching',
     });
-    expect(r1).toMatchObject({ replies: [], reports: [{ outcome: 'refused', reason: 'scope' }] });
+    expect(r1).toMatchObject({ replies: ['out_of_scope'], reports: [{ outcome: 'done' }] });
+    // The safety handlers stay visitor-only.
+    const r3 = await dispatchPlan(visitorRegistry, planOf([['crisis']]), {
+      ...coaching.ctx,
+      scope: 'coaching',
+    });
+    expect(r3).toMatchObject({ reports: [{ outcome: 'refused', reason: 'scope' }] });
     const closed = context({ gateOpen: async () => false });
     const r2 = await dispatchPlan(visitorRegistry, planOf([['out_of_scope']]), closed.ctx);
     expect(r2.replies).toEqual([]);
