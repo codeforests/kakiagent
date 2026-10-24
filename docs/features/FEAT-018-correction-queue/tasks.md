@@ -1,7 +1,7 @@
 # Tasks: FEAT-018 — Correction queue, stale-fact scan and old-versus-new replay
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: building (backend T1–T6 done; UI T7–T9 next) · Last updated: 2026-10-24
+> Status: developer-done (T1–T9) · Last updated: 2026-10-24
 
 - [x] T1 — Schema: `0029_corrections_queue.sql` and Drizzle: `corrections.accepted_change` with its check, the open-stale partial unique index and the closed-list index; `coaching_sessions` origin `correction`, `correction_id` (FK, unique), `replay_question_ids`, `replay_matched`; `coaching_messages.replay_conversation_id` (FK to conversations on delete cascade, backfilled, check); GIN index on `messages.fact_ids`; `tenants.fact_review_months` with check and the dashboard column grant; role `kaki_stale_scan`, its grants and policies, and `kb_stale_scan()` executable by `app_outbox` only (design §4; D1, D8, D9)
       Done when: `pnpm db:setup` applies 0029 on a database at 0028; `drizzle-kit generate` reports no drift; the RLS suite passes with tenant-B cases for a stale item and a correction session; db integration tests: the scan flags an overdue approved fact once, skips needs_review, disabled and expired promotions, honours a tenant's months, closes an item after re-confirmation; deleting a conversation removes a correction session's answers from it; no login role but `app_outbox` can execute the function.
@@ -26,9 +26,23 @@
       Done when: the spec passes in CI's E2E job.
       Note: E2E runs only in CI (STATE.md); written and typechecked here, pending CI.
       Done: `corrections.e2e.ts` written, ESLint and `tsc` clean; it asks Coach first (as `coach.e2e.ts`) so the fake model has the fact in context before the teach. Pending CI.
-- [ ] T9 — Verify: every AC in design §6 demonstrated; `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, this feature's package unit and integration tests green
+- [x] T9 — Verify: every AC in design §6 demonstrated; `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, this feature's package unit and integration tests green
       Done when: the evidence below is filled in, one bullet per AC.
 
 ## Verification evidence
 
-(filled in by T9)
+Checks on 2026-10-24 (build UI session): `pnpm format:check` clean; `pnpm lint` (ESLint and dependency-cruiser) clean; `pnpm typecheck` 26/26; `pnpm test` 23/23 tasks. Integration through `scripts/test-env.sh`: db 116, kb 144, tenancy 19, inbox 7, agent 77 passed; api 229 passed, 1 skipped, and `uploads.int.test.ts` (FEAT-015's S3 presigner) failed only because no S3 container runs here (`KAKI_TEST_S3_ENDPOINT` unset), which is environmental and unrelated. scheduler-worker has no integration suite (its unit test runs in `pnpm test`).
+
+- **AC-1:** api `corrections.int.test.ts` (agent 403, 401, tenant B 404s and empty list); db RLS suite cases for stale items and correction sessions (T1, T6). UI: non-managers get the permission state on both screens.
+- **AC-2:** api list/detail tests (source filter, newest first, context, facts as now); SCR-APP-021 rows (origin chip, fix summary, fact chips, age; closed list with decision chips) and SCR-APP-022 sections; `lib/corrections.test.ts` origin labels and summaries. Render: E2E, pending CI.
+- **AC-3:** kb `corrections.int.test.ts` (open items leave `visitor_facts`, accept changes, close changes nothing, 409s); E2E checks the price is unchanged while the item is open (pending CI).
+- **AC-4:** kb and api tests for edit-and-accept, `accepted_change`, 422 `invalid_correction`/`not_editable`, reconfirm edited to a fact edit; UI edit dialog (`factEdit` round-trip unit test); E2E edits 14 → 15 and accepts (pending CI).
+- **AC-5:** db integration scan tests (once, skips, per-tenant months, auto-close); tenancy interval tests; intervals dialog validation `intervalError` unit test.
+- **AC-6:** kb re-confirm test (new version, same value, searchable, not re-flagged); E2E one-tap Re-confirm from the list after `kb_stale_scan()` (pending CI).
+- **AC-7:** agent `correction-replay.int.test.ts` (20 of 25, order, new value, 409, idempotent, no replay for other kinds); UI drive loop unit tests (stops on error, 429 and pause); E2E comparison old S$12.00 vs new S$15.00 with "Answer changed" (pending CI).
+- **AC-8:** agent integration (no conversations/messages/outbox writes, usage `coaching_session_id`, erasure drops the question, sessions hidden from Coach).
+- **AC-9:** kb and api audit payload tests (codes and IDs only).
+- **AC-10:** api summary test (`openCorrections`, `overdueFacts`); Review nav pill and Corrections tab count wired (`nav-counts.ts`, `ReviewTabs`).
+- **AC-11:** every designed state is built in `corrections.tsx` and `correction.tsx`; axe on both screens and the J11 flow are in `corrections.e2e.ts`, pending CI.
+- **AC-12:** api integration: one `…/replay/next` under 8 s on the fake provider (T6), passed here.
+
