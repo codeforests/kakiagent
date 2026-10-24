@@ -26,6 +26,7 @@ const event = (over: Partial<UsageEvent> = {}): UsageEvent => ({
   tenantId: TENANT_A,
   conversationId: '00000000-0000-4000-8000-000000000001',
   turnId: '00000000-0000-4000-8000-000000000002',
+  coachingSessionId: null,
   purpose: 'reply',
   model: 'reply.complex',
   provider: 'fake',
@@ -65,6 +66,29 @@ describe('usage ledger (AC-4)', () => {
         cost_usd: '0.0061234567',
       },
     ]);
+  });
+
+  it('records a coaching turn by its session, with no conversation (FEAT-027 §5.3)', async () => {
+    const sessionId = '00000000-0000-4000-8000-000000000027';
+    await withTenant(tdb.zone('dashboard'), TENANT_B, (tx) =>
+      usage.record(
+        tx,
+        event({
+          tenantId: TENANT_B,
+          conversationId: null,
+          turnId: null,
+          coachingSessionId: sessionId,
+        }),
+      ),
+    );
+    const rows = (
+      await owner.query(
+        `select conversation_id, coaching_session_id from usage_events where tenant_id = $1`,
+        [TENANT_B],
+      )
+    ).rows;
+    expect(rows).toEqual([{ conversation_id: null, coaching_session_id: sessionId }]);
+    await owner.query(`delete from usage_events where tenant_id = $1`, [TENANT_B]);
   });
 
   it('logs a failed insert instead of throwing, and records the next event', async () => {

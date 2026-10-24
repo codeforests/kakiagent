@@ -22,6 +22,9 @@ describe('capabilities', () => {
     expect(can('agent', 'settings.manage')).toBe(false);
     expect(can('admin', 'kb.manage')).toBe(true);
     expect(can('agent', 'kb.manage')).toBe(false);
+    expect(can('owner', 'coach.use')).toBe(true);
+    expect(can('admin', 'coach.use')).toBe(true);
+    expect(can('agent', 'coach.use')).toBe(false);
   });
 });
 

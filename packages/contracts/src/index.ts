@@ -1107,6 +1107,145 @@ export const BusinessProfileResponse = z.object({
 });
 export type BusinessProfileResponse = z.infer<typeof BusinessProfileResponse>;
 
+// ---- Dashboard API: coaching (AGT-17, ONB-05; FEAT-027 §3) ---------------------------
+
+export const CoachOrigin = z.enum(['coach', 'setup', 'panel']);
+export type CoachOrigin = z.infer<typeof CoachOrigin>;
+export const CoachSessionCreate = z.object({ origin: CoachOrigin });
+export const CoachSession = z.object({
+  id: z.uuid(),
+  origin: CoachOrigin,
+  title: z.string().nullable(),
+  createdAt: z.iso.datetime({ offset: true }),
+  updatedAt: z.iso.datetime({ offset: true }),
+});
+export type CoachSession = z.infer<typeof CoachSession>;
+export const CoachSessionList = z.object({
+  sessions: z.array(CoachSession),
+  nextCursor: z.string().nullable(),
+});
+export const CoachSessionListQuery = z.object({
+  cursor: z.string().min(1).max(200).optional(),
+});
+
+export const CoachOutcome = z.enum([
+  'answered',
+  'escalated',
+  'out_of_scope',
+  'unsure',
+  'refused',
+  'unavailable',
+]);
+export type CoachOutcome = z.infer<typeof CoachOutcome>;
+export const ReasonCode = z.enum([
+  'matched_facts',
+  'no_matching_fact',
+  'low_confidence',
+  'out_of_scope',
+  'advice',
+  'illegal',
+  'injection',
+  'impersonation',
+  'regenerated',
+  'segment_blocked',
+  'escalated',
+  'hours_slot',
+  'unreviewed_used',
+]);
+export type ReasonCode = z.infer<typeof ReasonCode>;
+export const ExplainedFact = z.object({
+  id: z.uuid(),
+  type: FactType,
+  label: z.string(),
+  status: z.enum(['approved', 'needs_review']),
+  used: z.boolean(),
+});
+export type ExplainedFact = z.infer<typeof ExplainedFact>;
+export const VisitorsWouldGet = z.enum([
+  'same',
+  'without_unreviewed',
+  'fallback_paused',
+  'not_live',
+]);
+export const Explainer = z.object({
+  outcome: CoachOutcome,
+  facts: z.array(ExplainedFact),
+  usedFactIds: z.array(z.uuid()),
+  reasons: z.array(ReasonCode),
+  route: z.enum(['reply.simple', 'reply.complex']).nullable(),
+  visitorsWouldGet: VisitorsWouldGet,
+});
+export type Explainer = z.infer<typeof Explainer>;
+
+/** A fact's content as a correction shows it: the value plus GST treatment and validity. */
+export const FactValueView = z.object({
+  value: z.record(z.string(), z.unknown()),
+  gstTreatment: GstTreatment.nullable(),
+  validFrom: SgDate.nullable(),
+  validUntil: SgDate.nullable(),
+});
+export type FactValueView = z.infer<typeof FactValueView>;
+export const ProposedChange = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('edit_fact'),
+    factId: z.uuid(),
+    factVersion: z.int().min(1),
+    factType: FactType,
+    label: z.string(),
+    before: FactValueView,
+    after: FactValueView,
+  }),
+  z.object({ kind: z.literal('add_faq'), question: z.string(), answer: z.string() }),
+  z.object({
+    kind: z.literal('edit_hours'),
+    profileVersion: z.int().min(0),
+    before: WeeklyHoursInput.partial(),
+    after: WeeklyHoursInput.partial(),
+  }),
+]);
+export type ProposedChange = z.infer<typeof ProposedChange>;
+export const CorrectionStatus = z.enum(['open', 'accepted', 'edited_and_accepted', 'dismissed']);
+export const Correction = z.object({
+  id: z.uuid(),
+  status: CorrectionStatus,
+  change: ProposedChange,
+  decidedAt: z.iso.datetime({ offset: true }).nullable(),
+});
+export type Correction = z.infer<typeof Correction>;
+
+export const CoachMessage = z.object({
+  id: z.uuid(),
+  seq: z.int(),
+  author: z.enum(['owner', 'agent']),
+  kind: z.enum(['question', 'answer', 'proposal', 'after']),
+  text: z.string(),
+  includeUnreviewed: z.boolean(),
+  createdAt: z.iso.datetime({ offset: true }),
+  explainer: Explainer.nullable(),
+  correction: Correction.nullable(),
+});
+export type CoachMessage = z.infer<typeof CoachMessage>;
+export const CoachSessionDetail = z.object({
+  session: CoachSession,
+  messages: z.array(CoachMessage),
+});
+export const CoachTurnRequest = z.object({
+  text: z.string().trim().min(1).max(1000),
+  includeUnreviewed: z.boolean(),
+});
+export type CoachTurnRequest = z.infer<typeof CoachTurnRequest>;
+export const CoachTurnResponse = z.object({ question: CoachMessage, answer: CoachMessage });
+export type CoachTurnResponse = z.infer<typeof CoachTurnResponse>;
+export const CorrectionDecision = z.object({}).strict();
+export const CorrectionConfirmResponse = z.object({
+  correction: Correction,
+  before: CoachMessage.nullable(),
+  after: CoachMessage.nullable(),
+});
+export type CorrectionConfirmResponse = z.infer<typeof CorrectionConfirmResponse>;
+export const CorrectionResponse = z.object({ correction: Correction });
+export const CoachSuggestions = z.object({ questions: z.array(z.string()).max(6) });
+
 // ---- Realtime events (Valkey pub/sub payloads, SSE and WebSocket frames; ADR-017) --
 
 export const MessageEvent = z.object({ type: z.literal('message'), message: Message });

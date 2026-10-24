@@ -25,6 +25,7 @@ export const PHASE: Record<DispatchedKind, Phase> = {
   data_request: 'state',
   handoff_channel: 'state',
   out_of_scope: 'state',
+  correct: 'state',
 };
 
 export type Outcome = 'done' | 'refused' | 'failed' | 'unhandled';

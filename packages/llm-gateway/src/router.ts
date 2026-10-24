@@ -85,6 +85,7 @@ export function createGateway(
       tenantId: meta.tenantId,
       conversationId: meta.conversationId ?? null,
       turnId: meta.turnId ?? null,
+      coachingSessionId: meta.coachingSessionId ?? null,
       purpose: purposeOf(model),
       model,
       provider: result.provider,

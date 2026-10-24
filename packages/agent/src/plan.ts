@@ -3,8 +3,9 @@ import { z } from 'zod';
 import type { HistoryMessage } from './prompt.js';
 
 /**
- * The task kinds a visitor message can carry (ADR-025 decision 1). Closed: a new kind
- * needs an ADR-025 amendment.
+ * The task kinds a message can carry (ADR-025 decision 1). Closed: a new kind needs an
+ * ADR amendment. `correct` is coaching-only (ADR-026): the visitor triage prompt never
+ * lists it and the visitor registry has no handler for it.
  */
 export const TaskKind = z.enum([
   'answer',
@@ -17,6 +18,7 @@ export const TaskKind = z.enum([
   'crisis',
   'abuse',
   'out_of_scope',
+  'correct',
 ]);
 export type TaskKind = z.infer<typeof TaskKind>;
 
