@@ -966,8 +966,14 @@ export const usageEvents = pgTable(
   ],
 );
 
-export const COACHING_ORIGINS = ['coach', 'setup', 'panel'] as const;
-export const COACHING_MESSAGE_KINDS = ['question', 'answer', 'proposal', 'after'] as const;
+export const COACHING_ORIGINS = ['coach', 'setup', 'panel', 'replay'] as const;
+export const COACHING_MESSAGE_KINDS = [
+  'question',
+  'answer',
+  'proposal',
+  'after',
+  'replay',
+] as const;
 
 /**
  * Coaching (AGT-17, ONB-05; FEAT-027 §4): the owner's playground chat with the assistant.
@@ -985,13 +991,30 @@ export const coachingSessions = pgTable(
     origin: text('origin', { enum: COACHING_ORIGINS }).notNull(),
     /** The first question, cut to 80 characters. */
     title: text('title'),
+    /** A replay's conversation (FEAT-028 §4): replays go with their conversation (ADR-015). */
+    replayConversationId: uuid('replay_conversation_id'),
+    /** A replay's include-unreviewed choice, made once (FEAT-028 D6). */
+    includeUnreviewed: boolean('include_unreviewed').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     primaryKey({ columns: [t.tenantId, t.id] }),
     index('coaching_sessions_tenant_updated_idx').on(t.tenantId, t.updatedAt.desc(), t.id.desc()),
-    check('coaching_sessions_origin_ck', sql`${t.origin} in ('coach', 'setup', 'panel')`),
+    index('coaching_sessions_tenant_replay_idx').on(
+      t.tenantId,
+      t.replayConversationId,
+      t.createdAt.desc(),
+    ),
+    foreignKey({
+      columns: [t.tenantId, t.replayConversationId],
+      foreignColumns: [conversations.tenantId, conversations.id],
+    }).onDelete('cascade'),
+    check('coaching_sessions_origin_ck', sql`${t.origin} in ('coach', 'setup', 'panel', 'replay')`),
+    check(
+      'coaching_sessions_replay_ck',
+      sql`(${t.origin} = 'replay') = (${t.replayConversationId} is not null)`,
+    ),
   ],
 );
 
@@ -1015,6 +1038,8 @@ export const coachingMessages = pgTable(
     /** The answer's explainer, built in code (D3). */
     explainer: jsonb('explainer'),
     correctionId: uuid('correction_id'),
+    /** A replayed answer's original visitor message (FEAT-028 §4); no FK, it goes with its conversation. */
+    replayOf: uuid('replay_of'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -1022,13 +1047,15 @@ export const coachingMessages = pgTable(
     foreignKey({
       columns: [t.tenantId, t.sessionId],
       foreignColumns: [coachingSessions.tenantId, coachingSessions.id],
-    }),
+    }).onDelete('cascade'),
     uniqueIndex('coaching_messages_session_seq_uq').on(t.tenantId, t.sessionId, t.seq),
+    uniqueIndex('coaching_messages_session_replay_uq').on(t.tenantId, t.sessionId, t.replayOf),
     check('coaching_messages_author_ck', sql`${t.author} in ('owner', 'agent')`),
     check(
       'coaching_messages_kind_ck',
-      sql`${t.kind} in ('question', 'answer', 'proposal', 'after')`,
+      sql`${t.kind} in ('question', 'answer', 'proposal', 'after', 'replay')`,
     ),
+    check('coaching_messages_replay_ck', sql`(${t.kind} = 'replay') = (${t.replayOf} is not null)`),
   ],
 );
 

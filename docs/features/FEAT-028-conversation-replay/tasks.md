@@ -3,7 +3,7 @@
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
 > Status: designed · Last updated: 2026-10-24
 
-- [ ] T1 — Schema: `0028_replay.sql` and Drizzle: `coaching_sessions` origin `replay`, `replay_conversation_id` (FK to conversations, on delete cascade), `include_unreviewed`, checks and index; `coaching_messages` kind `replay`, `replay_of`, unique key, FK to sessions on delete cascade; RLS suite: tenant-B case for a replay session, still no visitor-role grant (design §4; AC-8 schema half)
+- [x] T1 — Schema: `0028_replay.sql` and Drizzle: `coaching_sessions` origin `replay`, `replay_conversation_id` (FK to conversations, on delete cascade), `include_unreviewed`, checks and index; `coaching_messages` kind `replay`, `replay_of`, unique key, FK to sessions on delete cascade; RLS suite: tenant-B case for a replay session, still no visitor-role grant (design §4; AC-8 schema half)
       Done when: `pnpm db:setup` applies 0028 on a database at 0027; `drizzle-kit generate` reports no drift; the RLS suite passes; deleting a conversation removes its replay sessions and messages (db integration test).
 - [ ] T2 — Contracts: the §3 replay section (`ReplayCandidate`, `Replay`, `ReplayTurn`, `OriginalReply`, `ReplayEffect`), `CoachSession.origin` `replay`, `CoachMessage.kind` `replay`, `Explainer` outcome `ended` and reasons `crisis`, `abuse_warning`, `abuse_ended` (design §3)
       Done when: workspace typecheck passes; contracts unit tests parse a sample `Replay` and reject a turn with `status: 'done'` and no `replayed`.

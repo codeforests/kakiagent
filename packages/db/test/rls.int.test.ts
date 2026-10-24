@@ -1785,6 +1785,62 @@ describe('coaching and corrections (FEAT-027)', () => {
     ).rejects.toThrow(/corrections_coaching_ck/);
   });
 
+  it("a replay session belongs to its conversation, and tenant B can't see tenant A's (FEAT-028)", async () => {
+    const replays: Record<string, string> = {};
+    for (const t of [TENANT_A, TENANT_B]) {
+      const conv = await owner.query(
+        `insert into conversations (tenant_id, channel, visitor_id) values ($1, 'widget', gen_random_uuid()) returning id`,
+        [t],
+      );
+      const s = await owner.query(
+        `insert into coaching_sessions (tenant_id, created_by, origin, replay_conversation_id)
+         values ($1, gen_random_uuid(), 'replay', $2) returning id`,
+        [t, conv.rows[0].id],
+      );
+      await owner.query(
+        `insert into coaching_messages (tenant_id, session_id, seq, author, kind, body, replay_of)
+         values ($1, $2, 1, 'agent', 'replay', 'replayed', gen_random_uuid())`,
+        [t, s.rows[0].id],
+      );
+      replays[t] = conv.rows[0].id;
+    }
+    await asRole('app_dashboard', TENANT_B, async (c) => {
+      const rows = (
+        await c.query(`select tenant_id from coaching_sessions where origin = 'replay'`)
+      ).rows;
+      expect(rows.map((r) => r.tenant_id)).toEqual([TENANT_B]);
+      await expect(
+        c.query(
+          `insert into coaching_sessions (tenant_id, created_by, origin, replay_conversation_id)
+           values ($1, gen_random_uuid(), 'replay', $2)`,
+          [TENANT_B, replays[TENANT_A]],
+        ),
+      ).rejects.toThrow(/foreign key/);
+    });
+    await expect(
+      asRole('app_agent_visitor', TENANT_A, (c) =>
+        c.query(`select * from coaching_sessions where origin = 'replay'`),
+      ),
+    ).rejects.toThrow(/permission denied/);
+    await expect(
+      owner.query(
+        `insert into coaching_sessions (tenant_id, created_by, origin) values ($1, gen_random_uuid(), 'replay')`,
+        [TENANT_A],
+      ),
+    ).rejects.toThrow(/coaching_sessions_replay_ck/);
+
+    await owner.query(`delete from conversations where tenant_id = $1 and id = $2`, [
+      TENANT_A,
+      replays[TENANT_A],
+    ]);
+    const left = await owner.query(
+      `select (select count(*) from coaching_sessions where replay_conversation_id = $1)::int as sessions,
+              (select count(*) from coaching_messages m where m.tenant_id = $2 and m.kind = 'replay')::int as answers`,
+      [replays[TENANT_A], TENANT_A],
+    );
+    expect(left.rows[0]).toEqual({ sessions: 0, answers: 0 });
+  });
+
   it('a usage row belongs to a conversation or a coaching session, never both', async () => {
     await expect(
       owner.query(
