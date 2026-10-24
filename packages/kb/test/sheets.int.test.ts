@@ -727,6 +727,9 @@ describe('preview and confirm (FEAT-016 §5.6; AC-4, AC-6, AC-8)', () => {
       gstTreatment: 'inclusive',
     });
     const updated = await dash((ctx) => updateFact(ctx, fact.id, { version: 1, value }, chunk));
-    expect(updated.value).toEqual({ ...value, sku: 'PC-01', stock: 12, stockAsOf: '2026-10-23' });
+    // The import stamps the day it ran, so compare against that rather than a fixed date.
+    const { stockAsOf } = fact.value;
+    expect(stockAsOf).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(updated.value).toEqual({ ...value, sku: 'PC-01', stock: 12, stockAsOf });
   });
 });
