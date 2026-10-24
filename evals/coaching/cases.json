@@ -1,0 +1,125 @@
+{
+  "$comment": "The coaching subset (FEAT-027 §5.6, AGT-17, AC-14): owner messages run through the coaching triage and the propose step against the bakery fixture's facts (F1…F8 in fixture order) and hours. `correct` says whether triage should see a correction; `kind` is the proposal expected (`unclear`: a correction the owner must name the item for). `realOnly` cases are worded naturally; the fake's keyword rules don't read them, so they run with a real model only.",
+  "cases": [
+    {
+      "id": "price-up",
+      "fast": true,
+      "text": "Chocolate fudge cake went up to $58",
+      "expected": { "correct": true, "kind": "edit_fact", "fact": "b1000001-0000-4000-8000-000000000001", "field": "price", "priceCents": 5800 }
+    },
+    {
+      "id": "price-now",
+      "text": "The pandan chiffon cake is now $30",
+      "expected": { "correct": true, "kind": "edit_fact", "fact": "b1000002-0000-4000-8000-000000000002", "field": "price", "priceCents": 3000 }
+    },
+    {
+      "id": "faq-answer",
+      "fast": true,
+      "text": "The answer about eggless cakes is wrong, it should be: Yes, with 5 days' notice.",
+      "expected": { "correct": true, "kind": "edit_fact", "fact": "b1000003-0000-4000-8000-000000000003", "field": "answer" }
+    },
+    {
+      "id": "policy-details",
+      "text": "Refunds on whole cakes should say: cancel at least 3 days before collection for a full refund.",
+      "expected": { "correct": true, "kind": "edit_fact", "fact": "b1000010-0000-4000-8000-000000000010", "field": "details" }
+    },
+    {
+      "id": "promotion-end-date",
+      "fast": true,
+      "text": "The Deepavali kueh bundle ends on 15 Nov 2099",
+      "expected": { "correct": true, "kind": "edit_fact", "fact": "b1000011-0000-4000-8000-000000000011", "field": "valid_until", "validUntil": "2099-11-15" }
+    },
+    {
+      "id": "promotion-price",
+      "text": "Deepavali kueh bundle should be $22 now",
+      "expected": { "correct": true, "kind": "edit_fact", "fact": "b1000011-0000-4000-8000-000000000011", "field": "price", "priceCents": 2200 }
+    },
+    {
+      "id": "hours-weekends",
+      "fast": true,
+      "text": "We're open 9am to 5pm on weekends now",
+      "expected": { "correct": true, "kind": "edit_hours", "days": ["sat", "sun"], "hours": "09:00-17:00" }
+    },
+    {
+      "id": "hours-weekdays",
+      "text": "From now on we open 10am to 6pm on weekdays",
+      "expected": { "correct": true, "kind": "edit_hours", "days": ["fri", "mon", "thu", "tue", "wed"], "hours": "10:00-18:00" }
+    },
+    {
+      "id": "hours-closed-sunday",
+      "text": "We close on Sundays now",
+      "expected": { "correct": true, "kind": "edit_hours", "days": ["sun"], "hours": "closed" }
+    },
+    {
+      "id": "hours-closed-natural",
+      "realOnly": true,
+      "text": "We're closed on Sundays from now on",
+      "expected": { "correct": true, "kind": "edit_hours", "days": ["sun"], "hours": "closed" }
+    },
+    {
+      "id": "add-faq",
+      "fast": true,
+      "text": "Q: Do you sell gift cards? A: Yes, from $20 at the counter.",
+      "expected": { "correct": true, "kind": "add_faq" }
+    },
+    {
+      "id": "add-faq-natural",
+      "realOnly": true,
+      "text": "Please add that we have free parking behind the shop",
+      "expected": { "correct": true, "kind": "add_faq" }
+    },
+    {
+      "id": "ambiguous-no-item",
+      "text": "That's wrong, the price went up",
+      "expected": { "correct": true, "kind": "unclear" }
+    },
+    {
+      "id": "ambiguous-which-cake",
+      "realOnly": true,
+      "text": "The cake went up to $60",
+      "expected": { "correct": true, "kind": "unclear" }
+    },
+    {
+      "id": "question-price",
+      "fast": true,
+      "text": "How much is the chocolate fudge cake?",
+      "expected": { "correct": false }
+    },
+    {
+      "id": "question-delivery",
+      "text": "Do you deliver on Sundays?",
+      "expected": { "correct": false }
+    },
+    {
+      "id": "question-hours",
+      "text": "What time do you open on weekends?",
+      "expected": { "correct": false }
+    },
+    {
+      "id": "chinese-price",
+      "text": "巧克力软糖蛋糕涨到60块",
+      "expected": { "correct": true, "kind": "edit_fact", "fact": "b1000001-0000-4000-8000-000000000001", "field": "price", "priceCents": 6000 }
+    },
+    {
+      "id": "chinese-hours",
+      "text": "周末营业时间改成上午10点到下午4点",
+      "expected": { "correct": true, "kind": "edit_hours", "days": ["sat", "sun"], "hours": "10:00-16:00" }
+    },
+    {
+      "id": "chinese-faq-answer",
+      "realOnly": true,
+      "text": "清真那个答案不对，应该是：我们不用猪肉和猪油",
+      "expected": { "correct": true, "kind": "edit_fact", "fact": "b1000006-0000-4000-8000-000000000006", "field": "answer" }
+    },
+    {
+      "id": "singlish-price",
+      "text": "Eh the pandan chiffon cake now $32 already lah",
+      "expected": { "correct": true, "kind": "edit_fact", "fact": "b1000002-0000-4000-8000-000000000002", "field": "price", "priceCents": 3200 }
+    },
+    {
+      "id": "singlish-faq-answer",
+      "text": "You deliver one is wrong lah, should be: only within 10km of the shop.",
+      "expected": { "correct": true, "kind": "edit_fact", "fact": "b1000004-0000-4000-8000-000000000004", "field": "answer" }
+    }
+  ]
+}

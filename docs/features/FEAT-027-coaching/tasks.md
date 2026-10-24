@@ -20,9 +20,9 @@
 - [x] T7 — API: `apps/api/src/coach.ts` with every §3 route, rate limit, error mapping; wired in `app.ts` (design §3, §5.5; AC-1, AC-6, AC-7, AC-8, AC-9, AC-15)
       Done when: api integration tests pass for every designed success and error, including tenant B's 404s, staff 403, the 429 after 20 turns, confirm → visitor search sees the new value, and the turn's elapsed time under 8 s on the fake provider.
       Note: a body that fails its schema is 422 `invalid_body` on every coaching route (the sessions POST included); the api's fake gateway now uses `fakeAgentScript`, as the agent-worker's does, since coaching turns run in the api (D1). The S3 presigner case in `uploads.int.test.ts` needs Docker and is left to CI, as before.
-- [ ] T8 — Evals: `evals/coaching/cases.json`, `evals/src/coaching.ts`, `coaching.test.ts` (design §5.6; AC-14)
+- [x] T8 — Evals: `evals/coaching/cases.json`, `evals/src/coaching.ts`, `coaching.test.ts` (design §5.6; AC-14)
       Done when: `pnpm --filter @kaki/evals test` passes with every coaching case scored on the fake provider.
-      Note: the real-model run is pending (pending-actions.md), like FEAT-012's extraction set.
+      Note: the real-model run is pending (pending-actions.md), like FEAT-012's extraction set. 22 cases; 4 naturally worded ones (`realOnly`) run with the real model only, as the extraction subset does. `pnpm eval` reports the subset against the new `coaching` threshold (0.9): 18/18 on the fake.
 - [ ] T9 — Dashboard, Coach: `lib/coach.ts`, `coach-chat.tsx` (thread, composer, unreviewed toggle, `answer-explainer`, proposal card, confirm/dismiss, before/after), `/coach` page with sessions (ui-design SCR-APP-030)
       Done when: dashboard typecheck and unit tests pass; the page renders every state in ui-design against the local API.
       Note: no local stack in cloud sessions; renders are checked by T11's E2E in CI.
