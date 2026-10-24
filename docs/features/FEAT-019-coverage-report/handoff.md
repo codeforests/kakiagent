@@ -1,5 +1,5 @@
 # Handoff: FEAT-019 — Coverage report
-Branch: feat/FEAT-019-coverage-report · PR: PR_LINK (draft) · Updated: 2026-10-24 by build (UI)
+Branch: feat/FEAT-019-coverage-report · PR: https://github.com/codeforests/kakiagent/pull/29 (draft) · Updated: 2026-10-24 by build (UI)
 Stage done: build (T1–T10 of 10), status developer-done
 Next: verify — kickoff: "Verify FEAT-019 on branch feat/FEAT-019-coverage-report. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
 
