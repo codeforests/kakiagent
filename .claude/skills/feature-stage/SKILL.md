@@ -73,4 +73,8 @@ Next: <stage> — kickoff: "<exact prompt>"
 
 ## Ending every stage
 
-Push the branch, update the thread checklist, reply to Ken with the result and the next kickoff prompt, then resolve the thread (the verify thread stays open until the PR merges).
+1. Push the branch and update the thread checklist.
+2. **Token use** (Ken, 2026-10-24: FEAT-028, 018, 019, 032 and 033, then stop): append a section for this session to `/mnt/project-files/reviews/feat-NNN-token-use.md` (create it if missing; re-read it just before writing, other sessions write there too). Same shape as `feat-027-build-token-use.md`: new context (token budget at start minus at end), model and tool calls, cached re-reads (roughly calls × average context), output, where the new context went, a comparison table with the earlier stages, and what would save more. Keep it under 40 lines.
+3. **Chain the next stage** (Ken, 2026-10-24): design → build (backend → UI) → verify run one after another, each in its own fresh thread, without waiting for Ken. If nothing is pending for Ken, ask the coordinator with `message_coordinator` to start the next stage's thread with exactly the kickoff prompt from `handoff.md`, then reply to Ken in two lines: the result, and that the next stage has started. If a decision is pending (an open decision card, a question in "Pending for Ken" that blocks the next stage, a blocked task, or a rework/design-defect verdict that needs his call), don't chain: reply with the ask and the kickoff, and chain once he answers.
+4. The chain stops at the verify stage's ready PR: merging and starting the next feature still need Ken's go-ahead (STATE.md, Ken's rules).
+5. Resolve the thread (the verify thread stays open until the PR merges).

@@ -17,7 +17,7 @@ The one file a fresh build session reads first. Keep it under 80 lines. The veri
 | 2. build (backend, then UI) | this file, the feature's `handoff.md`, `tasks.md`, the design sections for the tasks at hand | code, one commit per task, ticks in `tasks.md`, `handoff.md` | backend: branch pushed, handoff to the UI session; UI: draft PR open |
 | 3. verify | this file, `handoff.md`, the design, `tasks.md`, the diff (`git diff main...`) | `acceptance-report.md`, RTM Test ref, this file | PR ready for review; after merge, the next order posted |
 
-Each stage follows `.claude/skills/feature-stage/SKILL.md`. A stage never reads old conversations: what it needs is in these files.
+Each stage follows `.claude/skills/feature-stage/SKILL.md`. A stage never reads old conversations: what it needs is in these files. Stages chain on their own: when one ends with nothing pending for Ken, it has the next stage's thread started; only a decision, the merge, or the next feature waits for him.
 
 **Builds split by layer.** When a feature has both backend and UI tasks, the design marks the split in `tasks.md` and the build runs as two fresh sessions: backend (schema, contracts, domain, API, evals) then UI (dashboard or widget, E2E, verify task). Kickoffs say `Build FEAT-NNN (backend)` and `Build FEAT-NNN (UI)`, otherwise as below. A small feature (about six tasks or fewer, little UI) builds in one session. Any build that still runs long stops at a task boundary; the next session resumes from the unticked tasks.
 
