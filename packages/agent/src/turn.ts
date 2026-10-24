@@ -6,10 +6,12 @@ import {
   flagConversation,
   getMessage,
   hasAssistantMessage,
+  markQuestionGap,
   noticeSince,
   recentMessages,
   recordAbuse,
   replyExists,
+  type GapReason,
 } from '@kaki/inbox';
 import { searchVisitorFacts, visitorKb, type VisitorFact } from '@kaki/kb';
 import { routeReply, type LlmGateway, type LogicalModel } from '@kaki/llm-gateway';
@@ -74,6 +76,13 @@ export type TurnResult = Stored & {
  * model runs (FEAT-022 D8). Idempotent: a turn whose visitor message already has a
  * reply does nothing, and the unique `in_reply_to` index settles a race.
  */
+/** Turn outcomes that mark the visitor's question as a coverage gap (FEAT-019 D2). */
+const GAP_OUTCOMES = new Map<TurnOutcome, GapReason>([
+  ['unavailable', 'unavailable'],
+  ['unsure', 'unsure'],
+  ['escalated', 'escalated'],
+]);
+
 export async function runVisitorTurn(
   deps: TurnDeps,
   job: TurnJobInput,
@@ -128,6 +137,8 @@ export async function runVisitorTurn(
   let dispatched: DispatchReport[] = [];
   let route: LogicalModel | null = null;
   let triageMs: number | null = null;
+  // The retrieval vector, kept to mark an unanswered question as a coverage gap (FEAT-019 D2).
+  let queryVector: number[] | null = null;
 
   async function store(
     outcome: TurnOutcome,
@@ -162,6 +173,15 @@ export async function runVisitorTurn(
         notice,
       });
       if (!reply) return null;
+      // KB-09 (FEAT-019 §5.2): a question the turn tried to answer and couldn't is a gap.
+      const gapReason = GAP_OUTCOMES.get(outcome);
+      if (gapReason && queryVector && plan?.tasks.some((task) => task.kind === 'answer'))
+        await markQuestionGap(tx, {
+          tenantId,
+          messageId: message.id,
+          reason: gapReason,
+          embedding: queryVector,
+        });
       const entry = (action: string, payload?: AuditPayload) =>
         audit.append(tx, tenantId, {
           action,
@@ -244,6 +264,7 @@ export async function runVisitorTurn(
     const { vectors } = await llm.embed({ texts: [message.body], purpose: 'query', meta });
     return withTenant(zdb, tenantId, async (tx) => {
       const found = await searchVisitorFacts(visitorKb(tx, tenantId, conversationId), vectors[0]!);
+      queryVector = vectors[0]!;
       await audit.append(tx, tenantId, {
         action: 'tool.lookup_kb',
         actorType: 'agent',

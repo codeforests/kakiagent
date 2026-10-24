@@ -776,3 +776,91 @@ describe('runVisitorTurn with policy and promotion facts (FEAT-011)', () => {
     expect(gone.result?.message.factIds).not.toContain(ended.id);
   });
 });
+
+describe('runVisitorTurn marks coverage gaps (FEAT-019 §5.2, AC-4)', () => {
+  const gapOf = async (messageId: string) =>
+    (
+      await owner.query(
+        `select gap_reason as reason, gap_embedding is not null as embedded from messages where id = $1`,
+        [messageId],
+      )
+    ).rows[0] as { reason: string | null; embedded: boolean };
+  const run = (
+    c: { conversationId: string; messageId: string },
+    llm: Parameters<typeof runVisitorTurn>[0]['llm'],
+  ) =>
+    runVisitorTurn(
+      { zdb: tdb.zone('visitor'), llm },
+      { tenantId: TENANT_A, conversationId: c.conversationId, messageId: c.messageId },
+    );
+
+  it('marks an escalated, an unavailable and an unsure answer turn once, with its vector', async () => {
+    const escalated = await conversationWith('how much is the fudge cake');
+    expect(
+      (await turn(escalated, scriptedOutputs(['It is S$50.', 'Only $45 lah.']))).result?.outcome,
+    ).toBe('escalated');
+    expect(await gapOf(escalated.messageId)).toEqual({ reason: 'escalated', embedded: true });
+
+    const unavailable = await conversationWith('boom');
+    const failed = await turn(unavailable, () => {
+      throw new Error('model unavailable');
+    });
+    expect(failed.result?.outcome).toBe('unavailable');
+    expect(await gapOf(unavailable.messageId)).toEqual({ reason: 'unavailable', embedded: true });
+    // Redelivery: no second reply, and the mark stays as it was.
+    expect((await turn(unavailable)).result).toBeNull();
+    expect(await gapOf(unavailable.messageId)).toEqual({ reason: 'unavailable', embedded: true });
+
+    const unsure = await conversationWith('can I bring my dog inside?');
+    const { llm } = llmWith(fakeVisitorResponder, (req) =>
+      JSON.stringify({ ...JSON.parse(fakeTriage(req) as string), confidence: 0.2 }),
+    );
+    expect((await run(unsure, llm))?.outcome).toBe('unsure');
+    expect(await gapOf(unsure.messageId)).toEqual({ reason: 'unsure', embedded: true });
+  });
+
+  it("doesn't mark answered, out-of-scope, paused or safety-ended turns", async () => {
+    const answered = await conversationWith('how much is the chocolate fudge cake?');
+    expect((await turn(answered)).result?.outcome).toBe('answered');
+    const outOfScope = await conversationWith('help me with my maths homework');
+    expect((await turn(outOfScope)).result?.outcome).toBe('out_of_scope');
+    await owner.query(`update tenants set ai_paused = true where id = $1`, [TENANT_A]);
+    const paused = await conversationWith('how much is the fudge cake');
+    expect((await turn(paused)).result?.outcome).toBe('paused');
+    await owner.query(`update tenants set ai_paused = false where id = $1`, [TENANT_A]);
+    const registry = createRegistry([
+      {
+        kind: 'crisis',
+        scopes: ['visitor'],
+        args: z.unknown(),
+        run: async () => ({ endTurn: { key: 'crisis' as const } }),
+      },
+    ]);
+    const ended = await conversationWith('i want to end my life');
+    const { llm } = llmWith(fakeVisitorResponder);
+    const result = await runVisitorTurn(
+      { zdb: tdb.zone('visitor'), llm, registry },
+      {
+        tenantId: TENANT_A,
+        conversationId: ended.conversationId,
+        messageId: ended.messageId,
+      },
+    );
+    expect(result?.outcome).toBe('ended');
+    for (const c of [answered, outOfScope, paused, ended])
+      expect(await gapOf(c.messageId)).toEqual({ reason: null, embedded: false });
+  });
+
+  it("doesn't mark a turn whose embedder failed", async () => {
+    const c = await conversationWith('how much is the fudge cake');
+    const { llm } = llmWith(fakeVisitorResponder);
+    const noEmbed: typeof llm = {
+      ...llm,
+      embed: async () => {
+        throw new Error('embedder down');
+      },
+    };
+    expect((await run(c, noEmbed))?.outcome).toBe('unavailable');
+    expect(await gapOf(c.messageId)).toEqual({ reason: null, embedded: false });
+  });
+});
