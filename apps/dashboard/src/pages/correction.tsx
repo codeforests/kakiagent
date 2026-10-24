@@ -15,6 +15,7 @@ import { api, ApiError } from '../lib/api.ts';
 import { relativeTime, useBotName } from '../lib/coach.ts';
 import {
   acceptedLine,
+  closedLine,
   correctionCompleteLine,
   correctionPending,
   correctionProgress,
@@ -23,7 +24,8 @@ import {
   draftOf,
   effectiveChange,
   factEdit,
-  fixSummary,
+  isGap,
+  itemSummary,
   matchedCaption,
   noReplayCaption,
   pastAnswersLede,
@@ -37,9 +39,11 @@ import { fromFact, validate, type Draft, type FieldName } from '../lib/fact-draf
 import { factValue, STATUS_LABEL, STATUS_TONE } from '../lib/facts.ts';
 import { Field } from '../lib/field.tsx';
 import { describedBy } from '../lib/form.ts';
+import { GAP_REASON, gapCaption, gapCountsLine } from '../lib/coverage.ts';
 import { dateLabel, driveReplay, RATE_LIMIT_PAUSE_MS, type ReplayFailure } from '../lib/replay.ts';
 import { AnswerCompare } from './answer-compare.tsx';
 import { CorrectionsForbidden } from './corrections.tsx';
+import { AddFaqDialog } from './faq-dialog.tsx';
 import { FactFields } from './fact-fields.tsx';
 
 type Mode = 'idle' | 'running' | 'pausing' | ReplayFailure;
@@ -234,13 +238,14 @@ export function CorrectionPage() {
   const open = item.status === 'open';
   const change = effectiveChange(item);
   const reconfirm = item.change.kind === 'reconfirm';
+  const gap = isGap(item);
   const busy = accept.isPending || close.isPending;
   const fact = factQuery.data?.fact;
 
   return (
     <div className="replay-page correction-page">
       <Back />
-      <h1 className="page-title">{fixSummary(change)}</h1>
+      <h1 className="page-title">{itemSummary(item)}</h1>
       <p className="correction-page__meta">
         <span className={`chip chip--${sourceTone(item.source)}`}>{SOURCE_LABEL[item.source]}</span>
         <span>Suggested {relativeTime(item.createdAt)}</span>
@@ -253,15 +258,13 @@ export function CorrectionPage() {
           tabIndex={-1}
           ref={bannerRef}
         >
-          {justAccepted ? acceptedLine(change) : decisionLabel(item)}
+          {justAccepted ? acceptedLine(change, item.change) : decisionLabel(item)}
           {!justAccepted && item.decidedAt && ` ${relativeTime(item.decidedAt)}.`}
         </div>
       )}
       {item.status === 'dismissed' && (
         <div className="coach-decided coach-decided--neutral" role="status">
-          {item.closedBySystem
-            ? 'Closed automatically: the fact was confirmed or changed since.'
-            : `Closed${item.decidedAt ? ` ${relativeTime(item.decidedAt)}` : ''}. Nothing in your knowledge changed.`}
+          {closedLine(item, item.decidedAt ? relativeTime(item.decidedAt) : null)}
         </div>
       )}
       {problem === 'stale' && (
@@ -291,52 +294,60 @@ export function CorrectionPage() {
 
       {open && <Origin item={item} detail={data} intervals={intervals.data?.intervals} />}
 
-      <section className="correction-section" aria-labelledby="facts-involved">
-        <h2 id="facts-involved" className="correction-section__title">
-          Facts involved
-        </h2>
-        {item.facts.length === 0 ? (
-          <p className="field__help">
-            {change.kind === 'edit_hours'
-              ? 'Opening hours from your business profile.'
-              : 'A new fact, not in your knowledge yet.'}
-          </p>
-        ) : (
-          <ul className="correction-facts">
-            {item.facts.map((f) => (
-              <li key={f.id} className="correction-facts__row">
-                {f.status === 'deleted' ? (
-                  <span>{f.label}</span>
-                ) : (
-                  <Link to={`/knowledge/facts/${f.id}`}>{f.label}</Link>
-                )}
-                {f.status === 'deleted' ? (
-                  <span className="chip chip--danger">Deleted</span>
-                ) : (
-                  <span className={`status-badge status-badge--${STATUS_TONE[f.status]}`}>
-                    {STATUS_LABEL[f.status]}
-                  </span>
-                )}
-                {f.lastConfirmedAt && (
-                  <span className="source-row__meta">
-                    Last confirmed {dateLabel(f.lastConfirmedAt)}
-                  </span>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      {!gap && (
+        <section className="correction-section" aria-labelledby="facts-involved">
+          <h2 id="facts-involved" className="correction-section__title">
+            Facts involved
+          </h2>
+          {item.facts.length === 0 ? (
+            <p className="field__help">
+              {change.kind === 'edit_hours'
+                ? 'Opening hours from your business profile.'
+                : 'A new fact, not in your knowledge yet.'}
+            </p>
+          ) : (
+            <ul className="correction-facts">
+              {item.facts.map((f) => (
+                <li key={f.id} className="correction-facts__row">
+                  {f.status === 'deleted' ? (
+                    <span>{f.label}</span>
+                  ) : (
+                    <Link to={`/knowledge/facts/${f.id}`}>{f.label}</Link>
+                  )}
+                  {f.status === 'deleted' ? (
+                    <span className="chip chip--danger">Deleted</span>
+                  ) : (
+                    <span className={`status-badge status-badge--${STATUS_TONE[f.status]}`}>
+                      {STATUS_LABEL[f.status]}
+                    </span>
+                  )}
+                  {f.lastConfirmedAt && (
+                    <span className="source-row__meta">
+                      Last confirmed {dateLabel(f.lastConfirmedAt)}
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
 
       <section className="correction-section" aria-labelledby="proposed-fix">
         <h2 id="proposed-fix" className="correction-section__title">
           {open ? 'Proposed fix' : 'The fix'}
         </h2>
-        {item.status === 'edited_and_accepted' && (
+        {item.status === 'edited_and_accepted' && !gap && (
           <p className="field__help">Edited before accepting</p>
         )}
-        <FixDiff change={change} current={fact ? factValue(fact) : null} />
-        {item.acceptedChange && (
+        {gap && open ? (
+          <p className="field__help">
+            Write an answer to add as an FAQ. Nothing changes until you save it.
+          </p>
+        ) : (
+          <FixDiff change={change} current={fact ? factValue(fact) : null} />
+        )}
+        {item.acceptedChange && !gap && (
           <details className="correction-original">
             <summary>Show the original suggestion</summary>
             <FixDiff change={item.change} current={null} />
@@ -346,19 +357,25 @@ export function CorrectionPage() {
           <>
             <div className="coach-proposal__actions">
               <Button
-                onClick={() => accept.mutate(null)}
+                onClick={() => {
+                  if (!gap) return accept.mutate(null);
+                  accept.reset();
+                  setEditing(true);
+                }}
                 disabled={busy}
-                aria-busy={(accept.isPending && !editing) || undefined}
+                aria-busy={(accept.isPending && !editing && !gap) || undefined}
               >
-                {accept.isPending && !editing
-                  ? reconfirm
-                    ? 'Re-confirming…'
-                    : 'Accepting…'
-                  : reconfirm
-                    ? 'Re-confirm'
-                    : 'Accept'}
+                {gap
+                  ? 'Add an FAQ'
+                  : accept.isPending && !editing
+                    ? reconfirm
+                      ? 'Re-confirming…'
+                      : 'Accepting…'
+                    : reconfirm
+                      ? 'Re-confirm'
+                      : 'Accept'}
               </Button>
-              {item.change.kind !== 'edit_hours' && (
+              {item.change.kind !== 'edit_hours' && !gap && (
                 <Button
                   variant="secondary"
                   onClick={() => {
@@ -400,15 +417,31 @@ export function CorrectionPage() {
         />
       )}
 
-      <EditFixDialog
-        open={editing}
-        item={item}
-        fact={fact ?? null}
-        busy={accept.isPending}
-        error={accept.error}
-        onClose={() => setEditing(false)}
-        onSubmit={(edit) => accept.mutate(edit)}
-      />
+      {gap ? (
+        <AddFaqDialog
+          open={editing}
+          question={data.context.gap?.questions[0]?.body ?? item.gap?.question ?? ''}
+          caption={item.gap ? gapCaption(item.gap.asksTotal) : undefined}
+          busy={accept.isPending}
+          error={
+            accept.error instanceof ApiError && accept.error.code === 'invalid_correction'
+              ? 'Enter a question and an answer.'
+              : null
+          }
+          onClose={() => setEditing(false)}
+          onSubmit={(faq) => accept.mutate({ kind: 'add_faq', ...faq })}
+        />
+      ) : (
+        <EditFixDialog
+          open={editing}
+          item={item}
+          fact={fact ?? null}
+          busy={accept.isPending}
+          error={accept.error}
+          onClose={() => setEditing(false)}
+          onSubmit={(edit) => accept.mutate(edit)}
+        />
+      )}
       <ConfirmDialog
         open={closing}
         onOpenChange={(o) => !o && setClosing(false)}
@@ -434,9 +467,9 @@ function Origin({
   intervals: Parameters<typeof staleLine>[2];
 }) {
   const botName = useBotName();
-  const { coaching, conversation } = detail.context;
+  const { coaching, conversation, gap } = detail.context;
   const change = item.change;
-  if (change.kind !== 'reconfirm' && !coaching && !conversation?.length) return null;
+  if (change.kind !== 'reconfirm' && !coaching && !conversation?.length && !gap) return null;
   return (
     <section className="correction-section" aria-labelledby="came-from">
       <h2 id="came-from" className="correction-section__title">
@@ -463,6 +496,21 @@ function Origin({
           {item.coachingSessionId && (
             <Link to={`/coach?session=${item.coachingSessionId}`}>Open in Coach</Link>
           )}
+        </div>
+      )}
+      {gap && (
+        <div className="correction-thread" data-testid="gap-questions">
+          <p className="correction-thread__label">Customers asked</p>
+          {gap.questions.map((q) => (
+            <div key={q.messageId} className="coach-bubble coach-bubble--visitor">
+              <span className="coach-bubble__who">
+                Customer · {dateLabel(q.askedAt)}{' '}
+                <span className="chip chip--neutral">{GAP_REASON[q.reason]}</span>
+              </span>
+              <p className="coach-bubble__text">{q.body}</p>
+            </div>
+          ))}
+          <p className="field__help">{gapCountsLine(gap.asks30d, gap.asksTotal)}</p>
         </div>
       )}
       {conversation && conversation.length > 0 && (

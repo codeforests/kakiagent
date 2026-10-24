@@ -2770,6 +2770,10 @@ a.settings-row:hover {
     justify-content: flex-start;
   }
 }
+.correction-thread__label {
+  margin: 0;
+  font-weight: var(--font-weight-medium);
+}
 .review-setup__coverage {
   display: grid;
   justify-items: start;

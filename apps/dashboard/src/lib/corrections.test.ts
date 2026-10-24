@@ -10,6 +10,7 @@ import { ApiError } from './api.ts';
 import {
   acceptedLine,
   agoLabel,
+  closedLine,
   correctionCompleteLine,
   correctionPending,
   correctionProgress,
@@ -19,7 +20,10 @@ import {
   effectiveChange,
   factEdit,
   fixSummary,
+  gapMeta,
   intervalError,
+  isGap,
+  itemSummary,
   matchedCaption,
   monthsSince,
   noReplayCaption,
@@ -182,6 +186,53 @@ describe('effective change and decisions', () => {
     expect(decisionLabel(item({ status: 'dismissed' }))).toBe('Closed');
     expect(decisionLabel(item({ status: 'dismissed', closedBySystem: true }))).toBe(
       'Closed automatically',
+    );
+  });
+});
+
+describe('coverage gap items (FEAT-019)', () => {
+  const gapChange: ProposedChange = { kind: 'answer_gap' };
+  const gapItem = (over: Partial<CorrectionItem> = {}) =>
+    item({
+      source: 'coverage_gap',
+      proposedBy: 'system',
+      change: gapChange,
+      gap: { question: 'Do you deliver to Jurong?', asksTotal: 5 },
+      ...over,
+    });
+  it('labels the origin and reads as the customers’ question while open', () => {
+    expect(SOURCE_LABEL.coverage_gap).toBe('Coverage gap');
+    expect(isGap(gapItem())).toBe(true);
+    expect(isGap(item())).toBe(false);
+    expect(itemSummary(gapItem())).toBe('Customers asked: “Do you deliver to Jurong?”');
+    expect(gapMeta(gapItem())).toBe('5 times');
+    expect(gapMeta(gapItem({ gap: { question: 'Halal?', asksTotal: 1 } }))).toBe('once');
+    expect(gapMeta(item())).toBeNull();
+    expect(itemSummary(item(), NOW)).toBe(fixSummary(priceEdit, NOW));
+  });
+  it('falls back to a generic line without its question', () => {
+    expect(itemSummary(gapItem({ gap: null }))).toMatch(/^Customers asked something/);
+  });
+  it('an accepted gap shows the FAQ it added', () => {
+    const accepted = gapItem({ status: 'edited_and_accepted', acceptedChange: faq });
+    expect(effectiveChange(accepted)).toBe(faq);
+    expect(itemSummary(accepted)).toBe('New FAQ: Do you deliver on Sundays?');
+    expect(decisionLabel(accepted)).toBe('FAQ added');
+    expect(acceptedLine(faq, gapChange)).toBe('FAQ added. Your assistant now uses it.');
+    expect(noReplayCaption(faq)).toMatch(/No past answers used this yet/);
+    expect(noReplayCaption(gapChange)).toMatch(/No past answers used this yet/);
+  });
+  it('says why a gap closed by itself', () => {
+    const auto = gapItem({ status: 'dismissed', closedBySystem: true });
+    expect(decisionLabel(auto)).toBe('Closed automatically');
+    expect(closedLine(auto, null)).toBe(
+      'Closed automatically: the chats it came from were deleted.',
+    );
+    expect(closedLine(item({ status: 'dismissed', closedBySystem: true }), null)).toMatch(
+      /the fact was confirmed or changed since/,
+    );
+    expect(closedLine(gapItem({ status: 'dismissed' }), '2 hours ago')).toBe(
+      'Closed 2 hours ago. Nothing in your knowledge changed.',
     );
   });
 });
