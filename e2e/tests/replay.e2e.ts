@@ -86,9 +86,10 @@ test('a replay answers with the current facts next to what the visitor got', asy
 
   // Replaying, then the comparison.
   await expect(owner).toHaveURL(/\/coach\/replay\/[0-9a-f-]{36}$/);
-  await expect(
-    owner.getByText(/^Replay complete\. 1 answer uses different facts\.$/),
-  ).toBeVisible();
+  // The strip shows the summary; a polite live region announces the same line.
+  const done = /^Replay complete\. 1 answer uses different facts\.$/;
+  await expect(owner.getByRole('paragraph').filter({ hasText: done })).toBeVisible();
+  await expect(owner.locator('[aria-live="polite"]').filter({ hasText: done })).toHaveCount(1);
   const turn = owner.getByRole('listitem', { name: 'Question 1 of 1' });
   await expect(turn).toContainText(question);
   await expect(turn.getByTestId('replay-original')).toContainText('S$12.00');

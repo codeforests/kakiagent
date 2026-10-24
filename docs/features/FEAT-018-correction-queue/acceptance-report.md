@@ -47,6 +47,7 @@ Through `scripts/test-env.sh` (local Postgres 16 + pgvector; no Docker), at `770
 - `@kaki/api` first run: FEAT-027's `coach.int` "proposes, then a confirm…" failed once because its audit check `not.toMatch(/fudge|58/i)` matched a random fact UUID containing `5858`; green on the rerun. A pre-existing flake (about one run in eight), not FEAT-018's; see Findings.
 - `drizzle-kit generate`: no drift. Migrations through 0029 applied to a fresh database by the db suite.
 - **CI:** run 40078002590 (workflow_dispatch, needed because `pnpm-lock.yaml` changed) failed on every job in ~3 s, twice, with no runner assigned: an Actions minutes or billing block, not code. E2E (`corrections.e2e.ts`, `review.e2e.ts`, FEAT-028's `replay.e2e.ts`) is still to pass before merge.
+- **Ken's local CI (WSL), 2026-10-24 at `52d75e0`:** 40 passed, 2 failed on webkit: `corrections.e2e.ts:128` and `replay.e2e.ts:91` used `getByText` for the "Replay complete…" line, which matches both the visible strip and its polite live region (Playwright strict mode). A test defect, not a product one: the page announces the line as designed. Corrected to target the strip's paragraph and assert the live region carries the same line once (stronger than before).
 
 ## Direct verification
 

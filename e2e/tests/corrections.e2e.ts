@@ -125,7 +125,10 @@ test('a coaching correction is edited in the queue and compared, a stale fact re
   // Applied: the banner, then the comparison of the past answer (AC-7).
   await expect(owner.getByText('Fix accepted. Your assistant now uses it.')).toBeFocused();
   await expect(owner.getByRole('heading', { name: 'Past answers' })).toBeVisible();
-  await expect(owner.getByText(/^Replay complete\. 1 answer changed\.$/)).toBeVisible();
+  // The strip shows the summary; a polite live region announces the same line.
+  const done = /^Replay complete\. 1 answer changed\.$/;
+  await expect(owner.getByRole('paragraph').filter({ hasText: done })).toBeVisible();
+  await expect(owner.locator('[aria-live="polite"]').filter({ hasText: done })).toHaveCount(1);
   const turn = owner.getByRole('listitem', { name: 'Question 1 of 1' });
   await expect(turn).toContainText(question);
   await expect(turn.getByTestId('replay-original')).toContainText('S$12.00');
