@@ -1120,6 +1120,7 @@ export const CoachSession = z.object({
   updatedAt: z.iso.datetime({ offset: true }),
 });
 export type CoachSession = z.infer<typeof CoachSession>;
+export const CoachSessionResponse = z.object({ session: CoachSession });
 export const CoachSessionList = z.object({
   sessions: z.array(CoachSession),
   nextCursor: z.string().nullable(),

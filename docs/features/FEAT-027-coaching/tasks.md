@@ -23,9 +23,9 @@
 - [x] T8 — Evals: `evals/coaching/cases.json`, `evals/src/coaching.ts`, `coaching.test.ts` (design §5.6; AC-14)
       Done when: `pnpm --filter @kaki/evals test` passes with every coaching case scored on the fake provider.
       Note: the real-model run is pending (pending-actions.md), like FEAT-012's extraction set. 22 cases; 4 naturally worded ones (`realOnly`) run with the real model only, as the extraction subset does. `pnpm eval` reports the subset against the new `coaching` threshold (0.9): 18/18 on the fake.
-- [ ] T9 — Dashboard, Coach: `lib/coach.ts`, `coach-chat.tsx` (thread, composer, unreviewed toggle, `answer-explainer`, proposal card, confirm/dismiss, before/after), `/coach` page with sessions (ui-design SCR-APP-030)
+- [x] T9 — Dashboard, Coach: `lib/coach.ts`, `coach-chat.tsx` (thread, composer, unreviewed toggle, `answer-explainer`, proposal card, confirm/dismiss, before/after), `/coach` page with sessions (ui-design SCR-APP-030)
       Done when: dashboard typecheck and unit tests pass; the page renders every state in ui-design against the local API.
-      Note: no local stack in cloud sessions; renders are checked by T11's E2E in CI.
+      Note: no local stack in cloud sessions; renders are checked by T11's E2E in CI. The dashboard had no unit tests, so it gains Vitest (`test` script, `vitest.config.ts`; the lockfile changes, so the verify stage runs CI per STATE.md); `lib/coach.test.ts` covers the explainer, diff and panel rules. The chat lives in `pages/coach-chat.tsx` (the dashboard keeps components in `pages/`). The chats list shows title and time, not the creator's name: `CoachSession` has no creator field (§3). Contracts gained `CoachSessionResponse` for the create route.
 - [ ] T10 — Dashboard, setup step and quick panel: `/setup/test` (SCR-APP-010) with suggestions, the review step's Continue → `/setup/test`; `quick-coach-panel.tsx` from Review fact cards and the Fact page, full page below 768 px (ui-design)
       Done when: dashboard typecheck and unit tests pass; the panel's prefill and the mobile redirect are unit-tested.
 - [ ] T11 — E2E: `e2e/tests/coach.e2e.ts` for J11 [UC-04]: ask → explainer → teach a price → confirm → the widget quotes the new price; the setup test step; axe on SCR-APP-030 and SCR-APP-010 (design §6; AC-6, AC-13)

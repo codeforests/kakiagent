@@ -15,6 +15,7 @@ import {
   CoachSessionDetail,
   CoachSessionList,
   CoachSessionListQuery,
+  CoachSessionResponse,
   CoachSuggestions,
   CoachTurnRequest,
   CoachTurnResponse,
@@ -174,7 +175,7 @@ export function registerCoachRoutes(
     const row = await withTenant(dashboardDb, s.tenantId, (tx) =>
       createSession(tx, { tenantId: s.tenantId, userId: s.userId, origin }),
     );
-    return reply.code(201).send({ session: toSession(row) });
+    return reply.code(201).send(CoachSessionResponse.parse({ session: toSession(row) }));
   });
 
   app.get('/api/v1/coach/sessions', async (req) => {

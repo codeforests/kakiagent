@@ -3,6 +3,7 @@ import { AssistantPage } from './pages/assistant.tsx';
 import { BusinessProfilePage, SetupProfilePage } from './pages/business-profile.tsx';
 import { AddWebsitePage, SetupSourcesPage } from './pages/add-website.tsx';
 import { Placeholder } from './pages/placeholder.tsx';
+import { CoachPage } from './pages/coach.tsx';
 import { ConflictsPage } from './pages/conflicts.tsx';
 import { ReviewPage, ReviewPlaceholder, SetupReviewPage } from './pages/review.tsx';
 import { SourcePage } from './pages/source.tsx';
@@ -58,7 +59,8 @@ export const router = createBrowserRouter([
       { path: 'knowledge/sources/:id', element: <SourcePage /> },
       { path: 'knowledge/facts/new', element: <FactPage /> },
       { path: 'knowledge/facts/:id', element: <FactPage /> },
-      { path: 'coach', element: <Placeholder title="Coach" feature="FEAT-027" /> },
+      // Coach (FEAT-027, SCR-APP-030).
+      { path: 'coach', element: <CoachPage /> },
       { path: 'leads', element: <Placeholder title="Leads" feature="FEAT-049" /> },
       { path: 'insights', element: <Placeholder title="Insights" feature="FEAT-066" /> },
       // Settings index and Assistant (FEAT-024), Business profile (FEAT-009); the other

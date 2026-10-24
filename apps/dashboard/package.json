@@ -7,7 +7,8 @@
     "build": "tsc -b && vite build",
     "typecheck": "tsc -b",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run --project unit --passWithNoTests"
   },
   "dependencies": {
     "@kaki/contracts": "workspace:*",
@@ -33,6 +34,7 @@
     "globals": "17.13.0",
     "typescript": "6.0.3",
     "typescript-eslint": "8.71.2",
-    "vite": "8.3.4"
+    "vite": "8.3.4",
+    "vitest": "5.0.5"
   }
 }
