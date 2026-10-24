@@ -518,6 +518,9 @@ importers:
       '@kaki/llm-gateway':
         specifier: workspace:*
         version: link:../llm-gateway
+      '@kaki/platform':
+        specifier: workspace:*
+        version: link:../platform
       '@kaki/tenancy':
         specifier: workspace:*
         version: link:../tenancy

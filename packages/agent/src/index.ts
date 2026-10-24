@@ -108,3 +108,30 @@ export {
   proposeCorrectionHandler,
 } from './coach-dispatch.js';
 export { fakeCoachTriage, fakeProposal } from './fake-coach.js';
+export {
+  COACH_TEXTS,
+  explain,
+  reanswer,
+  runCoachingTurn,
+  type CoachDeps,
+  type CoachOutcome,
+  type CoachTurnInput,
+  type CoachTurnResult,
+  type ExplainedFact,
+  type Explainer,
+  type ReasonCode,
+  type VisitorsWouldGet,
+} from './coach.js';
+export {
+  appendMessages,
+  CoachingSessionNotFoundError,
+  createSession,
+  getSession,
+  InvalidSessionCursorError,
+  listSessions,
+  sessionMessages,
+  SESSIONS_PAGE,
+  type CoachingMessageRow,
+  type CoachingOrigin,
+  type CoachingSessionRow,
+} from './coach-store.js';

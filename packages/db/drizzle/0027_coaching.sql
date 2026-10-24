@@ -76,4 +76,7 @@ ALTER TABLE corrections FORCE ROW LEVEL SECURITY;--> statement-breakpoint
 CREATE POLICY tenant_isolation ON corrections USING (tenant_id = app_current_tenant()) WITH CHECK (tenant_id = app_current_tenant());--> statement-breakpoint
 GRANT SELECT, INSERT ON coaching_sessions, coaching_messages, corrections TO app_dashboard;--> statement-breakpoint
 GRANT UPDATE (title, updated_at) ON coaching_sessions TO app_dashboard;--> statement-breakpoint
-GRANT UPDATE (status, decided_by, decided_at, updated_at) ON corrections TO app_dashboard;
+GRANT UPDATE (status, decided_by, decided_at, updated_at, coaching_message_id) ON corrections TO app_dashboard;--> statement-breakpoint
+-- A coaching turn reads the same tenant state a visitor turn gets (name, GST, routing,
+-- persona, hours, kill switch), on the dashboard zone (FEAT-027 §5.2).
+GRANT EXECUTE ON FUNCTION visitor_tenant_state() TO app_dashboard;
