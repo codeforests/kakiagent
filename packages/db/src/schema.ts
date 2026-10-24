@@ -934,6 +934,8 @@ export const usageEvents = pgTable(
     conversationId: uuid('conversation_id'),
     /** The visitor message the turn answers. */
     turnId: uuid('turn_id'),
+    /** A coaching turn's session (FEAT-027 §5.3): metered, never counted per conversation. */
+    coachingSessionId: uuid('coaching_session_id'),
     purpose: text('purpose', { enum: USAGE_PURPOSES }).notNull(),
     model: text('model').notNull(),
     provider: text('provider').notNull(),
@@ -956,6 +958,141 @@ export const usageEvents = pgTable(
     check(
       'usage_events_purpose_ck',
       sql`${t.purpose} in ('triage', 'reply', 'extract', 'summarise', 'judge', 'embed')`,
+    ),
+    check(
+      'usage_events_owner_ck',
+      sql`${t.conversationId} is null or ${t.coachingSessionId} is null`,
+    ),
+  ],
+);
+
+export const COACHING_ORIGINS = ['coach', 'setup', 'panel'] as const;
+export const COACHING_MESSAGE_KINDS = ['question', 'answer', 'proposal', 'after'] as const;
+
+/**
+ * Coaching (AGT-17, ONB-05; FEAT-027 §4): the owner's playground chat with the assistant.
+ * Shared by the tenant's Owner and Admins (D8). Dashboard trust zone only, never the
+ * visitor role (ADR-009).
+ */
+export const coachingSessions = pgTable(
+  'coaching_sessions',
+  {
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id),
+    id: uuid('id').notNull().defaultRandom(),
+    createdBy: uuid('created_by').notNull(),
+    origin: text('origin', { enum: COACHING_ORIGINS }).notNull(),
+    /** The first question, cut to 80 characters. */
+    title: text('title'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.id] }),
+    index('coaching_sessions_tenant_updated_idx').on(t.tenantId, t.updatedAt.desc(), t.id.desc()),
+    check('coaching_sessions_origin_ck', sql`${t.origin} in ('coach', 'setup', 'panel')`),
+  ],
+);
+
+/** A coaching session's content, masked at the edge (D9). */
+export const coachingMessages = pgTable(
+  'coaching_messages',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    id: uuid('id').notNull().defaultRandom(),
+    sessionId: uuid('session_id').notNull(),
+    seq: integer('seq').notNull(),
+    author: text('author', { enum: ['owner', 'agent'] }).notNull(),
+    kind: text('kind', { enum: COACHING_MESSAGE_KINDS }).notNull(),
+    body: text('body').notNull(),
+    includeUnreviewed: boolean('include_unreviewed').notNull().default(false),
+    outcome: text('outcome'),
+    factIds: uuid('fact_ids')
+      .array()
+      .notNull()
+      .default(sql`'{}'::uuid[]`),
+    /** The answer's explainer, built in code (D3). */
+    explainer: jsonb('explainer'),
+    correctionId: uuid('correction_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.id] }),
+    foreignKey({
+      columns: [t.tenantId, t.sessionId],
+      foreignColumns: [coachingSessions.tenantId, coachingSessions.id],
+    }),
+    uniqueIndex('coaching_messages_session_seq_uq').on(t.tenantId, t.sessionId, t.seq),
+    check('coaching_messages_author_ck', sql`${t.author} in ('owner', 'agent')`),
+    check(
+      'coaching_messages_kind_ck',
+      sql`${t.kind} in ('question', 'answer', 'proposal', 'after')`,
+    ),
+  ],
+);
+
+export const CORRECTION_SOURCES = [
+  'thumbs_down',
+  'staff_reply',
+  'staff_edit',
+  'coaching',
+  'oversight',
+  'stale',
+  'coverage_gap',
+] as const;
+export const CORRECTION_STATUSES = [
+  'open',
+  'accepted',
+  'edited_and_accepted',
+  'dismissed',
+] as const;
+
+/**
+ * The corrections queue (ADR-010 decision 4). Proposals never edit facts; confirming one
+ * does, through the KB's write path. FEAT-027 writes `coaching` rows; FEAT-018 adds the
+ * other producers, the queue screen and replay.
+ */
+export const corrections = pgTable(
+  'corrections',
+  {
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id),
+    id: uuid('id').notNull().defaultRandom(),
+    sourceType: text('source_type', { enum: CORRECTION_SOURCES }).notNull(),
+    proposedBy: text('proposed_by', { enum: ['system', 'coaching', 'staff'] }).notNull(),
+    conversationRef: uuid('conversation_ref'),
+    coachingSessionId: uuid('coaching_session_id'),
+    coachingMessageId: uuid('coaching_message_id'),
+    factRefs: uuid('fact_refs')
+      .array()
+      .notNull()
+      .default(sql`'{}'::uuid[]`),
+    proposedChange: jsonb('proposed_change').notNull(),
+    status: text('status', { enum: CORRECTION_STATUSES }).notNull().default('open'),
+    createdBy: uuid('created_by'),
+    decidedBy: uuid('decided_by'),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.id] }),
+    index('corrections_tenant_status_created_idx').on(t.tenantId, t.status, t.createdAt.desc()),
+    check(
+      'corrections_source_ck',
+      sql`${t.sourceType} in ('thumbs_down', 'staff_reply', 'staff_edit', 'coaching', 'oversight', 'stale', 'coverage_gap')`,
+    ),
+    check('corrections_proposed_by_ck', sql`${t.proposedBy} in ('system', 'coaching', 'staff')`),
+    check(
+      'corrections_status_ck',
+      sql`${t.status} in ('open', 'accepted', 'edited_and_accepted', 'dismissed')`,
+    ),
+    check('corrections_decided_ck', sql`(${t.status} = 'open') = (${t.decidedAt} is null)`),
+    check(
+      'corrections_coaching_ck',
+      sql`${t.sourceType} <> 'coaching' or ${t.coachingSessionId} is not null`,
     ),
   ],
 );
@@ -981,4 +1118,7 @@ export const TENANT_SCOPED_TABLES = [
   'memberships',
   'terms_acceptances',
   'usage_events',
+  'coaching_sessions',
+  'coaching_messages',
+  'corrections',
 ] as const;

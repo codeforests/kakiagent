@@ -1697,3 +1697,101 @@ describe('knowledge sources, pages and staged facts (FEAT-012)', () => {
     }
   });
 });
+
+describe('coaching and corrections (FEAT-027)', () => {
+  const ids: Record<string, { session: string; correction: string }> = {};
+  beforeAll(async () => {
+    for (const t of [TENANT_A, TENANT_B]) {
+      const s = await owner.query(
+        `insert into coaching_sessions (tenant_id, created_by, origin) values ($1, gen_random_uuid(), 'coach') returning id`,
+        [t],
+      );
+      await owner.query(
+        `insert into coaching_messages (tenant_id, session_id, seq, author, kind, body) values ($1, $2, 1, 'owner', 'question', $3)`,
+        [t, s.rows[0].id, `coached by ${t}`],
+      );
+      const c = await owner.query(
+        `insert into corrections (tenant_id, source_type, proposed_by, coaching_session_id, proposed_change)
+         values ($1, 'coaching', 'coaching', $2, '{"kind":"add_faq"}') returning id`,
+        [t, s.rows[0].id],
+      );
+      ids[t] = { session: s.rows[0].id, correction: c.rows[0].id };
+    }
+  });
+
+  it.each(['coaching_sessions', 'coaching_messages', 'corrections'])(
+    'the visitor role has no grant on %s (ADR-009)',
+    async (table) => {
+      await expect(
+        asRole('app_agent_visitor', TENANT_A, (c) => c.query(`select * from ${table}`)),
+      ).rejects.toThrow(/permission denied/);
+    },
+  );
+
+  it("tenant B's dashboard can't read or change tenant A's sessions, messages or corrections", async () => {
+    await asRole('app_dashboard', TENANT_B, async (c) => {
+      for (const table of ['coaching_sessions', 'coaching_messages', 'corrections']) {
+        const rows = (await c.query(`select tenant_id from ${table}`)).rows;
+        expect(rows.map((r) => r.tenant_id)).toEqual([TENANT_B]);
+      }
+      expect(
+        (
+          await c.query(
+            `update corrections set status = 'dismissed', decided_at = now() where id = $1`,
+            [ids[TENANT_A]!.correction],
+          )
+        ).rowCount,
+      ).toBe(0);
+      expect(
+        (
+          await c.query(`update coaching_sessions set title = 'x' where id = $1`, [
+            ids[TENANT_A]!.session,
+          ])
+        ).rowCount,
+      ).toBe(0);
+      await expect(
+        c.query(
+          `insert into coaching_sessions (tenant_id, created_by, origin) values ($1, gen_random_uuid(), 'coach')`,
+          [TENANT_A],
+        ),
+      ).rejects.toThrow(/row-level security/);
+    });
+  });
+
+  it('the dashboard may change only the decision columns of a correction, and never delete', async () => {
+    await asRole('app_dashboard', TENANT_A, async (c) => {
+      await expect(
+        c.query(`update corrections set proposed_change = '{}' where id = $1`, [
+          ids[TENANT_A]!.correction,
+        ]),
+      ).rejects.toThrow(/permission denied/);
+    });
+    await asRole('app_dashboard', TENANT_A, async (c) => {
+      await expect(c.query(`delete from coaching_messages`)).rejects.toThrow(/permission denied/);
+    });
+  });
+
+  it('a decided correction has a decision time, and a coaching one has its session', async () => {
+    await expect(
+      owner.query(`update corrections set status = 'accepted' where id = $1`, [
+        ids[TENANT_A]!.correction,
+      ]),
+    ).rejects.toThrow(/corrections_decided_ck/);
+    await expect(
+      owner.query(
+        `insert into corrections (tenant_id, source_type, proposed_by, proposed_change) values ($1, 'coaching', 'coaching', '{}')`,
+        [TENANT_A],
+      ),
+    ).rejects.toThrow(/corrections_coaching_ck/);
+  });
+
+  it('a usage row belongs to a conversation or a coaching session, never both', async () => {
+    await expect(
+      owner.query(
+        `insert into usage_events (tenant_id, conversation_id, coaching_session_id, purpose, model, provider, provider_model_id, cost_usd)
+         values ($1, gen_random_uuid(), $2, 'reply', 'm', 'p', 'x', 0)`,
+        [TENANT_A, ids[TENANT_A]!.session],
+      ),
+    ).rejects.toThrow(/usage_events_owner_ck/);
+  });
+});

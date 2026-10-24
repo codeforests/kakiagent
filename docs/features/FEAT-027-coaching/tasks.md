@@ -3,7 +3,7 @@
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
 > Status: designed · Last updated: 2026-10-24
 
-- [ ] T1 — Schema: `coaching_sessions`, `coaching_messages`, `corrections`, `usage_events.coaching_session_id` (drizzle schema + `0027`, grants, forced RLS, checks); names in `TENANT_SCOPED_TABLES`; RLS suite cases for the three tables and "no visitor-role grant" (design §4; AC-8 schema half)
+- [x] T1 — Schema: `coaching_sessions`, `coaching_messages`, `corrections`, `usage_events.coaching_session_id` (drizzle schema + `0027`, grants, forced RLS, checks); names in `TENANT_SCOPED_TABLES`; RLS suite cases for the three tables and "no visitor-role grant" (design §4; AC-8 schema half)
       Done when: `pnpm db:setup` applies 0027 on a database at 0026; `drizzle-kit generate` reports no drift; the RLS suite passes with the new cases.
 - [ ] T2 — Contracts, identity and gateway: the §3 shapes in a new contracts section; capability `coach.use` (owner, admin); `meta.coachingSessionId` through `onUsage` to `usage.record`; `TaskKind` `correct` with `PHASE.correct = 'state'` (design §3, §5.2, §5.3; ADR-026)
       Done when: typecheck passes across the workspace; identity and gateway unit tests pass (capability matrix, usage carries `coachingSessionId` with `conversationId` null).
