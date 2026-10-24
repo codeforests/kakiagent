@@ -265,3 +265,17 @@ export {
   type ProposedChange,
 } from './corrections.js';
 export { runStaleScan, type StaleScanRow } from './stale.js';
+export {
+  COVERAGE_GAP_LIMIT,
+  coverageReport,
+  GAP_JOIN_DISTANCE,
+  runGapCluster,
+  TOPIC_COVER_DISTANCE,
+  type CoverageGapRecord,
+  type CoverageInput,
+  type CoverageReportRecord,
+  type CoverageTopicInput,
+  type CoverageTopicRecord,
+  type GapClusterRow,
+  type GapStat,
+} from './coverage.js';

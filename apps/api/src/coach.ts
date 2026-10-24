@@ -122,6 +122,7 @@ export function changeView(c: CorrectionRecord['change']): ProposedChange {
     case 'edit_hours':
       return c as ProposedChange;
     case 'reconfirm':
+    case 'answer_gap':
       return c;
   }
 }
