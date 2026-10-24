@@ -44,6 +44,12 @@ The design session names the branch in its `handoff.md` and final reply; later k
 - After a merge, post the remaining build order with the next feature first.
 - Owner decisions and later checks go to the project file `/mnt/project-files/pending-actions.md` (feature, when due, what to check), not into chat.
 
+## While GitHub Actions is out of minutes (from 2026-10-24 until the monthly reset)
+
+- CI can't run, so Ken merges after a local check instead of green CI. The verify stage runs, through `scripts/test-env.sh`, `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test` and `test:coverage` for every package the feature touches, and lists the results in the PR body.
+- E2E and screen renders can't run anywhere (no Docker), so the verify stage records them as "pending CI" in the acceptance report and adds a line to `pending-actions.md`. Once Actions is back, re-run CI on `main` and fix anything red before the next merge.
+- Add `[skip ci]` to commit messages so pushes don't queue jobs that fail at once. Delete this section when Actions is back.
+
 ## Environment
 
 - No Docker in cloud sessions: run integration tests through `scripts/test-env.sh`, for example `scripts/test-env.sh pnpm --filter @kaki/kb test:integration`. It starts the local Postgres with pgvector and sets `KAKI_TEST_DATABASE_URL`. Shell variables don't persist between calls, so always go through the script.

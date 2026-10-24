@@ -9,7 +9,7 @@ A fresh session runs exactly one stage, writes everything the next stage needs t
 
 ## Inputs, always
 
-1. `docs/build/STATE.md` (order, rules, environment).
+1. `docs/build/STATE.md` (order, rules, environment). If it has a "While GitHub Actions is out" section, that overrides the CI steps below.
 2. The feature branch named in the kickoff. Design creates it from `main`; build and verify `git fetch origin <branch> && git checkout <branch>`. The kickoff naming it is Ken's permission to push there.
 3. `docs/features/FEAT-NNN-<slug>/handoff.md` (build and verify).
 
