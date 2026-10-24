@@ -2,7 +2,7 @@
 
 > Feature from: [implementation-plan.md](../../03-planning/implementation-plan.md) §4 (E3) · Milestone: M2
 > Implements: AGT-17, ONB-05 · Realizes: UC-04 (main flow; 2a, 4, 5a; 4a and 4b belong to FEAT-013/028) · Screens: SCR-APP-030, SCR-APP-010, quick coach panel (see [ui-design.md](ui-design.md))
-> Status: Draft (pending ADR-026 and decision D10) · Date: 2026-10-24
+> Status: Draft (pending ADR-026 sign-off; D10 decided 2026-10-24) · Date: 2026-10-24
 
 ## 1. Intent
 
@@ -116,9 +116,9 @@ sequenceDiagram
 - `coach-store.ts` in `@kaki/agent` (the module that owns `runCoachingTurn`, architecture §5.2) writes `coaching_sessions`/`coaching_messages` on the dashboard zone. Nothing writes to `conversations`, `messages` or the outbox, so coaching never reaches a channel, the inbox, analytics or fair use (ADR-009).
 - Gateway: `meta` gains `coachingSessionId?`; `onUsage` passes it; `usage.record` stores it in `usage_events.coaching_session_id` with `conversation_id` null.
 
-### 5.4 Hours corrections (D10, pending Ken's answer)
+### 5.4 Hours corrections (D10)
 
-`edit_hours` confirms through a port the api wires to `@kaki/tenancy`: read the profile, merge the changed days, `saveBusinessProfile` with the proposal's `profileVersion` (`SettingsConflictError`/version mismatch → `correction_stale`), in the same transaction as the correction update. The next visitor turn's hours slot uses the new hours. If Ken picks "Link to Settings", `PROPOSE_SYSTEM` maps hours to `none` with reason `hours_in_settings`, and the reply links to the business profile (T6 is dropped).
+`edit_hours` confirms through a port the api wires to `@kaki/tenancy`: read the profile, merge the changed days, `saveBusinessProfile` with the proposal's `profileVersion` (`SettingsConflictError`/version mismatch → `correction_stale`), in the same transaction as the correction update. The next visitor turn's hours slot uses the new hours.
 
 ### 5.5 API and dashboard
 
@@ -158,7 +158,7 @@ sequenceDiagram
 - **D7 — After a confirm, only the coached question is re-answered.** The 20-question replay is FEAT-018 (KB-18).
 - **D8 — Coaching sessions are shared by the tenant's Owner and Admins** (list shows everyone's, with `created_by`); no per-user privacy within a tenant's managers.
 - **D9 — Owner text is masked at the edge** (`piiMask`) before storage and model calls (ADR-015), as visitor text is.
-- **D10 — Hours corrections:** pending Ken's decision card (recommended: propose an hours change, §5.4).
+- **D10 — Hours corrections are proposals too** (Ken, 2026-10-24): an `edit_hours` correction, confirmed in the chat, saves the business-profile hours (§5.4). Rejected: linking to Settings with no correction item (AGT-17's own example wouldn't be met in the chat).
 
 ## 8. Escalations and open items
 
