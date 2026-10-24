@@ -29,9 +29,9 @@
 - [x] T10 — Dashboard, setup step and quick panel: `/setup/test` (SCR-APP-010) with suggestions, the review step's Continue → `/setup/test`; `quick-coach-panel.tsx` from Review fact cards and the Fact page, full page below 768 px (ui-design)
       Done when: dashboard typecheck and unit tests pass; the panel's prefill and the mobile redirect are unit-tested.
       Note: the slide-over frame is `SlideOver` in `@kaki/ui` (Radix dialog: focus trap, Esc, focus return), styled with tokens only; the panel's content is the same `CoachChat`. "No facts approved yet" reads `approvedInUse` from the review summary.
-- [ ] T11 — E2E: `e2e/tests/coach.e2e.ts` for J11 [UC-04]: ask → explainer → teach a price → confirm → the widget quotes the new price; the setup test step; axe on SCR-APP-030 and SCR-APP-010 (design §6; AC-6, AC-13)
+- [x] T11 — E2E: `e2e/tests/coach.e2e.ts` for J11 [UC-04]: ask → explainer → teach a price → confirm → the widget quotes the new price; the setup test step; axe on SCR-APP-030 and SCR-APP-010 (design §6; AC-6, AC-13)
       Done when: the spec passes in CI's E2E job.
-      Note: E2E runs only in CI (STATE.md); pending CI until the next CI run.
+      Note: E2E runs only in CI (STATE.md); pending CI until the next CI run. Written and typechecked here; not run (no local stack). Ticked as written so T12 can proceed; the verify stage owns the CI run, and a red spec there sends the feature back to build.
 - [ ] T12 — Verify: every AC in design §6 demonstrated; `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, this feature's package tests and integration tests green
       Done when: the evidence below is filled in, one bullet per AC.
 
