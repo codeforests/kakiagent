@@ -1,5 +1,5 @@
 # Handoff: FEAT-028 — Replay a past conversation against the current KB
-Branch: feat/FEAT-028-conversation-replay · PR: draft (see below) · Updated: 2026-10-24 by build (UI)
+Branch: feat/FEAT-028-conversation-replay · PR: https://github.com/codeforests/kakiagent/pull/27 (draft) · Updated: 2026-10-24 by build (UI)
 Stage done: build (T1–T8 of 8), status developer-done
 Next: verify — kickoff: "Verify FEAT-028 on branch feat/FEAT-028-conversation-replay. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
 
