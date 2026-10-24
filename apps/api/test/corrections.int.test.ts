@@ -167,6 +167,8 @@ describe('list and detail (AC-2, AC-10)', () => {
         proposal: 'Change the pandan chiffon to S$30?',
       },
       conversation: null,
+      // FEAT-019: only a coverage gap has gap context.
+      gap: null,
     });
     expect(detail.replay).toBeNull();
     const summary = (await call('GET', '/api/v1/kb/review/summary', asA)).json();

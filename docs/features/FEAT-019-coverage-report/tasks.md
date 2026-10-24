@@ -13,7 +13,7 @@
       Done when: kb and tenancy unit and integration tests pass: covered by FAQ key, by a near approved fact, never by needs_review/disabled/conflicted facts; skip and un-skip; `question_only` when embedding throws; gap ordering, 20 cap, newest question, counts; stage before and after the first conversation; accepting a gap item with an FAQ makes it visible in `visitor_facts` and drops it from the report; 422s; close changes no fact; no visitor text in `corrections` or audit payloads; FEAT-018's correction tests still pass.
 - [x] T5 — Scheduler: `GAP_CLUSTER_INTERVAL_MS` (10 min, first run at start-up) running `runGapCluster` with a log line, in `.env.example` (design §5.5; AC-5)
       Done when: scheduler-worker typecheck passes; a unit test with a fake zone checks the run logs counts and survives an error.
-- [ ] T6 — API: `registerCoverageRoutes` (report, topic skip), memoized topic embedding, `answer_gap` through the corrections routes (design §3, §5.5; AC-1–AC-3, AC-6, AC-7, AC-9)
+- [x] T6 — API: `registerCoverageRoutes` (report, topic skip), memoized topic embedding, `answer_gap` through the corrections routes (design §3, §5.5; AC-1–AC-3, AC-6, AC-7, AC-9)
       Done when: api integration tests pass for every designed success and error: agent 403, 401, tenant B sees only its own state, 404 unknown topic, a topic covered after `POST /kb/facts`, the accept 422s on a gap item, and the report with a failing embedder.
 
 ## Build session 2 (UI)

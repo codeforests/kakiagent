@@ -695,3 +695,13 @@ export async function gapCounts(
     });
   return out;
 }
+
+/** The tenant has had at least one conversation: Coverage's go-live until FEAT-034 (D4). */
+export async function hasConversation(tx: Tx, tenantId: string): Promise<boolean> {
+  const rows = await tx
+    .select({ id: schema.conversations.id })
+    .from(schema.conversations)
+    .where(eq(schema.conversations.tenantId, tenantId))
+    .limit(1);
+  return rows.length > 0;
+}
