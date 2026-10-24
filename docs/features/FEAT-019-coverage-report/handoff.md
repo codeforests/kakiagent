@@ -1,18 +1,20 @@
 # Handoff: FEAT-019 — Coverage report
-Branch: feat/FEAT-019-coverage-report · PR: none · Updated: 2026-10-24 by design
-Stage done: design
-Next: build (backend, T1–T6) — kickoff: "Build FEAT-019 (backend) on branch feat/FEAT-019-coverage-report. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage build."
+Branch: feat/FEAT-019-coverage-report · PR: none · Updated: 2026-10-24 by build (backend)
+Stage done: build (T1–T6 of 10)
+Next: build (UI, T7–T10) — kickoff: "Build FEAT-019 (UI) on branch feat/FEAT-019-coverage-report. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage build."
 
 ## What the next stage needs
-- No new table: gaps are three columns on the visitor `messages` row; a group of gaps is a `coverage_gap` correction with `proposed_change = {"kind":"answer_gap"}` (no visitor text in it, D3). Coverage and Corrections are two views of the same rows (D1).
-- The turn only marks (`markQuestionGap` in `store()`, reusing the retrieval vector); grouping and filing queue items is `kb_gap_cluster()` (SQL, NOLOGIN role, 0029's stale-scan pattern) run by the scheduler every 10 min. Tests call the function directly with crafted 1024-d vectors.
-- Distances 0.25 (join a gap item) and 0.35 (a fact covers a topic) are starting values (D5); keep them as named constants in kb and the SQL function.
-- Answering a gap = FEAT-018's accept with an `add_faq` edit (required); topics are answered with the existing `POST /api/v1/kb/facts` and then match by `questionKey`.
-- Go-live = the tenant's first conversation until FEAT-034 (D4). Topic vectors are memoized per API process (D7); a failing embedder gives `checked: 'question_only'`, never an error.
-- Backend stops at `## Build session 2 (UI)` in tasks.md; the UI kickoff is the same prompt with "(UI)".
+- Routes: `GET /api/v1/kb/coverage` → `CoverageReport`; `PUT /api/v1/kb/coverage/topics/:topicId` `{ skipped }` → `{ topic: CoverageTopic }` (404 `not_found` for an unknown id). Both `kb.manage`. Contracts in `@kaki/contracts` (`CoverageReport`, `CoverageTopic`, `CoverageGap`, `CoverageTopicBody`, `CoverageTopicResponse`, `COVERAGE_GAP_LIMIT`, `GapReason`, `GapQuestion`).
+- Topic ids are the template's (`fnb.dine-in`, `fnb.payment`, …). Answer a topic with the existing `POST /api/v1/kb/facts` (`type: 'faq'`); it then reads `covered` by question key.
+- Gap items in the queue: `change: { kind: 'answer_gap' }`. Accept with `edit: { kind: 'add_faq', question, answer }` (none → 422 `invalid_correction`, a fact edit → 422 `not_editable`); success is `edited_and_accepted`, `replay: null`. Close as any item.
+- **Deviation (additive):** `CorrectionItem.gap` = `{ question, asksTotal } | null | undefined` (`nullish`) for the SCR-APP-021 row ("Customers asked: “…”", "{n} times"); the design had it only on the detail. `CorrectionContext.gap` = `{ asks30d, asksTotal, lastAskedAt, questions[≤5] }` on gap items, null otherwise; gap items return `conversation: null` (their questions replace the one-conversation excerpt).
+- Dashboard stubs from T2 so typecheck passes: `answer_gap` cases in `lib/coach.ts` (`diffRows` [], `changeSubject` "New FAQ", `confirmedLine` "answer") and `lib/corrections.ts` (`fixSummary` generic line, `noReplayCaption` as add_faq). T8 replaces `fixSummary` with the designed copy using `item.gap`.
+- E2E (T9): group gaps with `select * from kb_gap_cluster()` as `app_outbox` or the superuser. A widget question marks a gap only when the turn ends `unavailable`, `unsure` or `escalated` with an `answer` task and an embedding; check which widget question ends that way on the fake provider (see the FEAT-019 cases at the end of `packages/agent/test/turn.int.test.ts`), or mark a message directly as the api test does.
+- Backend layout: kb `coverage.ts` (`coverageReport`, gap stats come in through a port so kb never reads messages), kb `gap-cluster.ts` (`@kaki/kb/gap-cluster`, used by scheduler-worker), api `coverage.ts` and `gaps.ts` (inbox `gapCounts`/`gapQuestions` → kb port, correction context), tenancy `coverage.ts`, inbox `markQuestionGap`, `hasConversation`.
 
 ## Left to CI or later
-- E2E (`coverage.e2e.ts`, T9) and screen renders run only in Ken's local CI (no GitHub Actions from FEAT-019 on).
+- E2E (`coverage.e2e.ts`, T9) and screen renders run only in Ken's local CI.
+- `apps/api/test/uploads.int.test.ts` (S3 presigner) can't run in cloud sessions (no S3 endpoint); it fails the same on the base commit.
 
 ## Pending for Ken
-- Nothing blocks the build. Later check (pending-actions.md): tune the two distances on real Cohere embeddings at the M1.5 real-model gate.
+- Nothing blocks the UI build. Later check (pending-actions.md, from design): tune the two distances (0.25, 0.35) on real Cohere embeddings at the M1.5 real-model gate.
