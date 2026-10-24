@@ -2,7 +2,7 @@
 
 > Feature from: [implementation-plan.md](../../03-planning/implementation-plan.md) §4 (E3) · Milestone: M2
 > Implements: AGT-17, ONB-05 · Realizes: UC-04 (main flow; 2a, 4, 5a; 4a and 4b belong to FEAT-013/028) · Screens: SCR-APP-030, SCR-APP-010, quick coach panel (see [ui-design.md](ui-design.md))
-> Status: Draft (pending ADR-026 sign-off; D10 decided 2026-10-24) · Date: 2026-10-24
+> Status: Verified (ADR-026 accepted and D10 decided, 2026-10-24) · Date: 2026-10-24
 
 ## 1. Intent
 
@@ -162,7 +162,7 @@ sequenceDiagram
 
 ## 8. Escalations and open items
 
-- **ADR-026 (proposed, needs Ken's sign-off):** amends ADR-025 decision 1's task table with the coaching-only kind `correct` (and reserves `replay` for FEAT-028), and records that coaching turns run in the api role (D1), updating architecture §5.1's agent-worker row by reference. File: `docs/02-design/adr/ADR-026-coaching-task-kind-and-runtime.md`.
+- **ADR-026 (accepted by Ken, 2026-10-24):** amends ADR-025 decision 1's task table with the coaching-only kind `correct` (and reserves `replay` for FEAT-028), and records that coaching turns run in the api role (D1), updating architecture §5.1's agent-worker row by reference. File: `docs/02-design/adr/ADR-026-coaching-task-kind-and-runtime.md`.
 - **Gaps left to later features:** the corrections queue screen, other producers and the 20-question replay (FEAT-018); replaying a past conversation and the quick panel on the Conversation screen (FEAT-028); the wizard frame (FEAT-035).
 - **Real-model checks** (M1.5-style): the coaching eval set on Haiku/Sonnet; added to `pending-actions.md`.
 

@@ -1,6 +1,6 @@
 # ADR-026: Coaching-scope task kinds and where coaching turns run
 
-**Status:** Proposed (FEAT-027 design, 2026-10-24); needs the product owner's sign-off. Amends ADR-025 decision 1 (task table) and architecture §5.1 (agent-worker row). ADR-025's other decisions are unchanged.
+**Status:** Accepted (product owner, 2026-10-24; proposed in the FEAT-027 design). Amends ADR-025 decision 1 (task table) and architecture §5.1 (agent-worker row). ADR-025's other decisions are unchanged.
 
 **Requirements addressed:** AGT-17, ONB-05, AGT-16, UC-04
 

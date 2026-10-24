@@ -4,7 +4,7 @@ Stage done: design
 Next: build — kickoff: "Build FEAT-027 on branch feat/FEAT-027-coaching. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage build."
 
 ## What the next stage needs
-- Wait for Ken's sign-off on ADR-026 (`docs/02-design/adr/ADR-026-coaching-task-kind-and-runtime.md`, Proposed) before T2. D10 is decided: hours corrections are proposals (T6 stays).
+- ADR-026 is accepted (`docs/02-design/adr/ADR-026-coaching-task-kind-and-runtime.md`). D10 is decided: hours corrections are proposals (T6 stays). Nothing blocks the build.
 - Coaching runs in the api role, synchronously (D1): `runCoachingTurn` in `@kaki/agent`, called from `apps/api/src/coach.ts`. No SQS, no realtime.
 - Reuse, don't copy: `answerTurn`/`composeReply` for the answer, `dispatchToolCall` for `propose_correction` (first real use), `updateFact`/`createFact` for a confirm, `prepareChunk` before the transaction.
 - `correct` is added to the shared `TaskKind`; the visitor triage prompt must not list it. `outOfScopeHandler` gets `scopes: ['visitor', 'coaching']`.
@@ -17,4 +17,4 @@ Next: build — kickoff: "Build FEAT-027 on branch feat/FEAT-027-coaching. Read 
 - The coaching eval set on the real model (pending-actions.md, M1.5-style).
 
 ## Pending for Ken
-- ADR-026 sign-off (also in /mnt/project-files/pending-actions.md).
+- None for the design.
