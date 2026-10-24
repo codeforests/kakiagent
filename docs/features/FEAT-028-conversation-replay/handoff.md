@@ -1,20 +1,19 @@
 # Handoff: FEAT-028 — Replay a past conversation against the current KB
-Branch: feat/FEAT-028-conversation-replay · PR: none · Updated: 2026-10-24 by build (backend)
-Stage done: build (T1–T5 of 8)
-Next: build (UI) — kickoff: "Build FEAT-028 (UI) on branch feat/FEAT-028-conversation-replay. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage build."
+Branch: feat/FEAT-028-conversation-replay · PR: draft (see below) · Updated: 2026-10-24 by build (UI)
+Stage done: build (T1–T8 of 8), status developer-done
+Next: verify — kickoff: "Verify FEAT-028 on branch feat/FEAT-028-conversation-replay. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
 
 ## What the next stage needs
-- Routes (all `coach.use`): `GET /api/v1/coach/replay-candidates?cursor` → `ReplayCandidateList`; `POST /api/v1/coach/replays {conversationId, includeUnreviewed}` → 201 `ReplayResponse`; `GET /api/v1/coach/replays/:id` → `ReplayResponse`; `POST /api/v1/coach/replays/:id/next {}` → `ReplayNextResponse {turn, remaining}`. Contracts in the `Dashboard API: replay` section of `@kaki/contracts`, plus `REPLAY_LIMIT` (20).
-- Errors the page must handle: 409 `replay_complete` (stop the drive loop, show done), 404 `conversation_gone`, 429 `rate_limited` (pause, retry after a minute), 422 `nothing_to_replay` on start.
-- `ReplayTurn.replayed` is a `CoachMessage` (kind `replay`, `correction: null`) with the FEAT-027 explainer; outcome `ended` and reasons `crisis`/`abuse_warning`/`abuse_ended` already have sentences in `lib/coach.ts` (`REASON_TEXT`). `effects` are task codes (`crisis`, `abuse`, `out_of_scope`, others `unhandled`).
-- `factsChanged` is null when pending or when the original had no agent reply.
-- Deviation: replay sessions have no title (the design said "first question cut to 80"), because a title would copy visitor text into `coaching_*` against D7/AC-8. The picker shows `firstQuestion` from the candidates list instead.
-- Deviation: the T2 contract unit test lives in `apps/api/src/replay-contract.test.ts` (`@kaki/contracts` has no test setup and `@kaki/agent` doesn't depend on it).
-- Backend tests: `pnpm --filter @kaki/agent test` (replay-dispatch), `scripts/test-env.sh pnpm --filter @kaki/agent test:integration` (replay.int, 12 cases), `scripts/test-env.sh pnpm --filter @kaki/api test:integration` (replay.int, 9 cases), db RLS suite. `pnpm lint` and `pnpm format:check` green after T5.
+- UI: `apps/dashboard/src/lib/replay.ts` (helpers and `driveReplay`, unit-tested in `lib/replay.test.ts`), `pages/replay.tsx` (`ReplayPickPage` at `/coach/replay`, `ReplayPage` at `/coach/replay/:id`), routes in `router.tsx`, "Replay a conversation" link in the Coach page head, CSS at the end of `app.css` (`answer-compare`, `replay-*`, `chip--accent`).
+- The quick coach panel is now `CoachPanelButton` (label, prefill, narrow-screen href) in `quick-coach-panel.tsx`; `AskCoachButton` wraps it unchanged. `askHref()` added to `lib/coach.ts`.
+- The comparison page auto-drives `…/next` only when opened right after starting (router state `start`); reopened with pending turns it shows "Continue replay".
+- Deviations from ui-design: the Coach page-head link stays visible at every width (no overflow-menu component exists yet); the candidate row says "Replayed before · View" (the contract has no replay time); a 429 disables Continue for 60 s.
+- Design gap, not blocking: `factsChanged` compares fact IDs, so editing a fact's price in place gives the new price but no "Uses different facts" chip. The E2E therefore replaces the fact (delete, then create). Recorded in pending-actions for Ken.
+- Local results are in `tasks.md` § Verification evidence. `uploads.int` (S3 presigner) is red here only for want of a container runtime.
 
 ## Left to CI or later
-- E2E (`replay.e2e.ts`, T7) and screen renders: CI only, pending until the next CI run.
+- E2E `e2e/tests/replay.e2e.ts` and screen renders/axe: CI only, pending. The feature touches no widget, infra, `.github/` or lockfile; features since the last CI run is 0, so the cadence doesn't call for CI on this PR.
 - Conversation-screen entry point: FEAT-042.
 
 ## Pending for Ken
-- None.
+- None blocking (the `factsChanged` gap is noted in pending-actions.md).

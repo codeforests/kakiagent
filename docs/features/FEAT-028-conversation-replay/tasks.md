@@ -1,7 +1,7 @@
 # Tasks: FEAT-028 — Replay a past conversation against the current KB
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: designed · Last updated: 2026-10-24
+> Status: developer-done · Last updated: 2026-10-24
 
 - [x] T1 — Schema: `0028_replay.sql` and Drizzle: `coaching_sessions` origin `replay`, `replay_conversation_id` (FK to conversations, on delete cascade), `include_unreviewed`, checks and index; `coaching_messages` kind `replay`, `replay_of`, unique key, FK to sessions on delete cascade; RLS suite: tenant-B case for a replay session, still no visitor-role grant (design §4; AC-8 schema half)
       Done when: `pnpm db:setup` applies 0028 on a database at 0027; `drizzle-kit generate` reports no drift; the RLS suite passes; deleting a conversation removes its replay sessions and messages (db integration test).
@@ -23,7 +23,21 @@
       Done when: the spec passes in CI's E2E job.
       Note: E2E runs only in CI (STATE.md); written and typechecked here, pending CI.
       Done 2026-10-24: written, typechecked and linted; pending CI. The spec replaces the fact (deletes it, adds one at the new price) rather than editing it, because `factsChanged` compares fact IDs and an in-place edit keeps the ID (see handoff).
-- [ ] T8 — Verify: every AC in design §6 demonstrated; `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, this feature's package unit and integration tests green
+- [x] T8 — Verify: every AC in design §6 demonstrated; `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, this feature's package unit and integration tests green
       Done when: the evidence below is filled in, one bullet per AC.
 
 ## Verification evidence
+
+Build sessions, 2026-10-24. Final run (UI session): `pnpm format:check`, `pnpm lint` (ESLint and dependency-cruiser), `pnpm typecheck` (26 tasks) green; dashboard unit 20/20 (`lib/replay.test.ts` 12); agent unit 317/317; agent integration 71/71 (replay.int 12); api `replay.int` all green. The only red was `uploads.int` (S3 presigner), which needs a container runtime this session lacks; FEAT-028 doesn't touch it.
+
+- **AC-1** api `replay.int`: staff 403 on all four routes, 401 without a session, tenant B 404 on A's conversation and replay, B's candidates empty.
+- **AC-2** api and agent `replay.int`: candidates only with a visitor message, newest first, first question and count; `POST /replays` all pending with the original replies grouped.
+- **AC-3** agent `replay.int` "renders a changed fact's new value" and the unreviewed case; E2E `replay.e2e.ts` (new price in "now", old in "original", "Uses different facts"): pending CI.
+- **AC-4** agent `replay.int`: replayed answer equals `runVisitorTurn`'s (text, outcome, fact IDs).
+- **AC-5** agent unit (replay-dispatch) and `replay.int`: crisis and abuse texts and effects, conversation row unchanged.
+- **AC-6** agent `replay.int`: no `conversations`/`messages`/`outbox` writes; usage rows carry `coaching_session_id`.
+- **AC-7** agent and api `replay.int`: in order, 409 after the last, concurrent calls store one row, 34 → 20 with total 34.
+- **AC-8** db and agent `replay.int`: cascade on conversation delete, no visitor text in `coaching_*`; api 404 `conversation_gone`.
+- **AC-9** agent `replay.int`: audit entries with codes and IDs only.
+- **AC-10** SCR-APP-031 built (`pages/replay.tsx`) with every designed state; drive loop and copy unit-tested; renders and axe in `replay.e2e.ts`: pending CI. The Coach chat list excludes replay sessions (api `replay.int`).
+- **AC-11** api `replay.int`: one `…/next` under 8 s on the fake provider.
