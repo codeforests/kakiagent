@@ -11,7 +11,7 @@
       Done when: agent unit tests pass: crisis, abuse (warn then end) and out-of-scope plans give the visitor's texts and effects with no port writes; `propose_correction` is refused in a replay context; FEAT-027's coach tests still pass.
 - [x] T4 — Agent, replay core: `coach-store` replay functions, `replayCandidates`, `startReplay`, `getReplay` (original replies grouped per question, `factsChanged`, first 20 and `totalQuestions`), `replayQuestion`, `replayNext`, errors; audit entries (design §5.1, §5.2; D3–D8; AC-2–AC-4, AC-6–AC-9)
       Done when: agent integration tests on the fake provider pass: a replayed answer equals `runVisitorTurn`'s for the same KB and history; a changed fact gives the new value; `includeUnreviewed` respected; no `conversations`/`messages`/`outbox` writes and usage rows carry `coaching_session_id`; concurrent `replayNext` stores one row; 34 questions → 20 turns, total 34; audit payloads codes and IDs only; no visitor text in `coaching_*`.
-- [ ] T5 — API: the four routes in `apps/api/src/coach.ts`, rate limit `replay:{userId}` 30/min, error mapping; the sessions list excludes replay sessions (design §3, §5.3; AC-1, AC-7, AC-8, AC-11)
+- [x] T5 — API: the four routes in `apps/api/src/coach.ts`, rate limit `replay:{userId}` 30/min, error mapping; the sessions list excludes replay sessions (design §3, §5.3; AC-1, AC-7, AC-8, AC-11)
       Done when: api integration tests pass for every designed success and error, including tenant B's 404s and empty candidates, staff 403, 409 `replay_complete`, 404 `conversation_gone`, the 429, and one `…/next` under 8 s on the fake provider.
 ## Build session 2 (UI)
 

@@ -2,13 +2,19 @@ import {
   applyHoursWith,
   CoachingSessionNotFoundError,
   createSession,
+  getReplay,
   getSession,
   listSessions,
   reanswer,
+  replayCandidates,
+  replayNext,
   runCoachingTurn,
   sessionMessages,
+  startReplay,
   type CoachingMessageRow,
   type CoachingSessionRow,
+  type ReplayTurnRow,
+  type ReplayView,
 } from '@kaki/agent';
 import {
   CoachSessionCreate,
@@ -23,7 +29,15 @@ import {
   CorrectionDecision,
   CorrectionResponse,
   Explainer,
+  ReplayCandidateList,
+  ReplayCandidateQuery,
+  ReplayCreate,
+  ReplayNextRequest,
+  ReplayNextResponse,
+  ReplayResponse,
   type CoachMessage,
+  type Replay,
+  type ReplayTurn,
   type CoachSession,
   type Correction,
   type FactValueView,
@@ -57,9 +71,12 @@ import type { App, Deps } from './server.js';
 export class InvalidCoachBodyError extends Error {}
 /** 429 after 20 turns a minute per user (FEAT-027 §3). */
 export class CoachRateLimitedError extends Error {}
+/** 429 after 30 replayed questions a minute per user (FEAT-028 §3). */
+export class ReplayRateLimitedError extends Error {}
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const TURNS_PER_MINUTE = 20;
+const REPLAYS_PER_MINUTE = 30;
 const SUGGESTED_FROM_TEMPLATE = 3;
 const SUGGESTED_FROM_FACTS = 3;
 
@@ -133,6 +150,36 @@ async function toMessages(
     explainer: r.explainer ? Explainer.parse(r.explainer) : null,
     correction: r.correctionId ? (corrections.get(r.correctionId) ?? null) : null,
   }));
+}
+
+function toReplayTurn(t: ReplayTurnRow, message: CoachMessage | null): ReplayTurn {
+  return {
+    messageId: t.messageId,
+    index: t.index,
+    question: t.question,
+    askedAt: t.askedAt.toISOString(),
+    original: t.original.map((o) => ({ ...o, createdAt: o.createdAt.toISOString() })),
+    status: t.replayed ? 'done' : 'pending',
+    replayed: message,
+    effects: t.effects,
+    factsChanged: t.factsChanged,
+  };
+}
+
+/** A replay in contract shape; replayed answers carry no correction (FEAT-028 §3). */
+async function toReplay(tx: Tx, tenantId: string, r: ReplayView): Promise<Replay> {
+  const rows = r.turns.flatMap((t) => (t.replayed ? [t.replayed] : []));
+  const messages = new Map((await toMessages(tx, tenantId, rows)).map((m) => [m.id, m]));
+  return {
+    id: r.session.id,
+    conversationId: r.conversationId,
+    includeUnreviewed: r.session.includeUnreviewed,
+    createdAt: r.session.createdAt.toISOString(),
+    totalQuestions: r.totalQuestions,
+    turns: r.turns.map((t) =>
+      toReplayTurn(t, t.replayed ? (messages.get(t.replayed.id) ?? null) : null),
+    ),
+  };
 }
 
 function bodyOf<T>(schema: ZodType<T>, body: unknown): T {
@@ -278,6 +325,76 @@ export function registerCoachRoutes(
       dismissCorrection(dashboardKb(tx, s.tenantId, s.userId), id),
     );
     return CorrectionResponse.parse({ correction: toCorrection(done) });
+  });
+
+  // ---- Replay (AGT-17, UC-04 4b; FEAT-028 §3, §5.3): one question per request (D1).
+
+  app.get('/api/v1/coach/replay-candidates', async (req) => {
+    const s = await coachUser(req);
+    const { cursor } = ReplayCandidateQuery.parse(req.query);
+    const page = await replayCandidates(coach, {
+      tenantId: s.tenantId,
+      ...(cursor ? { cursor } : {}),
+    });
+    return ReplayCandidateList.parse({
+      conversations: page.conversations.map((c) => ({
+        id: c.conversation.id,
+        channel: c.conversation.channel,
+        status: c.conversation.status,
+        startedAt: c.conversation.createdAt.toISOString(),
+        lastMessageAt: c.conversation.lastMessageAt.toISOString(),
+        firstQuestion: c.firstQuestion,
+        questions: c.questions,
+        flagged: c.conversation.flaggedAt !== null,
+        lastReplayId: c.lastReplayId,
+      })),
+      nextCursor: page.nextCursor,
+    });
+  });
+
+  app.post('/api/v1/coach/replays', async (req, reply) => {
+    const s = await coachUser(req);
+    const body = bodyOf(ReplayCreate, req.body);
+    const r = await startReplay(coach, {
+      tenantId: s.tenantId,
+      userId: s.userId,
+      conversationId: body.conversationId,
+      includeUnreviewed: body.includeUnreviewed,
+    });
+    const replay = await withTenant(dashboardDb, s.tenantId, (tx) => toReplay(tx, s.tenantId, r));
+    return reply.code(201).send(ReplayResponse.parse({ replay }));
+  });
+
+  app.get<{ Params: { id: string } }>('/api/v1/coach/replays/:id', async (req) => {
+    const s = await coachUser(req);
+    const id = sessionId(req.params.id);
+    const r = await getReplay(coach, { tenantId: s.tenantId, sessionId: id });
+    const replay = await withTenant(dashboardDb, s.tenantId, (tx) => toReplay(tx, s.tenantId, r));
+    return ReplayResponse.parse({ replay });
+  });
+
+  app.post<{ Params: { id: string } }>('/api/v1/coach/replays/:id/next', async (req) => {
+    const s = await coachUser(req);
+    const id = sessionId(req.params.id);
+    bodyOf(ReplayNextRequest, req.body);
+    // 404 before the limiter: another tenant's replay never spends the user's budget.
+    await getReplay(coach, { tenantId: s.tenantId, sessionId: id });
+    let allowed: boolean;
+    try {
+      allowed = (await rateLimiter.hit(`replay:${s.userId}`, REPLAYS_PER_MINUTE, 60_000)).allowed;
+    } catch (err) {
+      req.log.error({ err }, 'rate limiter unavailable');
+      throw new UnavailableError('rate limiter');
+    }
+    if (!allowed) throw new ReplayRateLimitedError();
+    const r = await replayNext(coach, { tenantId: s.tenantId, userId: s.userId, sessionId: id });
+    const [message] = await withTenant(dashboardDb, s.tenantId, (tx) =>
+      toMessages(tx, s.tenantId, r.turn.replayed ? [r.turn.replayed] : []),
+    );
+    return ReplayNextResponse.parse({
+      turn: toReplayTurn(r.turn, message ?? null),
+      remaining: r.remaining,
+    });
   });
 
   /**
