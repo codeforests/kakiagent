@@ -69,3 +69,7 @@ Test ref appended (Test ref column only):
 
 - KB-17: `features/FEAT-018-correction-queue/acceptance-report.md (partial)`
 - KB-18: `features/FEAT-018-correction-queue/acceptance-report.md (partial)`
+
+## CI
+
+Ken's local CI (WSL) on 2026-10-24 after `718fab2`: every job green, including E2E (`corrections.e2e.ts`, `review.e2e.ts`, `replay.e2e.ts`). AC-11 verified.
