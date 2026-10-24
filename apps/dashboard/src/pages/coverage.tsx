@@ -18,7 +18,7 @@ import {
   useCoverage,
 } from '../lib/coverage.ts';
 import { useToast } from '../lib/form.ts';
-import { INDUSTRY_LABEL } from './business-profile.tsx';
+import { INDUSTRY_LABEL } from '../lib/industry.ts';
 import { AddFaqDialog, type FaqAnswer } from './faq-dialog.tsx';
 import { KnowledgeTabs } from './knowledge-tabs.tsx';
 

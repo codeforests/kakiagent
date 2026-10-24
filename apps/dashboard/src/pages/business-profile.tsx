@@ -19,6 +19,7 @@ import { Link, useNavigate } from 'react-router';
 import { api, ApiError } from '../lib/api.ts';
 import { Field } from '../lib/field.tsx';
 import { describedBy, useToast } from '../lib/form.ts';
+import { INDUSTRY_LABEL, INDUSTRY_OPTIONS } from '../lib/industry.ts';
 
 /**
  * SCR-APP-044 Business profile and SCR-APP-006 (p) the setup step (ONB-03, ONB-06;
@@ -26,17 +27,6 @@ import { describedBy, useToast } from '../lib/form.ts';
  */
 
 type Mode = 'settings' | 'setup';
-
-const INDUSTRY_OPTIONS: { value: Industry; label: string }[] = [
-  { value: 'fnb', label: 'Food and beverage' },
-  { value: 'retail', label: 'Retail' },
-  { value: 'beauty_wellness', label: 'Beauty and wellness' },
-  { value: 'education', label: 'Education and tuition' },
-  { value: 'professional_services', label: 'Professional services' },
-  { value: 'home_services', label: 'Home services' },
-  { value: 'other', label: 'Other' },
-];
-export const INDUSTRY_LABEL = Object.fromEntries(INDUSTRY_OPTIONS.map((o) => [o.value, o.label]));
 
 const LANGUAGE_OPTIONS: { value: ProfileLanguage; label: string; lang: string }[] = [
   { value: 'en', label: 'English', lang: 'en' },
