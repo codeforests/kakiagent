@@ -1,6 +1,6 @@
 ---
 name: feature-stage
-description: Run one stage (design, build or verify) of one KakiAgent feature in a fresh session, from compact files only, then hand off and stop. Use for "Design FEAT-N", "Build FEAT-N", "Verify FEAT-N".
+description: Run one stage (design, build or verify) of one KakiAgent feature in a fresh session, from compact files only, then hand off and stop. Use for "Design FEAT-N", "Build FEAT-N" (backend or UI), "Verify FEAT-N".
 ---
 
 # One stage of one feature
@@ -15,26 +15,31 @@ A fresh session runs exactly one stage, writes everything the next stage needs t
 
 ## Token rules
 
-- Read by section: `grep -n` then `sed -n 'A,Bp'`. Never read a file over ~300 lines whole. `docs/build/code-map.md` says where things live.
-- Copy the format from the pattern in `code-map.md`, not by reading a previous feature's documents in full.
+Every call re-reads the whole context, and the session's starting prompt alone is about 85k, so the number of calls and the size of the context both cost.
+
+- Read by section: `grep -n` then `sed -n 'A,Bp'`. Never read a file over ~300 lines whole. `docs/build/code-map.md` says where things live, and its "Agent pipeline" section stands in for reading `turn.ts`, `dispatch.ts` and `coach.ts`.
+- Batch: several reads in one shell call; and per task, edit → typecheck → test → commit in one shell call where it can be.
+- Copy the format from the pattern in `code-map.md` and the newest feature's documents read by section, not by loading the sdlc-kit design skills or reading whole documents.
+- `docs/02-design/design.md` is long: index it (`grep -n '^#\|^\*\*`' docs/02-design/design.md`) and read only the components the screen uses.
 - Typecheck and test one package at a time while working; full `pnpm lint` and `pnpm typecheck` once, in the final task.
 - Integration tests always through `scripts/test-env.sh` (no Docker in cloud sessions).
 - Keep replies to Ken short; details go in the files.
 
 ## Stage: design
 
-1. Load the `agentic-sdlc-kit:detailed-design` skill, then `agentic-sdlc-kit:ui-design` (per-feature mode). The rules above narrow how much they read.
-2. Inputs: the plan row, the cited FR/UC/SCR/NFR blocks, the ADRs it names, and the code the feature extends (via `code-map.md`).
-3. Write `technical-design.md`, `tasks.md` (status `designed`), `ui-design.md` and the manifest entries.
+1. Don't load the `agentic-sdlc-kit` design skills: the document pattern in `code-map.md` and the newest feature's documents (by section) give the format. Load `detailed-design` or `ui-design` only for a kind of document no earlier feature has.
+2. Inputs: the plan row, the cited FR/UC/SCR/NFR blocks, the ADRs it names, and the code the feature extends (via `code-map.md`). If the feature builds on the previous one, read that feature's design by section rather than surveying the code again.
+3. Write `technical-design.md`, `tasks.md` (status `designed`), `ui-design.md` and the manifest entries. In `tasks.md`, order backend tasks before UI tasks and mark the split with a `## Build session 2 (UI)` heading before the first UI task, unless the feature is small enough for one build session (STATE.md).
 4. Open questions that change the design go to Ken with a decision card before finishing; record answers as D-n.
-5. Write `handoff.md`, commit, push. Reply with the build kickoff.
+5. If the feature changes the agent pipeline, the dashboard's patterns or the layers, update `code-map.md` in the same commit.
+6. Write `handoff.md`, commit, push. Reply with the build kickoff (the backend one when the build is split).
 
 ## Stage: build
 
-1. Load `agentic-sdlc-kit:feature-implementation`.
-2. Inputs: `handoff.md`, `technical-design.md`, `tasks.md`, `ui-design.md` (sections for the task at hand). Start at the first unticked task.
+1. The rules here and in `AGENTS.md` are enough; load `agentic-sdlc-kit:feature-implementation` only if they leave something unclear.
+2. Inputs: `handoff.md`, `tasks.md`, and the design sections for the task at hand (`technical-design.md`; `ui-design.md` only in the UI session). Start at the first unticked task.
 3. Per task: implement, run its "Done when", tick it, one commit. At most 3 fix attempts, then stop honestly with a note.
-4. If the session has done about six tasks or feels long, stop at a task boundary: update `handoff.md`, push, and reply with the same build kickoff so a fresh session resumes.
+4. A backend session stops at the `## Build session 2 (UI)` heading: update `handoff.md` (what the UI session needs: routes, contract names, fakes), push, and reply with the UI kickoff. Any session that has done about six tasks or feels long stops at a task boundary the same way and replies with the kickoff that resumes it.
 5. After the last task: status `developer-done`, push, open a **draft** PR (title `FEAT-NNN: <name>`, body starts with the project's attribution block; assign `codeforests`). Don't start CI; the verify stage decides (STATE.md, CI cadence). Reply with the verify kickoff.
 
 ## Stage: verify
@@ -68,4 +73,8 @@ Next: <stage> — kickoff: "<exact prompt>"
 
 ## Ending every stage
 
-Push the branch, update the thread checklist, reply to Ken with the result and the next kickoff prompt, then resolve the thread (the verify thread stays open until the PR merges).
+1. Push the branch and update the thread checklist.
+2. **Token use** (Ken, 2026-10-24: FEAT-028, 018, 019, 032 and 033, then stop): append a section for this session to `/mnt/project-files/reviews/feat-NNN-token-use.md` (create it if missing; re-read it just before writing, other sessions write there too). Same shape as `feat-027-build-token-use.md`: new context (token budget at start minus at end), model and tool calls, cached re-reads (roughly calls × average context), output, where the new context went, a comparison table with the earlier stages, and what would save more. Keep it under 40 lines.
+3. **Chain the next stage** (Ken, 2026-10-24): design → build (backend → UI) → verify run one after another, each in its own fresh thread, without waiting for Ken. If nothing is pending for Ken, ask the coordinator with `message_coordinator` to start the next stage's thread with exactly the kickoff prompt from `handoff.md`, then reply to Ken in two lines: the result, and that the next stage has started. If a decision is pending (an open decision card, a question in "Pending for Ken" that blocks the next stage, a blocked task, or a rework/design-defect verdict that needs his call), don't chain: reply with the ask and the kickoff, and chain once he answers.
+4. The chain stops at the verify stage's ready PR: merging and starting the next feature still need Ken's go-ahead (STATE.md, Ken's rules).
+5. Resolve the thread (the verify thread stays open until the PR merges).
