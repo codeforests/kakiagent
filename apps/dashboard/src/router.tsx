@@ -3,7 +3,7 @@ import { AssistantPage } from './pages/assistant.tsx';
 import { BusinessProfilePage, SetupProfilePage } from './pages/business-profile.tsx';
 import { AddWebsitePage, SetupSourcesPage } from './pages/add-website.tsx';
 import { Placeholder } from './pages/placeholder.tsx';
-import { CoachPage } from './pages/coach.tsx';
+import { CoachPage, SetupTestPage } from './pages/coach.tsx';
 import { ConflictsPage } from './pages/conflicts.tsx';
 import { ReviewPage, ReviewPlaceholder, SetupReviewPage } from './pages/review.tsx';
 import { SourcePage } from './pages/source.tsx';
@@ -45,6 +45,8 @@ export const router = createBrowserRouter([
       { path: 'approvals', element: <Placeholder title="Approvals" feature="FEAT-055" /> },
       // Its review step (FEAT-013, SCR-APP-008 partial).
       { path: 'setup/review', element: <SetupReviewPage /> },
+      // Its "test your assistant" step (FEAT-027, SCR-APP-010 partial).
+      { path: 'setup/test', element: <SetupTestPage /> },
       // Review → Facts (FEAT-013), Conflicts (FEAT-014); Corrections follow (FEAT-018).
       { path: 'review', element: <ReviewPage /> },
       { path: 'review/conflicts', element: <ConflictsPage /> },

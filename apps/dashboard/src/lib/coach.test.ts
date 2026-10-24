@@ -7,6 +7,7 @@ import {
   diffRows,
   explainerSummary,
   hoursLabel,
+  opensPanel,
   prefillFor,
   reasonSentences,
   relativeTime,
@@ -129,6 +130,12 @@ describe('the quick coach panel', () => {
     expect(
       prefillFor({ type: 'promotion', value: { title: 'Deepavali bundle', details: 'x' } }),
     ).toBe('Is the Deepavali bundle still on?');
+  });
+
+  it('opens the slide-over from 768 px, the Coach page below', () => {
+    expect(opensPanel(768)).toBe(true);
+    expect(opensPanel(1280)).toBe(true);
+    expect(opensPanel(767)).toBe(false);
   });
 
   it('sends narrow screens to /coach with the prefill, unreviewed on for a fact under review', () => {

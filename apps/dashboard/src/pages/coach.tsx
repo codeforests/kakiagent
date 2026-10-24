@@ -1,9 +1,10 @@
 import { Button, EmptyState, ErrorState } from '@kaki/ui';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { useSearchParams } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { api, ApiError } from '../lib/api.ts';
 import { relativeTime, useBotName } from '../lib/coach.ts';
+import { useReviewSummary } from '../lib/review.ts';
 import { CoachChat } from './coach-chat.tsx';
 
 export function CoachForbidden() {
@@ -132,6 +133,50 @@ export function CoachPage() {
             />
           )}
         </section>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * `/setup/test`: SCR-APP-010 (partial), the setup's "test your assistant" step (ONB-05;
+ * FEAT-027 ui-design). FEAT-035 adds the wizard frame.
+ */
+export function SetupTestPage() {
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const botName = useBotName();
+  const summary = useReviewSummary();
+  const forbidden = summary.error instanceof ApiError && summary.error.status === 403;
+  if (forbidden) return <CoachForbidden />;
+  return (
+    <div className="coach-page coach-setup">
+      <p className="page-lede">Step 4 of the setup</p>
+      <h1 className="page-title">Test your assistant</h1>
+      <p className="page-lede">
+        Ask the questions your customers ask. If an answer is wrong, tell your assistant what's
+        right.
+      </p>
+      {summary.data?.approvedInUse === 0 && (
+        <div className="alert alert--info" role="status">
+          <p>
+            You haven't approved any facts yet, so your assistant can't answer much. Approve facts
+            in the previous step, or include unreviewed facts to try them out.{' '}
+            <Link to="/setup/review">Back to review</Link>
+          </p>
+        </div>
+      )}
+      <CoachChat
+        origin="setup"
+        sessionId={sessionId}
+        onSession={setSessionId}
+        botName={botName}
+        suggestions="always"
+      />
+      <div className="review-setup__footer">
+        <Button asChild>
+          <Link to="/">Continue</Link>
+        </Button>
+        <p className="review-setup__caption">You can keep practising any time in Coach.</p>
       </div>
     </div>
   );

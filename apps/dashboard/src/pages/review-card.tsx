@@ -4,6 +4,7 @@ import { Link } from 'react-router';
 import { factTitle, POLICY_KIND_LABEL, sgd } from '../lib/facts.ts';
 import { dayOf, GROUP, gstUnknown, shortUrl, valueLine } from '../lib/review.ts';
 import { isImported, provenanceWords } from '../lib/sources.ts';
+import { AskCoachButton } from './quick-coach-panel.tsx';
 
 export type CardGst = 'inclusive' | 'exclusive';
 export type Decided = 'approved' | 'rejected';
@@ -198,6 +199,7 @@ export function FactCard(props: FactCardProps) {
               </Button>
             </>
           )}
+          <AskCoachButton fact={fact} />
         </div>
       </div>
     </article>

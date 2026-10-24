@@ -238,3 +238,6 @@ export function useBotName(): string {
   const settings = useQuery({ queryKey: ['assistant-settings'], queryFn: api.assistantSettings });
   return settings.data?.settings.botName || settings.data?.defaults.botName || 'Your assistant';
 }
+
+/** "Ask Coach" opens the slide-over at 768 px and wider, else the Coach page (UX-Q3). */
+export const opensPanel = (viewportWidth: number) => viewportWidth >= PANEL_MIN_WIDTH;

@@ -19,6 +19,7 @@ import { DeleteFactDialog, type DeleteOutcome } from './delete-fact.tsx';
 import { FactFields } from './fact-fields.tsx';
 import { StatusBadge } from './facts.tsx';
 import { FactProvenance } from './fact-provenance.tsx';
+import { AskCoachButton } from './quick-coach-panel.tsx';
 import { NotFound } from './system.tsx';
 
 /** The saved toast (FEAT-022, FEAT-011 ui-design "saved"). */
@@ -139,7 +140,10 @@ function FactForm({ fact, prefill = BLANK }: { fact: Fact | null; prefill?: Draf
       <Link className="back-link" to="/knowledge">
         Facts
       </Link>
-      <h1 className="page-title">{title}</h1>
+      <div className="page-header">
+        <h1 className="page-title">{title}</h1>
+        {fact && <AskCoachButton fact={fact} onConfirmed={reload} />}
+      </div>
 
       {submitted && errorList.length > 0 && (
         <div className="alert alert--danger" role="alert" tabIndex={-1} ref={summaryRef}>
