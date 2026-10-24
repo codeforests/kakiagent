@@ -8,6 +8,7 @@ import { usageSink } from '@kaki/analytics';
 import {
   confirmCorrection,
   correctionFactInput,
+  CorrectionStaleError,
   createFact,
   dashboardKb,
   prepareChunk,
@@ -22,13 +23,16 @@ import {
 } from '@kaki/llm-gateway';
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { openStatus, visitorTenantState } from '@kaki/tenancy';
 import {
+  applyHoursWith,
   COACH_TEXTS,
   CoachingSessionNotFoundError,
   createSession,
   fakeAgentScript,
   reanswer,
   runCoachingTurn,
+  systemSlots,
   textsFor,
 } from '../src/index.js';
 
@@ -278,5 +282,65 @@ describe('isolation and audit (AC-8, AC-9)', () => {
     ).rows as { event_type: string; p: string }[];
     expect(rows.map((x) => x.event_type)).toContain('coach.turn');
     for (const x of rows) expect(x.p).not.toMatch(/fudge|NRIC|S1234567D/i);
+  });
+});
+
+describe('an hours correction (D10, AC-12)', () => {
+  it('proposes sat and sun, and confirming saves the profile that the visitor slot reads', async () => {
+    const s = await session();
+    const r = await turn(s.id, "We're open 9am to 5pm on weekends now");
+    expect(r.correction).toMatchObject({
+      status: 'open',
+      change: {
+        kind: 'edit_hours',
+        after: {
+          sat: [{ open: '09:00', close: '17:00' }],
+          sun: [{ open: '09:00', close: '17:00' }],
+        },
+      },
+    });
+    expect(Object.keys((r.correction!.change as { after: object }).after).sort()).toEqual([
+      'sat',
+      'sun',
+    ]);
+    await withTenant(tdb.zone('dashboard'), TENANT_A, (tx) =>
+      confirmCorrection(dashboardKb(tx, TENANT_A, USER), r.correction!.id, {
+        applyHours: applyHoursWith({ tenantId: TENANT_A, userId: USER }),
+      }),
+    );
+    const state = await withTenant(tdb.zone('visitor'), TENANT_A, (tx) => visitorTenantState(tx));
+    expect(state!.hours!.sat).toEqual([{ open: '09:00', close: '17:00' }]);
+    expect(state!.hours!.sun).toEqual([{ open: '09:00', close: '17:00' }]);
+    const now = new Date();
+    const slots = systemSlots(
+      {
+        hours: state!.hours!,
+        openOnPublicHolidays: state!.openOnPublicHolidays,
+        status: openStatus(state!.hours!, state!.openOnPublicHolidays, now, state!.holidays),
+        now,
+      },
+      'en',
+    );
+    expect(slots.get('hours.sat')).toMatch(/9(:00)?\s?am.*5(:00)?\s?pm/i);
+  });
+
+  it('a profile saved in between makes the confirm stale, and nothing changes', async () => {
+    const s = await session();
+    const r = await turn(s.id, "We're open 8am to 2pm on Sundays now");
+    expect(r.correction?.change.kind).toBe('edit_hours');
+    await owner.query(`update business_profiles set version = version + 1 where tenant_id = $1`, [
+      TENANT_A,
+    ]);
+    await expect(
+      withTenant(tdb.zone('dashboard'), TENANT_A, (tx) =>
+        confirmCorrection(dashboardKb(tx, TENANT_A, USER), r.correction!.id, {
+          applyHours: applyHoursWith({ tenantId: TENANT_A, userId: USER }),
+        }),
+      ),
+    ).rejects.toThrow(CorrectionStaleError);
+    const status = (
+      await owner.query(`select status from corrections where id = $1`, [r.correction!.id])
+    ).rows[0].status;
+    expect(status).toBe('open');
   });
 });

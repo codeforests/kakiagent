@@ -109,6 +109,7 @@ export {
 } from './coach-dispatch.js';
 export { fakeCoachTriage, fakeProposal } from './fake-coach.js';
 export {
+  applyHoursWith,
   COACH_TEXTS,
   explain,
   reanswer,

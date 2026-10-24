@@ -3,6 +3,7 @@ import { audit, auditCode, auditId } from '@kaki/governance';
 import {
   attachCorrectionMessage,
   coachingKb,
+  CorrectionStaleError,
   dashboardKb,
   factLabel,
   getCorrection,
@@ -10,6 +11,7 @@ import {
   InvalidCorrectionError,
   proposeCorrection,
   searchCoachingFacts,
+  type ApplyHours,
   type CoachingFact,
   type CorrectionRecord,
   type FactRecord,
@@ -21,6 +23,9 @@ import { piiMask } from '@kaki/platform';
 import {
   getBusinessProfile,
   openStatus,
+  saveBusinessProfile,
+  SettingsConflictError,
+  sgDay,
   visitorTenantState,
   WeeklyHours,
   type VisitorTenantState,
@@ -211,7 +216,7 @@ async function prepare(deps: CoachDeps, input: { tenantId: string; sessionId: st
     const tenant = await visitorTenantState(tx);
     if (!tenant) throw new Error('coaching: tenant state missing');
     const history = await sessionMessages(tx, input.tenantId, input.sessionId, HISTORY_LIMIT);
-    const profile = await getBusinessProfile(tx, input.tenantId, wall.toISOString().slice(0, 10));
+    const profile = await getBusinessProfile(tx, input.tenantId, sgDay(wall));
     const status = tenant.hours
       ? openStatus(tenant.hours, tenant.openOnPublicHolidays, wall, tenant.holidays)
       : null;
@@ -631,4 +636,38 @@ export async function reanswer(
     return row!;
   });
   return { before: found.before, after };
+}
+
+/**
+ * D10 (FEAT-027 §5.4): an hours correction's `applyHours` port over tenancy. The changed
+ * days are merged into the profile and saved under the proposal's profile version, in
+ * the confirm's transaction; a profile saved in between makes the correction stale.
+ */
+export function applyHoursWith(input: {
+  tenantId: string;
+  userId: string;
+  clock?: () => Date;
+}): ApplyHours {
+  return async (tx, change) => {
+    const today = sgDay((input.clock ?? (() => new Date()))());
+    const profile = await getBusinessProfile(tx, input.tenantId, today);
+    if (profile.version !== change.profileVersion)
+      throw new CorrectionStaleError('the hours changed since the proposal');
+    const hours = { ...(profile.hours ?? emptyHours()), ...change.after };
+    if (!WeeklyHours.safeParse(hours).success) throw new InvalidCorrectionError('invalid hours');
+    const { version, updatedAt: _updatedAt, ...rest } = profile;
+    try {
+      await saveBusinessProfile(tx, {
+        tenantId: input.tenantId,
+        userId: input.userId,
+        version,
+        profile: { ...rest, hours: hours as typeof profile.hours },
+        today,
+      });
+    } catch (err) {
+      if (err instanceof SettingsConflictError)
+        throw new CorrectionStaleError('the hours changed since the proposal');
+      throw err;
+    }
+  };
 }

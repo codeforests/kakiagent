@@ -15,7 +15,7 @@
 - [x] T5 — Agent, the turn: `coach-store.ts`, `explain()`, `runCoachingTurn`, `reanswer` (design §5.2, §5.3; D3, D5, D7, D9; AC-2, AC-4, AC-8, AC-9, AC-11)
       Done when: agent integration tests on the fake provider pass: a grounded answer with explainer facts, used IDs and reasons; out-of-scope gives the AGT-04 text; a correction message stores a proposal and makes no reply-model call; paused and not-live tenants still get answers with `visitorsWouldGet` set; no `conversations`/`messages`/`outbox` rows written; masked text stored.
       Note: `channelLive` is a dep defaulting to live, since no channel-live state exists until FEAT-034; `not_live` is tested through it. 0027 also grants the dashboard `visitor_tenant_state()` and `UPDATE (coaching_message_id)` on corrections (the proposal is stored before its chat message). The usage column-list test gained `coaching_session_id`.
-- [ ] T6 — Hours corrections: `edit_hours` proposal and the `applyHours` port over `saveBusinessProfile` (design §5.4; D10; AC-12).
+- [x] T6 — Hours corrections: `edit_hours` proposal and the `applyHours` port over `saveBusinessProfile` (design §5.4; D10; AC-12).
       Done when: integration test: an hours proposal for sat/sun, confirmed, saves the profile and the visitor hours slot renders the new times; a profile saved in between → `CorrectionStaleError`.
 - [ ] T7 — API: `apps/api/src/coach.ts` with every §3 route, rate limit, error mapping; wired in `app.ts` (design §3, §5.5; AC-1, AC-6, AC-7, AC-8, AC-9, AC-15)
       Done when: api integration tests pass for every designed success and error, including tenant B's 404s, staff 403, the 429 after 20 turns, confirm → visitor search sees the new value, and the turn's elapsed time under 8 s on the fake provider.
