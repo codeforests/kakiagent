@@ -1,5 +1,5 @@
 # Handoff: FEAT-027 — Coaching mode
-Branch: feat/FEAT-027-coaching · PR: see the design PR on this branch · Updated: 2026-10-24 by design
+Branch: feat/FEAT-027-coaching · PR: none (build opens the draft PR) · Updated: 2026-10-24 by design
 Stage done: design
 Next: build — kickoff: "Build FEAT-027 on branch feat/FEAT-027-coaching. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage build."
 
