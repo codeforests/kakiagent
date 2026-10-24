@@ -165,3 +165,11 @@ export {
   type ReplayTurnRow,
   type ReplayView,
 } from './replay.js';
+export {
+  correctionReplayNext,
+  CorrectionReplayNotFoundError,
+  getCorrectionReplay,
+  startCorrectionReplay,
+  type CorrectionReplayTurnRow,
+  type CorrectionReplayView,
+} from './correction-replay.js';

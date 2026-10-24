@@ -518,3 +518,53 @@ export async function visitorMessageCount(
     );
   return Number(row?.n ?? 0);
 }
+
+/**
+ * Past visitor questions whose agent reply rendered one of `factIds` (AGT-01's
+ * `fact_ids`), asked before `before`: the questions a correction replays (KB-18; FEAT-018
+ * §5.3, D4). Newest first, at most `limit`; `matched` counts them all.
+ */
+export async function pastQuestionsUsing(
+  tx: Tx,
+  input: { tenantId: string; factIds: string[]; before: Date; limit: number },
+): Promise<{ questions: { messageId: string; conversationId: string }[]; matched: number }> {
+  if (!input.factIds.length) return { questions: [], matched: 0 };
+  const ids = sql`array[${sql.join(
+    input.factIds.map((id) => sql`${id}`),
+    sql`, `,
+  )}]::uuid[]`;
+  const res = await tx.execute<{ id: string; conversation_id: string; matched: number }>(sql`
+    with q as (
+      select distinct v.id, v.conversation_id, v.created_at
+      from messages a
+      join messages v on v.tenant_id = a.tenant_id and v.id = a.in_reply_to
+      where a.tenant_id = ${input.tenantId} and a.author = 'agent' and v.author = 'visitor'
+        and a.fact_ids && ${ids} and a.created_at < ${input.before.toISOString()}
+    )
+    select q.id, q.conversation_id, (select count(*) from q)::int as matched
+    from q order by q.created_at desc, q.id desc limit ${input.limit}`);
+  return {
+    questions: res.rows.map((r) => ({ messageId: r.id, conversationId: r.conversation_id })),
+    matched: res.rows[0] ? Number(res.rows[0].matched) : 0,
+  };
+}
+
+/** The last `limit` messages of a conversation up to `upTo`, oldest first (a correction's excerpt). */
+export async function messagesUpTo(
+  tx: Tx,
+  input: { tenantId: string; conversationId: string; upTo: Date; limit: number },
+): Promise<MessageRow[]> {
+  const rows = await tx
+    .select()
+    .from(schema.messages)
+    .where(
+      and(
+        eq(schema.messages.tenantId, input.tenantId),
+        eq(schema.messages.conversationId, input.conversationId),
+        lte(schema.messages.createdAt, input.upTo),
+      ),
+    )
+    .orderBy(desc(schema.messages.seq))
+    .limit(input.limit);
+  return rows.reverse();
+}

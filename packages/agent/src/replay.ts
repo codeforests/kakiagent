@@ -145,6 +145,25 @@ export async function replayCandidates(
 }
 
 /** The conversation's questions, each with the replies that followed it, oldest first. */
+/** The replies a visitor message got: what followed it up to the next visitor message. */
+export async function originalRepliesFor(
+  tx: Parameters<Parameters<typeof withTenant>[2]>[0],
+  tenantId: string,
+  question: MessageRow,
+): Promise<OriginalReplyRow[]> {
+  const after = await messagesSince(tx, {
+    tenantId,
+    conversationId: question.conversationId,
+    afterSeq: question.seq,
+  });
+  const out: OriginalReplyRow[] = [];
+  for (const m of after) {
+    if (m.author === 'visitor') break;
+    out.push({ author: m.author, text: m.body, factIds: m.factIds, createdAt: m.createdAt });
+  }
+  return out;
+}
+
 function questionsOf(messages: MessageRow[]) {
   const out: { message: MessageRow; original: OriginalReplyRow[] }[] = [];
   for (const m of messages) {
@@ -163,7 +182,7 @@ function questionsOf(messages: MessageRow[]) {
 const sameSet = (a: string[], b: string[]) =>
   new Set(a).size === new Set(b).size && a.every((x) => b.includes(x));
 
-const storedEffects = (row: CoachingMessageRow): ReplayEffect[] =>
+export const storedEffects = (row: CoachingMessageRow): ReplayEffect[] =>
   ((row.explainer as { effects?: ReplayEffect[] } | null)?.effects ?? []).map((e) => ({
     task: e.task,
     outcome: e.outcome,
@@ -267,7 +286,15 @@ async function prepareQuestion(deps: ReplayDeps, input: ReplayQuestionInput): Pr
   const wall = (deps.clock ?? (() => new Date()))();
   const { tenantId } = input;
   return withTenant(deps.zdb, tenantId, async (tx) => {
-    if (!(await getSession(tx, tenantId, input.sessionId)))
+    // A replay asks its own conversation's questions; a correction replay the ones chosen
+    // at acceptance (FEAT-018 §5.4).
+    const session = await getSession(tx, tenantId, input.sessionId);
+    if (
+      !session ||
+      (session.origin === 'replay'
+        ? session.replayConversationId !== input.conversationId
+        : session.origin !== 'correction' || !session.replayQuestionIds.includes(input.messageId))
+    )
       throw new CoachingSessionNotFoundError('replay not found');
     const question = await getMessage(tx, tenantId, input.messageId);
     if (
@@ -304,9 +331,10 @@ async function prepareQuestion(deps: ReplayDeps, input: ReplayQuestionInput): Pr
       role: m.author === 'visitor' ? ('user' as const) : ('assistant' as const),
       content: m.body,
     }));
-    // The abuse count a live turn would see: this replay's earlier abuse turns.
+    // The abuse count a live turn would see: this replay's earlier abuse turns in the same
+    // conversation (a correction replay spans many).
     const earlier = (await replayMessages(tx, tenantId, input.sessionId)).filter(
-      (r) => r.replayOf !== question.id,
+      (r) => r.replayOf !== question.id && r.replayConversationId === input.conversationId,
     );
     const seqs = new Map<string, number>();
     for (const r of earlier) {
@@ -398,6 +426,7 @@ export async function replayQuestion(
       sessionId: input.sessionId,
       message: {
         replayOf: prep.question.id,
+        replayConversationId: prep.question.conversationId,
         body,
         includeUnreviewed: input.includeUnreviewed,
         outcome,
