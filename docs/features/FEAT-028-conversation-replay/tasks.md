@@ -19,9 +19,10 @@
       Done when: dashboard typecheck and unit tests pass (`lib/replay.test.ts`: progress text, "first 20 of N", effect sentences, the drive loop stops on error and on pause).
       Note: no local stack in cloud sessions; renders are checked by T7's E2E in CI.
       Done 2026-10-24: dashboard typecheck green, `lib/replay.test.ts` 12 cases green. The quick panel is generalised as `CoachPanelButton` ("Ask Coach" wraps it). Deviation: the Coach page head keeps the "Replay a conversation" link at every width (the header wraps) instead of a below-768 overflow menu, which no component provides yet.
-- [ ] T7 — E2E: `e2e/tests/replay.e2e.ts`: a widget conversation asks a price → the owner changes the fact → replays the conversation → the "now" column shows the new price with "Uses different facts", the original column the old; axe on picking and comparison (design §6; AC-3, AC-10)
+- [x] T7 — E2E: `e2e/tests/replay.e2e.ts`: a widget conversation asks a price → the owner changes the fact → replays the conversation → the "now" column shows the new price with "Uses different facts", the original column the old; axe on picking and comparison (design §6; AC-3, AC-10)
       Done when: the spec passes in CI's E2E job.
       Note: E2E runs only in CI (STATE.md); written and typechecked here, pending CI.
+      Done 2026-10-24: written, typechecked and linted; pending CI. The spec replaces the fact (deletes it, adds one at the new price) rather than editing it, because `factsChanged` compares fact IDs and an in-place edit keeps the ID (see handoff).
 - [ ] T8 — Verify: every AC in design §6 demonstrated; `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, this feature's package unit and integration tests green
       Done when: the evidence below is filled in, one bullet per AC.
 
