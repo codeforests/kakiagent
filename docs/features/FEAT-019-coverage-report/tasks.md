@@ -26,7 +26,7 @@
       Note: `itemSummary(item)` replaces `fixSummary` on the row and the detail title (an accepted gap reads as its FAQ, "New FAQ: …"); the gap's closed-by-system banner reads "Closed automatically: the chats it came from were deleted."
 - [ ] T9 — E2E: `e2e/tests/coverage.e2e.ts`: pre-live Coverage lists the F&B topics as missing → the owner adds an FAQ for one and marks another "Doesn't apply" → a widget visitor asks something the KB can't answer → the spec runs `kb_gap_cluster()` over a superuser connection (as `corrections.e2e.ts` runs the stale scan) → Coverage is live and lists the gap → the owner adds an FAQ from it → it leaves Coverage and Review › Corrections; axe on Coverage and on the gap item (design §6; AC-3, AC-4–AC-7, AC-10)
       Done when: the spec passes in Ken's local CI E2E run.
-      Note: E2E runs only in Ken's local CI (STATE.md); written and typechecked here, pending CI.
+      Note: E2E runs only in Ken's local CI (STATE.md); written, typechecked and linted here, pending CI. The pre-live half runs on the second tenant, set to F&B for the spec and restored after (the bakery always has chats by then); it checks the pre-live section order only when that tenant has no conversations. The spec marks the visitor's message as a gap if the fake model's turn didn't, with a random vector so it groups on its own: the turn tests own AC-4, the spec owns the path from a gap to an answered FAQ.
 - [ ] T10 — Verify: every AC in design §6 demonstrated; `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, this feature's package unit and integration tests green
       Done when: the evidence below is filled in, one bullet per AC.
 
