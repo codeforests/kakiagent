@@ -61,6 +61,9 @@ export function CoachPage() {
           <h1 className="page-title">Coach</h1>
           <p className="page-lede">Practise with your assistant and teach it what's changed.</p>
         </div>
+        <Button variant="secondary" asChild>
+          <Link to="/coach/replay">Replay a conversation</Link>
+        </Button>
         <button
           type="button"
           className="icon-button coach-page__chats"

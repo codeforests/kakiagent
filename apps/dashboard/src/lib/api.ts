@@ -8,6 +8,10 @@ import {
   CorrectionResponse,
   type CoachOrigin,
   type CoachTurnRequest,
+  ReplayCandidateList,
+  ReplayNextResponse,
+  ReplayResponse,
+  type ReplayCreate,
   AssistantSettingsResponse,
   AuthOptions,
   BusinessProfileResponse,
@@ -237,6 +241,15 @@ export const api = {
       {},
     ),
   coachSuggestions: () => getJson('/api/v1/coach/suggestions', CoachSuggestions),
+  /** FEAT-028 §3: SCR-APP-031. */
+  replayCandidates: (cursor?: string) =>
+    getJson(`/api/v1/coach/replay-candidates${query({ cursor })}`, ReplayCandidateList),
+  startReplay: (body: ReplayCreate) =>
+    request('POST', '/api/v1/coach/replays', ReplayResponse, body),
+  replay: (id: string) =>
+    getJson(`/api/v1/coach/replays/${encodeURIComponent(id)}`, ReplayResponse),
+  replayNext: (id: string) =>
+    request('POST', `/api/v1/coach/replays/${encodeURIComponent(id)}/next`, ReplayNextResponse, {}),
 };
 
 /** The PUT to storage failed: the network, or storage refused it. */

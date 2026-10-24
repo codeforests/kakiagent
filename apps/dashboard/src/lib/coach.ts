@@ -31,6 +31,9 @@ const REASON_TEXT: Record<ReasonCode, string> = {
   escalated: 'It offered to pass this to your team.',
   hours_slot: 'Opening hours come from your business profile.',
   unreviewed_used: "It used a fact you haven't reviewed.",
+  crisis: 'It would share crisis contacts and flag the chat for your team.',
+  abuse_warning: 'It would warn the customer about their language.',
+  abuse_ended: 'It would end its part in the chat and flag it for your team.',
 };
 
 const UNAVAILABLE_TEXT =
@@ -211,8 +214,13 @@ export const PANEL_MIN_WIDTH = 768;
 
 /** Where "Ask Coach" goes on a narrow screen: `/coach?ask=…` (and `&unreviewed=1`). */
 export function coachAskHref(f: Pick<Fact, 'type' | 'value' | 'status'>): string {
-  const q = new URLSearchParams({ ask: prefillFor(f) });
-  if (f.status === 'needs_review') q.set('unreviewed', '1');
+  return askHref(prefillFor(f), f.status === 'needs_review');
+}
+
+/** `/coach?ask=…` for any question (Replay's "Teach a fix", FEAT-028). */
+export function askHref(question: string, unreviewed: boolean): string {
+  const q = new URLSearchParams({ ask: question });
+  if (unreviewed) q.set('unreviewed', '1');
   return `/coach?${q.toString()}`;
 }
 

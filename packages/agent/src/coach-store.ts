@@ -1,4 +1,4 @@
-import { and, desc, eq, lt, or, schema, sql, type Tx } from '@kaki/db';
+import { and, desc, eq, inArray, lt, ne, or, schema, sql, type Tx } from '@kaki/db';
 
 /**
  * Coaching sessions and their messages (FEAT-027 §5.3), on the dashboard zone. Nothing
@@ -58,7 +58,7 @@ function decodeCursor(cursor: string): { ts: Date; id: string } {
   return { ts: date, id };
 }
 
-/** The tenant's sessions, newest first, everyone's (D8). */
+/** The tenant's sessions, newest first, everyone's (D8). Replays are listed by the replay screen (FEAT-028). */
 export async function listSessions(
   tx: Tx,
   tenantId: string,
@@ -72,6 +72,7 @@ export async function listSessions(
     .where(
       and(
         eq(s.tenantId, tenantId),
+        ne(s.origin, 'replay'),
         after
           ? or(lt(s.updatedAt, after.ts), and(eq(s.updatedAt, after.ts), lt(s.id, after.id)))
           : undefined,
@@ -162,4 +163,100 @@ export async function getMessage(
     .from(schema.coachingMessages)
     .where(and(eq(schema.coachingMessages.tenantId, tenantId), eq(schema.coachingMessages.id, id)));
   return row ?? null;
+}
+
+// ---- Replay (FEAT-028 §5.2): a session of origin `replay`, its answers of kind `replay`.
+
+/** A replay session. No title: visitor text is never copied into coaching (D7). */
+export async function createReplaySession(
+  tx: Tx,
+  input: { tenantId: string; userId: string; conversationId: string; includeUnreviewed: boolean },
+): Promise<CoachingSessionRow> {
+  const [row] = await tx
+    .insert(schema.coachingSessions)
+    .values({
+      tenantId: input.tenantId,
+      createdBy: input.userId,
+      origin: 'replay',
+      replayConversationId: input.conversationId,
+      includeUnreviewed: input.includeUnreviewed,
+    })
+    .returning();
+  return row!;
+}
+
+/** A replay's stored answers. */
+export async function replayMessages(
+  tx: Tx,
+  tenantId: string,
+  sessionId: string,
+): Promise<CoachingMessageRow[]> {
+  const m = schema.coachingMessages;
+  return tx
+    .select()
+    .from(m)
+    .where(and(eq(m.tenantId, tenantId), eq(m.sessionId, sessionId), eq(m.kind, 'replay')))
+    .orderBy(m.seq);
+}
+
+export type NewReplayMessage = Pick<
+  typeof schema.coachingMessages.$inferInsert,
+  'body' | 'includeUnreviewed' | 'outcome' | 'factIds' | 'explainer'
+> & { replayOf: string };
+
+/**
+ * Stores a replayed answer under a lock on the session; a second answer for the same
+ * question is dropped and the stored one returned (FEAT-028 §3: concurrent `next`).
+ */
+export async function insertReplayMessage(
+  tx: Tx,
+  input: { tenantId: string; sessionId: string; message: NewReplayMessage },
+): Promise<CoachingMessageRow> {
+  const session = await getSession(tx, input.tenantId, input.sessionId, true);
+  if (!session) throw new CoachingSessionNotFoundError('session not found');
+  const m = schema.coachingMessages;
+  const [inserted] = await tx
+    .insert(m)
+    .values({
+      ...input.message,
+      tenantId: input.tenantId,
+      sessionId: input.sessionId,
+      author: 'agent',
+      kind: 'replay',
+      seq: sql`(select coalesce(max(seq), 0) + 1 from coaching_messages
+                where tenant_id = ${input.tenantId} and session_id = ${input.sessionId})`,
+    })
+    .onConflictDoNothing({ target: [m.tenantId, m.sessionId, m.replayOf] })
+    .returning();
+  if (inserted) return inserted;
+  const [stored] = await tx
+    .select()
+    .from(m)
+    .where(
+      and(
+        eq(m.tenantId, input.tenantId),
+        eq(m.sessionId, input.sessionId),
+        eq(m.replayOf, input.message.replayOf),
+      ),
+    );
+  return stored!;
+}
+
+/** The newest replay of each conversation, for the picker. */
+export async function lastReplays(
+  tx: Tx,
+  tenantId: string,
+  conversationIds: string[],
+): Promise<Map<string, string>> {
+  if (!conversationIds.length) return new Map();
+  const s = schema.coachingSessions;
+  const rows = await tx
+    .selectDistinctOn([s.replayConversationId], {
+      conversationId: s.replayConversationId,
+      id: s.id,
+    })
+    .from(s)
+    .where(and(eq(s.tenantId, tenantId), inArray(s.replayConversationId, conversationIds)))
+    .orderBy(s.replayConversationId, desc(s.createdAt));
+  return new Map(rows.map((r) => [r.conversationId!, r.id]));
 }

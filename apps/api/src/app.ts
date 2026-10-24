@@ -44,9 +44,14 @@ import {
 import { channels, signToken, TokenError, verifyToken } from '@kaki/platform';
 import {
   CoachingSessionNotFoundError,
+  ConversationGoneError,
   DEFAULT_BOT_NAME,
   DEFAULT_GREETING,
+  InvalidReplayCursorError,
   InvalidSessionCursorError,
+  NothingToReplayError,
+  ReplayCompleteError,
+  ReplayConversationNotFoundError,
 } from '@kaki/agent';
 import {
   InvalidProfileError,
@@ -64,7 +69,12 @@ import {
   UnauthenticatedError,
   UnavailableError,
 } from './auth.js';
-import { CoachRateLimitedError, InvalidCoachBodyError, registerCoachRoutes } from './coach.js';
+import {
+  CoachRateLimitedError,
+  InvalidCoachBodyError,
+  registerCoachRoutes,
+  ReplayRateLimitedError,
+} from './coach.js';
 import { FactNotFound, ForbiddenError, registerFactRoutes } from './facts.js';
 import { createServer, type Deps } from './server.js';
 import { registerUploadRoutes } from './uploads.js';
@@ -108,6 +118,7 @@ export async function buildApp(deps: Deps) {
       err instanceof InvalidFactError ||
       err instanceof InvalidCursorError ||
       err instanceof InvalidSessionCursorError ||
+      err instanceof InvalidReplayCursorError ||
       err instanceof InvalidProfileError
     )
       return reply.code(400).send({ error: 'bad_request', message: err.message });
@@ -157,6 +168,7 @@ export async function buildApp(deps: Deps) {
       err instanceof FactNotFound ||
       err instanceof SourceNotFoundError ||
       err instanceof CoachingSessionNotFoundError ||
+      err instanceof ReplayConversationNotFoundError ||
       err instanceof CorrectionNotFoundError
     )
       return reply.code(404).send({ error: 'not_found', message: 'Not found' });
@@ -190,6 +202,24 @@ export async function buildApp(deps: Deps) {
       return reply.code(429).send({
         error: 'rate_limited',
         message: "You're sending messages quickly. Wait a minute and try again.",
+      });
+    if (err instanceof ReplayRateLimitedError)
+      return reply.code(429).send({
+        error: 'rate_limited',
+        message: 'Replay is going quickly. Wait a minute and it will continue.',
+      });
+    if (err instanceof ConversationGoneError)
+      return reply
+        .code(404)
+        .send({ error: 'conversation_gone', message: 'This conversation has been deleted.' });
+    if (err instanceof ReplayCompleteError)
+      return reply
+        .code(409)
+        .send({ error: 'replay_complete', message: 'Every question has been replayed.' });
+    if (err instanceof NothingToReplayError)
+      return reply.code(422).send({
+        error: 'nothing_to_replay',
+        message: 'This conversation has no customer questions to replay.',
       });
     if (err instanceof InvalidCoachBodyError)
       return reply
