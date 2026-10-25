@@ -1,7 +1,14 @@
 // Builds the widget (ADR-016): `loader.js` is a classic script (IIFE) for the
 // `<script async>` snippet; `panel.js` is an ES module the loader imports lazily.
 // `--serve` also serves dist/ with a plain host page at / for local development.
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
 import * as esbuild from 'esbuild';
 
 if (existsSync('.env')) process.loadEnvFile('.env');

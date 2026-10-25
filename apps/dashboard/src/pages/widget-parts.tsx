@@ -394,7 +394,7 @@ export function AppearanceForm({
           </p>
         </div>
       )}
-      <div className="action-bar">
+      <div className="widget-form__actions">
         <Button type="submit" disabled={!changed || save.isPending || !!familyError}>
           {save.isPending ? 'Saving…' : 'Save'}
         </Button>
