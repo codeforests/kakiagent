@@ -31,6 +31,22 @@ async function apiCall(owner: Page, method: string, path: string, body?: unknown
   );
 }
 
+/**
+ * The status and body of the page's config request. Chromium and WebKit report a refused
+ * cross-origin response (404 with no CORS header) as a failed request, not a response, so
+ * the request is fetched through a route, which still sends the page's Origin.
+ */
+async function configAnswer(page: Page) {
+  let answer!: (a: { status: number; body: string }) => void;
+  const answered = new Promise<{ status: number; body: string }>((r) => (answer = r));
+  await page.route(/\/widget\/v1\/config/, async (route) => {
+    const res = await route.fetch();
+    answer({ status: res.status(), body: await res.text() });
+    await route.fulfill({ response: res });
+  });
+  return { answered };
+}
+
 /** No overrides, bottom right, and the fixture origin allowed. */
 async function resetLook(owner: Page) {
   expect(
@@ -264,9 +280,9 @@ test('the owner adjusts the look, installs the widget and sees the check turn gr
   await owner.getByRole('button', { name: 'Remove', exact: true }).click();
   await expect(row).toHaveCount(0);
   const silent = await browser.newPage();
-  const config = silent.waitForResponse((r) => r.url().includes('/widget/v1/config'));
+  const config = await configAnswer(silent);
   await silent.goto(`${SITES}/plain.html`);
-  expect((await config).status()).toBe(404);
+  expect((await config.answered).status).toBe(404);
   await silent.waitForTimeout(500);
   expect(await silent.locator('kaki-agent').count()).toBe(0);
   await silent.close();
@@ -307,11 +323,11 @@ test('an unlisted origin gets nothing and is recorded for the install check', as
       body: (await res.text()).replace(/data-key="[^"]*"/, 'data-key="wk_dev_second"'),
     });
   });
-  const config = visitor.waitForResponse((r) => r.url().includes('/widget/v1/config'));
+  const config = await configAnswer(visitor);
   await visitor.goto('http://127.0.0.1:5175/sites/plain.html');
-  const res = await config;
-  expect(res.status()).toBe(404);
-  expect(await res.text()).not.toContain('token');
+  const res = await config.answered;
+  expect(res.status).toBe(404);
+  expect(res.body).not.toContain('token');
   await visitor.waitForTimeout(500);
   expect(await visitor.locator('kaki-agent').count()).toBe(0);
   await visitor.close();

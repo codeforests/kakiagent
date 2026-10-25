@@ -47,6 +47,8 @@ This session didn't write the code. The standard was re-derived from the SRS row
 
 - Owner flow, third local CI run: it ran out of Playwright's default 60 s after detection (which really waits on the ingest worker), part-way through, with the fixture origin removed. That left the dev tenant's widget silent for the next browser's run: 18 Firefox widget specs failed, and WebKit then found their leftover data (an extra conflict, a duplicate fact). The flow now has 120 s, and an `afterEach` puts the look and the fixture origin back when it fails.
 
+- AC-4 steps (fourth local CI run): Chromium and WebKit report the refused config answer (404 with no CORS header) as a failed request, never a `response` event, so `waitForResponse` hung (reproduced here in Chromium; Firefox does emit it). Both the owner flow's removed-origin step and the unlisted-origin test now read the answer through a route (`route.fetch`, which sends the page's Origin), still asserting 404, no token and a silent page.
+
 ## Independent execution
 
 Through `scripts/test-env.sh` (local Postgres 16 + pgvector; no Docker), at `77ec16d`:
