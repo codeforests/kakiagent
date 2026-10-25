@@ -76,6 +76,13 @@ function contrast(a: string, b: string) {
   return (x! + 0.05) / (y! + 0.05);
 }
 
+// The owner flow removes the fixture origin part-way. If it fails before adding it back,
+// put it back, or every later spec's widget (and the next browser's run) stays silent.
+test.afterEach(async ({ page }, info) => {
+  if (info.title.startsWith('the owner adjusts') && info.status !== info.expectedStatus)
+    await resetLook(page);
+});
+
 test('the widget matches each fixture site and keeps text readable', async ({ page, browser }) => {
   await signIn(page, OWNER);
   await resetLook(page);
@@ -192,6 +199,8 @@ test('the owner adjusts the look, installs the widget and sees the check turn gr
   page: owner,
   browser,
 }) => {
+  // Detection waits on the ingest worker, so the whole flow gets more than the default 60 s.
+  test.setTimeout(120_000);
   await signIn(owner, OWNER);
   await resetLook(owner);
 
