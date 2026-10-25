@@ -19,7 +19,11 @@ Every call re-reads the whole context, and the session's starting prompt alone i
 
 - Read by section: `grep -n` then `sed -n 'A,Bp'`. Never read a file over ~300 lines whole. `docs/build/code-map.md` says where things live, and its "Agent pipeline" section stands in for reading `turn.ts`, `dispatch.ts` and `coach.ts`.
 - Batch: several reads in one shell call; and per task, edit → typecheck → test → commit in one shell call where it can be.
-- Copy the format from the pattern in `code-map.md` and the newest feature's documents read by section, not by loading the sdlc-kit design skills or reading whole documents.
+- Copy the format from the pattern in `code-map.md` and the newest feature's documents read by heading only (`grep -n '^## '`) plus at most one short section each, not by loading the sdlc-kit design skills or reading whole documents.
+- Never read a previous feature's `tasks.md` evidence or its whole `ui-design.md` or `acceptance-report.md` as a format: the headings and one entry show the shape (FEAT-019: ~18k spent this way in design, ~6k in verify).
+- Inside big files, jump to the anchors in `code-map.md` ("Big files by anchor") and read ~40–80 lines from there, not the whole function or file.
+- Write integration tests from the helpers named in `code-map.md` (Tests); read a neighbouring test file's setup and one case, not the whole file.
+- Diff against the remote: `git fetch origin main` then `git diff origin/main...HEAD`. Local `main` is stale in a fresh clone (FEAT-019 verify got a 166-file diff that way).
 - `docs/02-design/design.md` is long: index it (`grep -n '^#\|^\*\*`' docs/02-design/design.md`) and read only the components the screen uses.
 - Typecheck and test one package at a time while working; full `pnpm lint` and `pnpm typecheck` once, in the final task.
 - Integration tests always through `scripts/test-env.sh` (no Docker in cloud sessions).
@@ -44,7 +48,7 @@ Every call re-reads the whole context, and the session's starting prompt alone i
 
 ## Stage: verify
 
-1. Load `agentic-sdlc-kit:acceptance-verification`. This session is the independent verifier: it didn't write the code.
+1. Load `agentic-sdlc-kit:acceptance-verification`. This session is the independent verifier: it didn't write the code. Diff against `origin/main` (Token rules), and take the report format from the previous report's headings and per-AC table only.
 2. Inputs: `handoff.md`, the design's §6, `tasks.md` evidence, `git diff main...HEAD`.
 3. Re-run this feature's tests fresh, then the full local checks (STATE.md, CI cadence). Never start or wait on GitHub Actions: when the cadence calls for CI, ask Ken to run it locally in WSL and read the E2E results from the summary he pastes. Review the test diff and the invariants in `AGENTS.md`.
 4. Write `acceptance-report.md`; on acceptance, append the RTM Test ref and set `tasks.md` status `accepted`.

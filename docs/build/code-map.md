@@ -28,7 +28,7 @@ All in `packages/agent/src`; read a function by range only when a task changes i
 ## Tests
 
 - Unit: `src/**/*.test.ts` next to the code. `pnpm --filter <pkg> test`.
-- Integration: `<pkg>/test/*.int.test.ts`, real Postgres via `startTestDatabase()` and `TENANT_A`/`TENANT_B` from `@kaki/db/testing`. API helpers in `apps/api/test/support.ts` (`testApp`, `sessionCookie`, `fakeMailer`). Without Docker: `scripts/test-env.sh pnpm --filter <pkg> test:integration`.
+- Integration: `<pkg>/test/*.int.test.ts`, real Postgres via `startTestDatabase()` and `TENANT_A`/`TENANT_B` from `@kaki/db/testing`. API helpers in `apps/api/test/support.ts` (`testApp(tdb, …)`, `sessionCookie(tdb, email)`, `fakeMailer`, `testConfig`). Write a new suite from these names; read a neighbour's setup and one case only. Without Docker: `scripts/test-env.sh pnpm --filter <pkg> test:integration`.
 - Cross-tenant: every new route or table gets a tenant-B-can't-see-tenant-A case.
 - E2E: `e2e/tests/<area>.e2e.ts`, helpers in `e2e/tests/support.ts` (`signIn`, `expectNoSeriousA11yViolations`, `openShadowRoots`). Runs in CI.
 
@@ -46,3 +46,11 @@ All in `packages/agent/src`; read a function by range only when a task changes i
 - `tasks.md`: header `> Executes: …` and `> Status: designed | developer-done | accepted · Last updated`. Tasks `- [ ] Tn — <what> (design §, AC-n)` with an indented `Done when:` line, and `Note:` lines for anything left to CI. The last task is Verify and ends with a "Verification evidence" section, one bullet per AC.
 - `ui-design.md`: one section per SCR ID with states (empty, loading, error with a next action), copy, and token use; plus entries in `docs/design-manifest.json`.
 - `acceptance-report.md`: verdict line, standard, repo state audited, verdict summary, then per-AC evidence, the test-diff review and the invariant review.
+
+## Big files by anchor
+
+Jump with `grep -n '<anchor>' <file>`, then `sed -n` ~40–80 lines from there. List a file's functions with `grep -n '^export \|^async function\|^function' <file>`. Anchors, not line numbers, so they survive edits.
+
+- `packages/agent/src/turn.ts` (~370 lines, one big `runVisitorTurn`): `async function store(` (stores the reply, audits the decision; turn outcomes are recorded here), `searchVisitorFacts(` (the retrieval step), `aiAllowed(` (the gate check), `dispatchPlan(`, `answerTurn(`.
+- `apps/api/src/corrections.ts` (~340): helpers `toItem`, `itemOf`, `contextOf`, `kbEditOf`, `toReplay` above `registerCorrectionRoutes`; inside it, find a route by its path (`grep -n "app\.\(get\|post\)" <file>`). Other `apps/api/src/<area>.ts` files follow the same shape.
+- `apps/dashboard/src/pages/correction.tsx` (~780): `CorrectionPage` (main body, most of the file), `Origin`, `FixDiff`, `PastAnswers`, `EditFixDialog`, `EditFixForm`. Other big pages split into named function components the same way.
