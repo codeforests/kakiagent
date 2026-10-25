@@ -4,29 +4,16 @@
  * It must never break the host page: feature-detect, wrap everything in try/catch,
  * define no global except `window.__kaki` (NFR-14).
  *
- * Theme detection (CHN-14) is FEAT-032; the skeleton uses the default `--kaki-*` tokens.
+ * The look (CHN-14, FEAT-032 §5.2): the stored theme first, then the page's own look,
+ * detected once the page is idle and followed between light and dark.
  */
 import type { WidgetConfigResponse } from '@kaki/contracts';
-import { widgetTokens } from '@kaki/design-tokens/widget';
+import { detectTheme, type LiveTheme } from '@kaki/channels/theme';
+import { CHAT_ICON, LAUNCHER_CSS } from './launcher.css.js';
+import { followPage, hostSheetCss, hostStyle, resolved, tokenSheet } from './theme.js';
 import type { PanelContext, PanelModule } from './types.js';
 
 type KakiWindow = Window & { __kaki?: { v: number } };
-
-const HOST_STYLE =
-  'position:fixed!important;right:var(--kaki-edge-offset,20px)!important;bottom:var(--kaki-edge-offset,20px)!important;' +
-  'z-index:2147483000!important;display:block!important;width:auto!important;height:auto!important;margin:0!important;padding:0!important;';
-
-const LAUNCHER_CSS = `
-:host{all:initial;${widgetTokens.light}}
-.launcher{width:var(--kaki-launcher-size);height:var(--kaki-launcher-size);border-radius:50%;border:0;
-  background:var(--kaki-accent);color:var(--kaki-on-accent);cursor:pointer;display:flex;align-items:center;
-  justify-content:center;box-shadow:0 4px 12px color-mix(in srgb,var(--kaki-text) 20%,transparent);padding:0;margin:0}
-.launcher:focus-visible{outline:2px solid var(--kaki-accent);outline-offset:3px}
-.launcher svg{width:26px;height:26px}
-[hidden]{display:none!important}`;
-
-const CHAT_ICON =
-  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
 
 function supported(): boolean {
   return (
@@ -71,11 +58,18 @@ function mount(config: WidgetConfigResponse, apiUrl: string) {
   } catch {
     /* storage blocked: the visitor gets a new ID next visit */
   }
+  const { theme } = config;
+  const style = hostStyle(theme.position);
   const host = document.createElement('kaki-agent');
-  host.setAttribute('style', HOST_STYLE);
+  host.setAttribute('style', style);
+  host.dataset.position = theme.position;
   const shadow = host.attachShadow({ mode: 'closed' });
   const adopt = adopter(shadow);
   adopt(LAUNCHER_CSS);
+  // The token sheet stays first; swapping it re-renders nothing (§5.2).
+  const tokens = tokenSheet(shadow);
+  const apply = (live: LiveTheme | null) => tokens.set(hostSheetCss(resolved(theme, live)));
+  apply(null);
 
   const panelMount = document.createElement('div');
   panelMount.hidden = true;
@@ -84,13 +78,18 @@ function mount(config: WidgetConfigResponse, apiUrl: string) {
   launcher.type = 'button';
   launcher.setAttribute('aria-label', `Chat with ${config.botName}`);
   launcher.setAttribute('aria-expanded', 'false');
-  launcher.innerHTML = CHAT_ICON;
+  if (theme.logoUrl) {
+    const img = document.createElement('img');
+    img.src = theme.logoUrl;
+    img.alt = '';
+    launcher.append(img);
+  } else launcher.innerHTML = CHAT_ICON;
   shadow.append(panelMount, launcher);
   document.body.appendChild(host);
 
   // Host scripts that rewrite our positioning get it restored (ADR-016 decision 2).
   new MutationObserver(() => {
-    if (host.getAttribute('style') !== HOST_STYLE) host.setAttribute('style', HOST_STYLE);
+    if (host.getAttribute('style') !== style) host.setAttribute('style', style);
   }).observe(host, { attributes: true, attributeFilter: ['style'] });
 
   let panel: Promise<{ focus(): void }> | null = null;
@@ -117,10 +116,20 @@ function mount(config: WidgetConfigResponse, apiUrl: string) {
       p.focus();
     });
   });
-  // Warm the panel chunk once the page is idle (ADR-016 decision 1).
-  const idle = (window as Window & { requestIdleCallback?: (cb: () => void) => void })
-    .requestIdleCallback;
-  if (idle) idle(() => void load().catch(() => (panel = null)));
+  // Once the page is idle: its look, then following it (unless the owner fixed the
+  // scheme), and the panel chunk warmed (ADR-016 decision 1).
+  const idle =
+    (window as Window & { requestIdleCallback?: (cb: () => void) => void }).requestIdleCallback ??
+    ((cb: () => void) => setTimeout(cb, 0));
+  idle(() => {
+    try {
+      apply(detectTheme(document, window));
+      if (!theme.overrides.scheme) followPage(apply);
+    } catch {
+      /* the stored theme stays */
+    }
+    void load().catch(() => (panel = null));
+  });
 }
 
 (() => {

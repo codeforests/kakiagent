@@ -22,6 +22,7 @@ import { SignInPage } from './pages/sign-in.tsx';
 import { NoPermission, NotFound, SessionExpired } from './pages/system.tsx';
 import { VerifyPage } from './pages/verify.tsx';
 import { WelcomePage } from './pages/welcome.tsx';
+import { SetupWebsitePage, WidgetSettingsPage } from './pages/widget.tsx';
 import { AppShell } from './shell/app-shell.tsx';
 import { MorePage } from './shell/more.tsx';
 
@@ -51,6 +52,8 @@ export const router = createBrowserRouter([
       { path: 'setup/review', element: <SetupReviewPage /> },
       // Its "test your assistant" step (FEAT-027, SCR-APP-010 partial).
       { path: 'setup/test', element: <SetupTestPage /> },
+      // Its "add to your website" step (FEAT-032, SCR-APP-011 partial).
+      { path: 'setup/website', element: <SetupWebsitePage /> },
       // Review → Facts (FEAT-013), Conflicts (FEAT-014), Corrections (FEAT-018).
       { path: 'review', element: <ReviewPage /> },
       { path: 'review/conflicts', element: <ConflictsPage /> },
@@ -76,6 +79,8 @@ export const router = createBrowserRouter([
       { path: 'settings', element: <SettingsPage /> },
       { path: 'settings/assistant', element: <AssistantPage /> },
       { path: 'settings/business-profile', element: <BusinessProfilePage /> },
+      // Website widget (FEAT-032, SCR-APP-037).
+      { path: 'settings/widget', element: <WidgetSettingsPage /> },
       { path: 'more', element: <MorePage /> },
       { path: 'no-permission', element: <NoPermission /> },
       { path: '*', element: <NotFound /> },

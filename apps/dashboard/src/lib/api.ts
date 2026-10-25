@@ -47,6 +47,9 @@ import {
   SourceList,
   SourceResponse,
   UploadTicket,
+  WidgetDetectResponse,
+  WidgetSettings,
+  type WidgetAppearanceBody,
   type ApproveFactBody,
   type AssistantSettingsBody,
   type BusinessProfileBody,
@@ -127,7 +130,7 @@ async function send(
 }
 
 async function request<S extends z.ZodType>(
-  method: 'GET' | 'POST' | 'PATCH' | 'PUT',
+  method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE',
   path: string,
   schema: S,
   body?: unknown,
@@ -295,6 +298,31 @@ export const api = {
       CorrectionReplayNextResponse,
       {},
     ),
+  /** FEAT-032 §3: SCR-APP-037 and SCR-APP-011; every change answers with the settings. */
+  widget: () => getJson('/api/v1/widget', WidgetSettings),
+  saveWidgetAppearance: (body: WidgetAppearanceBody) =>
+    request('PUT', '/api/v1/widget/appearance', WidgetSettings, body),
+  detectWidgetTheme: () => request('POST', '/api/v1/widget/theme/detect', WidgetDetectResponse, {}),
+  /** The raw image as the body (413 `logo_too_large`, 415 `logo_type`). */
+  uploadWidgetLogo: async (file: File) => {
+    const res = await fetch('/api/v1/widget/logo', {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: { accept: 'application/json', 'content-type': file.type },
+      body: file,
+    });
+    if (!res.ok) {
+      const err = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
+      if (res.status === 401) throw new UnauthorizedError(err.error ?? 'unauthorized');
+      throw new ApiError(res.status, err.error ?? 'error', err.message ?? `logo: ${res.status}`);
+    }
+    return WidgetSettings.parse(await res.json());
+  },
+  deleteWidgetLogo: () => request('DELETE', '/api/v1/widget/logo', WidgetSettings),
+  addWidgetOrigin: (origin: string) =>
+    request('POST', '/api/v1/widget/origins', WidgetSettings, { origin }),
+  removeWidgetOrigin: (origin: string) =>
+    request('DELETE', `/api/v1/widget/origins/${encodeURIComponent(origin)}`, WidgetSettings),
   reviewIntervals: () => getJson('/api/v1/kb/review-intervals', ReviewIntervalsResponse),
   saveReviewIntervals: (intervals: ReviewIntervals) =>
     request('PUT', '/api/v1/kb/review-intervals', ReviewIntervalsResponse, { intervals }),

@@ -15,6 +15,7 @@ const STRINGS = {
     typing: (bot: string) => `${bot} is typing`,
     slow: "This is taking longer than usual. We'll show the reply here when it's ready.",
     ended: 'This chat has ended.',
+    preview: "Preview: messages aren't sent",
   },
   'zh-Hans': {
     aiLabel: 'AI 助手',
@@ -27,6 +28,7 @@ const STRINGS = {
     typing: (bot: string) => `${bot} 正在输入`,
     slow: '回复比平时慢一些。准备好后会显示在这里。',
     ended: '本次对话已结束。',
+    preview: '预览：消息不会发送',
   },
 } as const;
 

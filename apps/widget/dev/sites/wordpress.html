@@ -1,0 +1,65 @@
+<!doctype html>
+<!-- FEAT-032 fixture: WordPress-like. Light; pale brand #f6c453 (must clamp); Lora behind an
+     icon font; button radius 4px. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ah Ma Kueh (WordPress fixture)</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        background: #fffdf7;
+        color: #222;
+        font-family: 'Font Awesome 5 Free', 'Lora', Georgia, serif;
+      }
+      * {
+        box-sizing: border-box;
+        font-size: 18px !important;
+      }
+      div,
+      button,
+      a {
+        border-radius: 0;
+      }
+      .wp-site-blocks {
+        padding: 24px;
+      }
+      .wp-block-button__link {
+        display: inline-block;
+        background-color: #f6c453;
+        color: #222;
+        border-radius: 4px;
+        padding: 12px 20px;
+        text-decoration: none;
+      }
+      a {
+        color: #8a6d1d;
+      }
+    </style>
+  </head>
+  <body class="home page-template-default">
+    <div class="wp-site-blocks">
+      <h1 class="wp-block-site-title">Ah Ma Kueh</h1>
+      <p>Nonya kueh made fresh every morning. <a href="/about">About us</a></p>
+      <div class="wp-block-buttons">
+        <div class="wp-block-button">
+          <a class="wp-block-button__link" href="/order">Order now</a>
+        </div>
+        <div class="wp-block-button">
+          <a class="wp-block-button__link" href="/menu">See the menu</a>
+        </div>
+      </div>
+    </div>
+    <script
+      async
+      src="/w/v1/loader.js"
+      data-key="%WIDGET_KEY%"
+      data-api="%WIDGET_API_URL%"
+    ></script>
+  </body>
+</html>

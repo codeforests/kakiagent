@@ -50,6 +50,7 @@ export async function createWorkspace(
       widgetKey: `wk_${randomBytes(18).toString('base64url')}`,
     });
     await tx.insert(schema.businessProfiles).values({ tenantId });
+    await tx.insert(schema.widgetSettings).values({ tenantId });
     await tx.insert(schema.memberships).values({ tenantId, userId: who.userId, role: 'owner' });
     await tx.insert(schema.termsAcceptances).values(
       TERMS_DOCUMENTS.map((document) => ({

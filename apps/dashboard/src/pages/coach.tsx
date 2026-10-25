@@ -177,7 +177,7 @@ export function SetupTestPage() {
       />
       <div className="review-setup__footer">
         <Button asChild>
-          <Link to="/">Continue</Link>
+          <Link to="/setup/website">Continue</Link>
         </Button>
         <p className="review-setup__caption">You can keep practising any time in Coach.</p>
       </div>

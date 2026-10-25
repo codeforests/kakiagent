@@ -24,7 +24,11 @@ const GROUPS: { title: string; rows: Row[] }[] = [
     title: 'Channels and widget',
     rows: [
       { name: 'Channels', purpose: 'Where your assistant answers' },
-      { name: 'Website widget', purpose: 'Look, install and allowed websites' },
+      {
+        name: 'Website widget',
+        purpose: 'Look, install and allowed websites',
+        to: '/settings/widget',
+      },
     ],
   },
   {

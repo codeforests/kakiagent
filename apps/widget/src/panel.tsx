@@ -76,7 +76,10 @@ function Panel({
 }) {
   const api = useRef(createApi(ctx.apiUrl, ctx.config.token)).current;
   const [conversationId, setConversationId] = useState<string | null>(null);
-  const [chat, setChat] = useState<Chat>(emptyChat);
+  const preview = ctx.preview;
+  const [chat, setChat] = useState<Chat>(() =>
+    preview ? preview.messages.reduce(withMessage, emptyChat) : emptyChat,
+  );
   const [slow, setSlow] = useState(false);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -132,7 +135,7 @@ function Panel({
   async function submit(e: Event) {
     e.preventDefault();
     const body = text.trim();
-    if (!body || sending || ended) return;
+    if (!body || sending || ended || preview) return;
     setSending(true);
     setError(false);
     try {
@@ -230,15 +233,15 @@ function Panel({
           id="kaki-input"
           ref={inputRef}
           rows={1}
-          placeholder={ended ? t.ended : t.placeholder}
-          disabled={ended}
+          placeholder={preview ? t.preview : ended ? t.ended : t.placeholder}
+          disabled={ended || !!preview}
           value={text}
           onInput={(e) => setText((e.target as HTMLTextAreaElement).value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) void submit(e);
           }}
         />
-        <button class="send" type="submit" disabled={sending || ended || !text.trim()}>
+        <button class="send" type="submit" disabled={sending || ended || !!preview || !text.trim()}>
           {t.send}
         </button>
       </form>

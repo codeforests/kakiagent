@@ -6,7 +6,9 @@ import {
   type PageFetcherFactory,
   type Resolver,
 } from '@kaki/kb';
+import type { LiveTheme } from '@kaki/channels/theme';
 import { chromium, errors, type Browser, type Route } from 'playwright-core';
+import { z } from 'zod';
 
 export interface ChromiumOptions {
   executablePath?: string | undefined;
@@ -35,9 +37,25 @@ const MAX_REDIRECTS = 10;
 export interface ChromiumFetchers {
   /** Opens a browser context for one source's crawl (the job runner's fetcher factory). */
   open: PageFetcherFactory;
+  /** Opens a site's page and runs the widget's theme detection there (FEAT-032 §5.4). */
+  probeTheme(url: string, script: string): Promise<ThemeProbeResult>;
   healthy(): boolean;
   close(): Promise<void>;
 }
+
+export type ThemeProbeResult =
+  | { ok: true; theme: LiveTheme }
+  | { ok: false; failure: 'unreachable' | 'blocked' | 'timeout' | 'no_page' };
+
+const LiveThemeShape = z.object({
+  accent: z
+    .string()
+    .regex(/^#[0-9a-f]{6}$/)
+    .nullable(),
+  font: z.string().max(200).nullable(),
+  radius: z.number().min(0).max(20).nullable(),
+  scheme: z.enum(['light', 'dark']),
+});
 
 /**
  * The worker's `PageFetcher` (FEAT-012 §5.2, D3, D7): one Chromium per worker, a fresh
@@ -234,8 +252,114 @@ export function chromiumFetchers(opts: ChromiumOptions = {}): ChromiumFetchers {
     return fetcher;
   };
 
+  /**
+   * The theme probe (FEAT-032 §5.4): a fresh guarded context in light mode, fonts loaded so
+   * computed families are real, images and media skipped, every request host and every
+   * redirect hop of the page guarded, 15 s in all. The detection script is evaluated in
+   * the page (not a script tag, so the page's CSP can't block it) and its result checked.
+   */
+  async function probeTheme(url: string, script: string): Promise<ThemeProbeResult> {
+    const context = await (
+      await launch()
+    ).newContext({
+      userAgent: BOT_USER_AGENT,
+      javaScriptEnabled: true,
+      serviceWorkers: 'block',
+      acceptDownloads: false,
+      colorScheme: 'light',
+    });
+    const guarded = new Map<string, Promise<boolean>>();
+    const isAllowed = (host: string) => {
+      let p = guarded.get(host);
+      if (!p) {
+        p = assertPublicHost(host, {
+          ...(opts.resolve ? { resolve: opts.resolve } : {}),
+          allowPrivate: opts.allowPrivate ?? false,
+        }).then(
+          () => true,
+          () => false,
+        );
+        guarded.set(host, p);
+      }
+      return p;
+    };
+    const started = Date.now();
+    try {
+      const tab = await context.newPage();
+      const state = { status: 0, html: true, redirect: null as string | null, blocked: false };
+      await tab.route('**/*', async (route: Route) => {
+        const req = route.request();
+        const reqUrl = req.url();
+        const { protocol, hostname } = new URL(reqUrl);
+        const isMain = req.isNavigationRequest() && req.frame() === tab.mainFrame();
+        if (protocol !== 'http:' && protocol !== 'https:') return route.abort('blockedbyclient');
+        if (req.resourceType() === 'image' || req.resourceType() === 'media')
+          return route.abort('blockedbyclient');
+        if (req.isNavigationRequest() && !isMain) return route.abort('blockedbyclient');
+        if (!(await isAllowed(hostname))) {
+          if (isMain) state.blocked = true;
+          return route.abort('blockedbyclient');
+        }
+        const mapped = target(reqUrl);
+        if (!isMain) return mapped === reqUrl ? route.continue() : fulfilFrom(route, mapped);
+        let res;
+        try {
+          res = await route.fetch({ url: mapped, maxRedirects: 0, timeout: pageTimeout });
+        } catch {
+          return route.abort('failed');
+        }
+        state.status = res.status();
+        const location = res.headers()['location'];
+        if (res.status() >= 300 && res.status() < 400 && location) {
+          state.redirect = new URL(location, reqUrl).toString();
+          return route.abort('aborted');
+        }
+        state.html = /^(text\/html|application\/xhtml\+xml)\b/i.test(
+          res.headers()['content-type'] ?? '',
+        );
+        return route.fulfill({ response: res });
+      });
+      let current = url;
+      for (let hop = 0; ; hop++) {
+        state.redirect = null;
+        const left = pageTimeout - (Date.now() - started);
+        if (left <= 0) return { ok: false, failure: 'timeout' };
+        try {
+          await tab.goto(current, { waitUntil: 'load', timeout: left });
+          break;
+        } catch (err) {
+          if (state.redirect && hop < MAX_REDIRECTS) {
+            current = state.redirect;
+            continue;
+          }
+          if (state.blocked) return { ok: false, failure: 'blocked' };
+          if (err instanceof errors.TimeoutError) return { ok: false, failure: 'timeout' };
+          return { ok: false, failure: 'unreachable' };
+        }
+      }
+      if (state.status >= 400 || !state.html) return { ok: false, failure: 'no_page' };
+      const left = pageTimeout - (Date.now() - started);
+      if (left > 0)
+        await tab
+          .waitForLoadState('networkidle', { timeout: Math.min(left, 3_000) })
+          .catch(() => undefined);
+      await tab.evaluate(script);
+      const raw = await tab.evaluate(
+        '(() => { const d = window.__kakiDetect; return typeof d === "function" ? d(document, window) : null; })()',
+      );
+      const theme = LiveThemeShape.safeParse(raw);
+      return theme.success ? { ok: true, theme: theme.data } : { ok: false, failure: 'no_page' };
+    } catch (err) {
+      if (err instanceof errors.TimeoutError) return { ok: false, failure: 'timeout' };
+      return { ok: false, failure: 'unreachable' };
+    } finally {
+      await context.close().catch(() => undefined);
+    }
+  }
+
   return {
     open,
+    probeTheme,
     healthy: () => browser === null || connected,
     async close() {
       const b = await browser?.catch(() => null);

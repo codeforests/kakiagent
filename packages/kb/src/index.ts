@@ -115,6 +115,7 @@ export {
   type SourceRecord,
   type SourceStage,
   type SourceStatus,
+  websiteOrigins,
 } from './sources.js';
 export {
   assertPublicHost,

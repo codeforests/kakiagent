@@ -3,9 +3,10 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "ChannelAdapter contract, connections, credentials and health (ADR-011). Skeleton: the contract and widget origin check.",
+  "description": "ChannelAdapter contract, the website widget's settings, allowed origins and install check, and the DOM-only widget theme module (ADR-011, ADR-016).",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./theme": "./src/theme/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -14,10 +15,19 @@
     "test:integration": "vitest run --project integration --passWithNoTests",
     "test:coverage": "vitest run --coverage --passWithNoTests"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@kaki/contracts": "workspace:*",
+    "@kaki/db": "workspace:*",
+    "@kaki/design-tokens": "workspace:*",
+    "@kaki/governance": "workspace:*",
+    "@kaki/kb": "workspace:*",
+    "@kaki/platform": "workspace:*"
+  },
   "devDependencies": {
     "@types/node": "22.20.5",
     "@vitest/coverage-v8": "5.0.5",
-    "vitest": "5.0.5"
+    "vitest": "5.0.5",
+    "pg": "8.23.1",
+    "@types/pg": "8.23.1"
   }
 }

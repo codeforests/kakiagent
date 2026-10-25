@@ -1,7 +1,8 @@
 /**
  * The ChannelAdapter contract (ADR-011). The core never branches on channel kind; it
  * talks to adapters through this interface. The skeleton defines the contract and the
- * widget origin rule; FEAT-034+ implement adapters with contract tests (CHN-01).
+ * widget origin rule; FEAT-034+ implement adapters with contract tests (CHN-01). FEAT-032
+ * adds the website widget's settings (`widget-settings.ts`) and the theme module.
  */
 export type ChannelKind = 'widget' | 'email' | 'telegram' | 'messenger' | 'instagram' | 'whatsapp';
 
@@ -29,7 +30,7 @@ export interface ChannelAdapter {
 
 /**
  * CHN-11: the widget works only on allowed origins. Exact match on scheme, host and
- * port after URL normalisation; no wildcards in the skeleton (FEAT-032 decides).
+ * port after URL normalisation; no wildcards (FEAT-032 D3, `normaliseOrigin`).
  */
 export function isAllowedOrigin(origin: string | undefined, allowed: readonly string[]): boolean {
   if (!origin) return false;
@@ -47,3 +48,34 @@ export function isAllowedOrigin(origin: string | undefined, allowed: readonly st
     }
   });
 }
+
+export { InvalidOriginError, normaliseOrigin } from './origin.js';
+export {
+  addOrigin,
+  clearLogo,
+  DETECT_RUNNING_MS,
+  DetectRunningError,
+  getWidgetSettings,
+  installCheckOf,
+  LogoTooLargeError,
+  LogoTypeError,
+  logoUrlOf,
+  NoSiteError,
+  OriginExistsError,
+  OriginNotAllowedError,
+  OriginNotFoundError,
+  recordInstallSeen,
+  recordRejectedOrigin,
+  removeOrigin,
+  requestDetection,
+  runThemeDetect,
+  setAppearance,
+  setLogo,
+  snippetOf,
+  TooManyOriginsError,
+  visitorLogo,
+  visitorWidgetTheme,
+  type ThemeProbe,
+  type WidgetContext,
+  type WidgetUrls,
+} from './widget-settings.js';

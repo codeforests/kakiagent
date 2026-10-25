@@ -1,5 +1,10 @@
 import cookie from '@fastify/cookie';
-import { isAllowedOrigin } from '@kaki/channels';
+import {
+  isAllowedOrigin,
+  recordInstallSeen,
+  recordRejectedOrigin,
+  visitorWidgetTheme,
+} from '@kaki/channels';
 import {
   ConversationList,
   CreateConversationResponse,
@@ -86,6 +91,7 @@ import { registerReviewRoutes, toPreview } from './review.js';
 import { InvalidBodyError, InvalidQueryError, registerCorrectionRoutes } from './corrections.js';
 import { registerCoverageRoutes } from './coverage.js';
 import { registerSettingsRoutes } from './settings.js';
+import { registerWidgetRoutes, widgetErrorReply } from './widget.js';
 import {
   AttestationRequiredError,
   FileTooLargeError,
@@ -293,6 +299,8 @@ export async function buildApp(deps: Deps) {
       return reply
         .code(503)
         .send({ error: 'unavailable', message: 'Saving is unavailable; try again shortly' });
+    const widget = widgetErrorReply(err, req.url);
+    if (widget) return reply.code(widget.status).send(widget.body);
     req.log.error({ err }, 'unhandled error');
     return reply.code(500).send({ error: 'internal', message: 'Something went wrong' });
   });
@@ -351,12 +359,15 @@ export async function buildApp(deps: Deps) {
     const install = await resolveWidgetKey(visitorDb, key);
     // "Not here": the loader stays silent (ADR-016 decision 6). Same response for an
     // unknown key, a wrong origin and a suspended tenant.
-    if (
-      !install ||
-      install.status !== 'active' ||
-      !origin ||
-      !isAllowedOrigin(origin, install.allowedOrigins)
-    ) {
+    if (!install || install.status !== 'active' || !origin) {
+      return reply.code(404).send({ error: 'not_here', message: 'Widget not available here' });
+    }
+    if (!isAllowedOrigin(origin, install.allowedOrigins)) {
+      // UC-05 5a: the install check names the domain that tried (throttled, FEAT-032 D8);
+      // the answer is the same silent 404, with no token and no conversation (CHN-11).
+      await withTenant(visitorDb, install.tenantId, (tx) =>
+        recordRejectedOrigin(tx, install.tenantId, origin),
+      );
       return reply.code(404).send({ error: 'not_here', message: 'Widget not available here' });
     }
     const asked = req.headers['x-kaki-visitor'];
@@ -372,7 +383,14 @@ export async function buildApp(deps: Deps) {
       config.VISITOR_TOKEN_SECRET,
     );
     // FEAT-024: the tenant's name and greeting, through the visitor zone's function only.
-    const persona = (await withTenant(visitorDb, install.tenantId, visitorTenantState))?.persona;
+    const { persona, theme } = await withTenant(visitorDb, install.tenantId, async (tx) => {
+      // The first load on an allowed origin is the install (ADR-016 decision 6, D8).
+      await recordInstallSeen(tx, install.tenantId, new URL(origin).origin, install.allowedOrigins);
+      return {
+        persona: (await visitorTenantState(tx))?.persona,
+        theme: await visitorWidgetTheme(tx, install.tenantId, key, config.PUBLIC_API_URL),
+      };
+    });
     reply.header('access-control-allow-origin', origin).header('vary', 'origin');
     return WidgetConfigResponse.parse({
       token,
@@ -384,6 +402,7 @@ export async function buildApp(deps: Deps) {
         en: persona?.greeting.en ?? DEFAULT_GREETING.en,
         zh: persona?.greeting.zh ?? DEFAULT_GREETING.zh,
       },
+      theme,
     });
   });
 
@@ -448,6 +467,7 @@ export async function buildApp(deps: Deps) {
   registerCoachRoutes(app, deps, sessionFrom);
   registerCorrectionRoutes(app, deps, sessionFrom);
   registerCoverageRoutes(app, deps, sessionFrom);
+  registerWidgetRoutes(app, deps, sessionFrom);
 
   return app;
 }

@@ -12,6 +12,10 @@ export const schema = envSchemas.base
     /** Public URLs handed to the widget in its config response. */
     PUBLIC_REALTIME_URL: envSchemas.url,
     PUBLIC_WIDGET_PANEL_URL: envSchemas.url,
+    /** The snippet's loader, the dashboard's preview page, and this api's public origin (FEAT-032). */
+    PUBLIC_WIDGET_LOADER_URL: envSchemas.url,
+    PUBLIC_WIDGET_PREVIEW_URL: envSchemas.url,
+    PUBLIC_API_URL: envSchemas.url.transform((u) => u.replace(/\/+$/, '')),
     VISITOR_TOKEN_SECRET: envSchemas.secret,
     /** Signs the Google sign-in cookie (`kaki_oauth`). */
     SESSION_SECRET: envSchemas.secret,
