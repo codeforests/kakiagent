@@ -24,6 +24,12 @@ const loader = {
   outfile: `${outdir}/loader.js`,
   format: 'iife',
 };
+const detect = {
+  ...common,
+  entryPoints: ['src/detect.ts'],
+  outfile: `${outdir}/detect.js`,
+  format: 'iife',
+};
 const panel = {
   ...common,
   entryPoints: ['src/panel.tsx'],
@@ -34,16 +40,21 @@ const panel = {
 };
 
 if (!serve) {
-  await Promise.all([esbuild.build(loader), esbuild.build(panel)]);
+  await Promise.all([esbuild.build(loader), esbuild.build(panel), esbuild.build(detect)]);
 } else {
   const port = Number(process.env.WIDGET_DEV_PORT ?? 5175);
-  const host = readFileSync('dev/host.html', 'utf8')
-    .replaceAll('%WIDGET_API_URL%', process.env.WIDGET_API_URL ?? 'http://localhost:3000')
-    .replaceAll('%WIDGET_KEY%', process.env.WIDGET_DEV_KEY ?? 'wk_dev_bakery');
-  writeFileSync('dist/index.html', host);
+  const fill = (file) =>
+    readFileSync(file, 'utf8')
+      .replaceAll('%WIDGET_API_URL%', process.env.WIDGET_API_URL ?? 'http://localhost:3000')
+      .replaceAll('%WIDGET_KEY%', process.env.WIDGET_DEV_KEY ?? 'wk_dev_bakery');
+  writeFileSync('dist/index.html', fill('dev/host.html'));
   copyFileSync('dev/hostile.css', 'dist/hostile.css');
-  const [l, p] = await Promise.all([esbuild.context(loader), esbuild.context(panel)]);
-  await Promise.all([l.watch(), p.watch()]);
+  mkdirSync('dist/sites', { recursive: true });
+  for (const f of readdirSync('dev/sites'))
+    writeFileSync(`dist/sites/${f}`, fill(`dev/sites/${f}`));
+  const contexts = await Promise.all([loader, panel, detect].map((o) => esbuild.context(o)));
+  await Promise.all(contexts.map((c) => c.watch()));
+  const [l] = contexts;
   await l.serve({ servedir: 'dist', port, host: '0.0.0.0', cors: { origin: '*' } });
   console.log(`widget dev host page: http://localhost:${port}/`);
 }

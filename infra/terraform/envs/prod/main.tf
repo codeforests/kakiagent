@@ -247,6 +247,7 @@ module "service" {
         HEALTH_PORT          = "3003"
         AWS_REGION           = local.region
         SQS_INGEST_QUEUE_URL = module.queues.queue_urls["ingest"]
+        WIDGET_ASSET_URL     = "${local.public_url}/w/v1/" # detect.js (FEAT-032 D4)
         LLM_PROVIDER         = "fake" # the Bedrock au. provider arrives at MD (ADR-006)
         QUARANTINE_BUCKET    = module.storage.bucket_names["quarantine"]
         SOURCES_BUCKET       = module.storage.bucket_names["sources"]

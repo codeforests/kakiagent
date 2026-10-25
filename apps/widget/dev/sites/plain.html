@@ -1,0 +1,39 @@
+<!doctype html>
+<!-- FEAT-032 fixture: plain HTML. Light; no buttons, so the brand is the link colour
+     #1d4ed8; Georgia; no radius (the default stays). Aggressive resets. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tan Hardware (plain HTML fixture)</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        all: revert;
+      }
+      body {
+        background: #f8fafc;
+        font-family: Georgia, 'Times New Roman', serif;
+        padding: 24px;
+      }
+      a {
+        color: #1d4ed8;
+      }
+      div {
+        display: block !important;
+        position: static !important;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Tan Hardware</h1>
+    <p><a href="/tools">Tools</a> · <a href="/paint">Paint</a> · <a href="/contact">Contact</a></p>
+    <script
+      async
+      src="/w/v1/loader.js"
+      data-key="%WIDGET_KEY%"
+      data-api="%WIDGET_API_URL%"
+    ></script>
+  </body>
+</html>

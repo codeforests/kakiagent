@@ -53,13 +53,39 @@ export function schemeOf(background: string | null, colorScheme: string | null):
   return /^\s*dark\s*$/.test(colorScheme ?? '') ? 'dark' : 'light';
 }
 
+/**
+ * The few DOM members detection reads, typed structurally so the module compiles without
+ * the DOM library in Node packages; a real `document` and `window` fit them.
+ */
+interface El {
+  readonly parentElement: El | null;
+  getAttribute(name: string): string | null;
+}
+interface Doc {
+  readonly body: El | null;
+  readonly documentElement: El;
+  querySelector(selectors: string): El | null;
+  querySelectorAll(selectors: string): Iterable<El>;
+}
+interface Style {
+  readonly backgroundColor: string;
+  readonly borderTopLeftRadius: string;
+  readonly color: string;
+  readonly colorScheme: string;
+  readonly fontFamily: string;
+  readonly position: string;
+}
+interface Win {
+  getComputedStyle(el: El): Style;
+}
+
 const SAMPLE = 'button, [class*=btn], a[class*=button], [role=button]';
 
 /** Reads the page's look from computed styles (ADR-016 decision 3). Never throws. */
-export function detectTheme(doc: Document, win: Window): LiveTheme {
-  const css = (el: Element) => win.getComputedStyle(el);
+export function detectTheme(doc: Doc, win: Win): LiveTheme {
+  const css = (el: El) => win.getComputedStyle(el);
   let background: string | null = null;
-  for (let el: Element | null = doc.body; el; el = el.parentElement) {
+  for (let el: El | null = doc.body; el; el = el.parentElement) {
     const bg = css(el).backgroundColor;
     if (parseColour(bg)) {
       background = bg;
@@ -68,7 +94,10 @@ export function detectTheme(doc: Document, win: Window): LiveTheme {
   }
   const scheme = schemeOf(background, css(doc.documentElement).colorScheme);
   const buttons = [...doc.querySelectorAll(SAMPLE)]
-    .filter((el) => (el as HTMLElement).offsetParent !== null || css(el).position === 'fixed')
+    .filter(
+      (el) =>
+        (el as { offsetParent?: unknown }).offsetParent !== null || css(el).position === 'fixed',
+    )
     .slice(0, 40)
     .map(css);
   const meta = doc.querySelector('meta[name=theme-color]')?.getAttribute('content');

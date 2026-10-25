@@ -1,5 +1,6 @@
 import { usageSink } from '@kaki/analytics';
-import { IngestJob } from '@kaki/contracts';
+import { runThemeDetect } from '@kaki/channels';
+import { IngestJob, ThemeDetectJob } from '@kaki/contracts';
 import { createZoneDb, ping } from '@kaki/db';
 import {
   DEFAULT_FILE_LIMITS,
@@ -48,6 +49,8 @@ const config = loadConfig(
       CRAWL_HOST_MAP: optional,
       /** The image's Chromium; unset uses playwright-core's own download. */
       CHROMIUM_EXECUTABLE_PATH: optional,
+      /** Where the widget build is served; `detect.js` is fetched from here (FEAT-032 D4). */
+      WIDGET_ASSET_URL: envSchemas.url.transform((u) => (u.endsWith('/') ? u : `${u}/`)),
       /** Uploads wait in quarantine; only clean files reach sources (FEAT-015 §5.3). */
       QUARANTINE_BUCKET: z.string().min(3),
       SOURCES_BUCKET: z.string().min(3),
@@ -136,9 +139,25 @@ const health = startHealthServer(config.HEALTH_PORT, {
 });
 const abort = new AbortController();
 
+// The widget's detection script, fetched once per worker; a failed fetch is retried by
+// the next job (FEAT-032 §5.4).
+let detectScript: Promise<string> | null = null;
+const loadDetectScript = () =>
+  (detectScript ??= fetch(`${config.WIDGET_ASSET_URL}detect.js`, {
+    signal: AbortSignal.timeout(10_000),
+  })
+    .then((res) => {
+      if (!res.ok) throw new Error(`detect.js: HTTP ${res.status}`);
+      return res.text();
+    })
+    .catch((err: unknown) => {
+      detectScript = null;
+      throw err;
+    }));
+
 /**
  * Consumes `ingest.fifo` (ADR-018, FEAT-012 §5.1): one stage of one source per message,
- * one message at a time (a crawl can take minutes). The job runner is idempotent on
+ * one message at a time (a crawl can take minutes), and the widget's theme detection. The job runner is idempotent on
  * (source, stage, attempt); a thrown stage is retried by SQS.
  */
 const consuming = queue.consume<unknown>(
@@ -150,6 +169,18 @@ const consuming = queue.consume<unknown>(
       logger.error({ err, sqsMessageId: raw.MessageId }, 'ingest stage failed; will be retried'),
   },
   async (msg) => {
+    // Theme detection rides the same queue (FEAT-032 §5.4); source jobs carry no `kind`.
+    if ((msg.body as { kind?: unknown } | null)?.kind === 'theme_detect') {
+      const job = ThemeDetectJob.parse(msg.body);
+      const script = await loadDetectScript();
+      const started = Date.now();
+      const outcome = await runThemeDetect(zdb, job, (url) => browser.probeTheme(url, script));
+      logger.info(
+        { outboxId: msg.id, tenantId: job.tenantId, outcome, ms: Date.now() - started },
+        'theme detection done',
+      );
+      return;
+    }
     const job = IngestJob.parse(msg.body);
     const log = logger.child({
       outboxId: msg.id,

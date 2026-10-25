@@ -239,6 +239,9 @@ importers:
       '@kaki/analytics':
         specifier: workspace:*
         version: link:../../packages/analytics
+      '@kaki/channels':
+        specifier: workspace:*
+        version: link:../../packages/channels
       '@kaki/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -426,6 +429,9 @@ importers:
 
   apps/widget:
     dependencies:
+      '@kaki/channels':
+        specifier: workspace:*
+        version: link:../../packages/channels
       '@kaki/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts

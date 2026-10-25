@@ -1,0 +1,47 @@
+<!doctype html>
+<!-- FEAT-032 fixture: Wix-like. Dark (background on html only); brand #7c3aed; Montserrat;
+     pill buttons of 24px, which the radius caps at 20. -->
+<html lang="en" style="background-color: #121212">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Studio Lumen (Wix fixture)</title>
+    <style>
+      body {
+        margin: 0;
+        color: #eee;
+        font-family: Montserrat, 'Helvetica Neue', sans-serif;
+      }
+      #SITE_CONTAINER {
+        padding: 32px;
+      }
+      .StylableButton2545352419__root {
+        background: rgb(124, 58, 237);
+        color: #fff;
+        border: 0;
+        border-radius: 24px;
+        padding: 12px 28px;
+      }
+      [data-testid='linkElement'] {
+        color: #c4b5fd;
+      }
+      button {
+        all: unset;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="SITE_CONTAINER">
+      <h1>Studio Lumen</h1>
+      <p><a data-testid="linkElement" href="/work">Our work</a></p>
+      <a class="StylableButton2545352419__root" role="button" href="/book">Book a shoot</a>
+      <a class="StylableButton2545352419__root" role="button" href="/prices">Prices</a>
+    </div>
+    <script
+      async
+      src="/w/v1/loader.js"
+      data-key="%WIDGET_KEY%"
+      data-api="%WIDGET_API_URL%"
+    ></script>
+  </body>
+</html>
