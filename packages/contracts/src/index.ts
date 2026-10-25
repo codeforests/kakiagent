@@ -38,6 +38,57 @@ export const ErrorBody = z.object({ error: z.string(), message: z.string() });
 
 // ---- Widget API (api role; ADR-016 decision 6) -----------------------------------
 
+/** A colour as `#rrggbb`, lower-cased on parse (FEAT-032 §3). */
+export const Hex = z
+  .string()
+  .regex(/^#[0-9a-fA-F]{6}$/)
+  .transform((h) => h.toLowerCase());
+export const FontChoice = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('site') }).strict(),
+  z.object({ kind: z.literal('system') }).strict(),
+  z
+    .object({
+      kind: z.literal('custom'),
+      family: z
+        .string()
+        .trim()
+        .min(1)
+        .max(100)
+        .regex(/^[\w \-,'"]+$/),
+    })
+    .strict(),
+]);
+export type FontChoice = z.infer<typeof FontChoice>;
+/** The owner's overrides; an absent key follows the site (CHN-14, D5: clamped too). */
+export const ThemeOverrides = z
+  .object({
+    accent: Hex.optional(),
+    font: FontChoice.optional(),
+    radius: z.int().min(0).max(20).optional(),
+    scheme: z.enum(['light', 'dark']).optional(),
+  })
+  .strict();
+export type ThemeOverrides = z.infer<typeof ThemeOverrides>;
+/** What the server-side detection found on the tenant's site (ADR-016 decision 5). */
+export const DetectedTheme = z.object({
+  accent: Hex.nullable(),
+  font: z.string().max(200).nullable(),
+  radius: z.number().min(0).nullable(),
+  scheme: z.enum(['light', 'dark']),
+  url: z.string(),
+  detectedAt: z.iso.datetime({ offset: true }),
+});
+export type DetectedTheme = z.infer<typeof DetectedTheme>;
+export const WidgetPosition = z.enum(['right', 'left']);
+export type WidgetPosition = z.infer<typeof WidgetPosition>;
+export const WidgetTheme = z.object({
+  position: WidgetPosition,
+  overrides: ThemeOverrides,
+  detected: DetectedTheme.nullable(),
+  logoUrl: z.url().nullable(),
+});
+export type WidgetTheme = z.infer<typeof WidgetTheme>;
+
 export const WidgetConfigQuery = z.object({ key: z.string().min(1).max(100) });
 export const WidgetConfigResponse = z.object({
   token: z.string(),
@@ -50,6 +101,8 @@ export const WidgetConfigResponse = z.object({
   botName: z.string(),
   /** The empty-chat greeting per panel language, already resolved to the default (FEAT-024). */
   greeting: z.object({ en: z.string(), zh: z.string() }),
+  /** The widget's look: position, overrides, stored detection, logo (FEAT-032). */
+  theme: WidgetTheme,
 });
 export type WidgetConfigResponse = z.infer<typeof WidgetConfigResponse>;
 
@@ -1552,6 +1605,63 @@ export type CoverageTopicBody = z.infer<typeof CoverageTopicBody>;
 export const CoverageTopicResponse = z.object({ topic: CoverageTopic });
 export type CoverageTopicResponse = z.infer<typeof CoverageTopicResponse>;
 
+// ---- Dashboard API: website widget (ONB-07, CHN-11, CHN-14; FEAT-032 §3) -------------
+
+export const WIDGET_ORIGIN_LIMIT = 20;
+export const WIDGET_LOGO_MAX_BYTES = 102_400;
+export const WIDGET_LOGO_TYPES = ['image/png', 'image/jpeg', 'image/webp'] as const;
+export const AllowedOrigin = z.object({
+  origin: z.string(),
+  /** A confirmed website source's host (FEAT-012). */
+  fromWebsite: z.boolean(),
+});
+export type AllowedOrigin = z.infer<typeof AllowedOrigin>;
+export const InstallState = z.enum(['waiting', 'detected', 'wrong_domain']);
+export type InstallState = z.infer<typeof InstallState>;
+export const InstallCheck = z.object({
+  state: InstallState,
+  /** First load on an allowed origin. */
+  origin: z.string().nullable(),
+  seenAt: z.iso.datetime({ offset: true }).nullable(),
+  lastSeenAt: z.iso.datetime({ offset: true }).nullable(),
+  /** Latest load on an unlisted origin (UC-05 5a). */
+  rejectedOrigin: z.string().nullable(),
+  rejectedAt: z.iso.datetime({ offset: true }).nullable(),
+});
+export type InstallCheck = z.infer<typeof InstallCheck>;
+export const DetectStatus = z.enum(['none', 'queued', 'running', 'done', 'failed']);
+export const DetectFailure = z.enum(['unreachable', 'blocked', 'timeout', 'no_page']);
+export type DetectFailure = z.infer<typeof DetectFailure>;
+export const Detection = z.object({
+  status: DetectStatus,
+  failure: DetectFailure.nullable(),
+  requestedAt: z.iso.datetime({ offset: true }).nullable(),
+});
+export type Detection = z.infer<typeof Detection>;
+export const WidgetSettings = z.object({
+  widgetKey: z.string(),
+  /** The one-line `<script>` tag to paste. */
+  snippet: z.string(),
+  theme: WidgetTheme,
+  detection: Detection,
+  siteUrl: z.string().nullable(),
+  allowedOrigins: z.array(AllowedOrigin),
+  install: InstallCheck,
+  /** The widget's preview page, shown in an iframe (D6). */
+  previewUrl: z.url(),
+});
+export type WidgetSettings = z.infer<typeof WidgetSettings>;
+export const WidgetAppearanceBody = z
+  .object({ position: WidgetPosition, overrides: ThemeOverrides })
+  .strict();
+export type WidgetAppearanceBody = z.infer<typeof WidgetAppearanceBody>;
+export const WidgetDetectBody = z.object({ origin: z.string().max(300).optional() }).strict();
+export type WidgetDetectBody = z.infer<typeof WidgetDetectBody>;
+export const WidgetDetectResponse = z.object({ detection: Detection });
+export type WidgetDetectResponse = z.infer<typeof WidgetDetectResponse>;
+export const WidgetOriginBody = z.object({ origin: z.string().trim().min(1).max(300) }).strict();
+export type WidgetOriginBody = z.infer<typeof WidgetOriginBody>;
+
 // ---- Realtime events (Valkey pub/sub payloads, SSE and WebSocket frames; ADR-017) --
 
 export const MessageEvent = z.object({ type: z.literal('message'), message: Message });
@@ -1606,3 +1716,13 @@ export const IngestJob = z.union([
   }),
 ]);
 export type IngestJob = z.infer<typeof IngestJob>;
+
+/** The ingest-worker's theme detection for a tenant's site (FEAT-032 §5.4, D4). */
+export const ThemeDetectJob = z.object({
+  kind: z.literal('theme_detect'),
+  tenantId: z.uuid(),
+  url: z.url(),
+  /** Matches `widget_settings.detect_requested_at`; an older job is a stale redelivery. */
+  requestedAt: z.iso.datetime({ offset: true }),
+});
+export type ThemeDetectJob = z.infer<typeof ThemeDetectJob>;
