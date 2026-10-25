@@ -161,6 +161,27 @@ test('the widget follows a page that turns dark, and the host and widget stay ap
   expect(await visitor.evaluate((h) => h!.isConnected, host)).toBe(true);
   expect(await visitor.locator('kaki-agent').count()).toBe(1);
   await visitor.close();
+
+  // A scheme the owner fixed stops the following (AC-8): the config carries a light
+  // override, the page turns dark, and the widget keeps its light surface.
+  const fixed = await browser.newPage();
+  await openShadowRoots(fixed);
+  await fixed.route(/\/widget\/v1\/config/, async (route) => {
+    const res = await route.fetch();
+    const json = (await res.json()) as { theme: { overrides: Record<string, unknown> } };
+    json.theme.overrides = { ...json.theme.overrides, scheme: 'light' };
+    await route.fulfill({ response: res, json });
+  });
+  await fixed.goto(`${SITES}/plain.html`);
+  const light = await widgetLook(fixed);
+  await fixed.evaluate(() => {
+    document.documentElement.classList.add('dark');
+    document.documentElement.style.backgroundColor = '#111111';
+    document.body.style.backgroundColor = '#111111';
+  });
+  await fixed.waitForTimeout(800);
+  expect((await widgetLook(fixed)).surface).toBe(light.surface);
+  await fixed.close();
 });
 
 test('the owner adjusts the look, installs the widget and sees the check turn green', async ({
