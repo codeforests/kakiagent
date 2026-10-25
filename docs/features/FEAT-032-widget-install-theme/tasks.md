@@ -1,7 +1,7 @@
 # Tasks: FEAT-032 — Widget install, theme matching, allowed origins, install check
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: designed · Last updated: 2026-10-25
+> Status: developer-done · Last updated: 2026-10-25
 
 - [x] T1 — Schema: `0031_widget_settings.sql` and Drizzle: `widget_settings` (columns, checks, forced RLS, policy, `TENANT_SCOPED_TABLES`), backfill rows, zone grants (dashboard, visitor columns, outbox detection columns), `tenants.allowed_origins` cardinality check; `createWorkspace` and `setup.ts` insert the row; schema comment on `tenants` updated (design §4; D2)
       Done when: `pnpm db:setup` applies 0031 on a database at 0030; `drizzle-kit generate` reports no drift; the RLS suite passes with tenant-B cases for `widget_settings`; db integration tests: the visitor zone can read only the theme columns and update only the install columns; the outbox zone only the detection columns; a logo over 100 KB and an unknown `logo_type` are rejected by checks; a new workspace has its row.
@@ -38,7 +38,24 @@
 - [x] T11 — E2E `e2e/tests/widget-install.e2e.ts`: the four fixture sites (resolved tokens, contrast, host CSS probe both ways, dark toggle followed), unlisted origin silent with no conversation, owner flow: add an origin, detect, override the accent and position, copy the snippet, the install check turns green after the widget loads on the fixture site; axe on both screens (AC-3, AC-4, AC-6–AC-9, AC-13)
       Done when: the spec typechecks and lists in `pnpm test:e2e --list`. Note: it runs in Ken's local CI.
       Evidence: `e2e/tests/widget-install.e2e.ts`, 4 tests × 3 browsers, typechecks and lists. Four serial tests: the fixture sites (accent, font, radius, scheme, contrast ≥ 4.5 and ≥ 3); following a page turned dark within 500 ms without re-mounting, plus isolation both ways (56 px launcher under hostile CSS; no added style elements and only `__kaki` as a new global, against the same page with the snippet stripped); the owner flow (Settings row, axe, Match again settles, colour and position override saved and seen on the left in the widget, Copy, platform tabs, remove `localhost:5175` → config 404 and nothing rendered → "Loaded on localhost:5175, which isn't allowed" → "Add localhost:5175" → widget loads → "Installed on localhost:5175" without a reload, SCR-APP-011 with axe; the look is reset at the start and end); an unlisted origin (`127.0.0.1:5175` with the second tenant's key, so the bakery's once-a-minute rejection record doesn't throttle it) gets a 404 with no token or widget and is recorded. The fixture-site and follow assertions were checked here in headless Chromium against the widget dev server with the config stubbed: #bb8b00 (WordPress gold clamped), #7c3aed on the dark surface, #008060, #1d4ed8, the four fonts, radii 4/20/8/12 px, dark followed in ~195 ms. The clipboard is captured by replacing `writeText`, since Firefox and WebKit don't grant clipboard reads. Runs in Ken's local CI.
-- [ ] T12 — Verify: full `pnpm lint` and `pnpm typecheck`, this feature's unit and integration tests (db, contracts, channels, ingest-worker, api, widget, dashboard), widget build and size; evidence below; status `developer-done`
+- [x] T12 — Verify: full `pnpm lint` and `pnpm typecheck`, this feature's unit and integration tests (db, contracts, channels, ingest-worker, api, widget, dashboard), widget build and size; evidence below; status `developer-done`
       Done when: all pass and each AC has evidence.
+      Evidence: `pnpm format:check`, `pnpm lint` (ESLint 24/24, dependency-cruiser clean) and `pnpm typecheck` (26/26) pass. Unit: dashboard 65/65, widget 17/17, channels 16/16, contracts 3/3, api 9/9. Integration (`scripts/test-env.sh`): db 129/129 (RLS incl. `widget_settings`), channels 8/8, api `widget` + `settings` 26/26, ingest-worker `theme-probe` + `chromium` 11/11 (real Chromium). Widget build and size: loader 4.39 kB gz (limit 14), panel 9.67 kB, initial load 4.39 kB (limit 30).
 
 ## Verification evidence
+
+| AC | Evidence |
+|---|---|
+| AC-1 | api `widget.int.test.ts` (agent 403, 401, tenant B), RLS suite `widget_settings` cases (T1, T6) |
+| AC-2 | snippet in `GET /widget` (T6); `SnippetBox` with Copy and four platform tabs (T9 render, E2E owner flow) |
+| AC-3 | install seen once then hourly (channels int, T4); config sets install (api int, T6); turns green without reload (E2E owner flow, D8 polling in `lib/widget.ts`, unit) |
+| AC-4 | unlisted origin 404, no token or conversation, `wrong_domain` (api int, T6; E2E unlisted-origin test and owner flow) |
+| AC-5 | origin rules (channels unit `origin.test.ts`), add/remove/duplicate/limit/`fromWebsite` (channels int), 422/409/404 (api int); UI errors (T9 render, unit `originError`) |
+| AC-6 | `theme-probe.int.test.ts` on the four fixtures (T5); pure helpers (channels unit, T3); E2E fixture-site test |
+| AC-7 | channels unit 6×6×6 grid (T3); dashboard "Adjusted to …" note (unit, T9 render); E2E contrast per site |
+| AC-8 | E2E follow test (checked here with a stubbed config: ~195 ms); scheme override stops following (loader, T7) |
+| AC-9 | E2E isolation test both ways (checked here with a stubbed config) |
+| AC-10 | detection queues one job, `runThemeDetect` done/failed/stale (channels int, T4); appearance round trip (api int); precedence (channels unit `resolveTheme`); overrides reach the widget (E2E owner flow) |
+| AC-11 | logo 413/415, immutable caching, 404 after delete (api int, T6); `LogoField` client checks (T8) |
+| AC-12 | loader 1.75 → 4.39 kB gz (+2.64, ≤ 5); budgets pass (T7, T12) |
+| AC-13 | every designed state rendered against a stubbed api (T9); axe and E2E renders pending Ken's local CI |
