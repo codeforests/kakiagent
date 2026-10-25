@@ -15,7 +15,7 @@ The one file a fresh build session reads first. Keep it under 80 lines. The veri
 |---|---|---|---|
 | 1. design | this file, the plan row (`grep -n 'FEAT-NNN' docs/03-planning/implementation-plan.md`), cited FR/UC/SCR sections, `docs/build/code-map.md` | `technical-design.md`, `tasks.md`, `ui-design.md`, manifest entries, `handoff.md` | design pushed to the feature branch |
 | 2. build (backend, then UI) | this file, the feature's `handoff.md`, `tasks.md`, the design sections for the tasks at hand | code, one commit per task, ticks in `tasks.md`, `handoff.md` | backend: branch pushed, handoff to the UI session; UI: draft PR open |
-| 3. verify | this file, `handoff.md`, the design, `tasks.md`, the diff (`git diff main...`) | `acceptance-report.md`, RTM Test ref, this file | PR ready for review; after merge, the next order posted |
+| 3. verify | this file, `handoff.md`, the design, `tasks.md`, the diff (`git diff origin/main...HEAD`) | `acceptance-report.md`, RTM Test ref, this file | PR ready for review; after merge, the next order posted |
 
 Each stage follows `.claude/skills/feature-stage/SKILL.md`. A stage never reads old conversations: what it needs is in these files. Stages chain on their own: when one ends with nothing pending for Ken, it has the next stage's thread started; only a decision, the merge, or the next feature waits for him.
 
@@ -60,3 +60,4 @@ CI no longer runs on every push or PR; it is started by hand (`workflow_dispatch
 - No Docker in cloud sessions: run integration tests through `scripts/test-env.sh`, for example `scripts/test-env.sh pnpm --filter @kaki/kb test:integration`. It starts the local Postgres with pgvector and sets `KAKI_TEST_DATABASE_URL`. Shell variables don't persist between calls, so always go through the script.
 - Without Docker there's no local stack, so E2E specs and screen renders are checked in CI's E2E job; record that in `tasks.md` notes.
 - Typecheck one package while building (`pnpm --filter <pkg> typecheck`); the full `pnpm typecheck` and `pnpm lint` run once, in the last task.
+- A fresh cloud session has no `node_modules`: run `pnpm install` once, batched with the first typecheck or test call, before any `pnpm` check.
