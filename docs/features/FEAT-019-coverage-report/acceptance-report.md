@@ -1,6 +1,6 @@
 # Acceptance Report: FEAT-019 — Coverage report (template topics before go-live, gaps after)
 
-> Verdict: **Accepted** (E2E, screen renders and axe for AC-10 pending Ken's local CI; see Independent execution) · Date: 2026-10-24
+> Verdict: **Accepted** (AC-10's E2E, renders and axe green in Ken's local CI, 2026-10-25) · Date: 2026-10-24
 > Standard: [technical-design.md](technical-design.md) §6 (AC-1..AC-10) · Sources: SRS v0.4 (KB-09, KB-18), use-cases v0.4 (UC-03 step 7, UC-13 step 4, UC-16 3b), ADR-005, ADR-009, ADR-010, ADR-014, ADR-015
 > Repo state audited: `56c63a7` (implementation head); one test correction, `1f211c0`
 
@@ -30,7 +30,7 @@ This session didn't write the code. The standard was re-derived from KB-09, KB-1
 | AC-7 | UC-16 3b, KB-18 | kb `coverage.int` "accepting with an FAQ creates an approved FAQ visitors get, edited_and_accepted, and drops it from the report", "refuses an accept without an FAQ, or with a fact edit; closing changes no fact"; api gap case; dashboard `lib/corrections.test.ts` `answer_gap` cases | faithful | green; E2E pending CI |
 | AC-8 | ADR-014, ADR-015 | db and kb cases (no visitor text in `corrections` or audit payloads; the item closes when its messages are deleted); tenancy audit payload is the topic ID | faithful | green |
 | AC-9 | KB-09, D7 | kb "falls back to key matching when the topics cannot be embedded"; api "still reports, by question only, when the embedder fails" | faithful | green |
-| AC-10 | ui-design | `e2e/tests/coverage.e2e.ts` (pre-live topics, add FAQ, Doesn't apply, widget gap, job, answer from Coverage, leaves the queue; axe on Coverage, dialog, row and detail) | faithful as written | **pending CI** |
+| AC-10 | ui-design | `e2e/tests/coverage.e2e.ts` (pre-live topics, add FAQ, Doesn't apply, widget gap, job, answer from Coverage, leaves the queue; axe on Coverage, dialog, row and detail) | faithful as written | green (Ken's local CI) |
 
 ## Corrected tests
 
@@ -66,3 +66,7 @@ Test ref appended (Test ref column only):
 
 - KB-09: `features/FEAT-019-coverage-report/acceptance-report.md`
 - KB-18: `features/FEAT-019-coverage-report/acceptance-report.md (partial: coverage-gap source)`
+
+## CI
+
+Ken's local CI (WSL) on 2026-10-25 at `b67335f`: every job green, including E2E (`coverage.e2e.ts`). AC-10 verified.
