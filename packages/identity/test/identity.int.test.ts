@@ -319,6 +319,10 @@ describe('workspaces (ONB-01, AUTH-08)', () => {
     expect(
       (await owner.query(`select 1 from business_profiles where tenant_id = $1`, [ws.id])).rowCount,
     ).toBe(1);
+    expect(
+      (await owner.query(`select position from widget_settings where tenant_id = $1`, [ws.id]))
+        .rows,
+    ).toEqual([{ position: 'right' }]);
     const acc = await owner.query(
       `select document, version, user_id, accepted_at from terms_acceptances where tenant_id = $1 order by document`,
       [ws.id],

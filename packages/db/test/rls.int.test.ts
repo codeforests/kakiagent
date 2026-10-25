@@ -2098,3 +2098,126 @@ describe('coverage gaps (FEAT-019)', () => {
     expect(login.rows).toEqual([{ rolcanlogin: false }]);
   });
 });
+
+describe('widget_settings (FEAT-032 §4)', () => {
+  it('every seeded tenant has its row, and tenant B never sees or changes tenant A', async () => {
+    const { rows } = await owner.query(`select tenant_id from widget_settings order by tenant_id`);
+    expect(rows.map((r) => r.tenant_id)).toEqual(expect.arrayContaining([TENANT_A, TENANT_B]));
+    for (const role of ['app_dashboard', 'app_agent_visitor'] as const) {
+      await asRole(role, TENANT_B, async (c) => {
+        const seen = await c.query(`select tenant_id from widget_settings`);
+        expect(seen.rows).toEqual([{ tenant_id: TENANT_B }]);
+      });
+    }
+    await asRole('app_dashboard', TENANT_B, async (c) => {
+      const upd = await c.query(
+        `update widget_settings set position = 'left' where tenant_id = $1`,
+        [TENANT_A],
+      );
+      expect(upd.rowCount).toBe(0);
+    });
+    await asRole('app_agent_visitor', TENANT_B, async (c) => {
+      const upd = await c.query(
+        `update widget_settings set rejected_origin = 'https://x.example', rejected_at = now() where tenant_id = $1`,
+        [TENANT_A],
+      );
+      expect(upd.rowCount).toBe(0);
+    });
+    await expect(
+      asRole('app_identity', TENANT_B, (c) =>
+        c.query(`insert into widget_settings (tenant_id) values ($1)`, [TENANT_A]),
+      ),
+    ).rejects.toThrow(/row-level security/);
+  });
+
+  it('the visitor zone reads only the look and the install check, and writes only the install check', async () => {
+    await asRole('app_agent_visitor', TENANT_A, async (c) => {
+      const { rows } = await c.query(
+        `select position, theme_overrides, detected_theme, logo, logo_type, logo_version, last_seen_at from widget_settings`,
+      );
+      expect(rows).toHaveLength(1);
+      const upd = await c.query(
+        `update widget_settings set install_seen_at = now(), install_seen_origin = 'https://a.example', last_seen_at = now()`,
+      );
+      expect(upd.rowCount).toBe(1);
+    });
+    for (const stmt of [
+      `select detect_status from widget_settings`,
+      `select updated_at from widget_settings`,
+      `update widget_settings set position = 'left'`,
+      `update widget_settings set theme_overrides = '{}'`,
+      `update widget_settings set detected_theme = '{}'`,
+    ]) {
+      await expect(asRole('app_agent_visitor', TENANT_A, (c) => c.query(stmt))).rejects.toThrow(
+        /permission denied/,
+      );
+    }
+  });
+
+  it('the ingest zone writes only the detection result; the dashboard never writes the install check', async () => {
+    await asRole('app_ingest', TENANT_A, async (c) => {
+      const upd = await c.query(
+        `update widget_settings set detected_theme = '{"accent":"#c2410c"}', detect_status = 'done', updated_at = now()
+         where detect_requested_at is null`,
+      );
+      expect(upd.rowCount).toBe(1);
+    });
+    for (const stmt of [
+      `select theme_overrides from widget_settings`,
+      `select logo from widget_settings`,
+      `update widget_settings set position = 'left'`,
+      `update widget_settings set install_seen_at = now()`,
+    ]) {
+      await expect(asRole('app_ingest', TENANT_A, (c) => c.query(stmt))).rejects.toThrow(
+        /permission denied/,
+      );
+    }
+    for (const stmt of [
+      `update widget_settings set install_seen_at = now()`,
+      `update widget_settings set rejected_origin = 'https://x.example'`,
+      `delete from widget_settings`,
+      `insert into widget_settings (tenant_id) values (gen_random_uuid())`,
+    ]) {
+      await expect(asRole('app_dashboard', TENANT_A, (c) => c.query(stmt))).rejects.toThrow(
+        /permission denied/,
+      );
+    }
+    await asRole('app_dashboard', TENANT_A, async (c) => {
+      const upd = await c.query(
+        `update widget_settings set position = 'left', theme_overrides = '{"radius":8}', updated_at = now()`,
+      );
+      expect(upd.rowCount).toBe(1);
+    });
+  });
+
+  it('checks reject a logo over 100 KB, an unknown logo type and a half-set logo', async () => {
+    const big = Buffer.alloc(102401, 1);
+    await expect(
+      owner.query(
+        `update widget_settings set logo = $2, logo_type = 'image/png' where tenant_id = $1`,
+        [TENANT_A, big],
+      ),
+    ).rejects.toThrow(/widget_settings_logo_ck/);
+    await expect(
+      owner.query(
+        `update widget_settings set logo = $2, logo_type = 'image/svg+xml' where tenant_id = $1`,
+        [TENANT_A, Buffer.from('x')],
+      ),
+    ).rejects.toThrow(/widget_settings_logo_ck/);
+    await expect(
+      owner.query(`update widget_settings set logo = $2 where tenant_id = $1`, [
+        TENANT_A,
+        Buffer.from('x'),
+      ]),
+    ).rejects.toThrow(/widget_settings_logo_ck/);
+    await expect(
+      owner.query(`update widget_settings set position = 'top' where tenant_id = $1`, [TENANT_A]),
+    ).rejects.toThrow(/widget_settings_position_ck/);
+    await expect(
+      owner.query(
+        `update tenants set allowed_origins = array(select 'https://h' || g || '.example' from generate_series(1, 51) g) where id = $1`,
+        [TENANT_A],
+      ),
+    ).rejects.toThrow(/tenants_allowed_origins_ck/);
+  });
+});

@@ -36,7 +36,11 @@ export const tenants = pgTable(
     status: text('status', { enum: ['active', 'suspended'] })
       .notNull()
       .default('active'),
-    // Stub: widget install settings move to the channels module in FEAT-032.
+    /**
+     * Widget key and allowed origins (CHN-11): stay here (FEAT-032 D2), because
+     * `resolve_widget_key` and FEAT-012's source write read them; the rest of the widget's
+     * settings are in `widget_settings`, owned by the channels module.
+     */
     widgetKey: text('widget_key').notNull().unique(),
     allowedOrigins: text('allowed_origins')
       .array()
@@ -60,6 +64,8 @@ export const tenants = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
+    // FEAT-032 §4: 20 by hand, plus FEAT-012's confirmed website hosts.
+    check('tenants_allowed_origins_ck', sql`cardinality(${t.allowedOrigins}) <= 50`),
     check(
       'tenants_route_complexity_threshold_ck',
       sql`${t.routeComplexityThreshold} between 0 and 1`,
@@ -1210,6 +1216,59 @@ export const coachingMessages = pgTable(
   ],
 );
 
+export const WIDGET_POSITIONS = ['right', 'left'] as const;
+export const WIDGET_DETECT_STATUSES = ['none', 'queued', 'running', 'done', 'failed'] as const;
+export const WIDGET_DETECT_FAILURES = ['unreachable', 'blocked', 'timeout', 'no_page'] as const;
+export const WIDGET_LOGO_TYPES = ['image/png', 'image/jpeg', 'image/webp'] as const;
+
+/**
+ * Website widget settings (ONB-07, CHN-14, CHN-02; FEAT-032 §4): one row per tenant, made
+ * with the tenant. The channels module owns it. The visitor zone reads the look and writes
+ * only the install check; the ingest zone writes only the detection result.
+ */
+export const widgetSettings = pgTable(
+  'widget_settings',
+  {
+    tenantId: uuid('tenant_id')
+      .primaryKey()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    position: text('position', { enum: WIDGET_POSITIONS }).notNull().default('right'),
+    themeOverrides: jsonb('theme_overrides')
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    detectedTheme: jsonb('detected_theme').$type<Record<string, unknown>>(),
+    detectStatus: text('detect_status', { enum: WIDGET_DETECT_STATUSES }).notNull().default('none'),
+    detectFailure: text('detect_failure', { enum: WIDGET_DETECT_FAILURES }),
+    detectRequestedAt: timestamp('detect_requested_at', { withTimezone: true }),
+    logo: bytea('logo'),
+    logoType: text('logo_type', { enum: WIDGET_LOGO_TYPES }),
+    logoVersion: integer('logo_version').notNull().default(0),
+    installSeenAt: timestamp('install_seen_at', { withTimezone: true }),
+    installSeenOrigin: text('install_seen_origin'),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
+    rejectedOrigin: text('rejected_origin'),
+    rejectedAt: timestamp('rejected_at', { withTimezone: true }),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check('widget_settings_position_ck', sql`${t.position} in ('right', 'left')`),
+    check('widget_settings_overrides_ck', sql`jsonb_typeof(${t.themeOverrides}) = 'object'`),
+    check(
+      'widget_settings_detected_ck',
+      sql`${t.detectedTheme} is null or jsonb_typeof(${t.detectedTheme}) = 'object'`,
+    ),
+    check(
+      'widget_settings_detect_ck',
+      sql`${t.detectStatus} in ('none', 'queued', 'running', 'done', 'failed') and (${t.detectFailure} is null or (${t.detectStatus} = 'failed' and ${t.detectFailure} in ('unreachable', 'blocked', 'timeout', 'no_page')))`,
+    ),
+    check(
+      'widget_settings_logo_ck',
+      sql`(${t.logo} is null) = (${t.logoType} is null) and (${t.logoType} is null or ${t.logoType} in ('image/png', 'image/jpeg', 'image/webp')) and (${t.logo} is null or octet_length(${t.logo}) <= 102400)`,
+    ),
+  ],
+);
+
 /** Tables with `tenant_id` + forced RLS. The cross-tenant suite asserts this list is complete. */
 export const TENANT_SCOPED_TABLES = [
   'tenants',
@@ -1234,4 +1293,5 @@ export const TENANT_SCOPED_TABLES = [
   'coaching_sessions',
   'coaching_messages',
   'corrections',
+  'widget_settings',
 ] as const;

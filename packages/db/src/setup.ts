@@ -119,6 +119,10 @@ export async function seed(client: pg.ClientBase, tenants: SeedTenant[]): Promis
       [t.id, t.slug, t.name, t.widgetKey, t.allowedOrigins],
     );
     await client.query(
+      `insert into widget_settings (tenant_id) values ($1) on conflict (tenant_id) do nothing`,
+      [t.id],
+    );
+    await client.query(
       `insert into business_profiles (tenant_id, gst_registered, hours, open_on_public_holidays,
          uen, industry, contact_email, contact_phone, languages)
        values ($1, $2, $3, $4, $5, $6, $7, $8, coalesce($9, '{en}'::text[]))
