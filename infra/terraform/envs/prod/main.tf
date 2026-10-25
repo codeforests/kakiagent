@@ -227,13 +227,16 @@ module "service" {
     local.common_env,
     { for k, v in {
       api = {
-        PORT                    = "3000"
-        VALKEY_URL              = local.valkey
-        PUBLIC_REALTIME_URL     = local.public_url
-        PUBLIC_WIDGET_PANEL_URL = "${local.public_url}/w/v1/panel.js"
-        PUBLIC_APP_URL          = local.public_url
-        AWS_REGION              = local.region
-        QUARANTINE_BUCKET       = module.storage.bucket_names["quarantine"]
+        PORT                      = "3000"
+        VALKEY_URL                = local.valkey
+        PUBLIC_REALTIME_URL       = local.public_url
+        PUBLIC_WIDGET_PANEL_URL   = "${local.public_url}/w/v1/panel.js"
+        PUBLIC_WIDGET_LOADER_URL  = "${local.public_url}/w/v1/loader.js"
+        PUBLIC_WIDGET_PREVIEW_URL = "${local.public_url}/w/v1/preview.html"
+        PUBLIC_API_URL            = local.public_url
+        PUBLIC_APP_URL            = local.public_url
+        AWS_REGION                = local.region
+        QUARANTINE_BUCKET         = module.storage.bucket_names["quarantine"]
       }
       realtime = { PORT = "3001", VALKEY_URL = local.valkey }
       agent-worker = {
