@@ -145,7 +145,11 @@ test('the widget follows a page that turns dark, and the host and widget stay ap
   }));
   await bare.close();
   expect(page.styles).toBe(clean.styles);
-  expect(page.globals.filter((k) => !clean.globals.includes(k))).toEqual(['__kaki']);
+  // Playwright's own globals (WebKit's trace snapshot streamer) are the harness, not the page.
+  const added = page.globals.filter(
+    (k) => !clean.globals.includes(k) && !k.startsWith('__playwright'),
+  );
+  expect(added).toEqual(['__kaki']);
 
   // The page turns dark: the widget follows within 500 ms without re-mounting (AC-8).
   const host = await visitor.locator('kaki-agent').elementHandle();

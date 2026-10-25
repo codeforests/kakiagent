@@ -41,6 +41,8 @@ This session didn't write the code. The standard was re-derived from the SRS row
 
 - `77ec16d` — AC-8: the follow test in `e2e/tests/widget-install.e2e.ts` now also loads the plain site with a `scheme: 'light'` override in the config (route rewrite), turns the page dark and checks the surface stays light after 800 ms. The loader's `if (!theme.overrides.scheme) followPage(apply)` was otherwise untested.
 
+- AC-9 (after Ken's local CI, 2026-10-25): in WebKit, Playwright's trace adds a `__playwright_snapshot_streamer_*` global to the page under test, so the "only `__kaki` is new" check failed on a harness global. The check now ignores names starting with `__playwright`; the widget's own globals are still asserted exactly.
+
 ## Independent execution
 
 Through `scripts/test-env.sh` (local Postgres 16 + pgvector; no Docker), at `77ec16d`:
