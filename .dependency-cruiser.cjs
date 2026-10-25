@@ -23,6 +23,7 @@ module.exports = {
           '^packages/db/src/(setup|testing)\\.ts$',
           '^packages/identity/src/testing\\.ts$',
           '^packages/kb/src/(stale|gap-cluster)\\.ts$',
+          '^packages/channels/src/theme/index\\.ts$',
           '^packages/ui/src/styles\\.css$',
         ],
       },
