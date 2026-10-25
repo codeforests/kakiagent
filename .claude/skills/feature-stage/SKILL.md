@@ -48,8 +48,8 @@ Every call re-reads the whole context, and the session's starting prompt alone i
 
 ## Stage: verify
 
-1. Load `agentic-sdlc-kit:acceptance-verification`. This session is the independent verifier: it didn't write the code.
-2. Inputs: `handoff.md`, the design's §6, `tasks.md` evidence, `git diff origin/main...HEAD`. For the report format, read only the previous report's headings and its per-AC table.
+1. Load `agentic-sdlc-kit:acceptance-verification`. This session is the independent verifier: it didn't write the code. Diff against `origin/main` (Token rules), and take the report format from the previous report's headings and per-AC table only.
+2. Inputs: `handoff.md`, the design's §6, `tasks.md` evidence, `git diff main...HEAD`.
 3. Re-run this feature's tests fresh, then the full local checks (STATE.md, CI cadence). Start CI only when the cadence calls for it, and read its E2E results. Review the test diff and the invariants in `AGENTS.md`.
 4. Write `acceptance-report.md`; on acceptance, append the RTM Test ref and set `tasks.md` status `accepted`.
 5. Update `docs/build/STATE.md` in the same PR: move the feature to Merged, set the next feature and the remaining order, and the features-since-CI count.
