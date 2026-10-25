@@ -17,7 +17,7 @@ const GENERIC =
 export function pickFont(list: string | null | undefined): string | null {
   for (const raw of (list ?? '').split(',')) {
     const f = raw.trim().replace(/^["']|["']$/g, '');
-    if (f && !ICON_FONT.test(f) && !GENERIC.test(f) && /^[\w \-]+$/.test(f)) return f;
+    if (f && !ICON_FONT.test(f) && !GENERIC.test(f) && /^[\w -]+$/.test(f)) return f;
   }
   return null;
 }

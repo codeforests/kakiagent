@@ -21,7 +21,7 @@ export interface ResolvedTheme {
 
 const safeFamily = (f: string | null | undefined) => {
   const v = (f ?? '').replace(/["']/g, '').trim();
-  return v && /^[\w \-]+$/.test(v) ? `"${v}"` : null;
+  return v && /^[\w -]+$/.test(v) ? `"${v}"` : null;
 };
 
 /**
