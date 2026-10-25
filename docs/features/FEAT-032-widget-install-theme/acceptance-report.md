@@ -43,6 +43,8 @@ This session didn't write the code. The standard was re-derived from the SRS row
 
 - AC-9 (after Ken's local CI, 2026-10-25): in WebKit, Playwright's trace adds a `__playwright_snapshot_streamer_*` global to the page under test, so the "only `__kaki` is new" check failed on a harness global. The check now ignores names starting with `__playwright`; the widget's own globals are still asserted exactly.
 
+- AC-10 owner flow (after Ken's local CI, 2026-10-25): detection had settled ("Matched to localhost:5175" in the page snapshot), but the test's `getByText(/^(Matched to …)/)` missed it: the caption's text starts with a space after the spinner's slot, so the anchored pattern never matched. The test now reads the preview's status line, first sees "Matching your website…" for this run, then the settled text. A longer timeout tried first was based on a wrong reading and is taken back out.
+
 ## Independent execution
 
 Through `scripts/test-env.sh` (local Postgres 16 + pgvector; no Docker), at `77ec16d`:

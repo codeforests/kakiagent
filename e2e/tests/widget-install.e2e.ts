@@ -15,9 +15,6 @@ const ORIGIN = 'http://localhost:5175';
 const OWNER = 'owner@kaki-bakery.test';
 
 test.describe.configure({ mode: 'serial' });
-// Theme detection rides the ingest queue, one job at a time behind any crawl or extraction
-// the earlier specs left running, so it gets the same 120 s the ingest specs allow.
-test.setTimeout(240_000);
 
 /** Calls the dashboard api from a signed-in page. */
 async function apiCall(owner: Page, method: string, path: string, body?: unknown) {
@@ -209,13 +206,15 @@ test('the owner adjusts the look, installs the widget and sees the check turn gr
   const match = owner.getByRole('button', { name: 'Match again' });
   if (await match.isVisible()) {
     await match.click();
-    await expect(
-      owner
-        .getByText(
-          /^(Matched to |We couldn't open |.* isn't a public website|.* took too long|.* didn't return a page)/,
-        )
-        .first(),
-    ).toBeVisible({ timeout: 120_000 });
+    // The caption is the preview's status line; its text starts after the spinner's slot,
+    // so the pattern isn't anchored. It shows the new run before the settled result, so an
+    // earlier "Matched to …" can't pass for this one.
+    const caption = owner.getByRole('region', { name: 'Widget preview' }).getByRole('status');
+    await expect(caption).toHaveText(/Matching your website/);
+    await expect(caption).toHaveText(
+      /Matched to |We couldn't open |isn't a public website|took too long|didn't return a page/,
+      { timeout: 60_000 },
+    );
   }
 
   // Override the colour and the position; Save.
