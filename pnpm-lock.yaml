@@ -160,6 +160,9 @@ importers:
 
   apps/dashboard:
     dependencies:
+      '@kaki/channels':
+        specifier: workspace:*
+        version: link:../../packages/channels
       '@kaki/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts

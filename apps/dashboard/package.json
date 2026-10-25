@@ -11,6 +11,7 @@
     "test": "vitest run --project unit --passWithNoTests"
   },
   "dependencies": {
+    "@kaki/channels": "workspace:*",
     "@kaki/contracts": "workspace:*",
     "@kaki/design-tokens": "workspace:*",
     "@kaki/ui": "workspace:*",

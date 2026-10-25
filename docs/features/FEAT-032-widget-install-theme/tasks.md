@@ -27,8 +27,9 @@
 
 ## Build session 2 (UI)
 
-- [ ] T8 — Dashboard parts: `lib/widget.ts` (copy maps, preview `postMessage`, polling helper) with unit tests; `api` calls; `pages/widget-parts.tsx` (`WidgetPreview`, `AppearanceForm`, `SnippetBox`, `InstallCheck`, `OriginsList`, `LogoField`) (ui-design "Shared parts"; AC-2, AC-3, AC-7, AC-10)
+- [x] T8 — Dashboard parts: `lib/widget.ts` (copy maps, preview `postMessage`, polling helper) with unit tests; `api` calls; `pages/widget-parts.tsx` (`WidgetPreview`, `AppearanceForm`, `SnippetBox`, `InstallCheck`, `OriginsList`, `LogoField`) (ui-design "Shared parts"; AC-2, AC-3, AC-7, AC-10)
       Done when: dashboard unit tests (`--project unit`) pass for the copy maps, install-state labels and the "adjusted to" text from `clampAccent`; `pnpm --filter @kaki/dashboard typecheck` passes.
+      Evidence: `lib/widget.test.ts` 9/9; dashboard typecheck passes. The shared state (settings polled per D8, the unsaved draft, preview scheme, save, detect, unsaved-changes guard, the "now installed" toast) is one hook, `lib/widget-editor.ts` `useWidgetEditor`, so both screens compose the same parts. The preview iframe is sandboxed without `allow-same-origin`, so its origin is opaque: messages go to `*` (they carry only the look, bot name and greeting) and replies are matched on `event.source`. The logo uploads on pick (not part of Save), with the 100 KB and type checks also done client-side. The dashboard gains `@kaki/channels` (lockfile).
 - [ ] T9 — SCR-APP-037 `/settings/widget` and SCR-APP-011 `/setup/website`; Settings row links; `SetupTestPage` Continue goes to `/setup/website` (ui-design; AC-2–AC-5, AC-10, AC-11, AC-13)
       Done when: both screens render every state in ui-design against the local api; dashboard typecheck passes. Note: renders and axe are checked in Ken's local CI (no stack in cloud sessions).
 - [ ] T10 — Docs: `apps/widget/README.md` (snippet, theme, preview, fixture sites), `docs/build/code-map.md` (channels module now has a domain file and the theme export; widget build outputs) (design §5)
