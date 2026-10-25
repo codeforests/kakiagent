@@ -57,6 +57,11 @@ export type ProposedChange =
     }
   | { kind: 'add_faq'; question: string; answer: string }
   | { kind: 'edit_hours'; profileVersion: number; before: HoursChange; after: HoursChange }
+  /**
+   * A group of visitor questions the assistant couldn't answer (KB-09, FEAT-019 D3). No
+   * question text: the questions stay on their messages. Accepting needs an `add_faq` edit.
+   */
+  | { kind: 'answer_gap' }
   /** A stale fact (KB-17, FEAT-018): accepting it re-confirms the fact, same value. */
   | {
       kind: 'reconfirm';
@@ -177,6 +182,7 @@ export function correctionFactInput(
       };
     case 'edit_hours':
     case 'reconfirm':
+    case 'answer_gap':
       return null;
   }
 }
@@ -407,6 +413,9 @@ export async function editedChange(
     const next = faqChange(edit.question, edit.answer);
     return sameJson(next, change) ? null : next;
   }
+  // A coverage gap is answered with the owner's own FAQ (FEAT-019 §3).
+  if (edit.kind === 'add_faq' && change.kind === 'answer_gap')
+    return faqChange(edit.question, edit.answer);
   throw new NotEditableError(`a ${change.kind} item can't take a ${edit.kind} edit`);
 }
 
@@ -508,6 +517,8 @@ async function applyChange(
     case 'reconfirm':
       await reconfirmFact(ctx, change.factId, change.factVersion);
       return;
+    case 'answer_gap':
+      throw new InvalidCorrectionError('an FAQ needs a question and an answer');
   }
 }
 
@@ -525,6 +536,8 @@ export async function acceptCorrection(
 ): Promise<CorrectionRecord> {
   const c = await getCorrection(ctx, id, true);
   if (c.status !== 'open') throw new CorrectionClosedError('already decided');
+  if (c.change.kind === 'answer_gap' && !opts.edit)
+    throw new InvalidCorrectionError('an FAQ needs a question and an answer');
   const edited = opts.edit ? await editedChange(ctx, c, opts.edit) : null;
   await applyChange(ctx, c, edited ?? c.change, opts);
   const out = await decide(ctx, id, edited ? 'edited_and_accepted' : 'accepted', edited);

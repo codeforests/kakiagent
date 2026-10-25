@@ -13,7 +13,8 @@ import { relativeTime } from '../lib/coach.ts';
 import {
   decisionLabel,
   effectiveChange,
-  fixSummary,
+  gapMeta,
+  itemSummary,
   INTERVAL_FIELDS,
   intervalError,
   SOURCE_LABEL,
@@ -245,7 +246,7 @@ function CorrectionRow({
     <li className="source-row correction-row" data-testid="correction-row">
       <div className="correction-row__main">
         <Link className="correction-row__link" to={`/review/corrections/${item.id}`}>
-          {fixSummary(change)}
+          {itemSummary(item)}
         </Link>
         <div className="correction-row__chips">
           <span className={`chip chip--${sourceTone(item.source)}`}>
@@ -265,6 +266,7 @@ function CorrectionRow({
           )}
         </div>
         <span className="source-row__meta">
+          {gapMeta(item) && `${gapMeta(item)} · `}
           {open
             ? relativeTime(item.createdAt)
             : `Decided ${relativeTime(item.decidedAt ?? item.createdAt)}`}

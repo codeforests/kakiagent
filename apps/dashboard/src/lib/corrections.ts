@@ -14,6 +14,7 @@ import {
 } from '@kaki/contracts';
 import { useQueryClient } from '@tanstack/react-query';
 import { diffRows, type DiffRow } from './coach.ts';
+import { timesLabel } from './coverage.ts';
 import { fromFact, hasPrice, valueOf, type Draft } from './fact-draft.ts';
 import { dateLabel } from './replay.ts';
 
@@ -81,8 +82,23 @@ export function fixSummary(change: ProposedChange, now = new Date()): string {
         .join(', ')}`;
     case 'reconfirm':
       return `Re-confirm: ${change.label}, last confirmed ${agoLabel(change.lastConfirmedAt, now)}`;
+    case 'answer_gap':
+      return 'Customers asked something your assistant couldn’t answer';
   }
 }
+
+/** A coverage gap item reads as the customers' question while it is open (FEAT-019). */
+export const isGap = (c: CorrectionItem) => c.change.kind === 'answer_gap';
+
+/** The item's one-line summary: "Customers asked: “…”" for an open gap, else the fix. */
+export function itemSummary(c: CorrectionItem, now = new Date()): string {
+  if (c.status === 'open' && isGap(c) && c.gap) return `Customers asked: “${c.gap.question}”`;
+  return fixSummary(effectiveChange(c), now);
+}
+
+/** The gap row's meta: "5 times"; null for other items. */
+export const gapMeta = (c: CorrectionItem): string | null =>
+  isGap(c) && c.gap ? timesLabel(c.gap.asksTotal) : null;
 
 /** The closed list's decision chip. */
 export function decisionLabel(c: CorrectionItem): string {
@@ -90,7 +106,7 @@ export function decisionLabel(c: CorrectionItem): string {
     case 'accepted':
       return 'Accepted';
     case 'edited_and_accepted':
-      return 'Edited and accepted';
+      return isGap(c) ? 'FAQ added' : 'Edited and accepted';
     case 'dismissed':
       return c.closedBySystem ? 'Closed automatically' : 'Closed';
     case 'open':
@@ -98,16 +114,28 @@ export function decisionLabel(c: CorrectionItem): string {
   }
 }
 
-/** The success banner after accepting. */
-export const acceptedLine = (change: ProposedChange) =>
-  change.kind === 'reconfirm'
-    ? 'Re-confirmed. The review clock restarts today.'
-    : 'Fix accepted. Your assistant now uses it.';
+/** The success banner after accepting; `original` is the item's proposal. */
+export const acceptedLine = (change: ProposedChange, original: ProposedChange = change) =>
+  original.kind === 'answer_gap'
+    ? 'FAQ added. Your assistant now uses it.'
+    : change.kind === 'reconfirm'
+      ? 'Re-confirmed. The review clock restarts today.'
+      : 'Fix accepted. Your assistant now uses it.';
+
+/** The closed banner: why it closed, and that nothing changed. */
+export function closedLine(c: CorrectionItem, decidedAgo: string | null): string {
+  if (c.closedBySystem)
+    return isGap(c)
+      ? 'Closed automatically: the chats it came from were deleted.'
+      : 'Closed automatically: the fact was confirmed or changed since.';
+  return `Closed${decidedAgo ? ` ${decidedAgo}` : ''}. Nothing in your knowledge changed.`;
+}
 
 /** Why an accepted item has no comparison (D3); null when it should have one. */
 export function noReplayCaption(change: ProposedChange): string | null {
   switch (change.kind) {
     case 'add_faq':
+    case 'answer_gap':
       return "No past answers used this yet, so there's nothing to compare.";
     case 'edit_hours':
       return "Opening-hours answers aren't linked to past chats, so there's nothing to compare.";
@@ -215,11 +243,12 @@ export function intervalError(raw: string): string | undefined {
     : 'Enter 1 to 24 months.';
 }
 
-/** Invalidates what a decision on an item changes: the lists, the item, the counts. */
+/** Invalidates what a decision on an item changes: the lists, the item, the counts, Coverage. */
 export function useCorrectionsChanged() {
   const queryClient = useQueryClient();
   return () => {
     void queryClient.invalidateQueries({ queryKey: ['corrections'] });
     void queryClient.invalidateQueries({ queryKey: ['review-summary'] });
+    void queryClient.invalidateQueries({ queryKey: ['coverage'] });
   };
 }

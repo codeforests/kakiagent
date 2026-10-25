@@ -59,6 +59,7 @@ import {
   InvalidProfileError,
   resolveWidgetKey,
   SettingsConflictError,
+  UnknownTopicError,
   visitorTenantState,
 } from '@kaki/tenancy';
 import { randomUUID } from 'node:crypto';
@@ -83,6 +84,7 @@ import { registerUploadRoutes } from './uploads.js';
 import { registerConflictRoutes, toConflict } from './conflicts.js';
 import { registerReviewRoutes, toPreview } from './review.js';
 import { InvalidBodyError, InvalidQueryError, registerCorrectionRoutes } from './corrections.js';
+import { registerCoverageRoutes } from './coverage.js';
 import { registerSettingsRoutes } from './settings.js';
 import {
   AttestationRequiredError,
@@ -173,7 +175,8 @@ export async function buildApp(deps: Deps) {
       err instanceof CoachingSessionNotFoundError ||
       err instanceof ReplayConversationNotFoundError ||
       err instanceof CorrectionNotFoundError ||
-      err instanceof CorrectionReplayNotFoundError
+      err instanceof CorrectionReplayNotFoundError ||
+      err instanceof UnknownTopicError
     )
       return reply.code(404).send({ error: 'not_found', message: 'Not found' });
     if (err instanceof TokenError)
@@ -444,6 +447,7 @@ export async function buildApp(deps: Deps) {
   registerSettingsRoutes(app, deps, sessionFrom);
   registerCoachRoutes(app, deps, sessionFrom);
   registerCorrectionRoutes(app, deps, sessionFrom);
+  registerCoverageRoutes(app, deps, sessionFrom);
 
   return app;
 }

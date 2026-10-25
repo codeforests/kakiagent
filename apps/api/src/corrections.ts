@@ -52,6 +52,7 @@ import { ZodError, type ZodType } from 'zod';
 import { UnavailableError, type TenantSession } from './auth.js';
 import { changeView, ReplayRateLimitedError, startReplaySafely, toMessages } from './coach.js';
 import { ForbiddenError, patchOf } from './facts.js';
+import { gapContext, gapStatsIn } from './gaps.js';
 import type { App, Deps } from './server.js';
 
 /** 422 `invalid_query` for a list query that doesn't parse (FEAT-018 §3). */
@@ -71,7 +72,11 @@ export function bodyOf<T>(schema: ZodType<T>, body: unknown): T {
 
 const iso = (d: Date | null) => (d ? d.toISOString() : null);
 
-export function toItem(c: CorrectionRecord, facts: CorrectionFactView[]): CorrectionItem {
+export function toItem(
+  c: CorrectionRecord,
+  facts: CorrectionFactView[],
+  gap: CorrectionItem['gap'] = null,
+): CorrectionItem {
   return {
     id: c.id,
     status: c.status,
@@ -85,12 +90,26 @@ export function toItem(c: CorrectionRecord, facts: CorrectionFactView[]): Correc
     createdAt: c.createdAt.toISOString(),
     decidedAt: iso(c.decidedAt),
     closedBySystem: c.status === 'dismissed' && c.decidedBy === null,
+    gap,
   };
+}
+
+/** The list row's newest ask and count for each coverage-gap item (FEAT-019, SCR-APP-021). */
+async function gapSummaries(tx: Tx, tenantId: string, items: CorrectionRecord[]) {
+  const ids = items.filter((c) => c.sourceType === 'coverage_gap').map((c) => c.id);
+  const stats = ids.length ? await gapStatsIn(tx, tenantId)(ids, new Date()) : new Map();
+  return new Map<string, CorrectionItem['gap']>(
+    ids.map((id) => {
+      const s = stats.get(id);
+      return [id, { question: s?.newest ?? '', asksTotal: s?.asksTotal ?? 0 }];
+    }),
+  );
 }
 
 async function itemOf(tx: Tx, tenantId: string, c: CorrectionRecord): Promise<CorrectionItem> {
   const facts = await correctionFacts({ tx, tenantId }, [c]);
-  return toItem(c, facts.get(c.id) ?? []);
+  const gaps = await gapSummaries(tx, tenantId, [c]);
+  return toItem(c, facts.get(c.id) ?? [], gaps.get(c.id) ?? null);
 }
 
 function toTurn(t: CorrectionReplayTurnRow, replayed: CorrectionReplayTurn['replayed']) {
@@ -138,6 +157,9 @@ async function contextOf(
       coaching = { question: question?.body ?? null, proposal: proposal.body };
     }
   }
+  // A coverage gap shows its asked questions instead of one conversation (FEAT-019 §3).
+  if (c.sourceType === 'coverage_gap')
+    return { coaching, conversation: null, gap: await gapContext(tx, tenantId, c.id) };
   const conversation = c.conversationRef
     ? (
         await messagesUpTo(tx, {
@@ -153,7 +175,7 @@ async function contextOf(
         createdAt: m.createdAt.toISOString(),
       }))
     : null;
-  return { coaching, conversation };
+  return { coaching, conversation, gap: null };
 }
 
 /**
@@ -228,8 +250,11 @@ export function registerCorrectionRoutes(
     return inTenant(s, async (tx) => {
       const page = await listCorrections({ tx, tenantId: s.tenantId }, q.data);
       const facts = await correctionFacts({ tx, tenantId: s.tenantId }, page.corrections);
+      const gaps = await gapSummaries(tx, s.tenantId, page.corrections);
       return CorrectionList.parse({
-        corrections: page.corrections.map((c) => toItem(c, facts.get(c.id) ?? [])),
+        corrections: page.corrections.map((c) =>
+          toItem(c, facts.get(c.id) ?? [], gaps.get(c.id) ?? null),
+        ),
         nextCursor: page.nextCursor,
       });
     });

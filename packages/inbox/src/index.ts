@@ -568,3 +568,140 @@ export async function messagesUpTo(
     .limit(input.limit);
   return rows.reverse();
 }
+
+// ---- Coverage gaps (KB-09; FEAT-019 §5.1) ---------------------------------------------
+
+export type GapReason = (typeof schema.GAP_REASONS)[number];
+
+/**
+ * Marks a visitor question the turn couldn't answer as a coverage gap, with the vector
+ * retrieval used (D2). Only the first mark counts, so a redelivered turn marks it once.
+ */
+export async function markQuestionGap(
+  tx: Tx,
+  input: { tenantId: string; messageId: string; reason: GapReason; embedding: number[] },
+): Promise<boolean> {
+  const rows = await tx
+    .update(schema.messages)
+    .set({ gapReason: input.reason, gapEmbedding: input.embedding })
+    .where(
+      and(
+        eq(schema.messages.tenantId, input.tenantId),
+        eq(schema.messages.id, input.messageId),
+        eq(schema.messages.author, 'visitor'),
+        sql`${schema.messages.gapReason} is null`,
+      ),
+    )
+    .returning({ id: schema.messages.id });
+  return rows.length > 0;
+}
+
+export interface GapQuestionRow {
+  messageId: string;
+  conversationId: string;
+  /** Masked at the edge when stored (ADR-015). */
+  body: string;
+  askedAt: Date;
+  reason: GapReason;
+}
+
+/** The newest `perItem` questions filed under each coverage-gap item, newest first. */
+export async function gapQuestions(
+  tx: Tx,
+  tenantId: string,
+  correctionIds: string[],
+  opts: { perItem: number },
+): Promise<Map<string, GapQuestionRow[]>> {
+  const out = new Map<string, GapQuestionRow[]>();
+  if (correctionIds.length === 0) return out;
+  const rows = await tx.execute<{
+    correction_id: string;
+    id: string;
+    conversation_id: string;
+    body: string;
+    created_at: string | Date;
+    gap_reason: GapReason;
+  }>(sql`
+    select correction_id, id, conversation_id, body, created_at, gap_reason from (
+      select m.gap_correction_id as correction_id, m.id, m.conversation_id, m.body, m.created_at,
+             m.gap_reason,
+             row_number() over (partition by m.gap_correction_id order by m.created_at desc, m.id) as n
+      from messages m
+      where m.tenant_id = ${tenantId}
+        and m.gap_correction_id in (${sql.join(
+          correctionIds.map((id) => sql`${id}::uuid`),
+          sql`, `,
+        )})
+    ) q
+    where n <= ${opts.perItem}
+    order by correction_id, n`);
+  for (const r of rows.rows) {
+    const list = out.get(r.correction_id) ?? [];
+    list.push({
+      messageId: r.id,
+      conversationId: r.conversation_id,
+      body: r.body,
+      askedAt: new Date(r.created_at),
+      reason: r.gap_reason,
+    });
+    out.set(r.correction_id, list);
+  }
+  return out;
+}
+
+export interface GapCount {
+  asksSince: number;
+  asksTotal: number;
+  firstAskedAt: Date;
+  lastAskedAt: Date;
+  reasons: GapReason[];
+}
+
+/** Per coverage-gap item: asks since `since`, all asks, first and last ask, and the reasons. */
+export async function gapCounts(
+  tx: Tx,
+  tenantId: string,
+  correctionIds: string[],
+  since: Date,
+): Promise<Map<string, GapCount>> {
+  const out = new Map<string, GapCount>();
+  if (correctionIds.length === 0) return out;
+  const rows = await tx.execute<{
+    correction_id: string;
+    asks_since: number;
+    asks_total: number;
+    first_at: string | Date;
+    last_at: string | Date;
+    reasons: GapReason[];
+  }>(sql`
+    select m.gap_correction_id as correction_id,
+           (count(*) filter (where m.created_at >= ${since.toISOString()}::timestamptz))::int as asks_since,
+           count(*)::int as asks_total, min(m.created_at) as first_at, max(m.created_at) as last_at,
+           array_agg(distinct m.gap_reason order by m.gap_reason) as reasons
+    from messages m
+    where m.tenant_id = ${tenantId}
+      and m.gap_correction_id in (${sql.join(
+        correctionIds.map((id) => sql`${id}::uuid`),
+        sql`, `,
+      )})
+    group by m.gap_correction_id`);
+  for (const r of rows.rows)
+    out.set(r.correction_id, {
+      asksSince: r.asks_since,
+      asksTotal: r.asks_total,
+      firstAskedAt: new Date(r.first_at),
+      lastAskedAt: new Date(r.last_at),
+      reasons: r.reasons,
+    });
+  return out;
+}
+
+/** The tenant has had at least one conversation: Coverage's go-live until FEAT-034 (D4). */
+export async function hasConversation(tx: Tx, tenantId: string): Promise<boolean> {
+  const rows = await tx
+    .select({ id: schema.conversations.id })
+    .from(schema.conversations)
+    .where(eq(schema.conversations.tenantId, tenantId))
+    .limit(1);
+  return rows.length > 0;
+}

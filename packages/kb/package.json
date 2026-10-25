@@ -6,7 +6,8 @@
   "description": "Knowledge base: facts, versions and chunks (FEAT-022), sources and the ingest pipeline (FEAT-012); conflicts and corrections follow (ADR-010).",
   "exports": {
     ".": "./src/index.ts",
-    "./stale": "./src/stale.ts"
+    "./stale": "./src/stale.ts",
+    "./gap-cluster": "./src/gap-cluster.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

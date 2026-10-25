@@ -13,6 +13,7 @@ import {
 } from '@kaki/platform';
 import { createDispatcher } from '@kaki/platform/outbox';
 import { z } from 'zod';
+import { gapClusterOnce } from './gap-cluster.js';
 import { staleScanOnce } from './stale-scan.js';
 
 const config = loadConfig(
@@ -57,6 +58,12 @@ const config = loadConfig(
         .int()
         .positive()
         .default(24 * 60 * 60_000),
+      /** Coverage-gap grouping (KB-09, FEAT-019 §5.5): every 10 minutes, first run at start-up. */
+      GAP_CLUSTER_INTERVAL_MS: z.coerce
+        .number()
+        .int()
+        .positive()
+        .default(10 * 60_000),
     }),
 );
 const stopTelemetry = startTelemetry('scheduler-worker', config.OTEL_EXPORTER_OTLP_ENDPOINT);
@@ -151,13 +158,22 @@ const staleTimer = setInterval(
   config.STALE_SCAN_INTERVAL_MS,
 );
 
+// Coverage gaps (FEAT-019 §5.5): files the questions turns couldn't answer under
+// `coverage_gap` corrections and closes items with no question left.
+const gapRun = gapClusterOnce(outboxDb, logger);
+const gapTimer = setInterval(
+  () => void gapClusterOnce(outboxDb, logger),
+  config.GAP_CLUSTER_INTERVAL_MS,
+);
+
 async function shutdown() {
   abort.abort();
   clearInterval(anchorTimer);
   clearInterval(linkTimer);
   clearInterval(governorTimer);
   clearInterval(staleTimer);
-  await Promise.all([running.catch(() => {}), anchorRun, sweeping, governorRun, staleRun]);
+  clearInterval(gapTimer);
+  await Promise.all([running.catch(() => {}), anchorRun, sweeping, governorRun, staleRun, gapRun]);
   health.close();
   await mailer.close();
   await Promise.all([outboxDb.pool.end(), identityDb.pool.end()]);

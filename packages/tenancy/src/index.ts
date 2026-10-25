@@ -165,3 +165,9 @@ export {
   type IndustryTemplate,
   type SuggestedFaq,
 } from './templates.js';
+export {
+  coverageSkippedTopics,
+  coverageTemplate,
+  setTopicSkipped,
+  UnknownTopicError,
+} from './coverage.js';

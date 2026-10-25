@@ -8,9 +8,12 @@ import {
   createConversation,
   endAiConversation,
   flagConversation,
+  gapCounts,
+  gapQuestions,
   getConversation,
   getMessage,
   listConversations,
+  markQuestionGap,
   messagesSince,
   messagesUpTo,
   NotFoundError,
@@ -292,5 +295,107 @@ describe('inbox repository (visitor trust zone)', () => {
       messagesUpTo(tx, { tenantId: TENANT_A, conversationId, upTo: before, limit: 5 }),
     );
     expect(both.map((m) => m.body)).toEqual(['q3', 'a3']);
+  });
+
+  it('marks a visitor question as a gap once, and reads gap questions and counts per item (FEAT-019)', async () => {
+    const visitor = tdb.zone('visitor');
+    const vec = [1, ...new Array<number>(1023).fill(0)];
+    const ask = async (text: string, n: number) => {
+      const visitorId = randomUUID();
+      const conv = await withTenant(visitor, TENANT_B, (tx) =>
+        createConversation(tx, TENANT_B, visitorId),
+      );
+      const { message } = await withTenant(visitor, TENANT_B, (tx) =>
+        appendVisitorMessage(tx, {
+          tenantId: TENANT_B,
+          conversationId: conv.id,
+          visitorId,
+          text,
+          clientMessageId: `c-gap-00${n}`,
+        }),
+      );
+      return message;
+    };
+    const first = await ask('Do you have parking? NRIC S1234567D', 1);
+    const second = await ask('Is there parking nearby?', 2);
+    const mark = (messageId: string, reason: 'unavailable' | 'unsure' | 'escalated') =>
+      withTenant(visitor, TENANT_B, (tx) =>
+        markQuestionGap(tx, { tenantId: TENANT_B, messageId, reason, embedding: vec }),
+      );
+    expect(await mark(first.id, 'unavailable')).toBe(true);
+    expect(await mark(first.id, 'escalated')).toBe(false);
+    expect(await mark(second.id, 'unsure')).toBe(true);
+    // Agent replies are never marked.
+    const reply = await withTenant(visitor, TENANT_B, (tx) =>
+      appendAgentReply(tx, {
+        tenantId: TENANT_B,
+        conversationId: first.conversationId,
+        inReplyTo: first.id,
+        text: 'a',
+        factIds: [],
+      }),
+    );
+    expect(await mark(reply!.message.id, 'unsure')).toBe(false);
+
+    // File both under one item, as kb_gap_cluster() would, and read them back.
+    const { default: pg } = await import('pg');
+    const c = new pg.Client({ connectionString: tdb.ownerUrl });
+    await c.connect();
+    const item = await c.query(
+      `insert into corrections (tenant_id, source_type, proposed_by, proposed_change)
+       values ($1, 'coverage_gap', 'system', '{"kind":"answer_gap"}') returning id`,
+      [TENANT_B],
+    );
+    const id = item.rows[0].id as string;
+    await c.query(
+      `update messages set gap_correction_id = $1, created_at = now() - interval '40 days' where id = $2`,
+      [id, first.id],
+    );
+    await c.query(`update messages set gap_correction_id = $1 where id = $2`, [id, second.id]);
+    const stored = await c.query(`select gap_reason from messages where id = $1`, [first.id]);
+    await c.end();
+    expect(stored.rows[0].gap_reason).toBe('unavailable');
+
+    const dashboard = tdb.zone('dashboard');
+    const questions = await withTenant(dashboard, TENANT_B, (tx) =>
+      gapQuestions(tx, TENANT_B, [id, randomUUID()], { perItem: 1 }),
+    );
+    expect([...questions.keys()]).toEqual([id]);
+    expect(questions.get(id)).toEqual([
+      {
+        messageId: second.id,
+        conversationId: second.conversationId,
+        body: 'Is there parking nearby?',
+        askedAt: expect.any(Date),
+        reason: 'unsure',
+      },
+    ]);
+    const all = await withTenant(dashboard, TENANT_B, (tx) =>
+      gapQuestions(tx, TENANT_B, [id], { perItem: 5 }),
+    );
+    expect(all.get(id)!.map((q) => q.messageId)).toEqual([second.id, first.id]);
+    expect(all.get(id)![1]!.body).not.toContain('S1234567D');
+    const counts = await withTenant(dashboard, TENANT_B, (tx) =>
+      gapCounts(tx, TENANT_B, [id], new Date(Date.now() - 30 * 86_400_000)),
+    );
+    expect(counts.get(id)).toMatchObject({
+      asksSince: 1,
+      asksTotal: 2,
+      reasons: ['unavailable', 'unsure'],
+    });
+    expect(counts.get(id)!.firstAskedAt.getTime()).toBeLessThan(
+      counts.get(id)!.lastAskedAt.getTime(),
+    );
+    // Tenant A sees none of tenant B's gaps.
+    expect(
+      (
+        await withTenant(dashboard, TENANT_A, (tx) =>
+          gapQuestions(tx, TENANT_A, [id], { perItem: 5 }),
+        )
+      ).size,
+    ).toBe(0);
+    expect(
+      await withTenant(dashboard, TENANT_B, (tx) => gapCounts(tx, TENANT_B, [], new Date())),
+    ).toEqual(new Map());
   });
 });
