@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Widget preview</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+      }
+      body {
+        background: var(--site-bg, var(--kaki-subtle));
+        color: var(--kaki-text);
+        font-family: var(--site-font, var(--kaki-font));
+      }
+      .site {
+        padding: 24px;
+        max-width: 560px;
+      }
+      .bar {
+        height: 12px;
+        border-radius: 6px;
+        background: var(--kaki-border);
+        margin: 0 0 12px;
+      }
+      .bar.title {
+        width: 50%;
+        height: 20px;
+      }
+      .bar.short {
+        width: 70%;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="site" aria-hidden="true">
+      <div class="bar title"></div>
+      <div class="bar"></div>
+      <div class="bar short"></div>
+      <div class="bar"></div>
+    </div>
+    <script type="module" src="./preview.js"></script>
+  </body>
+</html>

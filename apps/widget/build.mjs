@@ -8,6 +8,8 @@ if (existsSync('.env')) process.loadEnvFile('.env');
 const serve = process.argv.includes('--serve');
 const outdir = 'dist/w/v1';
 mkdirSync(outdir, { recursive: true });
+// The dashboard's preview iframe (FEAT-032 §5.3).
+copyFileSync('dev/preview.html', `${outdir}/preview.html`);
 
 // NFR-14: the latest two desktop versions, Safari on iOS 16+ and Chrome on Android 10+.
 const target = ['es2022', 'safari16', 'chrome109', 'firefox115', 'edge109'];
@@ -30,6 +32,14 @@ const detect = {
   outfile: `${outdir}/detect.js`,
   format: 'iife',
 };
+const preview = {
+  ...common,
+  entryPoints: ['src/preview.ts'],
+  outfile: `${outdir}/preview.js`,
+  format: 'esm',
+  jsx: 'automatic',
+  jsxImportSource: 'preact',
+};
 const panel = {
   ...common,
   entryPoints: ['src/panel.tsx'],
@@ -40,7 +50,7 @@ const panel = {
 };
 
 if (!serve) {
-  await Promise.all([esbuild.build(loader), esbuild.build(panel), esbuild.build(detect)]);
+  await Promise.all([loader, panel, detect, preview].map((o) => esbuild.build(o)));
 } else {
   const port = Number(process.env.WIDGET_DEV_PORT ?? 5175);
   const fill = (file) =>
@@ -52,7 +62,9 @@ if (!serve) {
   mkdirSync('dist/sites', { recursive: true });
   for (const f of readdirSync('dev/sites'))
     writeFileSync(`dist/sites/${f}`, fill(`dev/sites/${f}`));
-  const contexts = await Promise.all([loader, panel, detect].map((o) => esbuild.context(o)));
+  const contexts = await Promise.all(
+    [loader, panel, detect, preview].map((o) => esbuild.context(o)),
+  );
   await Promise.all(contexts.map((c) => c.watch()));
   const [l] = contexts;
   await l.serve({ servedir: 'dist', port, host: '0.0.0.0', cors: { origin: '*' } });
