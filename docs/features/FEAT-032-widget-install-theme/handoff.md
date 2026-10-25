@@ -1,5 +1,5 @@
 # Handoff: FEAT-032 — Widget install, theme matching, allowed origins, install check
-Branch: feat/FEAT-032-widget-install-theme · PR: draft (see the thread) · Updated: 2026-10-25 by build (UI)
+Branch: feat/FEAT-032-widget-install-theme · PR: https://github.com/codeforests/kakiagent/pull/31 (draft) · Updated: 2026-10-25 by build (UI)
 Stage done: build (T1–T12 of 12), status developer-done
 Next: verify — kickoff: "Verify FEAT-032 on branch feat/FEAT-032-widget-install-theme. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
 
