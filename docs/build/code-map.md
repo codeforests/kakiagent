@@ -32,6 +32,13 @@ All in `packages/agent/src`; read a function by range only when a task changes i
 - Integration: `<pkg>/test/*.int.test.ts`, real Postgres via `startTestDatabase()` and `TENANT_A`/`TENANT_B` from `@kaki/db/testing`. API helpers in `apps/api/test/support.ts` (`testApp(tdb, …)`, `sessionCookie(tdb, email)`, `fakeMailer`, `testConfig`). Write a new suite from these names; read a neighbour's setup and one case only. Without Docker: `scripts/test-env.sh pnpm --filter <pkg> test:integration`.
 - Cross-tenant: every new route or table gets a tenant-B-can't-see-tenant-A case.
 - E2E: `e2e/tests/<area>.e2e.ts`, helpers in `e2e/tests/support.ts` (`signIn`, `expectNoSeriousA11yViolations`, `openShadowRoots`). Runs in CI.
+- E2E pitfalls (each cost a local CI run in FEAT-032; details in its `handoff.md`):
+  - A cross-origin response without a CORS header is `requestfailed` in Chromium and WebKit, never `response`, so `waitForResponse` hangs. Read it through `page.route` + `route.fetch()` (keeps the Origin): `configAnswer` in `widget-install.e2e.ts`.
+  - WebKit's trace adds `__playwright_*` globals to the page; filter them out of "no globals added" checks.
+  - JSX like `{busy && <span/>} {caption}` puts a leading space in the text, so `getByText(/^…/)` misses it. Use the role (`getByRole('status')`) with `toHaveText` and an unanchored pattern, and wait for the in-progress text first so an earlier result can't pass.
+  - A step that waits on a worker (detection, crawl, extraction) needs `test.setTimeout` above the default 60 s, as the ingest specs have.
+  - A spec that changes shared dev-tenant state part-way (an allowed origin) restores it in `afterEach` on failure; otherwise the next browser's run fails and leaves data that breaks later specs. After a failed run: `pnpm stack:reset`, `pnpm db:setup`.
+  - Before asking Ken for CI, run the spec's tricky steps in the cloud session's Chromium against the widget dev server with a stubbed config.
 
 ## Design docs, read by section
 
