@@ -1079,6 +1079,125 @@
       },
       "status": "designed",
       "designed_at": "2026-10-19"
+    },
+    "SCR-APP-037": {
+      "name": "Website widget",
+      "surface": "APP",
+      "feature": "FEAT-032",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-032-widget-install-theme/ui-design.md#scr-app-037--website-widget"
+      },
+      "states": {
+        "covered": [
+          "loading",
+          "error",
+          "no origins",
+          "detecting",
+          "detected",
+          "detect failed",
+          "install waiting",
+          "install detected",
+          "wrong domain",
+          "adjusted colour",
+          "permission"
+        ],
+        "gaps": [
+          "Pre-live mode (FEAT-034)",
+          "Tracking and consent mode (FEAT-029)",
+          "Proactive greetings (FEAT-030)"
+        ],
+        "supplements": []
+      },
+      "contract_bindings": [
+        "GET /api/v1/widget",
+        "PUT /api/v1/widget/appearance",
+        "POST /api/v1/widget/theme/detect",
+        "PUT /api/v1/widget/logo",
+        "DELETE /api/v1/widget/logo",
+        "POST /api/v1/widget/origins",
+        "DELETE /api/v1/widget/origins/:origin"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      }
+    },
+    "SCR-APP-011": {
+      "name": "Wizard · Add to your website",
+      "surface": "APP",
+      "feature": "FEAT-032",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-032-widget-install-theme/ui-design.md#scr-app-011--wizard--add-to-your-website"
+      },
+      "states": {
+        "covered": [
+          "waiting",
+          "detected",
+          "wrong domain",
+          "no site yet",
+          "detecting",
+          "detect failed",
+          "loading",
+          "error",
+          "permission"
+        ],
+        "gaps": [
+          "Pre-live form locked (FEAT-034, UX-R4)",
+          "Other channels (FEAT-034+)",
+          "Wizard frame (FEAT-035)"
+        ],
+        "supplements": []
+      },
+      "contract_bindings": [
+        "GET /api/v1/widget",
+        "PUT /api/v1/widget/appearance",
+        "POST /api/v1/widget/theme/detect",
+        "PUT /api/v1/widget/logo",
+        "DELETE /api/v1/widget/logo",
+        "POST /api/v1/widget/origins",
+        "DELETE /api/v1/widget/origins/:origin"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      }
+    },
+    "SCR-WGT-001": {
+      "name": "Launcher",
+      "surface": "WGT",
+      "feature": "FEAT-032",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-032-widget-install-theme/ui-design.md#scr-wgt-001--launcher-extended"
+      },
+      "states": {
+        "covered": [
+          "closed",
+          "host-light",
+          "host-dark",
+          "left",
+          "logo",
+          "hidden"
+        ],
+        "gaps": [
+          "unread badge (not yet planned to a feature)",
+          "greeting (FEAT-030)"
+        ],
+        "supplements": []
+      },
+      "contract_bindings": [
+        "GET /widget/v1/config",
+        "GET /widget/v1/logo/:key"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      }
     }
   }
 }
