@@ -1,8 +1,8 @@
 # Acceptance Report: FEAT-032 — Widget install, theme matching, allowed origins, install check
 
-> Verdict: **Accepted** (E2E, screen renders and axe pending Ken's local CI) · Date: 2026-10-25
+> Verdict: **Accepted** (E2E, renders and axe green in Ken's local CI at `e54ddd3`, 2026-10-25) · Date: 2026-10-25
 > Standard: [technical-design.md](technical-design.md) §6 (AC-1..AC-13) · Sources: SRS v0.4 (ONB-07, CHN-11, CHN-14, CHN-02 (p), NFR-02, NFR-09), use-cases v0.4 (UC-05 steps 1–5, 5a), ADR-005, ADR-014, ADR-016
-> Repo state audited: `b91497e` (implementation head); one test addition, `77ec16d`
+> Repo state audited: `b91497e` (implementation head); test corrections `77ec16d`, `6321d09`, `ea5ee4b`, `da975c9`, `e54ddd3` (E2E only)
 
 ## Verdict summary
 
@@ -84,3 +84,5 @@ Test ref appended (Test ref column only):
 ## CI
 
 Due: the feature touches the widget (size budget), the lockfile and `infra/`. Ken runs CI locally in WSL on this branch; E2E (`widget-install.e2e.ts` 4 tests × 3 browsers, `coach.e2e.ts`), renders and axe are read from his summary. A red there is fixed before merge.
+
+Result: four local runs found four E2E test faults (Corrected tests); none was a product defect. The fifth run, at `e54ddd3`, was green in all three browsers (Ken, 2026-10-25).
