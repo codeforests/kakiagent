@@ -1,7 +1,7 @@
 # Tasks: FEAT-032 — Widget install, theme matching, allowed origins, install check
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: developer-done · Last updated: 2026-10-25
+> Status: accepted · Last updated: 2026-10-25
 
 - [x] T1 — Schema: `0031_widget_settings.sql` and Drizzle: `widget_settings` (columns, checks, forced RLS, policy, `TENANT_SCOPED_TABLES`), backfill rows, zone grants (dashboard, visitor columns, outbox detection columns), `tenants.allowed_origins` cardinality check; `createWorkspace` and `setup.ts` insert the row; schema comment on `tenants` updated (design §4; D2)
       Done when: `pnpm db:setup` applies 0031 on a database at 0030; `drizzle-kit generate` reports no drift; the RLS suite passes with tenant-B cases for `widget_settings`; db integration tests: the visitor zone can read only the theme columns and update only the install columns; the outbox zone only the detection columns; a logo over 100 KB and an unknown `logo_type` are rejected by checks; a new workspace has its row.
