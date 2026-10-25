@@ -165,6 +165,23 @@ export async function createWebsiteSource(
 }
 
 /**
+ * The widget origins the tenant's website sources added, and the first site's address
+ * (FEAT-032 §5.5): the channels module marks those origins `fromWebsite`.
+ */
+export async function websiteOrigins(tx: Tx): Promise<{ origins: string[]; sites: string[] }> {
+  const s = schema.kbSources;
+  const rows = await tx
+    .select({ url: s.url, domain: s.domain, subdomains: s.subdomains })
+    .from(s)
+    .where(eq(s.kind, 'website'))
+    .orderBy(asc(s.createdAt), asc(s.id));
+  const origins = rows.flatMap((r) =>
+    r.domain ? originsOf({ hosts: [r.domain, `www.${r.domain}`, ...r.subdomains] }) : [],
+  );
+  return { origins: [...new Set(origins)], sites: rows.flatMap((r) => (r.url ? [r.url] : [])) };
+}
+
+/**
  * Adds an uploaded file as a source (KB-02; FEAT-015 §5.6). The object is under the
  * session tenant's quarantine prefix, so a source can only claim the tenant's own upload
  * (D2). The scan job is written with it; nothing reads the file before the scan (KB-11).
