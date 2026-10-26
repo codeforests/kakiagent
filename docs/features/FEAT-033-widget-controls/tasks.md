@@ -9,7 +9,7 @@
       Done when: `pnpm db:setup` applies 0032 on a database at 0031 and `drizzle-kit generate` reports no drift; inbox integration tests: end from `ai` and from `human` closes with one audit `conversation.visitor_ended` (no text in the payload), a second end returns `ended: false` with no new audit row, another visitor's and tenant B's conversation throw `NotFoundError`; a new message to a closed conversation throws `ConversationClosedError` and stores nothing, a retry of an already stored `clientMessageId` returns it; a reply stored with `language: 'zh'` reads back through `toMessage`; the check rejects `'fr'`.
 - [x] T3 — Agent: `store()` passes the turn's `language` to `appendAgentReply` (design §5.2; AC-2, AC-7)
       Done when: agent integration tests: an English and a Chinese visitor turn store `language` `en` and `zh`; a turn whose conversation the visitor ended before the turn ran stores no reply (gate, existing closed path asserted for `visitor_ended`).
-- [ ] T4 — API: `POST /widget/v1/conversations/:id/end`, config fields, 409 mapping (design §3, §5.3; AC-1–AC-3, AC-5, AC-6)
+- [x] T4 — API: `POST /widget/v1/conversations/:id/end`, config fields, 409 mapping (design §3, §5.3; AC-1–AC-3, AC-5, AC-6)
       Done when: api integration tests (`testApp`): end returns 200 `{ status: 'closed' }` twice with one audit row and one inbox `conversation` notify; 404 for another visitor's token, tenant B's token and a malformed id; 401 for a wrong Origin; a message POST after end is 409 `chat_ended`; config returns `privacyNoticeUrl: null` and `controls.talkToPerson: false`; `pnpm --filter @kaki/api typecheck` passes.
 
 ## Build session 2 (UI)
