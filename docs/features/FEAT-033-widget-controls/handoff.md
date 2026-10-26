@@ -1,22 +1,19 @@
 # Handoff: FEAT-033 — Widget visitor controls and EN / 中文 chrome
-Branch: feat/FEAT-033-widget-controls · PR: none · Updated: 2026-10-26 by build (backend)
-Stage done: build (T1–T4 of 9)
-Next: build (UI, T5–T9) — kickoff: "Build FEAT-033 (UI) on branch feat/FEAT-033-widget-controls. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage build."
+Branch: feat/FEAT-033-widget-controls · PR: PRLINK · Updated: 2026-10-26 by build (UI)
+Stage done: build (T1–T9 of 9), developer-done
+Next: verify — kickoff: "Verify FEAT-033 on branch feat/FEAT-033-widget-controls. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
 
 ## What the next stage needs
-- Contracts (`@kaki/contracts`): `Message.language: 'en' | 'zh' | null`; `WidgetConfigResponse.privacyNoticeUrl: string | null` and `.controls: { talkToPerson: boolean }`; `EndConversationResponse` (`{ status: 'closed' }`).
-- Route: `POST /widget/v1/conversations/:id/end`, no body, `Authorization: Bearer <token>` + Origin like the messages route. 200 `{ status: 'closed' }` every time (idempotent); 404 `not_found` for an unknown or someone else's id; 401 on token/Origin.
-- `POST …/:id/messages` on a closed chat: 409 `{ error: 'chat_ended', message: 'This chat has ended.' }` (map to `ChatEndedError` in `api.ts`). A retry of an already stored `clientMessageId` is still 200.
-- Config always returns `privacyNoticeUrl: null`, `controls.talkToPerson: false`: stub the config with `page.route` + `route.fetch()` to see the privacy link (code-map E2E pitfalls).
-- Agent replies (and system fallbacks from a turn) carry `language` from the turn; visitor and staff messages are `null`; replies stored before 0032 are `null`.
-- T1 already gave `preview.ts` the two config fields and `language: null` on its sample messages; `chat.test.ts`/`api.test.ts` fixtures have `language: null`.
-- Ending notifies the dashboard inbox with a `conversation` summary (status `closed`, last message kept), so the E2E can check the inbox list shows it closed.
-- D5 changed one FEAT-025 test (`packages/agent/test/safety.int.test.ts`): after an abuse end, a new message is now refused with `ConversationClosedError` instead of being stored and ignored; the gate's silence on a message stored before the close is covered by the new case in `language-hours.int.test.ts`. The verifier should review this as a design-mandated change, not a weakened test.
-- Removed an unused `TENANT_B` import in `apps/api/test/widget.int.test.ts` that failed `pnpm lint` on main.
+- Widget: `strings.ts` (14 new keys, `ALL_STRINGS` for the parity test), `chat.ts` (`chromeLocale`, `menuItems`), `api.ts` (`endConversation`, `ChatEndedError` on 409), `panel.tsx` (`HeaderMenu`, `PrivacyLink`, end state `open | confirm | ending | ended`, `newChat`), `panel.css.ts` (`.menu`, `.mi`, `.foot`, `.card`, `.btn`).
+- The locale is now derived inside `Panel` on every render; `mountPanel` no longer sets `lang` once (an effect does).
+- A 409 on send shows the visitor's done card (with Start a new chat), as the design's "panel shows the ended state".
+- The typing and slow indicators hide once the visitor ends (the gate sends nothing more).
+- Backend notes from the backend session still hold: D5 changed one FEAT-025 test in `packages/agent/test/safety.int.test.ts` by design (review it as design-mandated, not weakened); an unused `TENANT_B` import was removed from `apps/api/test/widget.int.test.ts`.
+- Menu focus moves in an effect after render: an E2E must wait for the item to be focused before pressing Enter (the spec does, with `toBeFocused`).
 
 ## Left to CI or later
-- `apps/api/test/uploads.int.test.ts` "S3 presigner" needs Docker or `KAKI_TEST_S3_ENDPOINT`; it fails in cloud sessions on main too. All other api, inbox and agent integration tests pass here.
-- E2E `widget-controls.e2e.ts` and the size budget run in Ken's local CI: the feature touches the widget, so CI is due before merge.
+- E2E `widget-controls.e2e.ts` in Ken's local CI: its steps passed in the cloud Chromium against a stand-in api/realtime, except the dashboard inbox check (needs the stack) and Firefox/WebKit.
+- `apps/api/test/uploads.int.test.ts` "S3 presigner" needs Docker or `KAKI_TEST_S3_ENDPOINT` (fails on main too).
 
 ## Pending for Ken
-- Nothing blocks the UI build. Ken's local CI before merge (widget touched).
+- Local CI before merge: the feature touches the widget (size budget, E2E). Nothing blocks the verify stage.
