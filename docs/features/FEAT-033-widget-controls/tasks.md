@@ -1,7 +1,7 @@
 # Tasks: FEAT-033 — Widget visitor controls and EN / 中文 chrome
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: developer-done · Last updated: 2026-10-26
+> Status: accepted · Last updated: 2026-10-26
 
 - [x] T1 — Contracts: `Message.language`, `WidgetConfigResponse.privacyNoticeUrl` and `.controls`, the visitor-controls section with `EndConversationResponse` (design §3)
       Done when: workspace typecheck passes (fix every `Message` and config literal it breaks, including `apps/widget/src/preview.ts` and dashboard fixtures); contracts unit tests parse a config with a null and a set privacy URL, reject a non-URL, and parse a message with `language: 'zh'` and `null`.
