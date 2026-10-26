@@ -12,6 +12,7 @@ const m = (id: string, seq: number) => ({
   disclosure: null,
   notice: null,
   noticeKind: null,
+  language: null,
   createdAt: new Date().toISOString(),
 });
 

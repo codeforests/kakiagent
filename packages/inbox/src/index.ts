@@ -29,6 +29,7 @@ export function toMessage(row: MessageRow): Message {
     disclosure: row.disclosure,
     notice: row.notice,
     noticeKind: row.noticeKind,
+    language: null,
     createdAt: row.createdAt.toISOString(),
   };
 }

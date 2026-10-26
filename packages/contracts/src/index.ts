@@ -18,6 +18,8 @@ export const Message = z.object({
   notice: z.string().nullable(),
   /** What the notice is (FEAT-025): `chat_ended` closes the widget's composer. */
   noticeKind: z.enum(['after_hours', 'chat_ended']).nullable(),
+  /** The reply's language as the agent decided it (FEAT-033): sets the widget's chrome locale. Null on visitor and staff messages. */
+  language: z.enum(['en', 'zh']).nullable(),
   createdAt: z.iso.datetime({ offset: true }),
 });
 export type Message = z.infer<typeof Message>;
@@ -103,6 +105,10 @@ export const WidgetConfigResponse = z.object({
   greeting: z.object({ en: z.string(), zh: z.string() }),
   /** The widget's look: position, overrides, stored detection, logo (FEAT-032). */
   theme: WidgetTheme,
+  /** The tenant's privacy notice (GOV-14). Null until FEAT-058 stores one: the widget then shows no link. */
+  privacyNoticeUrl: z.url().nullable(),
+  /** Visitor controls the tenant can offer (CHN-13). `talkToPerson` stays false until FEAT-044. */
+  controls: z.object({ talkToPerson: z.boolean() }),
 });
 export type WidgetConfigResponse = z.infer<typeof WidgetConfigResponse>;
 
@@ -113,6 +119,12 @@ export const SendMessageBody = z.object({
   clientMessageId: z.string().min(8).max(64),
 });
 export const SendMessageResponse = z.object({ message: Message });
+
+// ---- Widget API: visitor controls (CHN-13; FEAT-033 §3) ---------------------------
+
+/** `POST /widget/v1/conversations/:id/end`: idempotent, the conversation is closed. */
+export const EndConversationResponse = z.object({ status: z.literal('closed') });
+export type EndConversationResponse = z.infer<typeof EndConversationResponse>;
 
 // ---- Dashboard API (api role) ----------------------------------------------------
 

@@ -28,6 +28,7 @@ const msg = (
   disclosure: null,
   notice: null,
   noticeKind: null,
+  language: null,
   createdAt: new Date().toISOString(),
 });
 

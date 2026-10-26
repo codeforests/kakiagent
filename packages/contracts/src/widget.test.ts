@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  Message,
   ThemeOverrides,
   WidgetAppearanceBody,
   WidgetConfigResponse,
@@ -55,6 +56,8 @@ describe('website widget contracts (FEAT-032 §3)', () => {
       botName: 'Assistant',
       greeting: { en: 'Hi', zh: '你好' },
       theme: { ...theme, detected: null, logoUrl: null },
+      privacyNoticeUrl: null,
+      controls: { talkToPerson: false },
     });
     expect(c.theme.position).toBe('left');
   });
@@ -68,5 +71,51 @@ describe('website widget contracts (FEAT-032 §3)', () => {
     expect(WidgetAppearanceBody.safeParse({ position: 'top', overrides: {} }).success).toBe(false);
     expect(ThemeOverrides.safeParse({ accent: '#c2410' }).success).toBe(false);
     expect(ThemeOverrides.safeParse({ colour: '#c2410c' }).success).toBe(false);
+  });
+});
+
+describe('visitor controls contracts (FEAT-033 §3)', () => {
+  const config = {
+    token: 't',
+    visitorId: '7d3c1f9e-0b1a-4c2d-9e8f-0a1b2c3d4e5f',
+    realtimeUrl: 'http://localhost:3001',
+    panelUrl: 'http://localhost:5175/w/v1/panel.js',
+    botName: 'Assistant',
+    greeting: { en: 'Hi', zh: '你好' },
+    theme: { ...theme, detected: null, logoUrl: null },
+    controls: { talkToPerson: false },
+  };
+
+  it('parses a config with a null and a set privacy URL, and rejects a non-URL', () => {
+    expect(WidgetConfigResponse.parse({ ...config, privacyNoticeUrl: null }).privacyNoticeUrl).toBe(
+      null,
+    );
+    const set = WidgetConfigResponse.parse({
+      ...config,
+      privacyNoticeUrl: 'https://kakibakery.test/privacy',
+    });
+    expect(set.privacyNoticeUrl).toBe('https://kakibakery.test/privacy');
+    expect(set.controls.talkToPerson).toBe(false);
+    expect(
+      WidgetConfigResponse.safeParse({ ...config, privacyNoticeUrl: 'not a url' }).success,
+    ).toBe(false);
+  });
+
+  it("parses a message with language 'zh' and null, and rejects another language", () => {
+    const m = {
+      id: '7d3c1f9e-0b1a-4c2d-9e8f-0a1b2c3d4e5f',
+      conversationId: '7d3c1f9e-0b1a-4c2d-9e8f-0a1b2c3d4e5e',
+      seq: 2,
+      author: 'agent',
+      body: '你好',
+      inReplyTo: null,
+      disclosure: null,
+      notice: null,
+      noticeKind: null,
+      createdAt: '2026-10-26T01:00:00.000Z',
+    };
+    expect(Message.parse({ ...m, language: 'zh' }).language).toBe('zh');
+    expect(Message.parse({ ...m, language: null }).language).toBe(null);
+    expect(Message.safeParse({ ...m, language: 'fr' }).success).toBe(false);
   });
 });

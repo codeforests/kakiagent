@@ -3,7 +3,7 @@
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
 > Status: designed · Last updated: 2026-10-26
 
-- [ ] T1 — Contracts: `Message.language`, `WidgetConfigResponse.privacyNoticeUrl` and `.controls`, the visitor-controls section with `EndConversationResponse` (design §3)
+- [x] T1 — Contracts: `Message.language`, `WidgetConfigResponse.privacyNoticeUrl` and `.controls`, the visitor-controls section with `EndConversationResponse` (design §3)
       Done when: workspace typecheck passes (fix every `Message` and config literal it breaks, including `apps/widget/src/preview.ts` and dashboard fixtures); contracts unit tests parse a config with a null and a set privacy URL, reject a non-URL, and parse a message with `language: 'zh'` and `null`.
 - [ ] T2 — Schema and inbox: `0032_message_language.sql` + Drizzle column and check; `appendAgentReply` `language`, `toMessage`; `endVisitorConversation`; `ConversationClosedError` in `appendVisitorMessage` after the idempotent-retry lookup (design §4, §5.1; D4, D5; AC-1–AC-3)
       Done when: `pnpm db:setup` applies 0032 on a database at 0031 and `drizzle-kit generate` reports no drift; inbox integration tests: end from `ai` and from `human` closes with one audit `conversation.visitor_ended` (no text in the payload), a second end returns `ended: false` with no new audit row, another visitor's and tenant B's conversation throw `NotFoundError`; a new message to a closed conversation throws `ConversationClosedError` and stores nothing, a retry of an already stored `clientMessageId` returns it; a reply stored with `language: 'zh'` reads back through `toMessage`; the check rejects `'fr'`.
