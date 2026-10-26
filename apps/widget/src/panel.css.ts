@@ -6,7 +6,7 @@ export const PANEL_CSS = `
   overflow:hidden;box-sizing:border-box;font-size:16px;line-height:1.5}
 .panel *{box-sizing:border-box;font-family:inherit;letter-spacing:normal}
 @media (max-width:479px){.panel{position:fixed;inset:0;width:100vw;height:100dvh;border-radius:0}}
-.header{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--kaki-border)}
+.header{position:relative;display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--kaki-border)}
 .title{margin:0;font-size:16px;font-weight:600;flex:1}
 .ai{font-size:12px;color:var(--kaki-muted)}
 .icon-btn{width:44px;height:44px;border:0;background:transparent;color:var(--kaki-text);border-radius:var(--kaki-radius);cursor:pointer;
@@ -35,4 +35,14 @@ export const PANEL_CSS = `
 .send:disabled{opacity:.6;cursor:default}
 .composer textarea:disabled{background:var(--kaki-subtle);color:var(--kaki-muted);cursor:default}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.menu{position:absolute;right:16px;top:calc(100% - 8px);z-index:2;min-width:200px;margin:0;padding:4px 0;list-style:none;
+  background:var(--kaki-surface);border:1px solid var(--kaki-border);border-radius:var(--kaki-radius);box-shadow:0 12px 32px color-mix(in srgb,var(--kaki-text) 16%,transparent)}
+.mi{display:flex;align-items:center;gap:6px;width:100%;min-height:44px;padding:0 16px;border:0;background:transparent;color:var(--kaki-text);
+  font-size:14px;line-height:1.3;text-align:left;text-decoration:none;cursor:pointer}
+.mi:hover,.mi:focus{background:var(--kaki-subtle);outline:none}
+.mi:focus-visible{outline:2px solid var(--kaki-accent);outline-offset:-2px}
+.mi svg{flex:none}
+.foot{margin:0;padding:0 12px 8px;text-align:center;font-size:12px;color:var(--kaki-muted)}
+.foot a,.card a{color:var(--kaki-text);text-decoration:underline}
+.foot a:focus-visible,.card a:focus-visible{outline:2px solid var(--kaki-accent);outline-offset:2px}
 `;
