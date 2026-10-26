@@ -225,6 +225,13 @@
       "when": 1792892914117,
       "tag": "0031_widget_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1793015907776,
+      "tag": "0032_message_language",
+      "breakpoints": true
     }
   ]
 }

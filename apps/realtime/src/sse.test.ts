@@ -13,6 +13,7 @@ const message: Message = {
   disclosure: null,
   notice: null,
   noticeKind: null,
+  language: null,
 };
 
 describe('sseFrame', () => {

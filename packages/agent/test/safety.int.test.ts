@@ -6,7 +6,12 @@
 import { randomUUID } from 'node:crypto';
 import { withTenant } from '@kaki/db';
 import { startTestDatabase, TENANT_A, type TestDatabase } from '@kaki/db/testing';
-import { appendVisitorMessage, createConversation, getConversation } from '@kaki/inbox';
+import {
+  appendVisitorMessage,
+  ConversationClosedError,
+  createConversation,
+  getConversation,
+} from '@kaki/inbox';
 import { createFact, dashboardKb, prepareChunk, type FactInput } from '@kaki/kb';
 import {
   createFakeProvider,
@@ -212,9 +217,10 @@ describe('abuse (FEAT-025 AC-7, AC-9)', () => {
     const row = await conv(c.conversationId);
     expect(row?.abuseTurns).toHaveLength(2);
 
-    const after = await ask(c, 'hello?');
-    expect(after.result).toBeNull();
-    expect(after.models).toEqual([]);
+    // FEAT-033 D5: a closed chat refuses new messages, so no turn can run for them. A
+    // message stored before the close and turned after it stays silent through the gate
+    // (language-hours.int.test.ts, FEAT-033 AC-2).
+    await expect(post(c, 'hello?')).rejects.toBeInstanceOf(ConversationClosedError);
 
     const events = (await entriesFor(c.conversationId)).map((e) => [e.event_type, e.payload]);
     expect(events).toContainEqual(['conversation.flagged', { reason: 'abuse' }]);

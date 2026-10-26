@@ -17,7 +17,14 @@ const PREVIEW_CSS = `
 const T0 = '2026-01-01T09:00:00.000Z';
 const sample = (botName: string) => {
   const conversationId = '00000000-0000-4000-8000-000000000001';
-  const base = { conversationId, disclosure: null, notice: null, noticeKind: null, createdAt: T0 };
+  const base = {
+    conversationId,
+    disclosure: null,
+    notice: null,
+    noticeKind: null,
+    language: null,
+    createdAt: T0,
+  };
   return [
     {
       ...base,
@@ -87,6 +94,8 @@ function show(m: PreviewMessage) {
     botName: m.botName,
     greeting: { en: m.greeting, zh: m.greeting },
     theme,
+    privacyNoticeUrl: null,
+    controls: { talkToPerson: false },
   } satisfies WidgetConfigResponse;
   mountPanel({
     shadow,

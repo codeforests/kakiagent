@@ -5,7 +5,7 @@
 import { randomUUID } from 'node:crypto';
 import { withTenant } from '@kaki/db';
 import { startTestDatabase, TENANT_A, type TestDatabase } from '@kaki/db/testing';
-import { appendVisitorMessage, createConversation } from '@kaki/inbox';
+import { appendVisitorMessage, createConversation, endVisitorConversation } from '@kaki/inbox';
 import { createFact, dashboardKb, prepareChunk, type FactInput } from '@kaki/kb';
 import {
   createFakeProvider,
@@ -141,6 +141,52 @@ describe('language through the turn (FEAT-023 AC-1, AC-2)', () => {
     await setHours({ ...ALWAYS, sat: [{ open: '09:00', close: '17:00' }], sun: [] });
     const { result } = await ask(await conversation(), '请问周末营业时间？');
     expect(result!.message.body).toBe('周六营业时间是上午9:00至下午5:00，周日是休息。');
+  });
+});
+
+describe('reply language stored for the widget chrome (FEAT-033 AC-7)', () => {
+  it('stores en on an English reply and zh on a Chinese one', async () => {
+    const en = await ask(await conversation(), 'How much is the chocolate fudge cake?');
+    expect(en.result).toMatchObject({ language: 'en' });
+    expect(en.result!.message.language).toBe('en');
+    const zh = await ask(await conversation(), 'chocolate fudge cake 多少钱？');
+    expect(zh.result!.message.language).toBe('zh');
+  });
+
+  it('stores no reply when the visitor ended the chat before the turn ran (AC-2)', async () => {
+    const c = await conversation();
+    const { message } = await withTenant(tdb.zone('visitor'), TENANT_A, (tx) =>
+      appendVisitorMessage(tx, {
+        tenantId: TENANT_A,
+        conversationId: c.conversationId,
+        visitorId: c.visitorId,
+        text: 'How much is the chocolate fudge cake?',
+        clientMessageId: randomUUID(),
+      }),
+    );
+    await withTenant(tdb.zone('visitor'), TENANT_A, (tx) =>
+      endVisitorConversation(tx, { tenantId: TENANT_A, ...c }),
+    );
+    const segments: string[] = [];
+    const result = await runVisitorTurn(
+      {
+        zdb: tdb.zone('visitor'),
+        llm: createGateway(defaultRegistry('fake'), [
+          createFakeProvider((req) =>
+            req.model === 'triage' ? fakeTriage(req) : fakeVisitorResponder(req),
+          ),
+        ]),
+        publishSegment: async (seg) => void segments.push(seg.text),
+      },
+      { tenantId: TENANT_A, conversationId: c.conversationId, messageId: message.id },
+    );
+    expect(result).toBeNull();
+    expect(segments).toEqual([]);
+    const { rows } = await owner.query(
+      `select count(*)::int as n from messages where conversation_id = $1 and author <> 'visitor'`,
+      [c.conversationId],
+    );
+    expect(rows[0].n).toBe(0);
   });
 });
 

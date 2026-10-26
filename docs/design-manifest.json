@@ -1012,12 +1012,16 @@
           "typing",
           "error",
           "after-hours",
-          "chat-ended"
+          "chat-ended",
+          "menu-open",
+          "locale-zh",
+          "chat-ended-visitor"
         ],
         "gaps": [
           "rate-limited",
           "waiting-for-approval",
-          "attachment"
+          "attachment",
+          "talk-to-person (built behind controls.talkToPerson; visible from FEAT-044)"
         ],
         "supplements": [
           {
@@ -1059,6 +1063,21 @@
             "state": "chat-ended",
             "strategy": "code-native",
             "source": "features/FEAT-025-safety/ui-design.md#chat-ended"
+          },
+          {
+            "state": "menu-open",
+            "strategy": "code-native",
+            "source": "features/FEAT-033-widget-controls/ui-design.md#scr-wgt-002--chat-panel-extended"
+          },
+          {
+            "state": "locale-zh",
+            "strategy": "code-native",
+            "source": "features/FEAT-033-widget-controls/ui-design.md#scr-wgt-002--chat-panel-extended"
+          },
+          {
+            "state": "chat-ended-visitor",
+            "strategy": "code-native",
+            "source": "features/FEAT-033-widget-controls/ui-design.md#scr-wgt-002--chat-panel-extended"
           }
         ]
       },
@@ -1068,7 +1087,10 @@
         "SSE event: segment",
         "Message.notice (FEAT-023)",
         "GET /widget/v1/config (botName, greeting; FEAT-024)",
-        "Message.noticeKind (FEAT-025)"
+        "Message.noticeKind (FEAT-025)",
+        "POST /widget/v1/conversations/:id/end (FEAT-033)",
+        "GET /widget/v1/config (privacyNoticeUrl, controls; FEAT-033)",
+        "Message.language (FEAT-033)"
       ],
       "conformance": {
         "result": "pass",
@@ -1198,6 +1220,39 @@
         "corrections": [],
         "escalations": []
       }
+    },
+    "SCR-WGT-006": {
+      "name": "End of chat",
+      "surface": "WGT",
+      "feature": "FEAT-033",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-033-widget-controls/ui-design.md#scr-wgt-006--end-of-chat"
+      },
+      "states": {
+        "covered": [
+          "confirm",
+          "ending",
+          "error",
+          "done",
+          "ai-ended"
+        ],
+        "gaps": [
+          "rate (FEAT-031)"
+        ],
+        "supplements": []
+      },
+      "contract_bindings": [
+        "POST /widget/v1/conversations/:id/end",
+        "GET /widget/v1/config (privacyNoticeUrl)"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-10-26"
     }
   }
 }

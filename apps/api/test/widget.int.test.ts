@@ -2,7 +2,7 @@
  * Website widget endpoints (FEAT-032 §3; AC-1–AC-5, AC-10, AC-11) and the config route's
  * theme, install check and silent refusal on an unlisted origin (CHN-11, UC-05 5a).
  */
-import { startTestDatabase, TENANT_A, TENANT_B, type TestDatabase } from '@kaki/db/testing';
+import { startTestDatabase, TENANT_A, type TestDatabase } from '@kaki/db/testing';
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { buildApp } from '../src/app.js';
@@ -243,6 +243,8 @@ describe('GET /widget/v1/config (FEAT-032 §3)', () => {
     });
     const res = await config('http://localhost:5175');
     expect(res.statusCode).toBe(200);
+    // FEAT-033 D1, D2: no privacy notice or talk-to-a-person until FEAT-058 and FEAT-044.
+    expect(res.json()).toMatchObject({ privacyNoticeUrl: null, controls: { talkToPerson: false } });
     expect(res.json().theme).toEqual({
       position: 'left',
       overrides: { accent: '#c2410c' },

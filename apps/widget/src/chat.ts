@@ -1,5 +1,6 @@
-import type { Message } from '@kaki/contracts';
+import type { Message, WidgetConfigResponse } from '@kaki/contracts';
 import { mergeMessages } from './api.js';
+import { pickLocale, type Locale } from './strings.js';
 
 /** A verified sentence of a reply still being written (FEAT-022 §3.4). */
 export interface Segment {
@@ -95,4 +96,31 @@ export function rowsOf(m: Message): Row[] {
 /** The AI ended the chat (AGT-13 repeated abuse): the composer closes (FEAT-025). */
 export function chatEnded(c: Chat): boolean {
   return c.messages.some((m) => m.noticeKind === 'chat_ended');
+}
+
+/**
+ * The chrome's locale (FEAT-033 D3, AC-7): the language of the latest agent or system
+ * reply that has one, else the browser's.
+ */
+export function chromeLocale(c: Chat, navLang: string | undefined): Locale {
+  for (let i = c.messages.length - 1; i >= 0; i--) {
+    const m = c.messages[i]!;
+    if ((m.author === 'agent' || m.author === 'system') && m.language)
+      return m.language === 'zh' ? 'zh-Hans' : 'en';
+  }
+  return pickLocale(navLang);
+}
+
+export type MenuItem = 'talkToPerson' | 'privacy' | 'end';
+
+/** The header menu's items, in order (SCR-WGT-002; FEAT-033 AC-5, AC-6). */
+export function menuItems(
+  config: Pick<WidgetConfigResponse, 'privacyNoticeUrl' | 'controls'>,
+  s: { conversationId: string | null; ended: boolean; preview: boolean },
+): MenuItem[] {
+  const items: MenuItem[] = [];
+  if (config.controls.talkToPerson && !s.ended) items.push('talkToPerson');
+  if (config.privacyNoticeUrl) items.push('privacy');
+  if (s.conversationId && !s.ended && !s.preview) items.push('end');
+  return items;
 }

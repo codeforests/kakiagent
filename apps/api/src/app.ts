@@ -8,6 +8,7 @@ import {
 import {
   ConversationList,
   CreateConversationResponse,
+  EndConversationResponse,
   SendMessageBody,
   SendMessageResponse,
   WidgetConfigQuery,
@@ -18,9 +19,12 @@ import { ping, withTenant } from '@kaki/db';
 import { LinkError, SESSION_COOKIE, TermsOutdatedError } from '@kaki/identity';
 import {
   appendVisitorMessage,
+  ConversationClosedError,
   createConversation,
+  endVisitorConversation,
   listConversations,
   NotFoundError,
+  recentMessages,
   toMessage,
   toSummary,
 } from '@kaki/inbox';
@@ -168,6 +172,8 @@ export async function buildApp(deps: Deps) {
         error: 'file_limit_reached',
         message: "Your plan's file limit is reached.",
       });
+    if (err instanceof ConversationClosedError)
+      return reply.code(409).send({ error: 'chat_ended', message: 'This chat has ended.' });
     if (err instanceof NotRetryableError)
       return reply.code(409).send({
         error: 'not_retryable',
@@ -403,6 +409,9 @@ export async function buildApp(deps: Deps) {
         zh: persona?.greeting.zh ?? DEFAULT_GREETING.zh,
       },
       theme,
+      // GOV-14's notice is stored by FEAT-058; talk to a person arrives with FEAT-044 (FEAT-033 D1, D2).
+      privacyNoticeUrl: null,
+      controls: { talkToPerson: false },
     });
   });
 
@@ -446,6 +455,30 @@ export async function buildApp(deps: Deps) {
       return reply.code(result.created ? 201 : 200).send(SendMessageResponse.parse({ message }));
     },
   );
+
+  // CHN-13 (FEAT-033 §3): the visitor ends their chat; idempotent, so a retry is 200 too.
+  app.post<{ Params: { id: string } }>('/widget/v1/conversations/:id/end', async (req, reply) => {
+    const v = visitorFrom(req, reply);
+    const conversationId = req.params.id;
+    if (!/^[0-9a-f-]{36}$/i.test(conversationId)) throw new NotFoundError();
+    const result = await withTenant(visitorDb, v.t, async (tx) => {
+      const ended = await endVisitorConversation(tx, {
+        tenantId: v.t,
+        conversationId,
+        visitorId: v.v,
+      });
+      if (!ended.ended) return null;
+      const [last] = await recentMessages(tx, {
+        tenantId: v.t,
+        conversationId,
+        upToSeq: Number.MAX_SAFE_INTEGER,
+        limit: 1,
+      });
+      return toSummary(ended.conversation, last?.body ?? null);
+    });
+    if (result) await notify([channels.inbox(v.t)], { type: 'conversation', conversation: result });
+    return EndConversationResponse.parse({ status: 'closed' });
+  });
 
   // ---- Dashboard API (dashboard trust zone) -------------------------------------------
   const { sessionFrom } = registerAuth(app, deps);
