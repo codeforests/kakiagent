@@ -7,7 +7,7 @@
 import type { Message } from '@kaki/contracts';
 import { render } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { createApi } from './api.js';
+import { ChatEndedError, createApi } from './api.js';
 import {
   awaitingTurn,
   chatEnded,
@@ -250,6 +250,19 @@ function Panel({
   const [error, setError] = useState(false);
   const logRef = useRef<HTMLOListElement>(null);
   const menuRef = useRef<HTMLButtonElement | null>(null);
+  // The visitor's end of chat (SCR-WGT-006): composer → confirm → ending → done card.
+  const [endState, setEndState] = useState<'open' | 'confirm' | 'ending' | 'ended'>('open');
+  const [endError, setEndError] = useState(false);
+  const cardTitleRef = useRef<HTMLHeadingElement>(null);
+  // Where focus goes after the next render (the target may not exist yet).
+  const focusNext = useRef<'title' | 'menu' | 'input' | null>(null);
+  useEffect(() => {
+    const target = focusNext.current;
+    focusNext.current = null;
+    if (target === 'title') cardTitleRef.current?.focus();
+    else if (target === 'menu') menuRef.current?.focus();
+    else if (target === 'input') inputRef.current?.focus();
+  });
 
   // The chrome follows the latest reply's language (FEAT-033 D3, AC-7).
   const locale = chromeLocale(chat, navigator.language);
@@ -281,6 +294,7 @@ function Panel({
 
   const waitingFor = awaitingTurn(chat);
   const ended = chatEnded(chat);
+  const visitorEnded = endState === 'ended';
   const closeRef = useRef<HTMLButtonElement>(null);
 
   // FEAT-025: the chat ended; keyboard users aren't left on a disabled control.
@@ -291,7 +305,41 @@ function Panel({
   }, [ended]);
   const growing = waitingFor ? pendingText(chat, waitingFor) : null;
   const privacyUrl = ctx.config.privacyNoticeUrl;
-  const items = menuItems(ctx.config, { conversationId, ended, preview: !!preview });
+  const items = menuItems(ctx.config, {
+    conversationId,
+    ended: ended || visitorEnded,
+    preview: !!preview,
+  });
+
+  function cancelEnd() {
+    setEndState('open');
+    setEndError(false);
+    focusNext.current = 'menu';
+  }
+
+  async function confirmEnd() {
+    if (!conversationId || endState === 'ending') return;
+    setEndState('ending');
+    setEndError(false);
+    try {
+      await api.endConversation(conversationId);
+      setEndState('ended');
+      focusNext.current = 'title';
+    } catch {
+      setEndState('confirm');
+      setEndError(true);
+    }
+  }
+
+  /** Start a new chat: an empty log; the next message opens a new conversation. */
+  function newChat() {
+    setChat(emptyChat);
+    setConversationId(null);
+    setEndState('open');
+    setText('');
+    setError(false);
+    focusNext.current = 'input';
+  }
 
   // Typing until the first segment; the slow notice if nothing came within 30 s.
   useEffect(() => {
@@ -317,12 +365,17 @@ function Panel({
       const sent = await api.send(id, body, newId());
       setChat((c) => withMessage(c, sent));
       setText('');
-    } catch {
+    } catch (err) {
+      if (err instanceof ChatEndedError) {
+        setEndState('ended');
+        focusNext.current = 'title';
+        return;
+      }
       setError(true);
     } finally {
       setSending(false);
-      inputRef.current?.focus();
     }
+    inputRef.current?.focus();
   }
 
   return (
@@ -336,7 +389,11 @@ function Panel({
             t={t}
             privacyUrl={privacyUrl}
             buttonRef={menuRef}
-            onSelect={() => undefined}
+            onSelect={(item) => {
+              if (item !== 'end') return;
+              setEndState('confirm');
+              focusNext.current = 'title';
+            }}
           />
         )}
         <button
@@ -389,14 +446,14 @@ function Panel({
             </li>
           ),
         ])}
-        {waitingFor && !slow && (
+        {waitingFor && !visitorEnded && !slow && (
           <li class="typing" role="status" aria-label={t.typing(ctx.config.botName)}>
             <i />
             <i />
             <i />
           </li>
         )}
-        {waitingFor && slow && (
+        {waitingFor && !visitorEnded && slow && (
           <li class="notice" role="status">
             {t.slow}
           </li>
@@ -407,27 +464,88 @@ function Panel({
           {t.failed}
         </p>
       )}
-      <form class="composer" onSubmit={submit}>
-        <label class="sr-only" for="kaki-input">
-          {t.messageLabel}
-        </label>
-        <textarea
-          id="kaki-input"
-          ref={inputRef}
-          rows={1}
-          placeholder={preview ? t.preview : ended ? t.ended : t.placeholder}
-          disabled={ended || !!preview}
-          value={text}
-          onInput={(e) => setText((e.target as HTMLTextAreaElement).value)}
+      {endState !== 'open' ? (
+        <div
+          class="card"
+          role="group"
+          aria-labelledby="kaki-end-title"
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) void submit(e);
+            if (e.key !== 'Escape' || visitorEnded) return;
+            e.stopPropagation();
+            if (endState === 'confirm') cancelEnd();
           }}
-        />
-        <button class="send" type="submit" disabled={sending || ended || !!preview || !text.trim()}>
-          {t.send}
-        </button>
-      </form>
-      {privacyUrl && (
+        >
+          <h3 id="kaki-end-title" tabIndex={-1} ref={cardTitleRef}>
+            {visitorEnded ? t.endedTitle : t.endConfirmTitle}
+          </h3>
+          {visitorEnded ? (
+            <>
+              <p>{t.transcriptNotice}</p>
+              {privacyUrl && (
+                <p>
+                  <PrivacyLink url={privacyUrl} t={t} />
+                </p>
+              )}
+              <button type="button" class="btn pri" onClick={newChat}>
+                {t.newChat}
+              </button>
+            </>
+          ) : (
+            <>
+              <p>{t.endConfirmBody}</p>
+              {endError && (
+                <p class="error" role="alert">
+                  {t.endFailed}
+                </p>
+              )}
+              <div class="row">
+                <button
+                  type="button"
+                  class="btn sec"
+                  disabled={endState === 'ending'}
+                  onClick={cancelEnd}
+                >
+                  {t.keepChatting}
+                </button>
+                <button
+                  type="button"
+                  class="btn pri"
+                  disabled={endState === 'ending'}
+                  onClick={() => void confirmEnd()}
+                >
+                  {endState === 'ending' ? t.ending : t.endChatConfirm}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      ) : (
+        <form class="composer" onSubmit={submit}>
+          <label class="sr-only" for="kaki-input">
+            {t.messageLabel}
+          </label>
+          <textarea
+            id="kaki-input"
+            ref={inputRef}
+            rows={1}
+            placeholder={preview ? t.preview : ended ? t.ended : t.placeholder}
+            disabled={ended || !!preview}
+            value={text}
+            onInput={(e) => setText((e.target as HTMLTextAreaElement).value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) void submit(e);
+            }}
+          />
+          <button
+            class="send"
+            type="submit"
+            disabled={sending || ended || !!preview || !text.trim()}
+          >
+            {t.send}
+          </button>
+        </form>
+      )}
+      {privacyUrl && !visitorEnded && (
         <p class="foot">
           <PrivacyLink url={privacyUrl} t={t} />
         </p>

@@ -44,5 +44,16 @@ export const PANEL_CSS = `
 .mi svg{flex:none}
 .foot{margin:0;padding:0 12px 8px;text-align:center;font-size:12px;color:var(--kaki-muted)}
 .foot a,.card a{color:var(--kaki-text);text-decoration:underline}
-.foot a:focus-visible,.card a:focus-visible{outline:2px solid var(--kaki-accent);outline-offset:2px}
+.card{margin:12px;padding:16px;background:var(--kaki-subtle);border-radius:var(--kaki-radius);display:flex;flex-direction:column;gap:8px}
+.card h3{margin:0;font-size:16px;font-weight:600;outline:none}
+.card p{margin:0;font-size:14px;color:var(--kaki-muted)}
+.card .error{margin:0;color:var(--kaki-text);background:var(--kaki-surface)}
+.card .row{display:flex;gap:8px;margin-top:4px}
+.card .row .btn{flex:1}
+.btn{min-height:44px;border-radius:var(--kaki-radius);font-size:14px;font-weight:600;cursor:pointer;padding:0 16px}
+.btn.sec{background:var(--kaki-surface);border:1px solid var(--kaki-border-strong);color:var(--kaki-text)}
+.btn.pri{border:0;background:var(--kaki-accent);color:var(--kaki-on-accent)}
+.btn:disabled{opacity:.6;cursor:default}
+@media (max-width:319px){.card .row{flex-direction:column}}
+.btn:focus-visible,.foot a:focus-visible,.card a:focus-visible{outline:2px solid var(--kaki-accent);outline-offset:2px}
 `;
