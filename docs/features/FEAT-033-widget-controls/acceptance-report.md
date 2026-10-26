@@ -1,6 +1,6 @@
 # Acceptance Report: FEAT-033 — Widget visitor controls and EN / 中文 chrome
 
-> Verdict: **Accepted** (E2E `widget-controls.e2e.ts`, axe and Firefox/WebKit pending Ken's local CI) · Date: 2026-10-26
+> Verdict: **Accepted** (E2E incl. `widget-controls.e2e.ts` and axe green in Chromium, Firefox and WebKit in Ken's local CI at `faa5bc2`, 2026-10-26) · Date: 2026-10-26
 > Standard: [technical-design.md](technical-design.md) §6 (AC-1..AC-9) · Sources: SRS v0.4 (CHN-13, CHN-02 (p), GOV-14, NFR-02), use-cases v0.4 (UC-20 steps 2, 8), ADR-013, ADR-014, ADR-016, ADR-025
 > Repo state audited: `57b9a1e` (implementation head); no test corrections
 
@@ -58,3 +58,5 @@ Test ref appended: CHN-13 (partial: privacy link, end chat; talk to a person wit
 ## CI
 
 The feature touches the widget, so Ken's local CI (E2E incl. Firefox/WebKit, axe, size) is due before merge. A red result there goes back to a build fix before merge.
+
+Ken's local CI (WSL) at `faa5bc2`, 2026-10-26: static, unit, build, eval, security, actionlint and all E2E jobs passed; the integration and terraform jobs failed (logs on Ken's machine). Merged on Ken's go.
