@@ -3,9 +3,11 @@ import { describe, expect, it } from 'vitest';
 import {
   awaitingTurn,
   chatEnded,
+  chromeLocale,
   emptyChat,
   greetingFor,
   langOf,
+  menuItems,
   pendingText,
   rowsOf,
   withMessage,
@@ -130,5 +132,45 @@ describe('chat ended (FEAT-025; SCR-WGT-002 chat-ended)', () => {
     });
     expect(chatEnded(before)).toBe(false);
     expect(chatEnded(withMessage(emptyChat, ended))).toBe(true);
+  });
+});
+
+describe('chrome locale and header menu (FEAT-033; SCR-WGT-002)', () => {
+  const lang = (m: ReturnType<typeof msg>, language: 'en' | 'zh' | null) => ({ ...m, language });
+
+  it('follows the latest agent or system reply with a language, else the browser, else en', () => {
+    expect(chromeLocale(emptyChat, 'zh-SG')).toBe('zh-Hans');
+    expect(chromeLocale(emptyChat, undefined)).toBe('en');
+    const zh = [msg('v1', 1, 'visitor'), lang(msg('a1', 2, 'agent', 'v1'), 'zh')].reduce(
+      withMessage,
+      emptyChat,
+    );
+    expect(chromeLocale(zh, 'en-SG')).toBe('zh-Hans');
+    // Visitor and staff messages and null languages are ignored.
+    const later = [
+      lang(msg('s1', 3, 'staff'), null),
+      lang(msg('v2', 4, 'visitor'), null),
+      lang(msg('a2', 5, 'agent', 'v2'), null),
+    ].reduce(withMessage, zh);
+    expect(chromeLocale(later, 'en-SG')).toBe('zh-Hans');
+    expect(chromeLocale(withMessage(later, lang(msg('x', 6, 'system'), 'en')), 'zh')).toBe('en');
+    expect(chromeLocale(withMessage(emptyChat, msg('v', 1, 'visitor')), 'en')).toBe('en');
+  });
+
+  const off = { privacyNoticeUrl: null, controls: { talkToPerson: false } };
+  const on = { privacyNoticeUrl: 'https://example.sg/privacy', controls: { talkToPerson: true } };
+  const live = { conversationId: CONV, ended: false, preview: false };
+
+  it('lists talk to a person only with the flag and not ended, privacy only with a URL', () => {
+    expect(menuItems(on, live)).toEqual(['talkToPerson', 'privacy', 'end']);
+    expect(menuItems(off, live)).toEqual(['end']);
+    expect(menuItems(on, { ...live, ended: true })).toEqual(['privacy']);
+  });
+
+  it('offers End chat only with a live conversation outside the preview', () => {
+    expect(menuItems(off, { ...live, conversationId: null })).toEqual([]);
+    expect(menuItems(on, { ...live, conversationId: null })).toEqual(['talkToPerson', 'privacy']);
+    expect(menuItems(off, { ...live, preview: true })).toEqual([]);
+    expect(menuItems(on, { ...live, preview: true })).toEqual(['talkToPerson', 'privacy']);
   });
 });

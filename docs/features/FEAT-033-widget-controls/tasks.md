@@ -14,7 +14,7 @@
 
 ## Build session 2 (UI)
 
-- [ ] T5 — Widget strings and pure helpers: the new keys in both locales, `chromeLocale`, `menuItems`, `api.endConversation`, `ChatEndedError` (design §5.4; AC-6, AC-7)
+- [x] T5 — Widget strings and pure helpers: the new keys in both locales, `chromeLocale`, `menuItems`, `api.endConversation`, `ChatEndedError` (design §5.4; AC-6, AC-7)
       Done when: widget unit tests: both locales have identical, non-empty key sets; `chromeLocale` picks the latest agent/system `language`, ignores visitor and staff messages and null, falls back to `navigator.language` then `en`; `menuItems` covers flag on/off, privacy URL set/null, no conversation, ended, preview; `send` maps 409 to `ChatEndedError`.
 - [ ] T6 — Panel header menu, privacy footer line, live chrome locale (ui-design SCR-WGT-002; AC-5, AC-7, AC-8, AC-9)
       Done when: the dev host page (`pnpm --filter @kaki/widget dev`, stubbed config) shows the menu with keyboard behaviour per ui-design, Escape in the menu leaves the panel open, the privacy item and footer render only with a URL; `lang` on the mount changes to `zh-Hans` when a `zh` reply arrives; `pnpm --filter @kaki/widget build && pnpm size` within budget. Checked in the session's Chromium via Playwright against the dev server (no stack); screenshots in the notes.
