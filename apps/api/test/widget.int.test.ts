@@ -2,7 +2,7 @@
  * Website widget endpoints (FEAT-032 §3; AC-1–AC-5, AC-10, AC-11) and the config route's
  * theme, install check and silent refusal on an unlisted origin (CHN-11, UC-05 5a).
  */
-import { startTestDatabase, TENANT_A, TENANT_B, type TestDatabase } from '@kaki/db/testing';
+import { startTestDatabase, TENANT_A, type TestDatabase } from '@kaki/db/testing';
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { buildApp } from '../src/app.js';
