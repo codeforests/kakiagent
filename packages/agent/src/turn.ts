@@ -171,6 +171,7 @@ export async function runVisitorTurn(
         factIds: composed?.factIds ?? [],
         disclosure,
         notice,
+        language,
       });
       if (!reply) return null;
       // KB-09 (FEAT-019 §5.2): a question the turn tried to answer and couldn't is a gap.
