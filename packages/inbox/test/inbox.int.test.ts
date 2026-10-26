@@ -6,7 +6,9 @@ import {
   appendAgentReply,
   appendVisitorMessage,
   createConversation,
+  ConversationClosedError,
   endAiConversation,
+  endVisitorConversation,
   flagConversation,
   gapCounts,
   gapQuestions,
@@ -397,5 +399,148 @@ describe('inbox repository (visitor trust zone)', () => {
     expect(
       await withTenant(dashboard, TENANT_B, (tx) => gapCounts(tx, TENANT_B, [], new Date())),
     ).toEqual(new Map());
+  });
+});
+
+describe('visitor ends the chat (FEAT-033 §5.1)', () => {
+  const owner = async <T>(fn: (c: import('pg').Client) => Promise<T>): Promise<T> => {
+    const { default: pg } = await import('pg');
+    const c = new pg.Client({ connectionString: tdb.ownerUrl });
+    await c.connect();
+    try {
+      return await fn(c);
+    } finally {
+      await c.end();
+    }
+  };
+  const endedAudits = (conversationId: string) =>
+    owner(async (c) => {
+      const r = await c.query(
+        `select actor_type, actor_ref, payload from audit_entries
+          where tenant_id = $1 and event_type = 'conversation.visitor_ended' and $2 = any(subject_refs)`,
+        [TENANT_A, `conversation:${conversationId}`],
+      );
+      return r.rows;
+    });
+
+  it.each(['ai', 'human'] as const)(
+    'closes a conversation from %s once, audited once with no text',
+    async (from) => {
+      const visitor = tdb.zone('visitor');
+      const visitorId = randomUUID();
+      const conv = await withTenant(visitor, TENANT_A, (tx) =>
+        createConversation(tx, TENANT_A, visitorId),
+      );
+      if (from === 'human')
+        await owner((c) =>
+          c.query(`update conversations set status = 'human' where id = $1`, [conv.id]),
+        );
+      const end = () =>
+        withTenant(visitor, TENANT_A, (tx) =>
+          endVisitorConversation(tx, { tenantId: TENANT_A, conversationId: conv.id, visitorId }),
+        );
+      const first = await end();
+      expect(first.ended).toBe(true);
+      expect(first.conversation.status).toBe('closed');
+      const again = await end();
+      expect(again.ended).toBe(false);
+      expect(again.conversation.status).toBe('closed');
+      expect(await endedAudits(conv.id)).toEqual([
+        { actor_type: 'visitor', actor_ref: visitorId, payload: {} },
+      ]);
+    },
+  );
+
+  it("refuses another visitor's and another tenant's conversation", async () => {
+    const visitor = tdb.zone('visitor');
+    const visitorId = randomUUID();
+    const conv = await withTenant(visitor, TENANT_A, (tx) =>
+      createConversation(tx, TENANT_A, visitorId),
+    );
+    await expect(
+      withTenant(visitor, TENANT_A, (tx) =>
+        endVisitorConversation(tx, {
+          tenantId: TENANT_A,
+          conversationId: conv.id,
+          visitorId: randomUUID(),
+        }),
+      ),
+    ).rejects.toBeInstanceOf(NotFoundError);
+    await expect(
+      withTenant(visitor, TENANT_B, (tx) =>
+        endVisitorConversation(tx, { tenantId: TENANT_B, conversationId: conv.id, visitorId }),
+      ),
+    ).rejects.toBeInstanceOf(NotFoundError);
+    expect(
+      (await withTenant(visitor, TENANT_A, (tx) => getConversation(tx, TENANT_A, conv.id)))?.status,
+    ).toBe('ai');
+  });
+
+  it('refuses a new message to a closed conversation but returns a retried one (D5)', async () => {
+    const visitor = tdb.zone('visitor');
+    const visitorId = randomUUID();
+    const conv = await withTenant(visitor, TENANT_A, (tx) =>
+      createConversation(tx, TENANT_A, visitorId),
+    );
+    const send = (clientMessageId: string) =>
+      withTenant(visitor, TENANT_A, (tx) =>
+        appendVisitorMessage(tx, {
+          tenantId: TENANT_A,
+          conversationId: conv.id,
+          visitorId,
+          text: 'hello',
+          clientMessageId,
+        }),
+      );
+    const first = await send('c-033001');
+    await withTenant(visitor, TENANT_A, (tx) =>
+      endVisitorConversation(tx, { tenantId: TENANT_A, conversationId: conv.id, visitorId }),
+    );
+    const retry = await send('c-033001');
+    expect(retry.created).toBe(false);
+    expect(retry.message.id).toBe(first.message.id);
+    await expect(send('c-033002')).rejects.toBeInstanceOf(ConversationClosedError);
+    const count = await owner(
+      async (c) =>
+        (
+          await c.query(`select count(*)::int as n from messages where conversation_id = $1`, [
+            conv.id,
+          ])
+        ).rows[0].n,
+    );
+    expect(count).toBe(1);
+  });
+
+  it("stores a reply's language and rejects one outside en/zh (D3)", async () => {
+    const visitor = tdb.zone('visitor');
+    const visitorId = randomUUID();
+    const conv = await withTenant(visitor, TENANT_A, (tx) =>
+      createConversation(tx, TENANT_A, visitorId),
+    );
+    const asked = await withTenant(visitor, TENANT_A, (tx) =>
+      appendVisitorMessage(tx, {
+        tenantId: TENANT_A,
+        conversationId: conv.id,
+        visitorId,
+        text: '你们几点开门?',
+        clientMessageId: 'c-033003',
+      }),
+    );
+    expect(toMessage(asked.message).language).toBe(null);
+    const reply = await withTenant(visitor, TENANT_A, (tx) =>
+      appendAgentReply(tx, {
+        tenantId: TENANT_A,
+        conversationId: conv.id,
+        inReplyTo: asked.message.id,
+        text: '我们早上九点开门。',
+        language: 'zh',
+      }),
+    );
+    expect(toMessage(reply!.message).language).toBe('zh');
+    await expect(
+      owner((c) =>
+        c.query(`update messages set language = 'fr' where id = $1`, [reply!.message.id]),
+      ),
+    ).rejects.toThrow(/messages_language_ck/);
   });
 });

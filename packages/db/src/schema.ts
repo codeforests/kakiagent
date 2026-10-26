@@ -297,6 +297,8 @@ export const messages = pgTable(
     /** A system notice shown with the message, server-rendered (AGT-09 after hours, FEAT-023 D6). */
     notice: text('notice'),
     noticeKind: text('notice_kind', { enum: NOTICE_KINDS }),
+    /** The reply language the agent decided (FEAT-033 D3); null on visitor and staff rows. */
+    language: text('language', { enum: ['en', 'zh'] }),
     /**
      * Set on a visitor question the turn couldn't answer (FEAT-019 §4, D2), with the
      * retrieval vector; the gap-grouping job files it under a `coverage_gap` correction.
@@ -325,6 +327,7 @@ export const messages = pgTable(
       'messages_notice_ck',
       sql`(${t.notice} is null) = (${t.noticeKind} is null) and (${t.noticeKind} is null or ${t.noticeKind} in ('after_hours', 'chat_ended'))`,
     ),
+    check('messages_language_ck', sql`${t.language} in ('en', 'zh')`),
     foreignKey({
       columns: [t.tenantId, t.gapCorrectionId],
       foreignColumns: [corrections.tenantId, corrections.id],

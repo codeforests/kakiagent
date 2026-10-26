@@ -12,6 +12,8 @@ import { enqueue } from '@kaki/platform/outbox';
  */
 
 export class NotFoundError extends Error {}
+/** A new visitor message to a closed conversation (FEAT-033 D5): the API answers 409. */
+export class ConversationClosedError extends Error {}
 
 export type MessageRow = typeof schema.messages.$inferSelect;
 export type NoticeKind = (typeof schema.NOTICE_KINDS)[number];
@@ -29,7 +31,7 @@ export function toMessage(row: MessageRow): Message {
     disclosure: row.disclosure,
     notice: row.notice,
     noticeKind: row.noticeKind,
-    language: null,
+    language: row.language,
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -106,6 +108,25 @@ export async function appendVisitorMessage(
     input.conversationId,
     input.visitorId,
   );
+  const existing = async () => {
+    const [row] = await tx
+      .select()
+      .from(schema.messages)
+      .where(
+        and(
+          eq(schema.messages.tenantId, input.tenantId),
+          eq(schema.messages.conversationId, input.conversationId),
+          eq(schema.messages.clientMessageId, input.clientMessageId),
+        ),
+      );
+    return row;
+  };
+  // A retry of a stored message stays idempotent even after the chat ended (FEAT-033 D5).
+  if (conversation.status === 'closed') {
+    const stored = await existing();
+    if (stored) return { message: stored, created: false, conversation };
+    throw new ConversationClosedError('conversation is closed');
+  }
   const [inserted] = await tx
     .insert(schema.messages)
     .values({
@@ -118,18 +139,9 @@ export async function appendVisitorMessage(
     .onConflictDoNothing()
     .returning();
   if (!inserted) {
-    const [existing] = await tx
-      .select()
-      .from(schema.messages)
-      .where(
-        and(
-          eq(schema.messages.tenantId, input.tenantId),
-          eq(schema.messages.conversationId, input.conversationId),
-          eq(schema.messages.clientMessageId, input.clientMessageId),
-        ),
-      );
-    if (!existing) throw new Error('message conflict without a matching row');
-    return { message: existing, created: false, conversation };
+    const stored = await existing();
+    if (!stored) throw new Error('message conflict without a matching row');
+    return { message: stored, created: false, conversation };
   }
   const [updated] = await tx
     .update(schema.conversations)
@@ -194,6 +206,8 @@ export async function appendAgentReply(
     disclosure?: string | null;
     /** A system notice shown with the reply (AGT-09 after hours; FEAT-023 D6). */
     notice?: { kind: NoticeKind; text: string } | null;
+    /** The reply language the agent decided (FEAT-033 D3): the widget's chrome follows it. */
+    language?: 'en' | 'zh' | null;
   },
 ): Promise<{ message: MessageRow; conversation: ConversationRow } | null> {
   const [inserted] = await tx
@@ -208,6 +222,7 @@ export async function appendAgentReply(
       disclosure: input.disclosure ?? null,
       notice: input.notice?.text ?? null,
       noticeKind: input.notice?.kind ?? null,
+      language: input.language ?? null,
     })
     .onConflictDoNothing()
     .returning();
@@ -454,6 +469,44 @@ export async function endAiConversation(
     payload: { reason: auditCode(reason) },
   });
   return true;
+}
+
+/**
+ * The visitor ends their chat (CHN-13, FEAT-033 §5.1): closes it from `ai` or `human`
+ * (D4) so the send gate keeps the AI silent. Idempotent: `ended` is false, and nothing
+ * is audited, when the conversation was already closed.
+ */
+export async function endVisitorConversation(
+  tx: Tx,
+  input: { tenantId: string; conversationId: string; visitorId: string },
+): Promise<{ conversation: ConversationRow; ended: boolean }> {
+  const conversation = await visitorConversation(
+    tx,
+    input.tenantId,
+    input.conversationId,
+    input.visitorId,
+  );
+  const c = schema.conversations;
+  const [closed] = await tx
+    .update(c)
+    .set({ status: 'closed' })
+    .where(
+      and(
+        eq(c.tenantId, input.tenantId),
+        eq(c.id, input.conversationId),
+        sql`${c.status} <> 'closed'`,
+      ),
+    )
+    .returning();
+  if (!closed) return { conversation, ended: false };
+  await audit.append(tx, input.tenantId, {
+    action: 'conversation.visitor_ended',
+    actorType: 'visitor',
+    actorId: input.visitorId,
+    subjectType: 'conversation',
+    subjectId: input.conversationId,
+  });
+  return { conversation: closed, ended: true };
 }
 
 /** A conversation with at least one visitor message, for replay (FEAT-028 §3). */
