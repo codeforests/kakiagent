@@ -1,5 +1,5 @@
 # Handoff: FEAT-033 — Widget visitor controls and EN / 中文 chrome
-Branch: feat/FEAT-033-widget-controls · PR: PRLINK · Updated: 2026-10-26 by build (UI)
+Branch: feat/FEAT-033-widget-controls · PR: https://github.com/codeforests/kakiagent/pull/34 · Updated: 2026-10-26 by build (UI)
 Stage done: build (T1–T9 of 9), developer-done
 Next: verify — kickoff: "Verify FEAT-033 on branch feat/FEAT-033-widget-controls. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
 
