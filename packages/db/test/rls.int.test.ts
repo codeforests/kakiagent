@@ -2344,3 +2344,139 @@ describe('privacy wordings and settings (FEAT-058)', () => {
     }
   });
 });
+
+describe('channel connections (FEAT-034 §4)', () => {
+  const NEW_TENANT = '33333333-3333-4333-8333-333333333333';
+
+  it("tenant B can't read or update tenant A's connections", async () => {
+    const own = await asRole(
+      'app_dashboard',
+      TENANT_B,
+      async (c) => (await c.query(`select tenant_id, kind from channel_connections`)).rows,
+    );
+    expect(own).toEqual([{ tenant_id: TENANT_B, kind: 'widget' }]);
+    const updated = await asRole('app_dashboard', TENANT_B, async (c) => {
+      const r = await c.query(
+        `update channel_connections set state = 'offline' where tenant_id = $1`,
+        [TENANT_A],
+      );
+      return r.rowCount;
+    });
+    expect(updated).toBe(0);
+    const none = await asRole(
+      'app_dashboard',
+      null,
+      async (c) => (await c.query(`select id from channel_connections`)).rows,
+    );
+    expect(none).toEqual([]);
+  });
+
+  it('the dashboard zone cannot read the sealed credential; the visitor zone reads nothing', async () => {
+    await expect(
+      asRole('app_dashboard', TENANT_A, (c) =>
+        c.query(`select credential_ciphertext from channel_connections`),
+      ),
+    ).rejects.toThrow(/permission denied/);
+    await expect(
+      asRole('app_dashboard', TENANT_A, (c) => c.query(`select * from channel_connections`)),
+    ).rejects.toThrow(/permission denied/);
+    await expect(
+      asRole('app_agent_visitor', TENANT_A, (c) => c.query(`select id from channel_connections`)),
+    ).rejects.toThrow(/permission denied/);
+    await expect(
+      asRole('app_dashboard', TENANT_A, (c) =>
+        c.query(`insert into channel_connections (tenant_id, kind) values ($1, 'email')`, [
+          TENANT_A,
+        ]),
+      ),
+    ).rejects.toThrow(/permission denied/);
+  });
+
+  it('the seeded tenants are live; a new tenant starts with one offline, hidden widget', async () => {
+    const seeded = await owner.query(
+      `select tenant_id, state from channel_connections where tenant_id = any($1) order by tenant_id`,
+      [[TENANT_A, TENANT_B]],
+    );
+    expect(seeded.rows).toEqual([
+      { tenant_id: TENANT_A, state: 'live' },
+      { tenant_id: TENANT_B, state: 'live' },
+    ]);
+    await owner.query(
+      `insert into tenants (id, slug, name, widget_key) values ($1, 'new-co', 'New Co', 'wk_new_co')`,
+      [NEW_TENANT],
+    );
+    try {
+      const { rows } = await owner.query(
+        `select kind, state, offline_mode, health, state_changed_at from channel_connections where tenant_id = $1`,
+        [NEW_TENANT],
+      );
+      expect(rows).toEqual([
+        {
+          kind: 'widget',
+          state: 'offline',
+          offline_mode: 'hidden',
+          health: 'ok',
+          state_changed_at: null,
+        },
+      ]);
+    } finally {
+      await owner.query(`delete from tenants where id = $1`, [NEW_TENANT]);
+    }
+  });
+
+  it('the checks reject hidden for a non-widget kind and a 301-character message', async () => {
+    await expect(
+      owner.query(
+        `insert into channel_connections (tenant_id, kind, offline_mode) values ($1, 'email', 'hidden')`,
+        [TENANT_A],
+      ),
+    ).rejects.toThrow(/channel_connections_offline_mode_ck/);
+    await expect(
+      owner.query(`update channel_connections set offline_message_en = $2 where tenant_id = $1`, [
+        TENANT_A,
+        'x'.repeat(301),
+      ]),
+    ).rejects.toThrow(/channel_connections_offline_message_ck/);
+  });
+
+  it("visitor_channel returns the current tenant's widget with its contacts, and nothing without context", async () => {
+    const q = `select state, offline_mode, contact_email, contact_phone from visitor_channel('widget')`;
+    const a = await asRole('app_agent_visitor', TENANT_A, async (c) => (await c.query(q)).rows);
+    expect(a).toHaveLength(1);
+    expect(a[0]).toMatchObject({
+      state: 'live',
+      offline_mode: 'hidden',
+      contact_email: 'hello@kaki-bakery.test',
+    });
+    const b = await asRole('app_agent_visitor', TENANT_B, async (c) => (await c.query(q)).rows);
+    expect(b).toEqual([
+      { state: 'live', offline_mode: 'hidden', contact_email: null, contact_phone: null },
+    ]);
+    const none = await asRole('app_agent_visitor', null, async (c) => (await c.query(q)).rows);
+    expect(none).toEqual([]);
+  });
+
+  it('channel_health_due runs for the outbox zone only, across tenants, IDs only', async () => {
+    const rows = await asRole(
+      'app_outbox',
+      null,
+      async (c) => (await c.query(`select * from channel_health_due(array['widget'])`)).rows,
+    );
+    expect(rows.map((r) => r.tenant_id).sort()).toEqual(
+      expect.arrayContaining([TENANT_A, TENANT_B]),
+    );
+    expect(Object.keys(rows[0]).sort()).toEqual(['id', 'kind', 'tenant_id']);
+    const owners = await owner.query(
+      `select r.rolname, r.rolcanlogin from pg_proc p join pg_roles r on r.oid = p.proowner
+       where p.proname in ('channel_health_due', 'tenants_widget_connection')`,
+    );
+    expect(owners.rows).toEqual([
+      { rolname: 'kaki_channels', rolcanlogin: false },
+      { rolname: 'kaki_channels', rolcanlogin: false },
+    ]);
+    for (const role of ['app_dashboard', 'app_agent_visitor'] as const)
+      await expect(
+        asRole(role, TENANT_A, (c) => c.query(`select * from channel_health_due(array['widget'])`)),
+      ).rejects.toThrow(/permission denied/);
+  });
+});

@@ -122,6 +122,14 @@ export async function seed(client: pg.ClientBase, tenants: SeedTenant[]): Promis
       `insert into widget_settings (tenant_id) values ($1) on conflict (tenant_id) do nothing`,
       [t.id],
     );
+    // New tenants start offline (trigger, FEAT-034 D3); the dev tenants answer from the start.
+    await client.query(
+      `insert into channel_connections (tenant_id, kind, state, state_changed_at, health)
+       values ($1, 'widget', 'live', now(), 'ok')
+       on conflict (tenant_id, kind) do update set state = 'live',
+         state_changed_at = coalesce(channel_connections.state_changed_at, now())`,
+      [t.id],
+    );
     await client.query(
       `insert into business_profiles (tenant_id, gst_registered, hours, open_on_public_holidays,
          uen, industry, contact_email, contact_phone, languages)
