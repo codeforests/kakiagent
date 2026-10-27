@@ -1,5 +1,5 @@
 # Handoff: FEAT-058 — Privacy notice and template, consent wording, data-processing documents
-Branch: feat/FEAT-058-privacy-documents · PR: (draft, see below) · Updated: 2026-10-27 by build (UI)
+Branch: feat/FEAT-058-privacy-documents · PR: https://github.com/codeforests/kakiagent/pull/35 (draft) · Updated: 2026-10-27 by build (UI)
 Stage done: build (T1–T10 of 10), status developer-done
 Next: verify — kickoff: "Verify FEAT-058 on branch feat/FEAT-058-privacy-documents. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
 
