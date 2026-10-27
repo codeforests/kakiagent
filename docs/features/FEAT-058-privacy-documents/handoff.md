@@ -1,6 +1,6 @@
 # Handoff: FEAT-058 — Privacy notice and template, consent wording, data-processing documents
 Branch: feat/FEAT-058-privacy-documents · PR: https://github.com/codeforests/kakiagent/pull/35 · Updated: 2026-10-27 by verify
-Stage done: verify (accepted)
+Stage done: verify (accepted; local CI green at cbea038)
 Next: Ken's local CI on this branch (lockfile), then squash-merge on Ken's go; then design FEAT-034 — kickoff: "Design FEAT-034. Branch feat/FEAT-034-<slug> (create it from main). Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage design."
 
 ## What the next stage needs

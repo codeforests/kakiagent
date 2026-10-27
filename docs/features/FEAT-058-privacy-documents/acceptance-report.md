@@ -1,6 +1,6 @@
 # Acceptance Report: FEAT-058 — Privacy notice and template, consent wording, data-processing documents
 
-> Verdict: **Accepted** (E2E `privacy.e2e.ts` and axe pending Ken's local CI, due before merge: lockfile changed) · Date: 2026-10-27
+> Verdict: **Accepted** (E2E `privacy.e2e.ts` and axe green in Ken's local CI at `cbea038`, 2026-10-27) · Date: 2026-10-27
 > Standard: [technical-design.md](technical-design.md) §6 (AC-1..AC-10) · Sources: SRS v0.4 (GOV-14, GOV-07, GOV-11, LED-02 (p), ONB-09), use-cases v0.4 (UC-03 steps 8, 10a), ADR-005, ADR-006, ADR-014, ADR-019
 > Repo state audited: `9948934` (implementation head); one test strengthened in `a998c4c`
 
@@ -64,3 +64,5 @@ Test ref appended: GOV-14 (partial: go-live block with FEAT-035), GOV-07 (partia
 ## CI
 
 The lockfile changed (pdf-lib, pdfjs-dist in governance), so Ken's local CI is due before merge (STATE.md cadence). E2E `privacy.e2e.ts` (5 tests) and its axe checks are judged from that run; a red result goes back to a build fix before merge.
+
+Ken's local CI (WSL) at `cbea038`, 2026-10-27: passed (E2E incl. `privacy.e2e.ts` in Chromium, Firefox and WebKit). Merged on Ken's go.
