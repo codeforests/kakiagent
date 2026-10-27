@@ -57,3 +57,12 @@ export {
   type VisitorPrivacy,
   type WordingRef,
 } from './privacy.js';
+export {
+  escapeHtml,
+  formatSgDate,
+  NOTICE_CSS,
+  noticeSections,
+  renderNoticeHtml,
+  type NoticeDocument,
+  type NoticeSection,
+} from './notice-template.js';
