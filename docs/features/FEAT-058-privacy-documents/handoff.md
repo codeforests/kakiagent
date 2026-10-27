@@ -1,20 +1,17 @@
 # Handoff: FEAT-058 — Privacy notice and template, consent wording, data-processing documents
-Branch: feat/FEAT-058-privacy-documents · PR: https://github.com/codeforests/kakiagent/pull/35 (draft) · Updated: 2026-10-27 by build (UI)
-Stage done: build (T1–T10 of 10), status developer-done
-Next: verify — kickoff: "Verify FEAT-058 on branch feat/FEAT-058-privacy-documents. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
+Branch: feat/FEAT-058-privacy-documents · PR: https://github.com/codeforests/kakiagent/pull/35 · Updated: 2026-10-27 by verify
+Stage done: verify (accepted)
+Next: Ken's local CI on this branch (lockfile), then squash-merge on Ken's go; then design FEAT-034 — kickoff: "Design FEAT-034. Branch feat/FEAT-034-<slug> (create it from main). Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage design."
 
 ## What the next stage needs
-- Dashboard: `lib/privacy.ts` (+ `privacy.test.ts`), `pages/privacy-parts.tsx`, `pages/privacy.tsx` (`/settings/privacy`), `pages/setup-rules.tsx` (`/setup/rules`); Settings row linked; review Continue → `/setup/rules`; coach is "Step 5", widget "Step 6".
-- One shared `version`: each form reads `data.version` from the query cache at save time, so saving one form doesn't make the other stale. Forms remount only on Reload (a `generation` counter in `PrivacyScreen`), keeping unsaved edits in the other form.
-- PDF buttons are real links (`href` to the PDF route) whose click fetches the file so a failure can show the toast "We couldn't download the PDF. Try again."; the blob link is attached to the DOM before the click (Firefox).
-- Never-saved notice starts on "On my website"; the template's contact email is prefilled from the profile. The purpose Save is enabled while it's still the default (D6: the default doesn't count until saved).
-- Terms with `acceptedVersion` null read "{title} · not accepted yet" (ui-design didn't cover it).
-- Full local checks in `tasks.md` evidence; renders were checked in the session's Chromium with `/api/**` stubbed (no stack).
+- Report: `acceptance-report.md`. One test strengthened (api hosted page asserts business name and purpose, AC-2).
+- FEAT-034 uses `privacyReadiness` (`@kaki/governance`) for the pre-live form (UX-R4); FEAT-035 for ONB-09; FEAT-049 stores `purposeWordingId` / `noticeWordingId` from `visitorPrivacy()`.
+- Observations (not blocking): concurrent same-kind saves at one version give 500 on the seq unique index instead of 409; OCR (self-hosted, ADR-019) isn't mentioned on the page or PDFs.
 
 ## Left to CI or later
-- E2E `e2e/tests/privacy.e2e.ts` (5 tests) and real-stack renders: Ken's local CI. Due before merge anyway: lockfile changed (pdf-lib, pdfjs-dist in governance).
-- `governance anchors.int.test.ts` and `api uploads.int.test.ts` S3 cases need Testcontainers/LocalStack: not runnable in cloud sessions, untouched here.
+- E2E `e2e/tests/privacy.e2e.ts` (5 tests, axe) and real-stack renders: Ken's local CI, due before merge (lockfile).
+- `governance anchors.int.test.ts`, `api uploads.int.test.ts` S3 cases need Docker; not run here.
 
 ## Pending for Ken
-- Ken's local CI run on this branch before merge (lockfile).
-- Legal review of the notice template, consent question and DPA before pilot (already in pending-actions.md).
+- Local CI run on this branch and its summary; then merge go-ahead.
+- Legal review of the notice template, consent question and DPA before pilot (in pending-actions.md).

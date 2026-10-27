@@ -98,7 +98,7 @@
 | INB-10 | Saved replies | Could | Active | Gap review v0.3 | UC-23 | SCR-APP-015 | FEAT-047 | _TBD_ |
 | INB-11 | Conversation search by contact name, email, phone or message text, within the… | Must | Active | Gap review v0.3; Appx A A21 | UC-23 | ADR-004; SCR-APP-014 | FEAT-046 | _TBD_ |
 | LED-01 | Lead capture | Must | Active | Research P3 | UC-21 | SCR-APP-033, SCR-APP-043, SCR-WGT-003 | FEAT-049 | _TBD_ |
-| LED-02 | PDPA consent | Must | Active | Research P3; PDPA – consent and purpose limitation | UC-03, UC-21 | ADR-015; SCR-APP-009, SCR-APP-033, SCR-APP-043, SCR-WGT-003 | FEAT-049, FEAT-058 | _TBD_ |
+| LED-02 | PDPA consent | Must | Active | Research P3; PDPA – consent and purpose limitation | UC-03, UC-21 | ADR-015; SCR-APP-009, SCR-APP-033, SCR-APP-043, SCR-WGT-003 | FEAT-049, FEAT-058 | features/FEAT-058-privacy-documents/acceptance-report.md (partial: purpose statement and wording versions; consent record with FEAT-049) |
 | LED-03 | Lead qualification | Must | Active | Research P3 | UC-21 | SCR-APP-032, SCR-APP-033, SCR-APP-043 | FEAT-050 | _TBD_ |
 | LED-04 | Owner alerts for new hot leads, escalations and pending approvals, by email and… | Must | Active | Research P3; Appx A A12 | UC-21, UC-22, UC-25 | ADR-011, ADR-012, ADR-017, ADR-019; SCR-APP-056 | FEAT-048, FEAT-052, FEAT-037 | _TBD_ |
 | LED-05 | Leads list with status pipeline (New → Contacted → Won / Lost) and CSV export | Must | Active | Research P3 | UC-24, UC-28 | ADR-015; SCR-APP-032 | FEAT-050 | _TBD_ |
@@ -118,14 +118,14 @@
 | GOV-04 | PII handling | Must | Active | Research P2; PDPA – protection obligation | UC-11, UC-20, UC-30 | ADR-015, ADR-018; features/FEAT-003-pii-masking/technical-design.md | FEAT-003 | features/FEAT-003-pii-masking/acceptance-report.md |
 | GOV-05 | Data-subject requests (PDPA) | Must | Active | Research P2; Appx A A2, A4, A12; PDPA – access and correction (including vector stores) | UC-28, UC-30 | ADR-004, ADR-012, ADR-014, ADR-015; SCR-APP-048, SCR-APP-049, ADR-025 | FEAT-061 | _TBD_ |
 | GOV-06 | Retention | Must | Active | Research P2; Appx A A2; D7; PDPA – retention limitation | UC-35 | ADR-012, ADR-014, ADR-015; SCR-APP-047 | FEAT-059 | _TBD_ |
-| GOV-07 | Data-intermediary documentation available in-app | Must | Active | Research P2; Appx A A3; PDPC GenAI guidelines – data-intermediary documentation | UC-01 | ADR-006, ADR-019; SCR-APP-047, SCR-OPS-009 | FEAT-058, FEAT-073 | _TBD_ |
+| GOV-07 | Data-intermediary documentation available in-app | Must | Active | Research P2; Appx A A3; PDPC GenAI guidelines – data-intermediary documentation | UC-01 | ADR-006, ADR-019; SCR-APP-047, SCR-OPS-009 | FEAT-058, FEAT-073 | features/FEAT-058-privacy-documents/acceptance-report.md (partial: 30-day sub-processor notice with FEAT-073) |
 | GOV-08 | Kill switch | Must | Active | Research P2; IMDA Agentic AI v1.5 – human checkpoints for high-stakes or irreversible actions | UC-31 | ADR-013, ADR-017; SCR-APP-041, SCR-APP-058, SCR-WGT-005 | FEAT-057 | _TBD_ |
 | GOV-09 | Periodic oversight review | Should | Active | Research P2; IMDA Agentic AI v1.5 – testing before and after deployment; IMDA – reducing automation bias | UC-16, UC-36 | ADR-010, ADR-012, ADR-022; SCR-APP-021, SCR-APP-035 | FEAT-064 | _TBD_ |
 | GOV-10 | Security incidents | Must | Active | Gap review v0.3; Appx A A8; PDPA – data breach notification (organisation notifies PDPC; data intermediary notifies organisation) | UC-38 | ADR-021; SCR-OPS-007 | FEAT-072 | _TBD_ |
-| GOV-11 | Cross-border transfers | Must | Active | Gap review v0.3; Appx A A3; D5; PDPA – transfer limitation | — (system-level) | ADR-003, ADR-006, ADR-019; SCR-APP-047 | FEAT-058 | _TBD_ |
+| GOV-11 | Cross-border transfers | Must | Active | Gap review v0.3; Appx A A3; D5; PDPA – transfer limitation | — (system-level) | ADR-003, ADR-006, ADR-019; SCR-APP-047 | FEAT-058 | features/FEAT-058-privacy-documents/acceptance-report.md |
 | GOV-12 | Tenant data export | Must | Active | Gap review v0.3; Appx A A21 | UC-08, UC-24 | ADR-015; SCR-APP-051 | FEAT-062 | _TBD_ |
 | GOV-13 | Abuse protection | Must | Active | Gap review v0.3; Appx A A9; PDPA – protection obligation | UC-20, UC-34 | ADR-007, ADR-016, ADR-020, ADR-021; SCR-WGT-002, SCR-OPS-003, SCR-OPS-006; ADR-023 | FEAT-071 | _TBD_ |
-| GOV-14 | Visitor privacy notice | Must | Active | Gap review v0.3; Appx A A8; PDPA – notification (privacy notice) | UC-03, UC-20 | ADR-016; SCR-APP-009, SCR-APP-047 | FEAT-058 | _TBD_ |
+| GOV-14 | Visitor privacy notice | Must | Active | Gap review v0.3; Appx A A8; PDPA – notification (privacy notice) | UC-03, UC-20 | ADR-016; SCR-APP-009, SCR-APP-047 | FEAT-058 | features/FEAT-058-privacy-documents/acceptance-report.md (partial: go-live block with FEAT-035) |
 | DSH-01 | Home dashboard | Must | Active | Research P5, P6 | UC-37 | ADR-017; SCR-APP-013 | FEAT-065 | _TBD_ |
 | DSH-02 | Analytics | Must | Active | Research P5, P6 | UC-37 | ADR-009; SCR-APP-034 | FEAT-066 | _TBD_ |
 | DSH-03 | Team management | Must | Active | Research P5, P6 | UC-06 | ADR-020; SCR-APP-045 | FEAT-007 | _TBD_ |

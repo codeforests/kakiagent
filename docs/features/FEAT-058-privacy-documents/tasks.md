@@ -1,7 +1,7 @@
 # Tasks: FEAT-058 — Privacy notice and template, consent wording, data-processing documents
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: developer-done · Last updated: 2026-10-27
+> Status: accepted · Last updated: 2026-10-27
 
 - [x] T1 — Schema: `wording_versions`, `privacy_settings`, `visitor_privacy()` in `0033_privacy.sql` + Drizzle tables, `TENANT_SCOPED_TABLES`, RLS cases (design §4; AC-3, AC-8)
       Done when: `pnpm db:setup` applies 0033 on a database at 0032 and `drizzle-kit generate` reports no drift; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes with the two new RLS cases (tenant B sees and inserts nothing of A's; the composite FK rejects a pointer to A's wording from B's settings); `app_dashboard` UPDATE and DELETE on `wording_versions` fail with permission denied; `visitor_privacy()` as `app_agent_visitor` returns only the current tenant's row and nothing without a tenant context.
