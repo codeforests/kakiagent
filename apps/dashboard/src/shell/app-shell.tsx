@@ -5,6 +5,7 @@ import { Navigate, NavLink, Outlet } from 'react-router';
 import { api } from '../lib/api.ts';
 import { Offline, TenantSuspended } from '../pages/system.tsx';
 import { AccountMenu } from './account-menu.tsx';
+import { Banners } from './banners.tsx';
 import { Icon } from './icon.tsx';
 import { useNavCounts } from '../lib/nav-counts.ts';
 import { NavCount } from './nav-count.tsx';
@@ -67,6 +68,7 @@ export function AppShell() {
         <AccountMenu email={me.data?.user.email} />
       </header>
       <main id="main" className="content" tabIndex={-1}>
+        <Banners role={me.data?.role} />
         {online ? <Outlet /> : <Offline />}
       </main>
       <nav className="tabbar" aria-label="Main">

@@ -163,7 +163,7 @@ function SaveFailure({ failure, onReload }: { failure: string | null; onReload: 
   );
 }
 
-function ErrorSummary({
+export function ErrorSummary({
   errors,
   prefix,
   focusKey,

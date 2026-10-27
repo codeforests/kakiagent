@@ -15,6 +15,8 @@ export interface ConfirmDialogProps {
   onConfirm: () => void;
   /** While the action runs: the confirm button shows it, and the dialog can't be closed. */
   busy?: boolean;
+  /** The confirm button's text while busy: "Going live…". */
+  busyLabel?: string;
   /** The confirm button alone is unavailable (e.g. while its counts load); Cancel still works. */
   confirmDisabled?: boolean;
   /** An inline alert shown above the buttons (a failed attempt). */
@@ -37,6 +39,7 @@ export function ConfirmDialog({
   confirmVariant = 'primary',
   onConfirm,
   busy = false,
+  busyLabel = 'Working…',
   confirmDisabled = false,
   alert,
   cancelLabel = 'Cancel',
@@ -77,7 +80,7 @@ export function ConfirmDialog({
               disabled={busy || confirmDisabled}
               aria-busy={busy || undefined}
             >
-              {busy ? 'Working…' : confirmLabel}
+              {busy ? busyLabel : confirmLabel}
             </Button>
           </div>
         </Dialog.Content>

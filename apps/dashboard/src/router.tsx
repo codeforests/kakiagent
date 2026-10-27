@@ -17,6 +17,7 @@ import { FactsPage } from './pages/facts.tsx';
 import { HomePage } from './pages/home.tsx';
 import { InboxPage } from './pages/inbox.tsx';
 import { LegalPage } from './pages/legal.tsx';
+import { ChannelsPage } from './pages/channels.tsx';
 import { PrivacyPage } from './pages/privacy.tsx';
 import { SettingsPage } from './pages/settings.tsx';
 import { SetupRulesPage } from './pages/setup-rules.tsx';
@@ -84,6 +85,8 @@ export const router = createBrowserRouter([
       { path: 'settings/assistant', element: <AssistantPage /> },
       { path: 'settings/business-profile', element: <BusinessProfilePage /> },
       { path: 'settings/privacy', element: <PrivacyPage /> },
+      // Channels (FEAT-034, SCR-APP-036).
+      { path: 'settings/channels', element: <ChannelsPage /> },
       // Website widget (FEAT-032, SCR-APP-037).
       { path: 'settings/widget', element: <WidgetSettingsPage /> },
       { path: 'more', element: <MorePage /> },

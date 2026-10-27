@@ -23,7 +23,7 @@ const GROUPS: { title: string; rows: Row[] }[] = [
   {
     title: 'Channels and widget',
     rows: [
-      { name: 'Channels', purpose: 'Where your assistant answers' },
+      { name: 'Channels', purpose: 'Where your assistant answers', to: '/settings/channels' },
       {
         name: 'Website widget',
         purpose: 'Look, install and allowed websites',
