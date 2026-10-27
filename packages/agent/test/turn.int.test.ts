@@ -122,14 +122,22 @@ async function say(conversationId: string, visitorId: string, text: string) {
 
 /** The fake model: triage requests get the fake triager (FEAT-004), replies get `script`. */
 function llmWith(script: FakeScript, triageScript: FakeScript = fakeTriage) {
-  const calls = { generate: 0, models: [] as GenerateRequest['model'][] };
-  const llm = createGateway(defaultRegistry('fake'), [
+  const calls = { generate: 0, embed: 0, models: [] as GenerateRequest['model'][] };
+  const gateway = createGateway(defaultRegistry('fake'), [
     createFakeProvider((req) => {
       calls.generate++;
       calls.models.push(req.model);
       return req.model === 'triage' ? triageScript(req) : script(req);
     }),
   ]);
+  // Retrieval embeds the visitor's message, so counting embeds shows whether it ran.
+  const llm: typeof gateway = {
+    ...gateway,
+    embed: (req) => {
+      calls.embed++;
+      return gateway.embed(req);
+    },
+  };
   return { llm, calls };
 }
 
@@ -888,6 +896,7 @@ describe('runVisitorTurn while the widget is not live (ONB-10; FEAT-034 §5.3, A
     const c = await conversationWith('how much is the fudge cake');
     const { result, calls, segments } = await turn(c);
     expect(calls.generate).toBe(0);
+    expect(calls.embed).toBe(0);
     expect(segments).toEqual([]);
     expect(result?.outcome).toBe('not_live');
     expect(result?.message).toMatchObject({ author: 'system', body: 'Opening 1 Nov!' });
@@ -902,6 +911,7 @@ describe('runVisitorTurn while the widget is not live (ONB-10; FEAT-034 §5.3, A
     const again = await turn({ conversationId: c.conversationId, messageId: second });
     expect(again.result).toBeNull();
     expect(again.calls.generate).toBe(0);
+    expect(again.calls.embed).toBe(0);
   });
 
   it("answers in the visitor's language with the default text when none is stored", async () => {

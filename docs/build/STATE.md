@@ -4,10 +4,10 @@ The one file a fresh build session reads first. Keep it under 80 lines. The veri
 
 ## Where the build is
 
-- **Next feature:** FEAT-034, design, only after Ken says go. FEAT-058 accepted and merged 2026-10-27 (PR #35).
-- **M2 order from here:** 034 → 057 → 006 → 054 → 035. After M2, follow plan §5 (`grep -n '^| \*\*M3' docs/03-planning/implementation-plan.md`).
+- **Next feature:** FEAT-057, design, only after Ken says go. FEAT-034 accepted 2026-10-27 (PR #36).
+- **M2 order from here:** 057 → 006 → 054 → 035. After M2, follow plan §5 (`grep -n '^| \*\*M3' docs/03-planning/implementation-plan.md`).
 - **Demos:** the interim demo after FEAT-027 (coaching) is due; it can now include replay (FEAT-028). M2 closes after FEAT-035 with `pipeline-verify` and a live demo of J1, J8 and J11, signed off by Ken.
-- **Merged:** 001 (skeleton), 002, 003, 004, 005, 009, 011, 012, 013, 014, 015, 016, 017, 022, 023, 024, 025, 027 (merged 2026-10-24 on Ken's local CI without a verify stage: its acceptance report and RTM Test ref are still to write), 028 (accepted 2026-10-24), 018 (accepted and merged 2026-10-24), 019 (accepted and merged 2026-10-25), 032 (accepted and merged 2026-10-25), 033 (accepted and merged 2026-10-26), 058 (accepted and merged 2026-10-27). Each has `docs/features/FEAT-NNN-*/`.
+- **Merged:** 001 (skeleton), 002, 003, 004, 005, 009, 011, 012, 013, 014, 015, 016, 017, 022, 023, 024, 025, 027 (merged 2026-10-24 on Ken's local CI without a verify stage: its acceptance report and RTM Test ref are still to write), 028 (accepted 2026-10-24), 018 (accepted and merged 2026-10-24), 019 (accepted and merged 2026-10-25), 032 (accepted and merged 2026-10-25), 033 (accepted and merged 2026-10-26), 058 (accepted and merged 2026-10-27), 034 (accepted 2026-10-27). Each has `docs/features/FEAT-NNN-*/`.
 
 ## One feature = three fresh sessions
 
@@ -24,15 +24,15 @@ Each stage follows `.claude/skills/feature-stage/SKILL.md`. A stage never reads 
 ## Kickoff prompts (paste into a new thread)
 
 ```
-Design FEAT-034. Branch feat/FEAT-034-<slug> (create it from main).
+Design FEAT-057. Branch feat/FEAT-057-<slug> (create it from main).
 Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage design.
 ```
 ```
-Build FEAT-034 (backend) on branch feat/FEAT-034-<slug>.
+Build FEAT-057 (backend) on branch feat/FEAT-057-<slug>.
 Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage build.
 ```
 ```
-Verify FEAT-034 on branch feat/FEAT-034-<slug>.
+Verify FEAT-057 on branch feat/FEAT-057-<slug>.
 Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify.
 ```
 
@@ -53,7 +53,7 @@ GitHub Actions CI is never started or waited on (Ken's rule from FEAT-019 on): i
 - **Every feature:** the verify stage runs the full local checks through `scripts/test-env.sh` (`pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `test:coverage` for each package the feature touches) and lists the results in the PR body. Ken merges on those.
 - **Ask Ken to run CI locally** on the PR's branch before merging when: it's the third feature since the last CI run, a milestone closes, or the feature touches the widget (size budget), `infra/`, `.github/` or the lockfile. The verify stage says so in its reply and in `pending-actions.md`, then waits for his summary. Never call `actions_run_trigger` or poll GitHub checks.
 - **E2E** runs only in Ken's local CI. Between runs, specs and screen renders are "pending CI" in the acceptance report; a red E2E in the next run is fixed before that PR merges.
-- **Features since the last CI run:** 0 (last run: Ken's local CI (WSL) on FEAT-058 at `cbea038`, 2026-10-27: passed, after a fix for the hosted notice's `mailto:` link).
+- **Features since the last CI run:** 0 once Ken's local CI on FEAT-034 (PR #36; widget, lockfile, new E2E spec) passes; the run before was FEAT-058 at `cbea038`, 2026-10-27.
 
 ## Token tracking (Ken, 2026-10-24; every feature)
 

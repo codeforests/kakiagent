@@ -1,7 +1,7 @@
 # Tasks: FEAT-034 — Channel framework: adapter contract, go-live and go-offline per channel, health and degraded alerts
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: developer-done · Last updated: 2026-10-27
+> Status: accepted · Last updated: 2026-10-27
 
 - [x] T1 — Schema: `channel_connections`, trigger, backfill, `visitor_channel()`, `channel_health_due()` in `0034_channels.sql` + Drizzle table, `TENANT_SCOPED_TABLES`, RLS case, seed sets dev widgets live (design §4; D1, D3; AC-4, AC-8)
       Done when: `pnpm db:setup` applies 0034 on a database at 0033 and `drizzle-kit generate` reports no drift; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes with: tenant B reads and updates nothing of A's; `app_dashboard` `select credential_ciphertext` is permission denied; a new tenant insert creates one widget row (`offline`, `hidden`, health `ok`); the seeded tenants' widget rows are `live`; `visitor_channel('widget')` as the visitor role returns only the current tenant's row (with the profile contacts) and nothing without a tenant context; `channel_health_due` is not executable by `app_dashboard`.
