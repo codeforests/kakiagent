@@ -22,7 +22,7 @@
 
 ## Build session 2 (UI)
 
-- [ ] T7 — Dashboard data layer: `lib/api.ts` calls, `lib/channels.ts` (`useChannels` with 60 s refetch, mutations, `channelStatus`, `validateOffline`, `offlineDraftOf`, `degradedChannels`) (design §5.5; AC-7, AC-9)
+- [x] T7 — Dashboard data layer: `lib/api.ts` calls, `lib/channels.ts` (`useChannels` with 60 s refetch, mutations, `channelStatus`, `validateOffline`, `offlineDraftOf`, `degradedChannels`) (design §5.5; AC-7, AC-9)
       Done when: dashboard unit tests (`--project unit`): `channelStatus` for live, offline never live, offline since, degraded with each reason; `validateOffline` errors per ui-design copy (over 300, `hidden` not allowed); `offlineDraftOf` fills defaults; `degradedChannels` picks only degraded items.
 - [ ] T8 — Channels page and banner: `pages/channels.tsx` (+ `pages/channels-parts.tsx` if it passes ~300 lines), route `/settings/channels`, Settings row linked, `shell/banners.tsx` with the degraded-channel banner in the app shell (ui-design SCR-APP-036, Banner; AC-7, AC-9, AC-10)
       Done when: `pnpm --filter @kaki/dashboard typecheck` and build pass; every state in ui-design renders against the dev API (checked in the session's Chromium via Playwright with the API stubbed where no stack exists; screenshots listed in a Note); go live/offline confirm first and update only after the server answers; only `var(--…)` tokens.
