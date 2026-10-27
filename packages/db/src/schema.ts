@@ -1272,6 +1272,65 @@ export const widgetSettings = pgTable(
   ],
 );
 
+export const WORDING_KINDS = ['privacy_notice', 'purpose_statement'] as const;
+
+/**
+ * Privacy notice and purpose-statement wordings (GOV-14, LED-02; FEAT-058 §4, D3). Append-only:
+ * a consent record will name a row by id, so `app_dashboard` may insert but never update or
+ * delete. `content` is shaped by `@kaki/governance` (`NoticeContent`, `PurposeContent`).
+ */
+export const wordingVersions = pgTable(
+  'wording_versions',
+  {
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    id: uuid('id').notNull().defaultRandom(),
+    kind: text('kind', { enum: WORDING_KINDS }).notNull(),
+    seq: integer('seq').notNull(),
+    content: jsonb('content').$type<Record<string, unknown>>().notNull(),
+    createdBy: uuid('created_by').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.id] }),
+    uniqueIndex('wording_versions_kind_seq_uq').on(t.tenantId, t.kind, t.seq),
+    check('wording_versions_kind_ck', sql`${t.kind} in ('privacy_notice', 'purpose_statement')`),
+    check('wording_versions_seq_ck', sql`${t.seq} >= 1`),
+    check('wording_versions_content_ck', sql`jsonb_typeof(${t.content}) = 'object'`),
+  ],
+);
+
+/**
+ * The tenant's current privacy wordings (FEAT-058 §4): one row per tenant, absent until the
+ * first save, with an optimistic `version` like assistant settings. The composite FKs keep a
+ * pointer inside the tenant (ADR-005).
+ */
+export const privacySettings = pgTable(
+  'privacy_settings',
+  {
+    tenantId: uuid('tenant_id')
+      .primaryKey()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    version: integer('version').notNull().default(1),
+    noticeWordingId: uuid('notice_wording_id'),
+    purposeWordingId: uuid('purpose_wording_id'),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    foreignKey({
+      name: 'privacy_settings_notice_fk',
+      columns: [t.tenantId, t.noticeWordingId],
+      foreignColumns: [wordingVersions.tenantId, wordingVersions.id],
+    }),
+    foreignKey({
+      name: 'privacy_settings_purpose_fk',
+      columns: [t.tenantId, t.purposeWordingId],
+      foreignColumns: [wordingVersions.tenantId, wordingVersions.id],
+    }),
+  ],
+);
+
 /** Tables with `tenant_id` + forced RLS. The cross-tenant suite asserts this list is complete. */
 export const TENANT_SCOPED_TABLES = [
   'tenants',
@@ -1297,4 +1356,6 @@ export const TENANT_SCOPED_TABLES = [
   'coaching_messages',
   'corrections',
   'widget_settings',
+  'wording_versions',
+  'privacy_settings',
 ] as const;
