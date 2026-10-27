@@ -1,20 +1,21 @@
 # Handoff: FEAT-058 — Privacy notice and template, consent wording, data-processing documents
-Branch: feat/FEAT-058-privacy-documents · PR: none · Updated: 2026-10-27 by design
-Stage done: design
-Next: build (backend, T1–T5) — kickoff: "Build FEAT-058 (backend) on branch feat/FEAT-058-privacy-documents. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage build."
+Branch: feat/FEAT-058-privacy-documents · PR: none · Updated: 2026-10-27 by build (backend)
+Stage done: build (T1–T5 of 10)
+Next: build (UI, T6–T10) — kickoff: "Build FEAT-058 (UI) on branch feat/FEAT-058-privacy-documents. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage build."
 
 ## What the next stage needs
-- Everything lives in `@kaki/governance` (D1): `registry.ts`, `privacy.ts`, `notice-template.ts`, `documents.ts`; API in a new `apps/api/src/privacy.ts` wired at the end of `app.ts`.
-- Wordings are immutable `wording_versions` rows (insert-only grants); `privacy_settings` only points at the current ones, with an optimistic `version` like assistant settings (D3). Identical content saves nothing.
-- The visitor zone reads through a new SECURITY DEFINER `visitor_privacy()` (owner `kaki_tenant_state`, like `visitor_tenant_state()` in 0019), never table grants.
-- `privacyNoticeUrl` in `/widget/v1/config`: link URL, or `${PUBLIC_API_URL}/privacy/${key}` for the template. The hosted page is server-rendered HTML on the api with strict CSP; its CSS is `@kaki/design-tokens/tokens.css` read at start-up (new api dependency; check the token build runs before api tests).
-- PDFs with pdf-lib (D2), deterministic dates; registry text must stay WinAnsi (Helvetica). Ken chose pdf-lib (2026-10-27).
-- Don't seed a notice for the dev tenants: FEAT-033's E2E stubs the URL and the new E2E restores "no notice" in `afterEach`.
-- UI session: setup step `/setup/rules` becomes step 4; renumber test (5) and website (6); review's Continue → `/setup/rules`.
+- Routes (all `settings.manage`, Agent → 403): `GET /api/v1/settings/privacy`, `PUT …/privacy/notice` (`PrivacyNoticeBody`), `PUT …/privacy/purpose` (`PurposeStatementBody`), `GET …/privacy/documents/{data-flow,dpa}.pdf` (attachment). All return `PrivacySettingsResponse` (contracts, section "Dashboard API: privacy"). Public page `GET /privacy/:key` on the api.
+- One `version` covers both forms: after saving the notice, the purpose form must use the version from that response (a stale one is 409).
+- 409 body is `{ error: 'version_conflict' }` (same as other settings), not `conflict` as design §3 said.
+- `purpose.wording` null = default shown, not saved; `readiness` flags drive the "You need a privacy notice…" alert. `notice.publicUrl` (template mode) is the hosted page link to show/open.
+- `documents.updatedOn` is `YYYY-MM-DD`; format it for "Updated {d MMM yyyy}". `terms[].acceptedVersion` may be null.
+- Empty optional template fields are stored as null; the API trims.
+- E2E `afterEach`: `delete from privacy_settings` for the dev tenant (wording rows may stay; nothing points at them).
+- Governance exports for later features: `privacyReadiness`, `visitorPrivacy`, `privacyNoticeUrl`, registry lists.
 
 ## Left to CI or later
-- E2E `privacy.e2e.ts` and screen renders: Ken's local CI. The lockfile changes (pdf-lib), so Ken's local CI is due before merge.
+- E2E `privacy.e2e.ts` and screen renders: Ken's local CI. The lockfile changed (pdf-lib in governance; pdfjs-dist as governance devDependency), so Ken's local CI is due before merge.
+- `@kaki/governance` `anchors.int.test.ts` needs S3 (Testcontainers/LocalStack): not runnable in cloud sessions, unrelated to this feature.
 
 ## Pending for Ken
-- None blocking. (PDFs: Ken chose pdf-lib on 2026-10-27.)
-- Legal review of the notice template, consent question and DPA before pilot (added to pending-actions.md).
+- None blocking. Legal review of the notice template, consent question and DPA before pilot (already in pending-actions.md).
