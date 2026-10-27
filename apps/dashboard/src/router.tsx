@@ -17,7 +17,9 @@ import { FactsPage } from './pages/facts.tsx';
 import { HomePage } from './pages/home.tsx';
 import { InboxPage } from './pages/inbox.tsx';
 import { LegalPage } from './pages/legal.tsx';
+import { PrivacyPage } from './pages/privacy.tsx';
 import { SettingsPage } from './pages/settings.tsx';
+import { SetupRulesPage } from './pages/setup-rules.tsx';
 import { SignInPage } from './pages/sign-in.tsx';
 import { NoPermission, NotFound, SessionExpired } from './pages/system.tsx';
 import { VerifyPage } from './pages/verify.tsx';
@@ -50,6 +52,8 @@ export const router = createBrowserRouter([
       { path: 'approvals', element: <Placeholder title="Approvals" feature="FEAT-055" /> },
       // Its review step (FEAT-013, SCR-APP-008 partial).
       { path: 'setup/review', element: <SetupReviewPage /> },
+      // Its "rules and privacy" step (FEAT-058, SCR-APP-009 partial); FEAT-054 adds rules.
+      { path: 'setup/rules', element: <SetupRulesPage /> },
       // Its "test your assistant" step (FEAT-027, SCR-APP-010 partial).
       { path: 'setup/test', element: <SetupTestPage /> },
       // Its "add to your website" step (FEAT-032, SCR-APP-011 partial).
@@ -79,6 +83,7 @@ export const router = createBrowserRouter([
       { path: 'settings', element: <SettingsPage /> },
       { path: 'settings/assistant', element: <AssistantPage /> },
       { path: 'settings/business-profile', element: <BusinessProfilePage /> },
+      { path: 'settings/privacy', element: <PrivacyPage /> },
       // Website widget (FEAT-032, SCR-APP-037).
       { path: 'settings/widget', element: <WidgetSettingsPage /> },
       { path: 'more', element: <MorePage /> },
