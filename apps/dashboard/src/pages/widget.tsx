@@ -142,7 +142,7 @@ export function SetupWebsitePage() {
 
   const head = (
     <>
-      <p className="page-lede">Step 5 of the setup</p>
+      <p className="page-lede">Step 6 of the setup</p>
       <h1 className="page-title">Add to your website</h1>
       <p className="page-lede">
         Your assistant's chat button, matched to your website. Change anything you like, then add

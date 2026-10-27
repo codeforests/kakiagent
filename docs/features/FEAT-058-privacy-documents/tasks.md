@@ -21,10 +21,12 @@
 
 - [x] T6 — Dashboard data layer: `lib/api.ts` calls, `lib/privacy.ts` helpers (design §5.3; AC-1, AC-9)
       Done when: dashboard unit tests (`--project unit`): `validateNotice` rejects empty link, http and malformed URLs and a template without contact name or email, naming the field per ui-design copy; `noticeDraftOf` and `purposeDraftOf` from each response variant; `samePurpose`; `formatSaved`.
-- [ ] T7 — Shared parts and the Privacy and data page: `pages/privacy-parts.tsx`, `pages/privacy.tsx`, route `/settings/privacy`, Settings index row linked (ui-design SCR-APP-047; AC-6, AC-9, AC-10)
+- [x] T7 — Shared parts and the Privacy and data page: `pages/privacy-parts.tsx`, `pages/privacy.tsx`, route `/settings/privacy`, Settings index row linked (ui-design SCR-APP-047; AC-6, AC-9, AC-10)
       Done when: `pnpm --filter @kaki/dashboard typecheck` and build pass; the page renders every state in ui-design against the dev API (checked in the session's Chromium via Playwright with the API stubbed where no stack exists; screenshots in notes); only `var(--…)` tokens.
-- [ ] T8 — Setup step: `pages/setup-rules.tsx` at `/setup/rules`; review's Continue → `/setup/rules`; Test and Website relabelled steps 5 and 6; update `e2e/tests/review.e2e.ts` only if it follows Continue (design §5.3; D8; AC-9)
+- [x] T8 — Setup step: `pages/setup-rules.tsx` at `/setup/rules`; review's Continue → `/setup/rules`; Test and Website relabelled steps 5 and 6; update `e2e/tests/review.e2e.ts` only if it follows Continue (design §5.3; D8; AC-9)
+      Notes (T7): rendered in the session's Chromium (Vite dev server, `/api/**` stubbed with Playwright): never saved (readiness alert, defaults, "Not saved yet" chips), validation (summary alert focused, http link copy), template draft, save (toast "Saved. Visitors now see this privacy notice.", "Version 1 · saved 27 Oct 2026", Preview link), 409 conflict alert with Reload, load error with Try again, 403 permission state, 390 px width (tables stack, no horizontal scroll). PDFs download through `fetch` so a failure shows the toast; the href stays a plain link.
       Done when: dashboard typecheck passes; the step renders with the two forms and Continue to `/setup/test`; `grep -rn "of the setup" apps/dashboard/src` shows 2–6 in flow order.
+      Notes (T8): rendered against the stub (both forms, "See where your data goes", Continue → `/setup/test`, caption shown until both are ready). `review.e2e.ts` only checks Continue is visible, so it is unchanged.
 - [ ] T9 — E2E `e2e/tests/privacy.e2e.ts` (design §5.4; AC-1, AC-2, AC-7, AC-9, AC-10)
       Done when: the spec typechecks and lints; restore in `afterEach`. Note: runs only in Ken's local CI (no stack in cloud sessions); record "pending CI".
 - [ ] T10 — Verify: full `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `test:coverage` for governance, api, dashboard, contracts, db; code-map updated if anything moved; status `developer-done`

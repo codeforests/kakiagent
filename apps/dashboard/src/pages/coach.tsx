@@ -153,7 +153,7 @@ export function SetupTestPage() {
   if (forbidden) return <CoachForbidden />;
   return (
     <div className="coach-page coach-setup">
-      <p className="page-lede">Step 4 of the setup</p>
+      <p className="page-lede">Step 5 of the setup</p>
       <h1 className="page-title">Test your assistant</h1>
       <p className="page-lede">
         Ask the questions your customers ask. If an answer is wrong, tell your assistant what's
