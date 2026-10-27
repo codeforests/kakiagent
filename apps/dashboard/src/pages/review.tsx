@@ -652,7 +652,7 @@ export function SetupReviewPage() {
       <CoverageSummary />
       <div className="review-setup__footer">
         <Button asChild>
-          <Link to="/setup/test">Continue</Link>
+          <Link to="/setup/rules">Continue</Link>
         </Button>
         <p className="review-setup__caption">Facts you haven't approved stay out of answers.</p>
       </div>

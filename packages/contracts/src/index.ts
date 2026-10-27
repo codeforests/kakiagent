@@ -105,7 +105,7 @@ export const WidgetConfigResponse = z.object({
   greeting: z.object({ en: z.string(), zh: z.string() }),
   /** The widget's look: position, overrides, stored detection, logo (FEAT-032). */
   theme: WidgetTheme,
-  /** The tenant's privacy notice (GOV-14). Null until FEAT-058 stores one: the widget then shows no link. */
+  /** The tenant's privacy notice (GOV-14; FEAT-058): its own https link, the hosted template page, or null (no link). */
   privacyNoticeUrl: z.url().nullable(),
   /** Visitor controls the tenant can offer (CHN-13). `talkToPerson` stays false until FEAT-044. */
   controls: z.object({ talkToPerson: z.boolean() }),
@@ -1738,3 +1738,110 @@ export const ThemeDetectJob = z.object({
   requestedAt: z.iso.datetime({ offset: true }),
 });
 export type ThemeDetectJob = z.infer<typeof ThemeDetectJob>;
+
+// ---- Dashboard API: privacy (GOV-14, GOV-07, GOV-11, LED-02; FEAT-058 §3)
+
+export const LocalTextIn = z.object({
+  en: z.string().trim().min(1).max(600),
+  zh: z.string().trim().max(600).nullable(),
+});
+
+export const NoticeTemplateFields = z.object({
+  /** The data protection officer or contact person. */
+  contactName: z.string().trim().min(1).max(120),
+  contactEmail: z.email().max(254),
+  contactPhone: z.string().trim().max(40).nullable(),
+  address: z.string().trim().max(300).nullable(),
+  /** "Anything else to tell visitors": plain paragraphs, no markup. */
+  extra: z.string().trim().max(2000).nullable(),
+});
+export type NoticeTemplateFields = z.infer<typeof NoticeTemplateFields>;
+
+export const PrivacyNoticeBody = z.discriminatedUnion('mode', [
+  z.object({
+    version: z.number().int().min(0),
+    mode: z.literal('link'),
+    url: z.url({ protocol: /^https$/ }).max(2048),
+  }),
+  z.object({
+    version: z.number().int().min(0),
+    mode: z.literal('template'),
+    fields: NoticeTemplateFields,
+  }),
+]);
+export type PrivacyNoticeBody = z.infer<typeof PrivacyNoticeBody>;
+
+export const PurposeStatementBody = z.object({
+  version: z.number().int().min(0),
+  purpose: LocalTextIn,
+});
+export type PurposeStatementBody = z.infer<typeof PurposeStatementBody>;
+
+const WordingRef = z.object({ seq: z.number().int().min(1), savedAt: z.iso.datetime() });
+
+export const PrivacyDocuments = z.object({
+  /** The registry date, YYYY-MM-DD. */
+  updatedOn: z.string(),
+  dpaVersion: z.string(),
+  subProcessors: z.array(
+    z.object({
+      name: z.string(),
+      service: z.string(),
+      purpose: z.string(),
+      location: z.string(),
+      dataAtRest: z.boolean(),
+    }),
+  ),
+  transfers: z.array(
+    z.object({
+      data: z.string(),
+      from: z.string(),
+      to: z.string(),
+      purpose: z.string(),
+      safeguard: z.string(),
+      retention: z.string(),
+    }),
+  ),
+});
+export type PrivacyDocuments = z.infer<typeof PrivacyDocuments>;
+
+export const PrivacySettingsResponse = z.object({
+  /** privacy_settings.version; 0 = never saved. */
+  version: z.number().int().min(0),
+  notice: z.discriminatedUnion('mode', [
+    z.object({ mode: z.literal('none') }),
+    z.object({ mode: z.literal('link'), url: z.url(), wording: WordingRef }),
+    z.object({
+      mode: z.literal('template'),
+      fields: NoticeTemplateFields,
+      templateVersion: z.string(),
+      publicUrl: z.url(),
+      wording: WordingRef,
+    }),
+  ]),
+  /** `wording` null = the default, not yet saved (D6). */
+  purpose: z.object({
+    text: z.object({ en: z.string(), zh: z.string().nullable() }),
+    wording: WordingRef.nullable(),
+  }),
+  defaults: z.object({
+    purpose: z.object({ en: z.string(), zh: z.string() }),
+    template: z.object({
+      organisationName: z.string(),
+      uen: z.string().nullable(),
+      contactEmail: z.string().nullable(),
+    }),
+  }),
+  readiness: z.object({ privacyNotice: z.boolean(), purposeStatement: z.boolean() }),
+  documents: PrivacyDocuments,
+  terms: z.array(
+    z.object({
+      document: z.enum(['tos', 'aup', 'dpa']),
+      title: z.string(),
+      currentVersion: z.string(),
+      acceptedVersion: z.string().nullable(),
+      acceptedAt: z.iso.datetime().nullable(),
+    }),
+  ),
+});
+export type PrivacySettingsResponse = z.infer<typeof PrivacySettingsResponse>;

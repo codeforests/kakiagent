@@ -1253,6 +1253,88 @@
       },
       "status": "designed",
       "designed_at": "2026-10-26"
+    },
+    "SCR-APP-047": {
+      "name": "Privacy and data",
+      "surface": "APP",
+      "feature": "FEAT-058",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-058-privacy-documents/ui-design.md#scr-app-047--privacy-and-data"
+      },
+      "states": {
+        "covered": [
+          "loading",
+          "error",
+          "never saved",
+          "saved",
+          "saving",
+          "validation errors",
+          "conflict",
+          "save failed",
+          "download failed",
+          "re-acceptance needed (read-only)",
+          "permission"
+        ],
+        "gaps": [
+          "Retention periods (FEAT-059)",
+          "Terms re-acceptance flow (FEAT-073)"
+        ],
+        "supplements": []
+      },
+      "contract_bindings": [
+        "GET /api/v1/settings/privacy",
+        "PUT /api/v1/settings/privacy/notice",
+        "PUT /api/v1/settings/privacy/purpose",
+        "GET /api/v1/settings/privacy/documents/data-flow.pdf",
+        "GET /api/v1/settings/privacy/documents/dpa.pdf"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-10-27"
+    },
+    "SCR-APP-009": {
+      "name": "Wizard · Rules and privacy",
+      "surface": "APP",
+      "feature": "FEAT-058",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-058-privacy-documents/ui-design.md#scr-app-009--wizard--rules-and-privacy"
+      },
+      "states": {
+        "covered": [
+          "loading",
+          "error",
+          "never saved",
+          "saved",
+          "saving",
+          "validation errors",
+          "conflict",
+          "permission"
+        ],
+        "gaps": [
+          "Boundary rules (FEAT-054)",
+          "Persona and disclosure on the step (FEAT-035; editable now in Settings → Assistant)",
+          "Wizard frame and skip (FEAT-035)"
+        ],
+        "supplements": []
+      },
+      "contract_bindings": [
+        "GET /api/v1/settings/privacy",
+        "PUT /api/v1/settings/privacy/notice",
+        "PUT /api/v1/settings/privacy/purpose"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-10-27"
     }
   }
 }

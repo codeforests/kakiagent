@@ -2221,3 +2221,126 @@ describe('widget_settings (FEAT-032 §4)', () => {
     ).rejects.toThrow(/tenants_allowed_origins_ck/);
   });
 });
+
+describe('privacy wordings and settings (FEAT-058)', () => {
+  const NOTICE = JSON.stringify({ mode: 'link', url: 'https://kakibakery.test/privacy' });
+
+  async function seedWording(tenantId: string) {
+    const r = await owner.query(
+      `insert into wording_versions (tenant_id, kind, seq, content) values ($1, 'privacy_notice', 1, $2) returning id`,
+      [tenantId, NOTICE],
+    );
+    return r.rows[0].id as string;
+  }
+
+  async function cleanUp() {
+    await owner.query(`delete from privacy_settings`);
+    await owner.query(`delete from wording_versions`);
+  }
+
+  it("tenant B can't read, write or point at tenant A's wordings and settings", async () => {
+    const wordingA = await seedWording(TENANT_A);
+    await owner.query(
+      `insert into privacy_settings (tenant_id, notice_wording_id) values ($1, $2)`,
+      [TENANT_A, wordingA],
+    );
+    try {
+      await asRole('app_dashboard', TENANT_B, async (c) => {
+        expect((await c.query(`select * from wording_versions`)).rows).toEqual([]);
+        expect((await c.query(`select * from privacy_settings`)).rows).toEqual([]);
+        const upd = await c.query(`update privacy_settings set version = 9`);
+        expect(upd.rowCount).toBe(0);
+        await c.query('savepoint s');
+        await expect(
+          c.query(
+            `insert into wording_versions (tenant_id, kind, seq, content) values ($1, 'privacy_notice', 2, '{}')`,
+            [TENANT_A],
+          ),
+        ).rejects.toThrow(/row-level security/);
+        await c.query('rollback to savepoint s');
+        // The composite FK keeps a pointer inside the tenant.
+        await expect(
+          c.query(`insert into privacy_settings (tenant_id, notice_wording_id) values ($1, $2)`, [
+            TENANT_B,
+            wordingA,
+          ]),
+        ).rejects.toThrow(/privacy_settings_notice_fk/);
+      });
+    } finally {
+      await cleanUp();
+    }
+  });
+
+  it('the dashboard inserts wordings but can never change or delete them', async () => {
+    try {
+      await asRole('app_dashboard', TENANT_A, async (c) => {
+        const r = await c.query(
+          `insert into wording_versions (tenant_id, kind, seq, content) values ($1, 'purpose_statement', 1, '{"purpose":{}}') returning id`,
+          [TENANT_A],
+        );
+        await c.query(
+          `insert into privacy_settings (tenant_id, purpose_wording_id) values ($1, $2)`,
+          [TENANT_A, r.rows[0].id],
+        );
+        await c.query(`update privacy_settings set version = 2, updated_at = now()`);
+        await c.query('savepoint s');
+        await expect(c.query(`update wording_versions set seq = 2`)).rejects.toThrow(
+          /permission denied/,
+        );
+        await c.query('rollback to savepoint s');
+        await expect(c.query(`delete from wording_versions`)).rejects.toThrow(/permission denied/);
+      });
+    } finally {
+      await cleanUp();
+    }
+  });
+
+  it('the checks reject unknown kinds, seq 0 and duplicate seqs', async () => {
+    try {
+      await expect(
+        owner.query(
+          `insert into wording_versions (tenant_id, kind, seq, content) values ($1, 'terms', 1, '{}')`,
+          [TENANT_A],
+        ),
+      ).rejects.toThrow(/wording_versions_kind_ck/);
+      await expect(
+        owner.query(
+          `insert into wording_versions (tenant_id, kind, seq, content) values ($1, 'privacy_notice', 0, '{}')`,
+          [TENANT_A],
+        ),
+      ).rejects.toThrow(/wording_versions_seq_ck/);
+      await seedWording(TENANT_A);
+      await expect(seedWording(TENANT_A)).rejects.toThrow(/wording_versions_kind_seq_uq/);
+    } finally {
+      await cleanUp();
+    }
+  });
+
+  it("visitor_privacy returns the current tenant's wordings only, and nothing without context", async () => {
+    const wordingA = await seedWording(TENANT_A);
+    await owner.query(
+      `insert into privacy_settings (tenant_id, notice_wording_id) values ($1, $2)`,
+      [TENANT_A, wordingA],
+    );
+    try {
+      const q = `select notice, notice_wording_id, purpose, business_name from visitor_privacy()`;
+      const a = await asRole('app_agent_visitor', TENANT_A, async (c) => (await c.query(q)).rows);
+      expect(a).toHaveLength(1);
+      expect(a[0]).toMatchObject({
+        notice: JSON.parse(NOTICE),
+        notice_wording_id: wordingA,
+        purpose: null,
+      });
+      const b = await asRole('app_agent_visitor', TENANT_B, async (c) => (await c.query(q)).rows);
+      expect(b).toHaveLength(1);
+      expect(b[0]).toMatchObject({ notice: null, notice_wording_id: null });
+      const none = await asRole('app_agent_visitor', null, async (c) => (await c.query(q)).rows);
+      expect(none).toEqual([]);
+      await expect(
+        asRole('app_agent_visitor', TENANT_A, (c) => c.query(`select * from wording_versions`)),
+      ).rejects.toThrow(/permission denied/);
+    } finally {
+      await cleanUp();
+    }
+  });
+});

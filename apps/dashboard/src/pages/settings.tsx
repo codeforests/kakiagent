@@ -45,7 +45,11 @@ const GROUPS: { title: string; rows: Row[] }[] = [
   {
     title: 'Privacy and data',
     rows: [
-      { name: 'Privacy and data', purpose: 'Privacy notice, retention and terms' },
+      {
+        name: 'Privacy and data',
+        purpose: 'Privacy notice, retention and terms',
+        to: '/settings/privacy',
+      },
       { name: 'Audit log', purpose: 'Every decision and change, verifiable' },
     ],
   },

@@ -26,6 +26,9 @@ import {
   AssistantSettingsResponse,
   AuthOptions,
   BusinessProfileResponse,
+  PrivacySettingsResponse,
+  type PrivacyNoticeBody,
+  type PurposeStatementBody,
   ConversationList,
   CreateWorkspaceResponse,
   MagicLinkResponse,
@@ -182,6 +185,13 @@ export const api = {
   businessProfile: () => getJson('/api/v1/settings/business-profile', BusinessProfileResponse),
   saveBusinessProfile: (body: BusinessProfileBody) =>
     request('PUT', '/api/v1/settings/business-profile', BusinessProfileResponse, body),
+  privacySettings: () => getJson('/api/v1/settings/privacy', PrivacySettingsResponse),
+  savePrivacyNotice: (body: PrivacyNoticeBody) =>
+    request('PUT', '/api/v1/settings/privacy/notice', PrivacySettingsResponse, body),
+  savePurposeStatement: (body: PurposeStatementBody) =>
+    request('PUT', '/api/v1/settings/privacy/purpose', PrivacySettingsResponse, body),
+  /** A plain link: the browser downloads it with the session cookie. */
+  documentUrl: (doc: 'data-flow' | 'dpa') => `/api/v1/settings/privacy/documents/${doc}.pdf`,
   /** FEAT-012 §3: SCR-APP-023, SCR-APP-024 and the website form. */
   sources: () => getJson('/api/v1/kb/sources', SourceList),
   source: (id: string) => getJson(`/api/v1/kb/sources/${encodeURIComponent(id)}`, SourceDetail),

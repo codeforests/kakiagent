@@ -22,6 +22,8 @@
     "@kaki/channels": "workspace:*",
     "@kaki/contracts": "workspace:*",
     "@kaki/db": "workspace:*",
+    "@kaki/design-tokens": "workspace:*",
+    "@kaki/governance": "workspace:*",
     "@kaki/identity": "workspace:*",
     "@kaki/inbox": "workspace:*",
     "@kaki/kb": "workspace:*",
