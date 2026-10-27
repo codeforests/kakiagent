@@ -19,7 +19,7 @@
 
 ## Build session 2 (UI)
 
-- [ ] T6 — Dashboard data layer: `lib/api.ts` calls, `lib/privacy.ts` helpers (design §5.3; AC-1, AC-9)
+- [x] T6 — Dashboard data layer: `lib/api.ts` calls, `lib/privacy.ts` helpers (design §5.3; AC-1, AC-9)
       Done when: dashboard unit tests (`--project unit`): `validateNotice` rejects empty link, http and malformed URLs and a template without contact name or email, naming the field per ui-design copy; `noticeDraftOf` and `purposeDraftOf` from each response variant; `samePurpose`; `formatSaved`.
 - [ ] T7 — Shared parts and the Privacy and data page: `pages/privacy-parts.tsx`, `pages/privacy.tsx`, route `/settings/privacy`, Settings index row linked (ui-design SCR-APP-047; AC-6, AC-9, AC-10)
       Done when: `pnpm --filter @kaki/dashboard typecheck` and build pass; the page renders every state in ui-design against the dev API (checked in the session's Chromium via Playwright with the API stubbed where no stack exists; screenshots in notes); only `var(--…)` tokens.
