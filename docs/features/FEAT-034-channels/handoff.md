@@ -1,25 +1,19 @@
 # Handoff: FEAT-034 — Channel framework: adapter contract, go-live and go-offline per channel, health and degraded alerts
-Branch: feat/FEAT-034-channels · PR: none · Updated: 2026-10-27 by build (backend)
-Stage done: build (T1–T6 of 11)
-Next: build (UI, T7–T11) — kickoff: "Build FEAT-034 (UI) on branch feat/FEAT-034-channels. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage build."
+Branch: feat/FEAT-034-channels · PR: (draft, see below) · Updated: 2026-10-27 by build (UI)
+Stage done: build (T1–T11 of 11), status developer-done
+Next: verify — kickoff: "Verify FEAT-034 on branch feat/FEAT-034-channels. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
 
 ## What the next stage needs
-- Routes (`apps/api/src/channels.ts`, `settings.manage`): `GET /api/v1/channels` → `ChannelsResponse`; `POST /api/v1/channels/:id/live|offline` `{ version }` → `ChannelItem` (repeat = 200, unchanged); `PUT /api/v1/channels/:id/offline-settings` `ChannelOfflineBody` → `ChannelItem`; `POST /api/v1/channels/:id/check` (widget: 400 `no_health_check`; 429 `too_soon`).
-- Errors: 404 `not_found`, 409 `version_conflict`, 400 `invalid_body` with `fields` (`{ mode: 'not_allowed' }`, `{ 'message.en': 'max_300' }`, `{ 'message.zh': … }`), 403 `forbidden`.
-- Contracts in `@kaki/contracts` (section "Dashboard API: channels"): `ChannelItem`, `ChannelsResponse`, `ChannelStateBody`, `ChannelOfflineBody`, `OfflineText`, `ChannelOfflineMode`, `ChannelHealthReason`, `CHANNEL_OFFLINE_TEXT_MAX` (300). The defaults come in each item's `offline.defaults`.
-- Widget: `WidgetConfigResponse.availability` is required: `{ live: true }` or `{ live: false, mode, message: { en, zh } (resolved), contact: { email, phone } }`. `apps/widget/src/preview.ts` passes `{ live: true }` already; `chat.test.ts` fixtures may need it when T9 touches them. `POST /widget/v1/conversations` returns 409 `{ error: 'not_live' }` while offline.
-- Seeded dev tenants are live; the bakery has email and phone, the second tenant no contacts (good for the "no contacts" state).
-- The agent's offline notice is a `system` message with outcome `not_live`; the dashboard's coaching explainer already renders `not_live` (`lib/coach.ts`).
-- No channel can be degraded in dev (only the widget is registered, `checksHealth: false`). To see the degraded banner and state, stub the API in Playwright, or set a row by hand: `insert into channel_connections (tenant_id, kind, offline_mode, health, health_reason, degraded_since) values (…, 'telegram', 'message', 'degraded', 'credential_revoked', now())`; it lists only if the kind is registered, so stubbing is simpler.
-
-## Deviations from the design
-- Contracts landed in T3 (the domain returns `ChannelItem`). `runChannelHealth` takes no sealer (adapters get the sealed `CredentialRef` and own their sealer). `checkChannelNow` takes a `credentialOf` dep since the dashboard zone can't read credentials; FEAT-036/037 supply it (e.g. a definer function).
-- The outbox zone gained `INSERT` on `audit_entries` and `EXECUTE audit_head_lock()` (it audits `channel.degraded`/`recovered`); it still can't read entries.
-- `@kaki/agent` and `@kaki/scheduler-worker` now depend on `@kaki/channels` (lockfile links).
+- Dashboard: `pages/channels.tsx` (SCR-APP-036) with parts in `pages/channels-parts.tsx`; data in `lib/channels.ts` (`useChannels` refetches every 60 s and on focus); banner slot `shell/banners.tsx`, rendered at the top of `<main>` in `app-shell.tsx`, Owners/Admins only, hidden on `/settings/channels`.
+- Shared changes: `ConfirmDialog` gained `busyLabel`; `ErrorSummary` is now exported from `pages/privacy-parts.tsx`.
+- Widget: `availability.ts` `mounts()` (loader), `chat.ts` `notLiveView()`, `NotLiveCard` in `panel.tsx`, strings `notLiveEmail`/`notLivePhone`/`notLiveRegion`. The not-live region is named after the assistant (`botName`), since the config has no business name (ui-design says "{business}").
+- Contract fixtures in `packages/contracts/src/widget.test.ts` gained `availability: { live: true }`.
+- How each state was checked is in the T8–T10 notes of `tasks.md` (stubbed API in the session's Chromium, axe clean).
 
 ## Left to CI or later
-- E2E `channels.e2e.ts` and the widget size budget run in Ken's local CI: widget files and the lockfile change, so CI is due before merge.
-- Not run here: `uploads.int.test.ts` "the S3 presigner" (needs an S3 endpoint), and `agent` `language-hours` "carries the notice once per closed period" fails on the design commit too (clock-dependent regex: "tomorrow at midnight"); verify should look at it.
+- Ken's local CI is due before merge: widget files, the lockfile (backend session) and a new E2E spec (`e2e/tests/channels.e2e.ts`, two tests; its `afterEach` resets the dev widget to live and hidden).
+- Not run here: api `uploads.int.test.ts` "the S3 presigner" (no S3 endpoint). agent `language-hours` "carries the notice once per closed period" is clock-dependent and failed on the design commit too (backend notes); it passed in this session's coverage run.
+- Running agent and api integration suites in parallel on one Postgres can collide on `CREATE ROLE kaki_widget_resolver`; run them one at a time.
 
 ## Pending for Ken
-- Nothing blocking.
+- Nothing blocking. Local CI run for the PR (above).

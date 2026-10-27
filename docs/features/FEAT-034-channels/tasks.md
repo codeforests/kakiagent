@@ -1,7 +1,7 @@
 # Tasks: FEAT-034 — Channel framework: adapter contract, go-live and go-offline per channel, health and degraded alerts
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: designed · Last updated: 2026-10-27
+> Status: developer-done · Last updated: 2026-10-27
 
 - [x] T1 — Schema: `channel_connections`, trigger, backfill, `visitor_channel()`, `channel_health_due()` in `0034_channels.sql` + Drizzle table, `TENANT_SCOPED_TABLES`, RLS case, seed sets dev widgets live (design §4; D1, D3; AC-4, AC-8)
       Done when: `pnpm db:setup` applies 0034 on a database at 0033 and `drizzle-kit generate` reports no drift; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes with: tenant B reads and updates nothing of A's; `app_dashboard` `select credential_ciphertext` is permission denied; a new tenant insert creates one widget row (`offline`, `hidden`, health `ok`); the seeded tenants' widget rows are `live`; `visitor_channel('widget')` as the visitor role returns only the current tenant's row (with the profile contacts) and nothing without a tenant context; `channel_health_due` is not executable by `app_dashboard`.
@@ -33,5 +33,19 @@
 - [x] T10 — E2E: `e2e/tests/channels.e2e.ts` per design §5.6 with `afterEach` restore; axe light and dark (AC-3, AC-4, AC-9, AC-10)
       Done when: the spec typechecks and its tricky steps (confirm dialogs, widget host page with a stubbed config for hidden and message) run in the session's Chromium; Note: the full spec runs in Ken's local CI.
       Note: `e2e/tests/channels.e2e.ts`, two tests: offline → hidden host page → message saved → panel with the text, mailto link and no composer → live → composer back (axe on the page, the dialog and the widget panel, light and dark); a stubbed degraded Telegram item → banner on Inbox, Fix in Channels, card alert with Check again, banner gone on Channels, dismissal kept across client navigation. `afterEach` resets the dev widget to live and hidden through the owner connection. The spec typechecks; its tricky steps (both dialogs with busy text and focus return, the host page with stubbed hidden/message/live configs) ran in the session's Chromium (T8, T9 notes). The full spec runs in Ken's local CI.
-- [ ] T11 — Verify: full `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `test:coverage` for channels, agent, api, dashboard, widget through `scripts/test-env.sh`; status `developer-done`; draft PR
+- [x] T11 — Verify: full `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `test:coverage` for channels, agent, api, dashboard, widget through `scripts/test-env.sh`; status `developer-done`; draft PR
       Done when: all pass, and a "Verification evidence" section below lists one bullet per AC.
+      Note: through `scripts/test-env.sh`: `pnpm format:check`, `pnpm lint` (ESLint and dependency-cruiser), `pnpm typecheck` and `pnpm test` (24 of 24 tasks) pass; two FEAT-032/033 contract fixtures gained `availability: { live: true }` (the field became required in T5). Coverage: channels 92.41% lines (48 tests), agent 95.81% (403), api 255 passed; its two red files are the S3 presigner (no S3 endpoint here) and `spreadsheets.int.test.ts`, which failed only when run in parallel with agent's suite on the same Postgres (`kaki_widget_resolver` role already exists) and passes alone (20/20). Dashboard (93 unit tests) and widget (30) have no coverage threshold. Widget build and `pnpm size` pass.
+
+## Verification evidence
+
+- AC-1: channels unit and integration tests (fake adapter through `adapterContractSuite`, `listChannels`, `runChannelHealth`), T2–T3.
+- AC-2: `apps/api/test/channels.int.test.ts` (live/offline round trip with audit, 409, 404 cross-tenant, Agent 403), T5; UI confirms first, T8.
+- AC-3: agent integration tests (no model call, one `not_live` system message, paused wins, mid-reply), T4; 409 `not_live` on conversations, T5; E2E round trip, T10.
+- AC-4: widget config `availability` tests, T5; `mounts()` and `notLiveView()` unit tests and the Chromium check (hidden mounts nothing, message shows text and contact links, no composer), T9; E2E, T10.
+- AC-5: offline settings domain and API tests, T3, T5; `validateOffline` unit tests and the 301-character state, T7, T8.
+- AC-6: `recordHealth`/`runChannelHealth`/`reportSendFailure` integration tests and `channelHealthOnce` unit tests, T3, T6.
+- AC-7: degraded card alert with Check again (429 caption) and the banner for Owners/Admins only, Chromium check T8; E2E with a stubbed degraded channel, T10. Email and Telegram alerts: FEAT-052, FEAT-037.
+- AC-8: RLS, grants, `visitor_channel`, `channel_health_due` and sealer tests, T1–T2; no `credential` in responses, T5.
+- AC-9: every SCR-APP-036 state and the widget not-live view rendered in Chromium (T8, T9 notes); never optimistic (chip changes only after the answer). Screen renders in Ken's local CI.
+- AC-10: axe (WCAG 2.2 AA tags) clean on every checked state, the dialogs and the widget panel (light and dark); dialogs return focus to the card's action; chips pair icon and text. E2E axe runs in Ken's local CI.
