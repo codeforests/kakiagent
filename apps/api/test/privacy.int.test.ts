@@ -119,6 +119,11 @@ describe('privacy settings (FEAT-058)', () => {
     expect(page.body).toContain('Mei &lt;b&gt;Lin&lt;/b&gt;, dpo@kakibakery.test');
     expect(page.body).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
     expect(page.body).not.toContain('<script>');
+    // AC-2: the business name and the purpose statement (the default until one is saved).
+    const { name } = (await owner.query(`select name from tenants where id = $1`, [TENANT_A]))
+      .rows[0];
+    expect(page.body).toContain(name);
+    expect(page.body).toContain('to reply to your enquiry and follow up about it');
     expect(page.body).toContain('Sydney / Melbourne');
     expect(page.body).toMatch(/Last updated \d{1,2} [A-Z][a-z]{2} \d{4}/);
     expect(page.body).toContain('--space-4'); // the token stylesheet
