@@ -36,6 +36,29 @@ export {
   type OfflineMode,
 } from './registry.js';
 export { localSealer, SealError, type SecretSealer } from './secrets.js';
+export {
+  ChannelConflictError,
+  ChannelNotFoundError,
+  CHECK_AGAIN_MS,
+  checkChannelNow,
+  listChannels,
+  NoHealthCheckError,
+  OFFLINE_DEFAULTS,
+  OfflineModeError,
+  OfflineTextError,
+  recordHealth,
+  reportSendFailure,
+  runChannelHealth,
+  saveOfflineSettings,
+  setChannelState,
+  TooSoonError,
+  UNREACHABLE_LIMIT,
+  visitorChannel,
+  type ChannelChange,
+  type HealthRunResult,
+  type HealthTransition,
+  type VisitorChannel,
+} from './connections.js';
 
 /**
  * CHN-11: the widget works only on allowed origins. Exact match on scheme, host and

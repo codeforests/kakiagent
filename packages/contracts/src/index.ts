@@ -109,6 +109,19 @@ export const WidgetConfigResponse = z.object({
   privacyNoticeUrl: z.url().nullable(),
   /** Visitor controls the tenant can offer (CHN-13). `talkToPerson` stays false until FEAT-044. */
   controls: z.object({ talkToPerson: z.boolean() }),
+  /**
+   * Whether the widget channel is live (ONB-10; FEAT-034). Offline: `hidden` → the loader
+   * doesn't mount; `message` → the panel shows the resolved text and the business contacts.
+   */
+  availability: z.discriminatedUnion('live', [
+    z.object({ live: z.literal(true) }),
+    z.object({
+      live: z.literal(false),
+      mode: z.enum(['hidden', 'message']),
+      message: z.object({ en: z.string(), zh: z.string() }),
+      contact: z.object({ email: z.string().nullable(), phone: z.string().nullable() }),
+    }),
+  ]),
 });
 export type WidgetConfigResponse = z.infer<typeof WidgetConfigResponse>;
 
@@ -1845,3 +1858,70 @@ export const PrivacySettingsResponse = z.object({
   ),
 });
 export type PrivacySettingsResponse = z.infer<typeof PrivacySettingsResponse>;
+
+// ---- Dashboard API: channels (ONB-10, CHN-12; FEAT-034 §3) ------------------------
+
+export const ChannelKind = z.enum([
+  'widget',
+  'email',
+  'telegram',
+  'messenger',
+  'instagram',
+  'whatsapp',
+]);
+export type ChannelKind = z.infer<typeof ChannelKind>;
+export const ChannelHealthReason = z.enum([
+  'credential_revoked',
+  'credential_invalid',
+  'unreachable',
+  'send_rejected',
+]);
+export type ChannelHealthReason = z.infer<typeof ChannelHealthReason>;
+export const ChannelOfflineMode = z.enum(['hidden', 'message']);
+export type ChannelOfflineMode = z.infer<typeof ChannelOfflineMode>;
+export const CHANNEL_OFFLINE_TEXT_MAX = 300;
+const offlineText = z.string().trim().min(1).max(CHANNEL_OFFLINE_TEXT_MAX).nullable();
+export const OfflineText = z.object({ en: offlineText, zh: offlineText });
+export type OfflineText = z.infer<typeof OfflineText>;
+
+export const ChannelItem = z.object({
+  id: z.uuid(),
+  kind: ChannelKind,
+  /** From the registry ("Website chat widget"). */
+  name: z.string(),
+  state: z.enum(['live', 'offline']),
+  /** Null: never changed (never live). */
+  stateChangedAt: z.iso.datetime().nullable(),
+  health: z.enum(['ok', 'degraded', 'unknown']),
+  healthReason: ChannelHealthReason.nullable(),
+  healthCheckedAt: z.iso.datetime().nullable(),
+  degradedSince: z.iso.datetime().nullable(),
+  /** Registry: false for the widget. */
+  checksHealth: z.boolean(),
+  /** Widget: both; others: `['message']`. */
+  offlineModes: z.array(ChannelOfflineMode).min(1),
+  offline: z.object({
+    mode: ChannelOfflineMode,
+    message: OfflineText,
+    defaults: z.object({ en: z.string(), zh: z.string() }),
+  }),
+  version: z.number().int().positive(),
+});
+export type ChannelItem = z.infer<typeof ChannelItem>;
+
+export const ChannelsResponse = z.object({
+  channels: z.array(ChannelItem),
+  /** Empty until FEAT-036 registers a channel with a connect flow. */
+  connectable: z.array(z.object({ kind: ChannelKind, name: z.string(), connectPath: z.string() })),
+});
+export type ChannelsResponse = z.infer<typeof ChannelsResponse>;
+
+export const ChannelStateBody = z.object({ version: z.number().int().positive() });
+export type ChannelStateBody = z.infer<typeof ChannelStateBody>;
+
+export const ChannelOfflineBody = z.object({
+  mode: ChannelOfflineMode,
+  message: OfflineText,
+  version: z.number().int().positive(),
+});
+export type ChannelOfflineBody = z.infer<typeof ChannelOfflineBody>;
