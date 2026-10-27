@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { DOCUMENTS_UPDATED_ON, SINGAPORE, SUB_PROCESSORS, TRANSFERS } from './registry.js';
 
 /** Characters the PDFs' standard fonts can draw (WinAnsi, printable). */
-const WIN_ANSI = /^[\x20-\x7e -ÿ–—‘’“”•…]*$/;
+const WIN_ANSI = /^[\x20-\x7e\u00a0-\u00ff\u2013\u2014\u2018\u2019\u201c\u201d\u2022\u2026]*$/;
 
 describe('data-intermediary registry (GOV-07, GOV-11)', () => {
   it('has a date and no empty fields', () => {

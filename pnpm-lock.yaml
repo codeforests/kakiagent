@@ -108,6 +108,12 @@ importers:
       '@kaki/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@kaki/design-tokens':
+        specifier: workspace:*
+        version: link:../../packages/design-tokens
+      '@kaki/governance':
+        specifier: workspace:*
+        version: link:../../packages/governance
       '@kaki/identity':
         specifier: workspace:*
         version: link:../../packages/identity

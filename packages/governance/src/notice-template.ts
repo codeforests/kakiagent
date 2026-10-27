@@ -136,7 +136,7 @@ export function renderNoticeHtml(doc: NoticeDocument, css: string): string {
 <main>
 <h1>${escapeHtml(doc.title)}</h1>
 ${body}
-<p class="updated">${escapeHtml(doc.lastUpdated)}</p>
+${doc.lastUpdated ? `<p class="updated">${escapeHtml(doc.lastUpdated)}</p>` : ''}
 </main>
 </body>
 </html>

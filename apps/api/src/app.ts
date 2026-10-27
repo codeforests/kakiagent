@@ -74,6 +74,7 @@ import {
 import { randomUUID } from 'node:crypto';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { ZodError } from 'zod';
+import { PrivacyConflictError, privacyNoticeUrl, visitorPrivacy } from '@kaki/governance';
 import {
   NoWorkspaceError,
   RateLimitedError,
@@ -88,6 +89,7 @@ import {
   ReplayRateLimitedError,
 } from './coach.js';
 import { FactNotFound, ForbiddenError, registerFactRoutes } from './facts.js';
+import { registerPrivacyRoutes } from './privacy.js';
 import { createServer, type Deps } from './server.js';
 import { registerUploadRoutes } from './uploads.js';
 import { registerConflictRoutes, toConflict } from './conflicts.js';
@@ -278,7 +280,7 @@ export async function buildApp(deps: Deps) {
           ? 'This source was changed by someone else'
           : 'This fact was changed by someone else',
       });
-    if (err instanceof SettingsConflictError)
+    if (err instanceof SettingsConflictError || err instanceof PrivacyConflictError)
       return reply.code(409).send({
         error: 'version_conflict',
         message: 'These settings were changed by someone else',
@@ -389,14 +391,24 @@ export async function buildApp(deps: Deps) {
       config.VISITOR_TOKEN_SECRET,
     );
     // FEAT-024: the tenant's name and greeting, through the visitor zone's function only.
-    const { persona, theme } = await withTenant(visitorDb, install.tenantId, async (tx) => {
-      // The first load on an allowed origin is the install (ADR-016 decision 6, D8).
-      await recordInstallSeen(tx, install.tenantId, new URL(origin).origin, install.allowedOrigins);
-      return {
-        persona: (await visitorTenantState(tx))?.persona,
-        theme: await visitorWidgetTheme(tx, install.tenantId, key, config.PUBLIC_API_URL),
-      };
-    });
+    const { persona, theme, privacy } = await withTenant(
+      visitorDb,
+      install.tenantId,
+      async (tx) => {
+        // The first load on an allowed origin is the install (ADR-016 decision 6, D8).
+        await recordInstallSeen(
+          tx,
+          install.tenantId,
+          new URL(origin).origin,
+          install.allowedOrigins,
+        );
+        return {
+          persona: (await visitorTenantState(tx))?.persona,
+          theme: await visitorWidgetTheme(tx, install.tenantId, key, config.PUBLIC_API_URL),
+          privacy: await visitorPrivacy(tx),
+        };
+      },
+    );
     reply.header('access-control-allow-origin', origin).header('vary', 'origin');
     return WidgetConfigResponse.parse({
       token,
@@ -409,8 +421,9 @@ export async function buildApp(deps: Deps) {
         zh: persona?.greeting.zh ?? DEFAULT_GREETING.zh,
       },
       theme,
-      // GOV-14's notice is stored by FEAT-058; talk to a person arrives with FEAT-044 (FEAT-033 D1, D2).
-      privacyNoticeUrl: null,
+      // GOV-14 (FEAT-058): the tenant's link or the hosted template page. Talk to a person
+      // arrives with FEAT-044 (FEAT-033 D2).
+      privacyNoticeUrl: privacyNoticeUrl(privacy?.notice ?? null, key, config.PUBLIC_API_URL),
       controls: { talkToPerson: false },
     });
   });
@@ -501,6 +514,7 @@ export async function buildApp(deps: Deps) {
   registerCorrectionRoutes(app, deps, sessionFrom);
   registerCoverageRoutes(app, deps, sessionFrom);
   registerWidgetRoutes(app, deps, sessionFrom);
+  registerPrivacyRoutes(app, deps, sessionFrom);
 
   return app;
 }
