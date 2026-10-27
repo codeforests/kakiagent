@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Audit chain, PII store, DSR, retention, kill switch, incidents (architecture \u00a75.2). Built: the audit hash chain, audit_pii, anchors and verification (FEAT-002); privacy notice, purpose wordings, sub-processor registry and documents (FEAT-058).",
+  "description": "Audit chain, PII store, DSR, retention, kill switch, incidents (architecture §5.2). Built: the audit hash chain, audit_pii, anchors and verification (FEAT-002); privacy notice, purpose wordings, sub-processor registry and documents (FEAT-058).",
   "exports": {
     ".": "./src/index.ts"
   },
@@ -19,6 +19,7 @@
     "@aws-sdk/client-s3": "3.1152.0",
     "@kaki/db": "workspace:*",
     "@kaki/platform": "workspace:*",
+    "pdf-lib": "1.17.1",
     "zod": "4.6.7"
   },
   "devDependencies": {
@@ -26,6 +27,7 @@
     "@types/node": "22.20.5",
     "@types/pg": "8.23.1",
     "@vitest/coverage-v8": "5.0.5",
+    "pdfjs-dist": "6.4.299",
     "pg": "8.23.1",
     "tsx": "4.23.15",
     "vitest": "5.0.5"

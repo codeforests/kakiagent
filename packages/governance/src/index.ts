@@ -66,3 +66,4 @@ export {
   type NoticeDocument,
   type NoticeSection,
 } from './notice-template.js';
+export { dataFlowPdf, dpaPdf } from './documents.js';
