@@ -1,5 +1,5 @@
 # Handoff: FEAT-034 — Channel framework: adapter contract, go-live and go-offline per channel, health and degraded alerts
-Branch: feat/FEAT-034-channels · PR: (draft, see below) · Updated: 2026-10-27 by build (UI)
+Branch: feat/FEAT-034-channels · PR: https://github.com/codeforests/kakiagent/pull/36 (draft) · Updated: 2026-10-27 by build (UI)
 Stage done: build (T1–T11 of 11), status developer-done
 Next: verify — kickoff: "Verify FEAT-034 on branch feat/FEAT-034-channels. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
 
