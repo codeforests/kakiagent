@@ -1,7 +1,7 @@
 # Tasks: FEAT-058 — Privacy notice and template, consent wording, data-processing documents
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: designed · Last updated: 2026-10-27
+> Status: developer-done · Last updated: 2026-10-27
 
 - [x] T1 — Schema: `wording_versions`, `privacy_settings`, `visitor_privacy()` in `0033_privacy.sql` + Drizzle tables, `TENANT_SCOPED_TABLES`, RLS cases (design §4; AC-3, AC-8)
       Done when: `pnpm db:setup` applies 0033 on a database at 0032 and `drizzle-kit generate` reports no drift; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes with the two new RLS cases (tenant B sees and inserts nothing of A's; the composite FK rejects a pointer to A's wording from B's settings); `app_dashboard` UPDATE and DELETE on `wording_versions` fail with permission denied; `visitor_privacy()` as `app_agent_visitor` returns only the current tenant's row and nothing without a tenant context.
@@ -30,9 +30,18 @@
 - [x] T9 — E2E `e2e/tests/privacy.e2e.ts` (design §5.4; AC-1, AC-2, AC-7, AC-9, AC-10)
       Done when: the spec typechecks and lints; restore in `afterEach`. Note: runs only in Ken's local CI (no stack in cloud sessions); record "pending CI".
       Notes (T9): five tests (template + hosted page + widget config, purpose zh + conflict, documents + PDFs, Agent permission, setup flow). Typechecks; pending CI. The widget link is read from `GET /widget/v1/config` with the dev key and widget-host Origin rather than the panel (FEAT-033 already covers panel → link). PDF download (blob link) and its failure toast checked in Chromium against a stub; Firefox and WebKit only in Ken's run.
-- [ ] T10 — Verify: full `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `test:coverage` for governance, api, dashboard, contracts, db; code-map updated if anything moved; status `developer-done`
+- [x] T10 — Verify: full `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `test:coverage` for governance, api, dashboard, contracts, db; code-map updated if anything moved; status `developer-done`
       Done when: all pass locally through `scripts/test-env.sh`; evidence below.
 
 ## Verification evidence
 
-- AC-1 … AC-10: to be filled by T10.
+T10 (2026-10-27, cloud session, through `scripts/test-env.sh`): `pnpm format:check` ✓, `pnpm lint` (ESLint + boundaries) ✓, `pnpm typecheck` ✓, `pnpm test` 24/24 tasks ✓. `test:coverage`: db 133/133 ✓, contracts ✓, dashboard ✓ (privacy.test.ts 14/14), governance 107 passed with `anchors.int.test.ts` unable to start (needs S3/Testcontainers), api 263 passed with `uploads.int.test.ts` S3 presigner unable to start (same cause); no coverage threshold failures. Both S3 suites are environmental and untouched by this feature.
+
+- AC-1: api `privacy.int.test.ts` (link save → config URL; http/javascript 400); dashboard `validateNotice` copy; E2E test 1 (link mode → config) pending CI.
+- AC-2: api `privacy.int.test.ts` (hosted page, escaping, CSP, noindex, 404s); governance `notice-template` unit tests; E2E test 1 (preview tab, axe) pending CI.
+- AC-3, AC-4, AC-5: governance `privacy` integration tests (T2); api 409 (T5).
+- AC-6: governance registry unit tests (T2); page tables rendered (T7 notes); E2E test 3 pending CI.
+- AC-7: governance `documents` unit tests (T4); api PDF routes (T5); E2E test 3 downloads pending CI.
+- AC-8: db RLS cases (T1); api tenant-B case (T5).
+- AC-9: states rendered in Chromium against a stub (T7, T8 notes); E2E tests 1, 2, 4, 5 pending CI.
+- AC-10: summary focus checked in Chromium (T7); axe in E2E tests 1 and 5 pending CI (the dashboard is light-only, UX-Q1; the hosted notice follows `prefers-color-scheme`).
