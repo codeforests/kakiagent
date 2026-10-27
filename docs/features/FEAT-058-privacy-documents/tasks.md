@@ -27,8 +27,9 @@
       Notes (T7): rendered in the session's Chromium (Vite dev server, `/api/**` stubbed with Playwright): never saved (readiness alert, defaults, "Not saved yet" chips), validation (summary alert focused, http link copy), template draft, save (toast "Saved. Visitors now see this privacy notice.", "Version 1 · saved 27 Oct 2026", Preview link), 409 conflict alert with Reload, load error with Try again, 403 permission state, 390 px width (tables stack, no horizontal scroll). PDFs download through `fetch` so a failure shows the toast; the href stays a plain link.
       Done when: dashboard typecheck passes; the step renders with the two forms and Continue to `/setup/test`; `grep -rn "of the setup" apps/dashboard/src` shows 2–6 in flow order.
       Notes (T8): rendered against the stub (both forms, "See where your data goes", Continue → `/setup/test`, caption shown until both are ready). `review.e2e.ts` only checks Continue is visible, so it is unchanged.
-- [ ] T9 — E2E `e2e/tests/privacy.e2e.ts` (design §5.4; AC-1, AC-2, AC-7, AC-9, AC-10)
+- [x] T9 — E2E `e2e/tests/privacy.e2e.ts` (design §5.4; AC-1, AC-2, AC-7, AC-9, AC-10)
       Done when: the spec typechecks and lints; restore in `afterEach`. Note: runs only in Ken's local CI (no stack in cloud sessions); record "pending CI".
+      Notes (T9): five tests (template + hosted page + widget config, purpose zh + conflict, documents + PDFs, Agent permission, setup flow). Typechecks; pending CI. The widget link is read from `GET /widget/v1/config` with the dev key and widget-host Origin rather than the panel (FEAT-033 already covers panel → link). PDF download (blob link) and its failure toast checked in Chromium against a stub; Firefox and WebKit only in Ken's run.
 - [ ] T10 — Verify: full `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `test:coverage` for governance, api, dashboard, contracts, db; code-map updated if anything moved; status `developer-done`
       Done when: all pass locally through `scripts/test-env.sh`; evidence below.
 
