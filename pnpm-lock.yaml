@@ -404,6 +404,9 @@ importers:
       '@kaki/analytics':
         specifier: workspace:*
         version: link:../../packages/analytics
+      '@kaki/channels':
+        specifier: workspace:*
+        version: link:../../packages/channels
       '@kaki/db':
         specifier: workspace:*
         version: link:../../packages/db

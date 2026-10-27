@@ -13,6 +13,7 @@ import {
 } from '@kaki/platform';
 import { createDispatcher } from '@kaki/platform/outbox';
 import { z } from 'zod';
+import { channelHealthOnce } from './channel-health.js';
 import { gapClusterOnce } from './gap-cluster.js';
 import { staleScanOnce } from './stale-scan.js';
 
@@ -64,6 +65,12 @@ const config = loadConfig(
         .int()
         .positive()
         .default(10 * 60_000),
+      /** Channel health checks (CHN-12, FEAT-034 §5.2): every 5 minutes, first run at start-up. */
+      CHANNEL_HEALTH_INTERVAL_MS: z.coerce
+        .number()
+        .int()
+        .positive()
+        .default(5 * 60_000),
     }),
 );
 const stopTelemetry = startTelemetry('scheduler-worker', config.OTEL_EXPORTER_OTLP_ENDPOINT);
@@ -166,6 +173,14 @@ const gapTimer = setInterval(
   config.GAP_CLUSTER_INTERVAL_MS,
 );
 
+// Channel health (FEAT-034 §5.2): checks every health-checked connection and marks a broken
+// one degraded (two checks 5 minutes apart meet CHN-12's 15 minutes).
+const channelRun = channelHealthOnce(outboxDb, logger);
+const channelTimer = setInterval(
+  () => void channelHealthOnce(outboxDb, logger),
+  config.CHANNEL_HEALTH_INTERVAL_MS,
+);
+
 async function shutdown() {
   abort.abort();
   clearInterval(anchorTimer);
@@ -173,7 +188,16 @@ async function shutdown() {
   clearInterval(governorTimer);
   clearInterval(staleTimer);
   clearInterval(gapTimer);
-  await Promise.all([running.catch(() => {}), anchorRun, sweeping, governorRun, staleRun, gapRun]);
+  clearInterval(channelTimer);
+  await Promise.all([
+    running.catch(() => {}),
+    anchorRun,
+    sweeping,
+    governorRun,
+    staleRun,
+    gapRun,
+    channelRun,
+  ]);
   health.close();
   await mailer.close();
   await Promise.all([outboxDb.pool.end(), identityDb.pool.end()]);
