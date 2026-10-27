@@ -64,6 +64,7 @@ export {
   noticeSections,
   renderNoticeHtml,
   type NoticeDocument,
+  type NoticeParagraph,
   type NoticeSection,
 } from './notice-template.js';
 export { dataFlowPdf, dpaPdf } from './documents.js';

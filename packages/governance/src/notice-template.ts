@@ -7,13 +7,23 @@ import { SUB_PROCESSORS, TRANSFERS } from './registry.js';
  * template wording awaits legal review (D5); English only for now.
  */
 
+/** A paragraph of plain text, or the contact email as the page's only link (`mailto:`). */
+export type NoticeParagraph = string | { mailto: string };
+
 export interface NoticeSection {
   heading: string;
-  paragraphs: string[];
+  paragraphs: NoticeParagraph[];
 }
 
 export interface NoticeDocument {
+  /** The `<title>`. */
   title: string;
+  /** The `h1`; the title when absent. */
+  heading?: string;
+  /** Lines under the `h1`: the business and its UEN (ui-design, hosted notice). */
+  subtitle?: string[];
+  /** "Hosted by KakiAgent for {business}." */
+  footer?: string;
   sections: NoticeSection[];
   /** "Last updated 27 Oct 2026", in Singapore time. */
   lastUpdated: string;
@@ -46,8 +56,9 @@ const paragraphsOf = (text: string | null) =>
 
 export function noticeSections(input: NoticeInput): NoticeDocument {
   const { businessName, uen, fields } = input;
-  const contact = [
-    `${fields.contactName}, ${fields.contactEmail}`,
+  const contact: NoticeParagraph[] = [
+    fields.contactName,
+    { mailto: fields.contactEmail },
     ...(fields.contactPhone ? [`Phone: ${fields.contactPhone}`] : []),
     ...(fields.address ? [`Address: ${fields.address}`] : []),
   ];
@@ -100,7 +111,10 @@ export function noticeSections(input: NoticeInput): NoticeDocument {
   const extra = paragraphsOf(fields.extra);
   if (extra.length) sections.push({ heading: 'More from us', paragraphs: extra });
   return {
-    title: `${businessName} privacy notice`,
+    title: `Privacy notice · ${businessName}`,
+    heading: 'Privacy notice',
+    subtitle: [businessName, ...(uen ? [`UEN ${uen}`] : [])],
+    footer: `Hosted by KakiAgent for ${businessName}.`,
     sections,
     lastUpdated: `Last updated ${formatSgDate(input.savedAt)}`,
   };
@@ -117,12 +131,17 @@ export const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => ESCAPES[c]
 
 /** A complete HTML page, every value escaped; `css` is trusted (the token stylesheet). */
 export function renderNoticeHtml(doc: NoticeDocument, css: string): string {
+  const paragraph = (p: NoticeParagraph) =>
+    typeof p === 'string'
+      ? `<p>${escapeHtml(p)}</p>`
+      : `<p><a href="${escapeHtml(`mailto:${p.mailto}`)}">${escapeHtml(p.mailto)}</a></p>`;
   const body = doc.sections
     .map(
       (s) =>
-        `<section><h2>${escapeHtml(s.heading)}</h2>${s.paragraphs.map((p) => `<p>${escapeHtml(p)}</p>`).join('')}</section>`,
+        `<section><h2>${escapeHtml(s.heading)}</h2>${s.paragraphs.map(paragraph).join('')}</section>`,
     )
     .join('\n');
+  const subtitle = (doc.subtitle ?? []).map((l) => `<p class="subtitle">${escapeHtml(l)}</p>`);
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -134,9 +153,11 @@ export function renderNoticeHtml(doc: NoticeDocument, css: string): string {
 </head>
 <body>
 <main>
-<h1>${escapeHtml(doc.title)}</h1>
+<h1>${escapeHtml(doc.heading ?? doc.title)}</h1>
+${subtitle.join('')}
 ${body}
 ${doc.lastUpdated ? `<p class="updated">${escapeHtml(doc.lastUpdated)}</p>` : ''}
+${doc.footer ? `<p class="footer">${escapeHtml(doc.footer)}</p>` : ''}
 </main>
 </body>
 </html>
@@ -150,5 +171,8 @@ main { max-width: 42rem; margin: 0 auto; padding: var(--space-8) var(--space-4);
 h1 { font-size: var(--type-title-size); line-height: var(--type-title-line); font-weight: var(--type-title-weight); margin: 0 0 var(--space-4); }
 h2 { font-size: var(--type-heading-size); line-height: var(--type-heading-line); font-weight: var(--type-heading-weight); margin: var(--space-6) 0 var(--space-2); }
 p { margin: 0 0 var(--space-2); }
-.updated { color: var(--color-text-secondary); font-size: var(--type-body-sm-size); margin-top: var(--space-6); }
+.subtitle { color: var(--color-text-secondary); }
+a { color: var(--color-text-link); }
+a:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+.updated, .footer { color: var(--color-text-secondary); font-size: var(--type-body-sm-size); margin-top: var(--space-6); }
 `;

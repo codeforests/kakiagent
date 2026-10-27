@@ -116,7 +116,8 @@ describe('privacy settings (FEAT-058)', () => {
     expect(page.headers['content-security-policy']).toContain("default-src 'none'");
     expect(page.headers['x-robots-tag']).toBe('noindex');
     expect(page.headers['access-control-allow-origin']).toBeUndefined();
-    expect(page.body).toContain('Mei &lt;b&gt;Lin&lt;/b&gt;, dpo@kakibakery.test');
+    expect(page.body).toContain('<p>Mei &lt;b&gt;Lin&lt;/b&gt;</p>');
+    expect(page.body).toContain('<a href="mailto:dpo@kakibakery.test">dpo@kakibakery.test</a>');
     expect(page.body).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
     expect(page.body).not.toContain('<script>');
     // AC-2: the business name and the purpose statement (the default until one is saved).

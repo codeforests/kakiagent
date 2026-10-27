@@ -53,6 +53,10 @@ All in this session through `scripts/test-env.sh` (no Docker):
 - Observation (not blocking): two concurrent saves of the same kind at the same `version` both compute the same next `seq`; the second hits the `(tenant_id, kind, seq)` unique index and returns 500 instead of 409. No data is wrong. Mapping that unique violation to `PrivacyConflictError` would fix it; worth doing when FEAT-049 adds the consent writes.
 - Observation: GOV-07 names OCR in the sub-processor list; per ADR-019 OCR is self-hosted Tesseract in Singapore, so it is correctly absent as a sub-processor, but neither the page nor the PDFs say so. A one-line "Done in-house in Singapore: OCR" note would answer the question before a reviewer asks; fits FEAT-073's published list.
 
+## Rework after Ken's local CI (2026-10-27)
+
+Ken's local CI failed `privacy.e2e.ts` test 1 in all three browsers: the hosted notice had no `mailto:` link for the contact email. The E2E was right and the code was wrong: ui-design ("Hosted privacy notice") asks for the contact email as a `mailto:` link, `h1` "Privacy notice" with the business and UEN under it, `<title>` "Privacy notice · {business}" and the footer "Hosted by KakiAgent for {business}."; the build rendered "{name}, {email}" as plain text and none of the others. This audit missed it because the unit and api tests asserted the plain-text form. Fixed in `notice-template.ts` (a `{ mailto }` paragraph, `heading`, `subtitle`, `footer`; link and focus colours from tokens), with the unit test asserting the ui-design output and exactly one link, and the api test asserting the rendered `mailto:` anchor. Governance unit 85/85, api `privacy.int.test.ts` 9/9, lint, typecheck and format green. E2E to re-run in Ken's local CI.
+
 ## RTM
 
 Test ref appended: GOV-14 (partial: go-live block with FEAT-035), GOV-07 (partial: 30-day notice with FEAT-073), GOV-11, LED-02 (partial: purpose and wording versions; consent record with FEAT-049).
