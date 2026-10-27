@@ -52,7 +52,7 @@ export interface TurnJobInput {
 }
 
 /** `ended`: a safety task ended the turn with its own text (ADR-025 decision 6). */
-export type TurnOutcome = AnswerOutcome | 'paused' | 'ended';
+export type TurnOutcome = AnswerOutcome | 'paused' | 'ended' | 'not_live';
 
 type Stored = NonNullable<Awaited<ReturnType<typeof appendAgentReply>>>;
 
@@ -122,7 +122,9 @@ export async function runVisitorTurn(
       status !== null &&
       !status.open &&
       !(await noticeSince(tx, tenantId, conversationId, 'after_hours', status.since));
-    return { message, gate, history, disclosed, hours, noticeDue };
+    // FEAT-034: the offline notice is stored once, not once per visitor message.
+    const lastReply = history.filter((m) => m.author !== 'visitor').at(-1)?.body ?? null;
+    return { message, gate, history, disclosed, hours, noticeDue, lastReply };
   });
   if (!prep) return null;
   const { message, gate, hours } = prep;
@@ -241,12 +243,21 @@ export async function runVisitorTurn(
       : null;
   }
 
+  /** The channel's offline message in the visitor's language (ONB-10, FEAT-034 §5.3). */
+  const offlineText = (offline: { message: { en: string; zh: string } }) =>
+    language === 'zh' ? offline.message.zh : offline.message.en;
+
   if (!gate.open) {
-    // UC-20 5e. Paused: the visitor gets the fallback (architecture §6.5). A human
-    // owner or a closed conversation: the AI says nothing.
-    return gate.reason === 'paused'
-      ? store('paused', 'system', textsFor(language, persona).fallback, null)
-      : null;
+    // UC-20 5e. Paused: the visitor gets the fallback (architecture §6.5). Not live: the
+    // channel's offline message, once, with no model call (ONB-10). A human owner or a
+    // closed conversation: the AI says nothing.
+    if (gate.reason === 'paused')
+      return store('paused', 'system', textsFor(language, persona).fallback, null);
+    if (gate.reason === 'not_live') {
+      const text = offlineText(gate.offline);
+      return prep.lastReply === text ? null : store('not_live', 'system', text, null);
+    }
+    return null;
   }
 
   const history = prep.history.map((m) => ({
@@ -388,6 +399,14 @@ export async function runVisitorTurn(
           'paused',
           composed.text ? 'agent' : 'system',
           [composed.text, t.fallback].filter(Boolean).join(' '),
+          composed,
+        );
+      // The channel went offline mid-reply: keep the released prefix, close with the notice.
+      if (!now.open && now.reason === 'not_live')
+        return store(
+          'not_live',
+          composed.text ? 'agent' : 'system',
+          [composed.text, offlineText(now.offline)].filter(Boolean).join(' '),
           composed,
         );
       return composed.text ? store('gate_closed', 'agent', composed.text, composed) : null;

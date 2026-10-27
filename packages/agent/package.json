@@ -15,6 +15,7 @@
     "test:coverage": "vitest run --coverage --passWithNoTests"
   },
   "dependencies": {
+    "@kaki/channels": "workspace:*",
     "@kaki/db": "workspace:*",
     "@kaki/governance": "workspace:*",
     "@kaki/inbox": "workspace:*",

@@ -524,6 +524,9 @@ importers:
 
   packages/agent:
     dependencies:
+      '@kaki/channels':
+        specifier: workspace:*
+        version: link:../channels
       '@kaki/db':
         specifier: workspace:*
         version: link:../db
