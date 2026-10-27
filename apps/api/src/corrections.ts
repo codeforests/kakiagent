@@ -53,6 +53,7 @@ import { UnavailableError, type TenantSession } from './auth.js';
 import { changeView, ReplayRateLimitedError, startReplaySafely, toMessages } from './coach.js';
 import { ForbiddenError, patchOf } from './facts.js';
 import { gapContext, gapStatsIn } from './gaps.js';
+import { widgetLive } from './channels.js';
 import type { App, Deps } from './server.js';
 
 /** 422 `invalid_query` for a list query that doesn't parse (FEAT-018 §3). */
@@ -347,11 +348,14 @@ export function registerCorrectionRoutes(
       throw new UnavailableError('rate limiter');
     }
     if (!allowed) throw new ReplayRateLimitedError();
-    const r = await correctionReplayNext(replayDeps, {
-      tenantId: s.tenantId,
-      userId: s.userId,
-      correctionId: id,
-    });
+    const r = await correctionReplayNext(
+      { ...replayDeps, channelLive: widgetLive(dashboardDb, s.tenantId) },
+      {
+        tenantId: s.tenantId,
+        userId: s.userId,
+        correctionId: id,
+      },
+    );
     const [message] = await inTenant(s, (tx) =>
       toMessages(tx, s.tenantId, r.turn.replayed ? [r.turn.replayed] : []),
     );

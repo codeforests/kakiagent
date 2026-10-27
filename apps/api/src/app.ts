@@ -3,6 +3,7 @@ import {
   isAllowedOrigin,
   recordInstallSeen,
   recordRejectedOrigin,
+  visitorChannel,
   visitorWidgetTheme,
 } from '@kaki/channels';
 import {
@@ -98,6 +99,7 @@ import { InvalidBodyError, InvalidQueryError, registerCorrectionRoutes } from '.
 import { registerCoverageRoutes } from './coverage.js';
 import { registerSettingsRoutes } from './settings.js';
 import { registerWidgetRoutes, widgetErrorReply } from './widget.js';
+import { channelErrorReply, registerChannelRoutes } from './channels.js';
 import {
   AttestationRequiredError,
   FileTooLargeError,
@@ -307,6 +309,8 @@ export async function buildApp(deps: Deps) {
       return reply
         .code(503)
         .send({ error: 'unavailable', message: 'Saving is unavailable; try again shortly' });
+    const channel = channelErrorReply(err);
+    if (channel) return reply.code(channel.status).send(channel.body);
     const widget = widgetErrorReply(err, req.url);
     if (widget) return reply.code(widget.status).send(widget.body);
     req.log.error({ err }, 'unhandled error');
@@ -391,7 +395,7 @@ export async function buildApp(deps: Deps) {
       config.VISITOR_TOKEN_SECRET,
     );
     // FEAT-024: the tenant's name and greeting, through the visitor zone's function only.
-    const { persona, theme, privacy } = await withTenant(
+    const { persona, theme, privacy, channel } = await withTenant(
       visitorDb,
       install.tenantId,
       async (tx) => {
@@ -406,6 +410,8 @@ export async function buildApp(deps: Deps) {
           persona: (await visitorTenantState(tx))?.persona,
           theme: await visitorWidgetTheme(tx, install.tenantId, key, config.PUBLIC_API_URL),
           privacy: await visitorPrivacy(tx),
+          // ONB-10 (FEAT-034): an offline widget still loads, so the install check works.
+          channel: await visitorChannel(tx, 'widget'),
         };
       },
     );
@@ -425,12 +431,20 @@ export async function buildApp(deps: Deps) {
       // arrives with FEAT-044 (FEAT-033 D2).
       privacyNoticeUrl: privacyNoticeUrl(privacy?.notice ?? null, key, config.PUBLIC_API_URL),
       controls: { talkToPerson: false },
+      availability: channel.live
+        ? { live: true }
+        : { live: false, mode: channel.mode, message: channel.message, contact: channel.contact },
     });
   });
 
   app.post('/widget/v1/conversations', async (req, reply) => {
     const v = visitorFrom(req, reply);
-    const conv = await withTenant(visitorDb, v.t, (tx) => createConversation(tx, v.t, v.v));
+    // ONB-10: a channel that isn't live starts no conversation (FEAT-034 §3).
+    const conv = await withTenant(visitorDb, v.t, async (tx) =>
+      (await visitorChannel(tx, 'widget')).live ? createConversation(tx, v.t, v.v) : null,
+    );
+    if (!conv)
+      return reply.code(409).send({ error: 'not_live', message: "This chat isn't open yet." });
     await notify([channels.inbox(v.t)], {
       type: 'conversation',
       conversation: toSummary(conv, null),
@@ -515,6 +529,7 @@ export async function buildApp(deps: Deps) {
   registerCoverageRoutes(app, deps, sessionFrom);
   registerWidgetRoutes(app, deps, sessionFrom);
   registerPrivacyRoutes(app, deps, sessionFrom);
+  registerChannelRoutes(app, deps, sessionFrom);
 
   return app;
 }
