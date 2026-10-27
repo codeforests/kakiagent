@@ -30,6 +30,9 @@ const STRINGS = {
     endedTitle: 'Chat ended',
     transcriptNotice: 'The business keeps a record of this chat.',
     newChat: 'Start a new chat',
+    notLiveEmail: 'Email',
+    notLivePhone: 'Phone',
+    notLiveRegion: (business: string) => `Message from ${business}`,
   },
   'zh-Hans': {
     aiLabel: 'AI 助手',
@@ -57,6 +60,9 @@ const STRINGS = {
     endedTitle: '对话已结束',
     transcriptNotice: '商家会保存本次对话的记录。',
     newChat: '开始新的对话',
+    notLiveEmail: '电邮',
+    notLivePhone: '电话',
+    notLiveRegion: (business: string) => `来自${business}的消息`,
   },
 } as const;
 

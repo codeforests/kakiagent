@@ -56,4 +56,12 @@ export const PANEL_CSS = `
 .btn:disabled{opacity:.6;cursor:default}
 @media (max-width:319px){.card .row{flex-direction:column}}
 .btn:focus-visible,.foot a:focus-visible,.card a:focus-visible{outline:2px solid var(--kaki-accent);outline-offset:2px}
+.offline{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;justify-content:center}
+.offline-card{display:flex;flex-direction:column;gap:8px;padding:16px;border:1px solid var(--kaki-border);border-radius:var(--kaki-radius);background:var(--kaki-subtle);color:var(--kaki-text)}
+.offline-card p{margin:0;white-space:pre-wrap;word-wrap:break-word}
+.offline-card p:focus{outline:none}
+.contact{display:flex;align-items:center;gap:8px;font-size:14px}
+.contact svg{flex:none;color:var(--kaki-muted)}
+.contact a{color:var(--kaki-text);text-decoration:underline;min-height:24px;display:inline-flex;align-items:center}
+.contact a:focus-visible{outline:2px solid var(--kaki-accent);outline-offset:2px}
 `;

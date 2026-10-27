@@ -124,3 +124,33 @@ export function menuItems(
   if (s.conversationId && !s.ended && !s.preview) items.push('end');
   return items;
 }
+
+export interface NotLiveView {
+  locale: Locale;
+  text: string;
+  email: { label: string; href: string } | null;
+  phone: { label: string; href: string } | null;
+}
+
+/** `+6561234567` → `+65 6123 4567`; anything else as stored. */
+const phoneLabel = (p: string) =>
+  /^\+65\d{8}$/.test(p) ? `+65 ${p.slice(3, 7)} ${p.slice(7)}` : p;
+
+/**
+ * The not-live view (SCR-WGT-005, FEAT-034): the message in the browser's language and a
+ * link for each contact the business has; null while live, or when hidden (never mounted).
+ */
+export function notLiveView(
+  availability: WidgetConfigResponse['availability'],
+  navLang: string | undefined,
+): NotLiveView | null {
+  if (availability.live || availability.mode !== 'message') return null;
+  const locale = pickLocale(navLang);
+  const { email, phone } = availability.contact;
+  return {
+    locale,
+    text: locale === 'zh-Hans' ? availability.message.zh : availability.message.en,
+    email: email ? { label: email, href: `mailto:${email}` } : null,
+    phone: phone ? { label: phoneLabel(phone), href: `tel:${phone.replace(/[^+\d]/g, '')}` } : null,
+  };
+}
