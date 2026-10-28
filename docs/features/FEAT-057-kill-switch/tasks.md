@@ -1,7 +1,7 @@
 # Tasks: FEAT-057 — Kill switch: pause and resume the AI on all channels
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: developer-done · Last updated: 2026-10-28
+> Status: accepted · Last updated: 2026-10-28
 
 - [x] T1 — Schema: `0035_kill_switch.sql` (`ai_paused_at`, `ai_paused_by`, check, column grant to `app_dashboard`) + Drizzle columns; RLS suite: replace the refused `ai_paused` statement with the own-tenant and cross-tenant case (design §4; D5; AC-7)
       Done when: `pnpm db:setup` applies 0035 on a database at 0034 and `drizzle-kit generate` reports no drift; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes with: as `app_dashboard` in tenant B, setting B's kill-switch columns works and A's row is unchanged; `route_complexity_threshold`, `cost_governor_step` and `widget_key` updates stay permission denied; the check rejects `ai_paused = true` with a null `ai_paused_at`.
