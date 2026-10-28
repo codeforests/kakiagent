@@ -68,3 +68,4 @@ export {
   type NoticeSection,
 } from './notice-template.js';
 export { dataFlowPdf, dpaPdf } from './documents.js';
+export { aiPauseState, setAiPaused, type AiPauseState } from './kill-switch.js';

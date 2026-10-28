@@ -123,6 +123,15 @@ export async function listChannels(
   };
 }
 
+/** Channels in state `live` (FEAT-057 §5.2): 0 and not paused → the AI pill says "Not live". */
+export async function liveChannelCount(tx: Tx): Promise<number> {
+  const [row] = await tx
+    .select({ n: sql<number>`count(*)::int` })
+    .from(cc)
+    .where(eq(cc.state, 'live'));
+  return row?.n ?? 0;
+}
+
 export interface ChannelChange {
   tenantId: string;
   userId: string;
