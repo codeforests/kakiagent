@@ -16,7 +16,7 @@
 
 - [x] T5 — Dashboard data layer: `lib/api.ts` calls; `lib/ai-status.ts` (`useAiStatus`, `useSetAiPaused`, `pillState`); `lib/realtime.ts` handles `ai_status`; `lib/ai-status.test.ts` (design §5.5; D8; AC-8, AC-9)
       Done when: `pnpm --filter @kaki/dashboard test` passes with `pillState` cases (paused wins over live channels; 0 live and not paused → `not_live`; ≥ 1 live → `live`) and `pnpm --filter @kaki/dashboard typecheck` is clean.
-- [ ] T6 — Pill, dialog and banner: `shell/ai-status.tsx` (`AiStatusPill`, `KillSwitchDialog`), wired in `app-shell.tsx`; `useAiPausedBanner` first in `shell/banners.tsx`, its "Resume AI" opening the dialog (ui-design SCR-APP-058, Banner; AC-8, AC-9)
+- [x] T6 — Pill, dialog and banner: `shell/ai-status.tsx` (`AiStatusPill`, `KillSwitchDialog`), wired in `app-shell.tsx`; `useAiPausedBanner` first in `shell/banners.tsx`, its "Resume AI" opening the dialog (ui-design SCR-APP-058, Banner; AC-8, AC-9)
       Done when: dashboard typecheck and unit tests pass; `pnpm --filter @kaki/dashboard build` succeeds; only `var(--…)` tokens (grep shows no hex or px colour literals in the new files).
       Note: renders and interaction are checked by T8's E2E in the verify stage's GitHub CI (no local stack in cloud sessions).
 - [ ] T7 — Widget paused notice: `chat.ts` `pausedNotice`, `panel.tsx` notice above the composer (no greeting, no disclosure row), `strings.ts` en/zh; unit tests in `chat.test.ts` (ui-design SCR-WGT-005 paused; D7; AC-4, AC-10)

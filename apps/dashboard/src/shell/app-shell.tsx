@@ -1,10 +1,12 @@
 import { SkipLink } from '@kaki/ui';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Navigate, NavLink, Outlet } from 'react-router';
+import { useSetAiPaused } from '../lib/ai-status.ts';
 import { api } from '../lib/api.ts';
 import { Offline, TenantSuspended } from '../pages/system.tsx';
 import { AccountMenu } from './account-menu.tsx';
+import { AiStatusPill, KillSwitchDialog, type KillSwitchMode } from './ai-status.tsx';
 import { Banners } from './banners.tsx';
 import { Icon } from './icon.tsx';
 import { useNavCounts } from '../lib/nav-counts.ts';
@@ -26,6 +28,17 @@ function useOnline() {
   return online;
 }
 
+/** The kill switch's toast. Not `useToast`: that one also shows a page's router-state toast. */
+function useShellToast() {
+  const [toast, setToast] = useState<string | null>(null);
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 5000);
+    return () => clearTimeout(timer);
+  }, [toast]);
+  return [toast, setToast] as const;
+}
+
 /**
  * Dashboard shell (design.md §3): sidebar ≥ 768 px (collapsed to icons below 1024),
  * top bar on every page, bottom tab bar below 768 px. Light theme only (UX-Q1).
@@ -34,6 +47,14 @@ export function AppShell() {
   const online = useOnline();
   const me = useQuery({ queryKey: ['me'], queryFn: api.me });
   const counts = useNavCounts();
+  const [killSwitch, setKillSwitch] = useState<KillSwitchMode | null>(null);
+  const change = useSetAiPaused();
+  const pillRef = useRef<HTMLButtonElement>(null);
+  const [toast, setToast] = useShellToast();
+  const openKillSwitch = (mode: KillSwitchMode) => {
+    change.reset();
+    setKillSwitch(mode);
+  };
 
   // A 401 is routed to sign-in or "session expired" by the query cache (main.tsx).
   if (me.data && !me.data.tenant) return <Navigate to="/welcome" replace />;
@@ -60,15 +81,16 @@ export function AppShell() {
         <span className="topbar__tenant" data-testid="tenant-name">
           {me.data?.tenant?.name ?? ' '}
         </span>
-        {/* AI status pill: becomes the kill-switch trigger in FEAT-057 (GOV-08). */}
-        <span className="status-pill status-pill--off" title="The assistant isn't live yet">
-          <span className="status-pill__dot" aria-hidden="true" />
-          Not live
-        </span>
+        <AiStatusPill
+          ref={pillRef}
+          role={me.data ? me.data.role : undefined}
+          acting={change.isPending}
+          onOpen={openKillSwitch}
+        />
         <AccountMenu email={me.data?.user.email} />
       </header>
       <main id="main" className="content" tabIndex={-1}>
-        <Banners role={me.data?.role} />
+        <Banners role={me.data?.role} onResumeAi={() => openKillSwitch('resume')} />
         {online ? <Outlet /> : <Offline />}
       </main>
       <nav className="tabbar" aria-label="Main">
@@ -80,6 +102,22 @@ export function AppShell() {
           </NavLink>
         ))}
       </nav>
+      <KillSwitchDialog
+        mode={killSwitch}
+        onClose={() => setKillSwitch(null)}
+        change={change}
+        onDone={(mode) => {
+          setKillSwitch(null);
+          setToast(mode === 'pause' ? 'AI paused on all channels.' : 'AI resumed.');
+          // Back to the pill once the dialog has closed (the banner that opened it may be gone).
+          setTimeout(() => pillRef.current?.focus());
+        }}
+      />
+      {toast && (
+        <div className="toast" role="status">
+          {toast}
+        </div>
+      )}
     </div>
   );
 }
