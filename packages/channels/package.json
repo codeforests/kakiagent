@@ -3,10 +3,11 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "ChannelAdapter contract, the website widget's settings, allowed origins and install check, and the DOM-only widget theme module (ADR-011, ADR-016).",
+  "description": "ADR-011 channel adapter contract and registry, channel connections (live/offline, health), sealed credentials, the website widget's settings, allowed origins and install check, and the DOM-only widget theme module (ADR-011, ADR-016).",
   "exports": {
     ".": "./src/index.ts",
-    "./theme": "./src/theme/index.ts"
+    "./theme": "./src/theme/index.ts",
+    "./contract-suite": "./src/contract-suite.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

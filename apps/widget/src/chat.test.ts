@@ -8,6 +8,7 @@ import {
   greetingFor,
   langOf,
   menuItems,
+  notLiveView,
   pendingText,
   rowsOf,
   withMessage,
@@ -172,5 +173,58 @@ describe('chrome locale and header menu (FEAT-033; SCR-WGT-002)', () => {
     expect(menuItems(on, { ...live, conversationId: null })).toEqual(['talkToPerson', 'privacy']);
     expect(menuItems(off, { ...live, preview: true })).toEqual([]);
     expect(menuItems(on, { ...live, preview: true })).toEqual(['talkToPerson', 'privacy']);
+  });
+});
+
+describe('not-live view (SCR-WGT-005, FEAT-034 AC-4)', () => {
+  const offline = (contact: { email: string | null; phone: string | null }) => ({
+    live: false as const,
+    mode: 'message' as const,
+    message: { en: "Our chat isn't open yet.", zh: '我们的聊天尚未开放。' },
+    contact,
+  });
+  const both = offline({ email: 'hello@kakibakery.sg', phone: '+6561234567' });
+
+  it('is null while live or hidden', () => {
+    expect(notLiveView({ live: true }, 'en-SG')).toBeNull();
+    expect(notLiveView({ ...both, mode: 'hidden' }, 'en-SG')).toBeNull();
+  });
+
+  it('picks the Chinese text for a zh browser and English otherwise', () => {
+    expect(notLiveView(both, 'zh-CN')).toMatchObject({
+      locale: 'zh-Hans',
+      text: '我们的聊天尚未开放。',
+    });
+    expect(notLiveView(both, 'zh-Hant-TW')?.locale).toBe('zh-Hans');
+    expect(notLiveView(both, 'en-GB')).toMatchObject({
+      locale: 'en',
+      text: "Our chat isn't open yet.",
+    });
+    expect(notLiveView(both, undefined)?.locale).toBe('en');
+  });
+
+  it('links each contact the business has, and only those', () => {
+    expect(notLiveView(both, 'en')).toMatchObject({
+      email: { label: 'hello@kakibakery.sg', href: 'mailto:hello@kakibakery.sg' },
+      phone: { label: '+65 6123 4567', href: 'tel:+6561234567' },
+    });
+    expect(notLiveView(offline({ email: null, phone: '+6591234567' }), 'en')).toMatchObject({
+      email: null,
+      phone: { href: 'tel:+6591234567' },
+    });
+    expect(notLiveView(offline({ email: null, phone: null }), 'en')).toMatchObject({
+      email: null,
+      phone: null,
+    });
+  });
+
+  it('leaves only the privacy notice in the menu', () => {
+    const config = {
+      privacyNoticeUrl: 'https://kakibakery.sg/privacy',
+      controls: { talkToPerson: true },
+    };
+    expect(menuItems(config, { conversationId: null, ended: true, preview: false })).toEqual([
+      'privacy',
+    ]);
   });
 });

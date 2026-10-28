@@ -1335,6 +1335,84 @@
       },
       "status": "designed",
       "designed_at": "2026-10-27"
+    },
+    "SCR-APP-036": {
+      "name": "Channels",
+      "surface": "APP",
+      "feature": "FEAT-034",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-034-channels/ui-design.md#scr-app-036--channels"
+      },
+      "states": {
+        "covered": [
+          "loading",
+          "error",
+          "live",
+          "offline (never live)",
+          "offline (since)",
+          "degraded",
+          "confirming",
+          "acting",
+          "saving",
+          "validation errors",
+          "conflict",
+          "action failed",
+          "permission"
+        ],
+        "gaps": [
+          "Connect a channel entries (FEAT-036, FEAT-037, FEAT-040)",
+          "Reconnect from the degraded alert (each channel's screen)",
+          "Go-live readiness blockers (FEAT-035)"
+        ],
+        "supplements": [
+          "Degraded-channel banner in the app shell (features/FEAT-034-channels/ui-design.md#banner--degraded-channel-app-shell-shellbannerstsx)"
+        ]
+      },
+      "contract_bindings": [
+        "GET /api/v1/channels",
+        "POST /api/v1/channels/:id/live",
+        "POST /api/v1/channels/:id/offline",
+        "PUT /api/v1/channels/:id/offline-settings",
+        "POST /api/v1/channels/:id/check"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-10-27"
+    },
+    "SCR-WGT-005": {
+      "name": "Fallback",
+      "surface": "WGT",
+      "feature": "FEAT-034",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-034-channels/ui-design.md#scr-wgt-005--fallback-partial-not-live"
+      },
+      "states": {
+        "covered": [
+          "not live (hidden)",
+          "not live (message)"
+        ],
+        "gaps": [
+          "AI paused (FEAT-057)",
+          "Contact form (FEAT-049)"
+        ],
+        "supplements": []
+      },
+      "contract_bindings": [
+        "GET /widget/v1/config (availability)"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-10-27"
     }
   }
 }

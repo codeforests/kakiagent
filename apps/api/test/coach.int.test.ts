@@ -350,3 +350,24 @@ describe('suggestions', () => {
     );
   });
 });
+
+describe('while the widget is offline (FEAT-034 §5.3, AC-3)', () => {
+  it('coaching still answers and the explainer says visitors would get the offline notice', async () => {
+    await owner.query(`update channel_connections set state = 'offline' where tenant_id = $1`, [
+      TENANT_A,
+    ]);
+    try {
+      const id = await newSession();
+      const res = await ask(id, 'How much is the chocolate fudge cake?');
+      expect(res.statusCode).toBe(201);
+      expect(res.json().answer.explainer).toMatchObject({
+        outcome: 'answered',
+        visitorsWouldGet: 'not_live',
+      });
+    } finally {
+      await owner.query(`update channel_connections set state = 'live' where tenant_id = $1`, [
+        TENANT_A,
+      ]);
+    }
+  });
+});

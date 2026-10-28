@@ -122,14 +122,22 @@ async function say(conversationId: string, visitorId: string, text: string) {
 
 /** The fake model: triage requests get the fake triager (FEAT-004), replies get `script`. */
 function llmWith(script: FakeScript, triageScript: FakeScript = fakeTriage) {
-  const calls = { generate: 0, models: [] as GenerateRequest['model'][] };
-  const llm = createGateway(defaultRegistry('fake'), [
+  const calls = { generate: 0, embed: 0, models: [] as GenerateRequest['model'][] };
+  const gateway = createGateway(defaultRegistry('fake'), [
     createFakeProvider((req) => {
       calls.generate++;
       calls.models.push(req.model);
       return req.model === 'triage' ? triageScript(req) : script(req);
     }),
   ]);
+  // Retrieval embeds the visitor's message, so counting embeds shows whether it ran.
+  const llm: typeof gateway = {
+    ...gateway,
+    embed: (req) => {
+      calls.embed++;
+      return gateway.embed(req);
+    },
+  };
   return { llm, calls };
 }
 
@@ -866,5 +874,80 @@ describe('runVisitorTurn marks coverage gaps (FEAT-019 §5.2, AC-4)', () => {
     };
     expect((await run(c, noEmbed))?.outcome).toBe('unavailable');
     expect(await gapOf(c.messageId)).toEqual({ reason: null, embedded: false });
+  });
+});
+
+describe('runVisitorTurn while the widget is not live (ONB-10; FEAT-034 §5.3, AC-3)', () => {
+  const offline = (mode = 'message') =>
+    owner.query(
+      `update channel_connections set state = 'offline', offline_mode = $2 where tenant_id = $1`,
+      [TENANT_A, mode],
+    );
+  beforeEach(async () => {
+    await owner.query(`update channel_connections set state = 'live', offline_message_en = null`);
+  });
+
+  it('makes no model call and stores the offline message once, audited not_live', async () => {
+    await offline();
+    await owner.query(
+      `update channel_connections set offline_message_en = 'Opening 1 Nov!' where tenant_id = $1`,
+      [TENANT_A],
+    );
+    const c = await conversationWith('how much is the fudge cake');
+    const { result, calls, segments } = await turn(c);
+    expect(calls.generate).toBe(0);
+    expect(calls.embed).toBe(0);
+    expect(segments).toEqual([]);
+    expect(result?.outcome).toBe('not_live');
+    expect(result?.message).toMatchObject({ author: 'system', body: 'Opening 1 Nov!' });
+    const decision = (await auditRows(result!.message.id)).find(
+      (r) => r.event_type === 'agent.decision',
+    );
+    expect(decision?.payload).toMatchObject({ outcome: 'not_live', tasks: [] });
+    expect(await auditActions(result!.message.id)).not.toContain('agent.fallback_sent');
+
+    // The visitor types again: nothing more is added.
+    const second = await say(c.conversationId, c.visitorId, 'hello?');
+    const again = await turn({ conversationId: c.conversationId, messageId: second });
+    expect(again.result).toBeNull();
+    expect(again.calls.generate).toBe(0);
+    expect(again.calls.embed).toBe(0);
+  });
+
+  it("answers in the visitor's language with the default text when none is stored", async () => {
+    await offline();
+    const c = await conversationWith('你们的巧克力蛋糕多少钱');
+    const { result } = await turn(c);
+    expect(result?.message.body).toBe('我们的在线聊天尚未开放，请先直接联系我们。');
+  });
+
+  it('the kill switch wins over not live', async () => {
+    await offline();
+    await owner.query(`update tenants set ai_paused = true where id = $1`, [TENANT_A]);
+    const c = await conversationWith('how much is the fudge cake');
+    const { result } = await turn(c);
+    expect(result).toMatchObject({ outcome: 'paused', message: { body: texts.fallback } });
+  });
+
+  it('going offline between segments ends with the released prefix and the offline text', async () => {
+    const c = await conversationWith('how much is the fudge cake');
+    const { llm } = llmWith(() => 'First sentence. Second sentence. Third sentence.');
+    const segments: string[] = [];
+    const result = await runVisitorTurn(
+      {
+        zdb: tdb.zone('visitor'),
+        llm,
+        publishSegment: async (s) => {
+          segments.push(s.text);
+          await offline('hidden');
+        },
+      },
+      { tenantId: TENANT_A, conversationId: c.conversationId, messageId: c.messageId },
+    );
+    expect(segments).toEqual(['First sentence.']);
+    expect(result?.outcome).toBe('not_live');
+    expect(result?.message.body).toBe(
+      "First sentence. Our chat isn't open yet. Please contact us directly for now.",
+    );
   });
 });

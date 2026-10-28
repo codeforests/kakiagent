@@ -67,6 +67,7 @@ import type { FastifyBaseLogger, FastifyRequest } from 'fastify';
 import type { ZodType } from 'zod';
 import { UnavailableError, type TenantSession } from './auth.js';
 import { ForbiddenError, fromCents } from './facts.js';
+import { widgetLive } from './channels.js';
 import type { App, Deps } from './server.js';
 
 /** 422 `invalid_body` for a coaching body that doesn't parse (FEAT-027 §3). */
@@ -223,6 +224,11 @@ export function registerCoachRoutes(
 ) {
   const { dashboardDb, llm, rateLimiter } = deps;
   const coach = { zdb: dashboardDb, llm };
+  // The explainer's "visitors would get" knows whether the widget is live (FEAT-034 §5.3).
+  const coachFor = (tenantId: string) => ({
+    ...coach,
+    channelLive: widgetLive(dashboardDb, tenantId),
+  });
 
   async function coachUser(req: FastifyRequest) {
     const s = await sessionFrom(req);
@@ -294,7 +300,7 @@ export function registerCoachRoutes(
         throw new UnavailableError('rate limiter');
       }
       if (!allowed) throw new CoachRateLimitedError();
-      const r = await runCoachingTurn(coach, {
+      const r = await runCoachingTurn(coachFor(s.tenantId), {
         tenantId: s.tenantId,
         userId: s.userId,
         sessionId: id,
@@ -323,7 +329,7 @@ export function registerCoachRoutes(
         applyHours: applyHoursWith({ tenantId: s.tenantId, userId: s.userId }),
       }),
     );
-    const { before, after } = await reanswer(coach, {
+    const { before, after } = await reanswer(coachFor(s.tenantId), {
       tenantId: s.tenantId,
       userId: s.userId,
       correction: done,
@@ -419,7 +425,11 @@ export function registerCoachRoutes(
       throw new UnavailableError('rate limiter');
     }
     if (!allowed) throw new ReplayRateLimitedError();
-    const r = await replayNext(coach, { tenantId: s.tenantId, userId: s.userId, sessionId: id });
+    const r = await replayNext(coachFor(s.tenantId), {
+      tenantId: s.tenantId,
+      userId: s.userId,
+      sessionId: id,
+    });
     const [message] = await withTenant(dashboardDb, s.tenantId, (tx) =>
       toMessages(tx, s.tenantId, r.turn.replayed ? [r.turn.replayed] : []),
     );

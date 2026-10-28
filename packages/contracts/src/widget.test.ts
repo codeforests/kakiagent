@@ -58,6 +58,7 @@ describe('website widget contracts (FEAT-032 §3)', () => {
       theme: { ...theme, detected: null, logoUrl: null },
       privacyNoticeUrl: null,
       controls: { talkToPerson: false },
+      availability: { live: true },
     });
     expect(c.theme.position).toBe('left');
   });
@@ -84,6 +85,7 @@ describe('visitor controls contracts (FEAT-033 §3)', () => {
     greeting: { en: 'Hi', zh: '你好' },
     theme: { ...theme, detected: null, logoUrl: null },
     controls: { talkToPerson: false },
+    availability: { live: true },
   };
 
   it('parses a config with a null and a set privacy URL, and rejects a non-URL', () => {

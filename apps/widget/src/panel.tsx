@@ -16,12 +16,14 @@ import {
   greetingFor,
   langOf,
   menuItems,
+  notLiveView,
   pendingText,
   rowsOf,
   withMessage,
   withSegment,
   type Chat,
   type MenuItem,
+  type NotLiveView,
   type Segment,
 } from './chat.js';
 import { PANEL_CSS } from './panel.css.js';
@@ -223,6 +225,76 @@ function HeaderMenu({
 }
 
 /** No reply within this long after sending: say so (ui-design SCR-WGT-002 error). */
+const MAIL_ICON = (
+  <svg
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <rect x="2" y="4" width="20" height="16" rx="2" />
+    <path d="m22 7-10 6L2 7" />
+  </svg>
+);
+
+const PHONE_ICON = (
+  <svg
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z" />
+  </svg>
+);
+
+/** SCR-WGT-005 not live: the business's message and contacts in place of the chat. */
+function NotLiveCard({
+  view,
+  t,
+  business,
+  cardRef,
+}: {
+  view: NotLiveView;
+  t: Strings;
+  business: string;
+  cardRef: { current: HTMLDivElement | null };
+}) {
+  return (
+    <div class="offline" role="region" aria-label={t.notLiveRegion(business)}>
+      <div class="offline-card">
+        <p tabIndex={-1} ref={cardRef} lang={langOf(view.text)}>
+          {view.text}
+        </p>
+        {view.email && (
+          <p class="contact">
+            {MAIL_ICON}
+            <span class="sr-only">{t.notLiveEmail}: </span>
+            <a href={view.email.href}>{view.email.label}</a>
+          </p>
+        )}
+        {view.phone && (
+          <p class="contact">
+            {PHONE_ICON}
+            <span class="sr-only">{t.notLivePhone}: </span>
+            <a href={view.phone.href}>{view.phone.label}</a>
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const SLOW_REPLY_MS = 30_000;
 
 function newId(): string {
@@ -234,9 +306,11 @@ function newId(): string {
 function Panel({
   ctx,
   inputRef,
+  noticeRef,
 }: {
   ctx: PanelContext;
   inputRef: { current: HTMLTextAreaElement | null };
+  noticeRef: { current: HTMLDivElement | null };
 }) {
   const api = useRef(createApi(ctx.apiUrl, ctx.config.token)).current;
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -267,6 +341,8 @@ function Panel({
   // The chrome follows the latest reply's language (FEAT-033 D3, AC-7).
   const locale = chromeLocale(chat, navigator.language);
   const t = strings(locale);
+  // Offline with "Show a message" (FEAT-034, SCR-WGT-005): no chat, only the message.
+  const notLive = preview ? null : notLiveView(ctx.config.availability, navigator.language);
   const greeting = greetingFor(ctx.config.greeting, locale);
   useEffect(() => ctx.mount.setAttribute('lang', locale), [locale]);
 
@@ -307,7 +383,8 @@ function Panel({
   const privacyUrl = ctx.config.privacyNoticeUrl;
   const items = menuItems(ctx.config, {
     conversationId,
-    ended: ended || visitorEnded,
+    // Not live: no chat to end or hand over, only the privacy notice.
+    ended: ended || visitorEnded || !!notLive,
     preview: !!preview,
   });
 
@@ -406,144 +483,150 @@ function Panel({
           {CLOSE_ICON}
         </button>
       </header>
-      <ol class="log" ref={logRef} aria-live="polite" aria-relevant="additions">
-        {chat.messages.length === 0 && (
-          <li class="empty" lang={langOf(greeting)}>
-            {greeting}
-          </li>
-        )}
-        {chat.messages.map((m) => [
-          ...rowsOf(m).map((r) =>
-            r.kind === 'disclosure' ? (
-              <li key={r.key} class="disc" lang={langOf(r.text)}>
-                {INFO_ICON} {r.text}
-              </li>
-            ) : r.kind === 'notice' ? (
-              <li key={r.key} class="notice" lang={langOf(r.text)}>
-                {r.text}
-              </li>
-            ) : (
-              <li
-                key={r.key}
-                class={`msg ${m.author}`}
-                data-author={m.author}
-                lang={langOf(r.text)}
-              >
-                {m.author === 'visitor' && <span class="sr-only">{t.you}: </span>}
-                {r.text}
-              </li>
-            ),
-          ),
-          m.id === waitingFor && growing && (
-            <li
-              key={`${m.id}-reply`}
-              class="msg agent"
-              data-author="agent"
-              data-pending="true"
-              lang={langOf(growing)}
-            >
-              {growing}
-            </li>
-          ),
-        ])}
-        {waitingFor && !visitorEnded && !slow && (
-          <li class="typing" role="status" aria-label={t.typing(ctx.config.botName)}>
-            <i />
-            <i />
-            <i />
-          </li>
-        )}
-        {waitingFor && !visitorEnded && slow && (
-          <li class="notice" role="status">
-            {t.slow}
-          </li>
-        )}
-      </ol>
-      {error && (
-        <p class="error" role="alert">
-          {t.failed}
-        </p>
-      )}
-      {endState !== 'open' ? (
-        <div
-          class="card"
-          role="group"
-          aria-labelledby="kaki-end-title"
-          onKeyDown={(e) => {
-            if (e.key !== 'Escape' || visitorEnded) return;
-            e.stopPropagation();
-            if (endState === 'confirm') cancelEnd();
-          }}
-        >
-          <h3 id="kaki-end-title" tabIndex={-1} ref={cardTitleRef}>
-            {visitorEnded ? t.endedTitle : t.endConfirmTitle}
-          </h3>
-          {visitorEnded ? (
-            <>
-              <p>{t.transcriptNotice}</p>
-              {privacyUrl && (
-                <p>
-                  <PrivacyLink url={privacyUrl} t={t} />
-                </p>
-              )}
-              <button type="button" class="btn pri" onClick={newChat}>
-                {t.newChat}
-              </button>
-            </>
-          ) : (
-            <>
-              <p>{t.endConfirmBody}</p>
-              {endError && (
-                <p class="error" role="alert">
-                  {t.endFailed}
-                </p>
-              )}
-              <div class="row">
-                <button
-                  type="button"
-                  class="btn sec"
-                  disabled={endState === 'ending'}
-                  onClick={cancelEnd}
-                >
-                  {t.keepChatting}
-                </button>
-                <button
-                  type="button"
-                  class="btn pri"
-                  disabled={endState === 'ending'}
-                  onClick={() => void confirmEnd()}
-                >
-                  {endState === 'ending' ? t.ending : t.endChatConfirm}
-                </button>
-              </div>
-            </>
-          )}
-        </div>
+      {notLive ? (
+        <NotLiveCard view={notLive} t={t} business={ctx.config.botName} cardRef={noticeRef} />
       ) : (
-        <form class="composer" onSubmit={submit}>
-          <label class="sr-only" for="kaki-input">
-            {t.messageLabel}
-          </label>
-          <textarea
-            id="kaki-input"
-            ref={inputRef}
-            rows={1}
-            placeholder={preview ? t.preview : ended ? t.ended : t.placeholder}
-            disabled={ended || !!preview}
-            value={text}
-            onInput={(e) => setText((e.target as HTMLTextAreaElement).value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) void submit(e);
-            }}
-          />
-          <button
-            class="send"
-            type="submit"
-            disabled={sending || ended || !!preview || !text.trim()}
-          >
-            {t.send}
-          </button>
-        </form>
+        <>
+          <ol class="log" ref={logRef} aria-live="polite" aria-relevant="additions">
+            {chat.messages.length === 0 && (
+              <li class="empty" lang={langOf(greeting)}>
+                {greeting}
+              </li>
+            )}
+            {chat.messages.map((m) => [
+              ...rowsOf(m).map((r) =>
+                r.kind === 'disclosure' ? (
+                  <li key={r.key} class="disc" lang={langOf(r.text)}>
+                    {INFO_ICON} {r.text}
+                  </li>
+                ) : r.kind === 'notice' ? (
+                  <li key={r.key} class="notice" lang={langOf(r.text)}>
+                    {r.text}
+                  </li>
+                ) : (
+                  <li
+                    key={r.key}
+                    class={`msg ${m.author}`}
+                    data-author={m.author}
+                    lang={langOf(r.text)}
+                  >
+                    {m.author === 'visitor' && <span class="sr-only">{t.you}: </span>}
+                    {r.text}
+                  </li>
+                ),
+              ),
+              m.id === waitingFor && growing && (
+                <li
+                  key={`${m.id}-reply`}
+                  class="msg agent"
+                  data-author="agent"
+                  data-pending="true"
+                  lang={langOf(growing)}
+                >
+                  {growing}
+                </li>
+              ),
+            ])}
+            {waitingFor && !visitorEnded && !slow && (
+              <li class="typing" role="status" aria-label={t.typing(ctx.config.botName)}>
+                <i />
+                <i />
+                <i />
+              </li>
+            )}
+            {waitingFor && !visitorEnded && slow && (
+              <li class="notice" role="status">
+                {t.slow}
+              </li>
+            )}
+          </ol>
+          {error && (
+            <p class="error" role="alert">
+              {t.failed}
+            </p>
+          )}
+          {endState !== 'open' ? (
+            <div
+              class="card"
+              role="group"
+              aria-labelledby="kaki-end-title"
+              onKeyDown={(e) => {
+                if (e.key !== 'Escape' || visitorEnded) return;
+                e.stopPropagation();
+                if (endState === 'confirm') cancelEnd();
+              }}
+            >
+              <h3 id="kaki-end-title" tabIndex={-1} ref={cardTitleRef}>
+                {visitorEnded ? t.endedTitle : t.endConfirmTitle}
+              </h3>
+              {visitorEnded ? (
+                <>
+                  <p>{t.transcriptNotice}</p>
+                  {privacyUrl && (
+                    <p>
+                      <PrivacyLink url={privacyUrl} t={t} />
+                    </p>
+                  )}
+                  <button type="button" class="btn pri" onClick={newChat}>
+                    {t.newChat}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p>{t.endConfirmBody}</p>
+                  {endError && (
+                    <p class="error" role="alert">
+                      {t.endFailed}
+                    </p>
+                  )}
+                  <div class="row">
+                    <button
+                      type="button"
+                      class="btn sec"
+                      disabled={endState === 'ending'}
+                      onClick={cancelEnd}
+                    >
+                      {t.keepChatting}
+                    </button>
+                    <button
+                      type="button"
+                      class="btn pri"
+                      disabled={endState === 'ending'}
+                      onClick={() => void confirmEnd()}
+                    >
+                      {endState === 'ending' ? t.ending : t.endChatConfirm}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          ) : (
+            <form class="composer" onSubmit={submit}>
+              <label class="sr-only" for="kaki-input">
+                {t.messageLabel}
+              </label>
+              <textarea
+                id="kaki-input"
+                ref={inputRef}
+                rows={1}
+                placeholder={preview ? t.preview : ended ? t.ended : t.placeholder}
+                disabled={ended || !!preview}
+                value={text}
+                onInput={(e) => setText((e.target as HTMLTextAreaElement).value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) void submit(e);
+                }}
+              />
+              <button
+                class="send"
+                type="submit"
+                disabled={sending || ended || !!preview || !text.trim()}
+              >
+                {t.send}
+              </button>
+            </form>
+          )}
+        </>
       )}
       {privacyUrl && !visitorEnded && (
         <p class="foot">
@@ -557,9 +640,10 @@ function Panel({
 export function mountPanel(ctx: PanelContext) {
   ctx.adopt(PANEL_CSS);
   const inputRef: { current: HTMLTextAreaElement | null } = { current: null };
+  const noticeRef: { current: HTMLDivElement | null } = { current: null };
   ctx.mount.addEventListener('keydown', (e) => {
     if ((e as KeyboardEvent).key === 'Escape') ctx.close();
   });
-  render(<Panel ctx={ctx} inputRef={inputRef} />, ctx.mount);
-  return { focus: () => inputRef.current?.focus() };
+  render(<Panel ctx={ctx} inputRef={inputRef} noticeRef={noticeRef} />, ctx.mount);
+  return { focus: () => (inputRef.current ?? noticeRef.current)?.focus() };
 }

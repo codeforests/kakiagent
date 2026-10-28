@@ -26,6 +26,8 @@ import {
   AssistantSettingsResponse,
   AuthOptions,
   BusinessProfileResponse,
+  ChannelItem,
+  ChannelsResponse,
   PrivacySettingsResponse,
   type PrivacyNoticeBody,
   type PurposeStatementBody,
@@ -56,6 +58,7 @@ import {
   type ApproveFactBody,
   type AssistantSettingsBody,
   type BusinessProfileBody,
+  type ChannelOfflineBody,
   type CreateFactBody,
   type CreateSourceBody,
   type CreateWorkspaceBody,
@@ -185,6 +188,12 @@ export const api = {
   businessProfile: () => getJson('/api/v1/settings/business-profile', BusinessProfileResponse),
   saveBusinessProfile: (body: BusinessProfileBody) =>
     request('PUT', '/api/v1/settings/business-profile', BusinessProfileResponse, body),
+  channels: () => getJson('/api/v1/channels', ChannelsResponse),
+  setChannelState: (id: string, state: 'live' | 'offline', version: number) =>
+    request('POST', `/api/v1/channels/${id}/${state}`, ChannelItem, { version }),
+  saveChannelOffline: (id: string, body: ChannelOfflineBody) =>
+    request('PUT', `/api/v1/channels/${id}/offline-settings`, ChannelItem, body),
+  checkChannel: (id: string) => request('POST', `/api/v1/channels/${id}/check`, ChannelItem),
   privacySettings: () => getJson('/api/v1/settings/privacy', PrivacySettingsResponse),
   savePrivacyNotice: (body: PrivacyNoticeBody) =>
     request('PUT', '/api/v1/settings/privacy/notice', PrivacySettingsResponse, body),

@@ -1,32 +1,64 @@
 /**
- * The ChannelAdapter contract (ADR-011). The core never branches on channel kind; it
- * talks to adapters through this interface. The skeleton defines the contract and the
- * widget origin rule; FEAT-034+ implement adapters with contract tests (CHN-01). FEAT-032
- * adds the website widget's settings (`widget-settings.ts`) and the theme module.
+ * Channels (ADR-011, CHN-01). The ADR-011 adapter contract (`adapter.ts`), the registry
+ * that makes a new channel an adapter plus an entry (`registry.ts`), connections with their
+ * live/offline state and health (`connections.ts`, FEAT-034), sealed credentials
+ * (`secrets.ts`), and the website widget's settings and theme (FEAT-032). The contract-test
+ * suite is the test-only `@kaki/channels/contract-suite` export.
  */
-export type ChannelKind = 'widget' | 'email' | 'telegram' | 'messenger' | 'instagram' | 'whatsapp';
-
-export interface InboundMessage {
-  channel: ChannelKind;
-  externalId: string;
-  contactRef: string;
-  text: string;
-  receivedAt: Date;
-}
-
-export interface OutboundMessage {
-  idempotencyKey: string;
-  contactRef: string;
-  text: string;
-}
-
-export interface ChannelAdapter {
-  kind: ChannelKind;
-  /** Turns a provider payload into zero or more inbound messages (ignore rules apply). */
-  normalise(payload: unknown): InboundMessage[];
-  /** Sends one message; must be idempotent on `idempotencyKey`. */
-  send(msg: OutboundMessage): Promise<{ externalId: string }>;
-}
+export {
+  CHANNEL_KINDS,
+  isRejection,
+  type ChannelAdapter,
+  type ChannelCapabilities,
+  type ChannelHealthReason,
+  type ChannelKind,
+  type ConnectRequest,
+  type CredentialRef,
+  type ExternalThreadKey,
+  type HealthStatus,
+  type IgnoreReason,
+  type InboundAttachment,
+  type InboundEvent,
+  type OutboundMessage,
+  type RawInbound,
+  type Rejection,
+  type SendContext,
+  type SendResult,
+  type VerifiedInbound,
+  type VerifiedSegment,
+} from './adapter.js';
+export {
+  CHANNEL_REGISTRY,
+  connectable,
+  registryEntry,
+  type ChannelRegistry,
+  type ChannelRegistryEntry,
+  type OfflineMode,
+} from './registry.js';
+export { localSealer, SealError, type SecretSealer } from './secrets.js';
+export {
+  ChannelConflictError,
+  ChannelNotFoundError,
+  CHECK_AGAIN_MS,
+  checkChannelNow,
+  listChannels,
+  NoHealthCheckError,
+  OFFLINE_DEFAULTS,
+  OfflineModeError,
+  OfflineTextError,
+  recordHealth,
+  reportSendFailure,
+  runChannelHealth,
+  saveOfflineSettings,
+  setChannelState,
+  TooSoonError,
+  UNREACHABLE_LIMIT,
+  visitorChannel,
+  type ChannelChange,
+  type HealthRunResult,
+  type HealthTransition,
+  type VisitorChannel,
+} from './connections.js';
 
 /**
  * CHN-11: the widget works only on allowed origins. Exact match on scheme, host and

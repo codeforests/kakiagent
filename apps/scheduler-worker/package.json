@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@kaki/analytics": "workspace:*",
+    "@kaki/channels": "workspace:*",
     "@kaki/db": "workspace:*",
     "@kaki/governance": "workspace:*",
     "@kaki/identity": "workspace:*",

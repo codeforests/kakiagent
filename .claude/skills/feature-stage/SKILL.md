@@ -44,16 +44,16 @@ Every call re-reads the whole context, and the session's starting prompt alone i
 2. Inputs: `handoff.md`, `tasks.md`, and the design sections for the task at hand (`technical-design.md`; `ui-design.md` only in the UI session). Start at the first unticked task.
 3. Per task: implement, run its "Done when", tick it, one commit. At most 3 fix attempts, then stop honestly with a note.
 4. A backend session stops at the `## Build session 2 (UI)` heading: update `handoff.md` (what the UI session needs: routes, contract names, fakes), push, and reply with the UI kickoff. Any session that has done about six tasks or feels long stops at a task boundary the same way and replies with the kickoff that resumes it.
-5. After the last task: status `developer-done`, push, open a **draft** PR (title `FEAT-NNN: <name>`, body starts with the project's attribution block; assign `codeforests`). Never start GitHub CI; the verify stage decides whether to ask Ken for a local run (STATE.md, CI cadence). Reply with the verify kickoff.
+5. After the last task: status `developer-done`, push, open a **draft** PR (title `FEAT-NNN: <name>`, body starts with the project's attribution block; assign `codeforests`). Don't start GitHub CI; the verify stage runs it (STATE.md, CI). Reply with the verify kickoff.
 
 ## Stage: verify
 
 1. Load `agentic-sdlc-kit:acceptance-verification`. This session is the independent verifier: it didn't write the code. Diff against `origin/main` (Token rules), and take the report format from the previous report's headings and per-AC table only.
 2. Inputs: `handoff.md`, the design's §6, `tasks.md` evidence, `git diff main...HEAD`.
-3. Re-run this feature's tests fresh, then the full local checks (STATE.md, CI cadence). Never start or wait on GitHub Actions: when the cadence calls for CI, ask Ken to run it locally in WSL and read the E2E results from the summary he pastes. Review the test diff and the invariants in `AGENTS.md`.
+3. Re-run this feature's tests fresh, then the full local checks (STATE.md, CI). Then start GitHub CI on the PR branch and let the PR events wake you; fix anything red and re-run until green. Review the test diff and the invariants in `AGENTS.md`.
 4. Write `acceptance-report.md`; on acceptance, append the RTM Test ref and set `tasks.md` status `accepted`.
-5. Update `docs/build/STATE.md` in the same PR: move the feature to Merged, set the next feature and the remaining order, and the features-since-CI count.
-6. Put the local check results in the PR body, mark it ready and subscribe to it; if Ken's local CI is due, ask him for it and fix anything red it shows. Reply once with the PR link. Ken approves; squash-merge only with his go-ahead.
+5. Update `docs/build/STATE.md` in the same PR: move the feature to Merged, set the next feature and the remaining order, and the last CI run.
+6. Put the local check results in the PR body, mark it ready, subscribe to it and run GitHub CI (step 3); record the green run in the report. Reply once with the PR link. Ken approves; squash-merge only with his go-ahead.
 7. After the merge, post the remaining build order with the next feature first, and the design kickoff for it.
 8. Rework goes back to a build session (kickoff in `handoff.md`); a design defect goes to a design session.
 

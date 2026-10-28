@@ -9,6 +9,7 @@
  */
 import type { WidgetConfigResponse } from '@kaki/contracts';
 import { detectTheme, type LiveTheme } from '@kaki/channels/theme';
+import { mounts } from './availability.js';
 import { CHAT_ICON, LAUNCHER_CSS } from './launcher.css.js';
 import { followPage, hostSheetCss, hostStyle, resolved, tokenSheet } from './theme.js';
 import type { PanelContext, PanelModule } from './types.js';
@@ -148,8 +149,8 @@ function mount(config: WidgetConfigResponse, apiUrl: string) {
     })
       .then((r) => (r.ok ? (r.json() as Promise<WidgetConfigResponse>) : null))
       .then((config) => {
-        // "Not here" (unknown key, wrong origin, not live): stay silent.
-        if (!config) return;
+        // "Not here" (unknown key, wrong origin) or offline and hidden: stay silent.
+        if (!config || !mounts(config)) return;
         const start = () => mount(config, apiUrl);
         if (document.body) start();
         else document.addEventListener('DOMContentLoaded', start);

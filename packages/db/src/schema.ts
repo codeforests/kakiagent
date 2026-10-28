@@ -1331,6 +1331,81 @@ export const privacySettings = pgTable(
   ],
 );
 
+export const CHANNEL_KINDS = [
+  'widget',
+  'email',
+  'telegram',
+  'messenger',
+  'instagram',
+  'whatsapp',
+] as const;
+export const CHANNEL_STATES = ['live', 'offline'] as const;
+export const CHANNEL_OFFLINE_MODES = ['hidden', 'message'] as const;
+export const CHANNEL_HEALTH = ['ok', 'degraded', 'unknown'] as const;
+export const CHANNEL_HEALTH_REASONS = [
+  'credential_revoked',
+  'credential_invalid',
+  'unreachable',
+  'send_rejected',
+] as const;
+
+/**
+ * One connection per channel kind per tenant (CHN-01, ONB-10, CHN-12; FEAT-034 §4, D1). A
+ * trigger on `tenants` creates the widget row offline and hidden. The credential columns are
+ * sealed (`@kaki/channels` `SecretSealer`) and not granted to the dashboard zone.
+ */
+export const channelConnections = pgTable(
+  'channel_connections',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    kind: text('kind', { enum: CHANNEL_KINDS }).notNull(),
+    state: text('state', { enum: CHANNEL_STATES }).notNull().default('offline'),
+    stateChangedAt: timestamp('state_changed_at', { withTimezone: true }),
+    stateChangedBy: uuid('state_changed_by'),
+    offlineMode: text('offline_mode', { enum: CHANNEL_OFFLINE_MODES }).notNull().default('hidden'),
+    offlineMessageEn: text('offline_message_en'),
+    offlineMessageZh: text('offline_message_zh'),
+    health: text('health', { enum: CHANNEL_HEALTH }).notNull().default('unknown'),
+    healthReason: text('health_reason', { enum: CHANNEL_HEALTH_REASONS }),
+    healthFailures: integer('health_failures').notNull().default(0),
+    healthCheckedAt: timestamp('health_checked_at', { withTimezone: true }),
+    degradedSince: timestamp('degraded_since', { withTimezone: true }),
+    credentialCiphertext: bytea('credential_ciphertext'),
+    credentialKeyRef: text('credential_key_ref'),
+    version: integer('version').notNull().default(1),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('channel_connections_kind_uq').on(t.tenantId, t.kind),
+    uniqueIndex('channel_connections_tenant_id_uq').on(t.tenantId, t.id),
+    check(
+      'channel_connections_kind_ck',
+      sql`${t.kind} in ('widget', 'email', 'telegram', 'messenger', 'instagram', 'whatsapp')`,
+    ),
+    check('channel_connections_state_ck', sql`${t.state} in ('live', 'offline')`),
+    check(
+      'channel_connections_offline_mode_ck',
+      sql`${t.offlineMode} in ('hidden', 'message') and (${t.kind} = 'widget' or ${t.offlineMode} = 'message')`,
+    ),
+    check(
+      'channel_connections_offline_message_ck',
+      sql`(${t.offlineMessageEn} is null or char_length(${t.offlineMessageEn}) between 1 and 300) and (${t.offlineMessageZh} is null or char_length(${t.offlineMessageZh}) between 1 and 300)`,
+    ),
+    check(
+      'channel_connections_health_ck',
+      sql`${t.health} in ('ok', 'degraded', 'unknown') and (${t.healthReason} is null or ${t.healthReason} in ('credential_revoked', 'credential_invalid', 'unreachable', 'send_rejected')) and ${t.healthFailures} >= 0`,
+    ),
+    check(
+      'channel_connections_credential_ck',
+      sql`(${t.credentialCiphertext} is null) = (${t.credentialKeyRef} is null)`,
+    ),
+  ],
+);
+
 /** Tables with `tenant_id` + forced RLS. The cross-tenant suite asserts this list is complete. */
 export const TENANT_SCOPED_TABLES = [
   'tenants',
@@ -1358,4 +1433,5 @@ export const TENANT_SCOPED_TABLES = [
   'widget_settings',
   'wording_versions',
   'privacy_settings',
+  'channel_connections',
 ] as const;
