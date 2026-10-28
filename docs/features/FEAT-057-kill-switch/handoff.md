@@ -1,5 +1,5 @@
 # Handoff: FEAT-057 — Kill switch: pause and resume the AI on all channels
-Branch: feat/FEAT-057-kill-switch · PR: (draft, see below) · Updated: 2026-10-28 by build (UI)
+Branch: feat/FEAT-057-kill-switch · PR: https://github.com/codeforests/kakiagent/pull/37 (draft) · Updated: 2026-10-28 by build (UI)
 Stage done: build (T1–T9 of 9), status developer-done
 Next: verify — kickoff: "Verify FEAT-057 on branch feat/FEAT-057-kill-switch.
 Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
