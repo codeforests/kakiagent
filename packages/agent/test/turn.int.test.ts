@@ -325,6 +325,35 @@ describe('runVisitorTurn (UC-20)', () => {
     expect(result?.message.disclosure).toBe(texts.disclosure('Kaki Bakery'));
   });
 
+  it('paused: the fallback once per run of visitor messages, then answers after resume (FEAT-057 AC-3, AC-6)', async () => {
+    await owner.query(`update tenants set ai_paused = true, ai_paused_at = now() where id = $1`, [
+      TENANT_A,
+    ]);
+    const c = await conversationWith('how much is the fudge cake');
+    const first = await turn(c);
+    expect(first.calls.generate).toBe(0);
+    expect(first.calls.embed).toBe(0);
+    expect(first.result?.outcome).toBe('paused');
+    expect(first.result?.message).toMatchObject({ author: 'system', body: texts.fallback });
+
+    // The visitor types again while paused: nothing more is added.
+    const second = await say(c.conversationId, c.visitorId, 'hello?');
+    const again = await turn({ conversationId: c.conversationId, messageId: second });
+    expect(again.result).toBeNull();
+    expect(again.calls.generate).toBe(0);
+    expect(again.calls.embed).toBe(0);
+
+    await owner.query(
+      `update tenants set ai_paused = false, ai_paused_at = null, ai_paused_by = null where id = $1`,
+      [TENANT_A],
+    );
+    const third = await say(c.conversationId, c.visitorId, 'how much is the fudge cake');
+    const resumed = await turn({ conversationId: c.conversationId, messageId: third });
+    expect(resumed.calls.generate).toBeGreaterThan(0);
+    expect(resumed.result?.outcome).not.toBe('paused');
+    expect(resumed.result?.message.author).toBe('agent');
+  });
+
   it('says nothing while a human owns the conversation (AC-14, UC-20 5e)', async () => {
     const c = await conversationWith('how much is the fudge cake');
     await owner.query(`update conversations set status = 'human' where id = $1`, [
