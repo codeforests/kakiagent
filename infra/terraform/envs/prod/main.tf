@@ -251,7 +251,7 @@ module "service" {
         AWS_REGION           = local.region
         SQS_INGEST_QUEUE_URL = module.queues.queue_urls["ingest"]
         WIDGET_ASSET_URL     = "${local.public_url}/w/v1/" # detect.js (FEAT-032 D4)
-        LLM_PROVIDER         = "fake" # the Bedrock au. provider arrives at MD (ADR-006)
+        LLM_PROVIDER         = "fake"                      # the Bedrock au. provider arrives at MD (ADR-006)
         QUARANTINE_BUCKET    = module.storage.bucket_names["quarantine"]
         SOURCES_BUCKET       = module.storage.bucket_names["sources"]
         MALWARE_SCANNER      = "guardduty" # FEAT-015 §5.3; ClamAV is the local stand-in
