@@ -21,7 +21,7 @@
       Note: renders and interaction are checked by T8's E2E in the verify stage's GitHub CI (no local stack in cloud sessions).
 - [x] T7 — Widget paused notice: `chat.ts` `pausedNotice`, `panel.tsx` notice above the composer (no greeting, no disclosure row), `strings.ts` en/zh; unit tests in `chat.test.ts` (ui-design SCR-WGT-005 paused; D7; AC-4, AC-10)
       Done when: `pnpm --filter @kaki/widget test` passes with `pausedNotice` cases (null when not paused; zh text for a `zh` browser; contacts only when present; offline wins); `pnpm --filter @kaki/widget build && pnpm size` within budget.
-- [ ] T8 — E2E: `e2e/tests/kill-switch.e2e.ts` per design §5.7 with `afterEach` resume; axe light and dark; 375 px run (AC-3, AC-4, AC-5, AC-8, AC-9, AC-10)
+- [x] T8 — E2E: `e2e/tests/kill-switch.e2e.ts` per design §5.7 with `afterEach` resume; axe light and dark; 375 px run (AC-3, AC-4, AC-5, AC-8, AC-9, AC-10)
       Done when: the spec typechecks and lints; it runs in the verify stage's GitHub CI on Chromium, Firefox and WebKit.
       Note: no local stack in cloud sessions; before CI, try the widget steps in the session's Chromium against the widget dev server with a stubbed config (code-map E2E pitfalls).
 - [ ] T9 — Verify: full `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `test:coverage` for db, governance, channels, agent, api, dashboard, widget through `scripts/test-env.sh`; status `developer-done`; draft PR
