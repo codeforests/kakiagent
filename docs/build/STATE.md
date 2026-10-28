@@ -4,10 +4,10 @@ The one file a fresh build session reads first. Keep it under 80 lines. The veri
 
 ## Where the build is
 
-- **Next feature:** FEAT-057, design, only after Ken says go. FEAT-034 accepted 2026-10-27 (PR #36).
-- **M2 order from here:** 057 → 006 → 054 → 035. After M2, follow plan §5 (`grep -n '^| \*\*M3' docs/03-planning/implementation-plan.md`).
+- **Next feature:** FEAT-006, design, only after Ken says go. FEAT-057 accepted 2026-10-28 (PR #37).
+- **M2 order from here:** 006 → 054 → 035. After M2, follow plan §5 (`grep -n '^| \*\*M3' docs/03-planning/implementation-plan.md`).
 - **Demos:** the interim demo after FEAT-027 (coaching) is due; it can now include replay (FEAT-028). M2 closes after FEAT-035 with `pipeline-verify` and a live demo of J1, J8 and J11, signed off by Ken.
-- **Merged:** 001 (skeleton), 002, 003, 004, 005, 009, 011, 012, 013, 014, 015, 016, 017, 022, 023, 024, 025, 027 (merged 2026-10-24 on Ken's local CI without a verify stage: its acceptance report and RTM Test ref are still to write), 028 (accepted 2026-10-24), 018 (accepted and merged 2026-10-24), 019 (accepted and merged 2026-10-25), 032 (accepted and merged 2026-10-25), 033 (accepted and merged 2026-10-26), 058 (accepted and merged 2026-10-27), 034 (accepted 2026-10-27, merged 2026-10-28 after GitHub CI went green). Each has `docs/features/FEAT-NNN-*/`.
+- **Merged:** 001 (skeleton), 002, 003, 004, 005, 009, 011, 012, 013, 014, 015, 016, 017, 022, 023, 024, 025, 027 (merged 2026-10-24 on Ken's local CI without a verify stage: its acceptance report and RTM Test ref are still to write), 028 (accepted 2026-10-24), 018 (accepted and merged 2026-10-24), 019 (accepted and merged 2026-10-25), 032 (accepted and merged 2026-10-25), 033 (accepted and merged 2026-10-26), 058 (accepted and merged 2026-10-27), 034 (accepted 2026-10-27, merged 2026-10-28 after GitHub CI went green), 057 (accepted 2026-10-28; GOV-08 partial until FEAT-049). Each has `docs/features/FEAT-NNN-*/`.
 
 ## One feature = three fresh sessions
 
@@ -24,15 +24,15 @@ Each stage follows `.claude/skills/feature-stage/SKILL.md`. A stage never reads 
 ## Kickoff prompts (paste into a new thread)
 
 ```
-Design FEAT-057. Branch feat/FEAT-057-<slug> (create it from main).
+Design FEAT-006. Branch feat/FEAT-006-<slug> (create it from main).
 Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage design.
 ```
 ```
-Build FEAT-057 (backend) on branch feat/FEAT-057-<slug>.
+Build FEAT-006 (backend) on branch feat/FEAT-006-<slug>.
 Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage build.
 ```
 ```
-Verify FEAT-057 on branch feat/FEAT-057-<slug>.
+Verify FEAT-006 on branch feat/FEAT-006-<slug>.
 Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify.
 ```
 
@@ -53,7 +53,7 @@ The repo is public, so GitHub Actions minutes are free. CI (`.github/workflows/c
 - **Every feature:** the verify stage runs the full local checks through `scripts/test-env.sh` (`pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `test:coverage` for each package the feature touches), then starts CI on the PR branch (`actions_run_trigger` `run_workflow`, `ci.yml`, ref = the branch), waits for the PR events (no polling), fixes anything red on the branch and re-runs until all jobs are green. The PR body lists both.
 - **E2E** runs in CI (Chromium, Firefox, WebKit). The acceptance report records the run number and commit.
 - Ken's local WSL run (`/mnt/project-files/guides/run-kakiagent-locally.md`) is only a fallback when GitHub CI is unavailable.
-- **Last CI run:** GitHub CI on FEAT-034 at `2d203b6`, 2026-10-28, green.
+- **Last CI run:** GitHub CI run 74 on FEAT-057 at `6dd5f6f`, 2026-10-28, green.
 
 ## Token tracking (Ken, 2026-10-24; every feature)
 

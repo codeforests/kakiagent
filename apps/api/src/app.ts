@@ -64,6 +64,7 @@ import {
   CorrectionReplayNotFoundError,
   ReplayCompleteError,
   ReplayConversationNotFoundError,
+  textsFor,
 } from '@kaki/agent';
 import {
   InvalidProfileError,
@@ -100,6 +101,7 @@ import { registerCoverageRoutes } from './coverage.js';
 import { registerSettingsRoutes } from './settings.js';
 import { registerWidgetRoutes, widgetErrorReply } from './widget.js';
 import { channelErrorReply, registerChannelRoutes } from './channels.js';
+import { registerAiRoutes } from './ai.js';
 import {
   AttestationRequiredError,
   FileTooLargeError,
@@ -395,7 +397,7 @@ export async function buildApp(deps: Deps) {
       config.VISITOR_TOKEN_SECRET,
     );
     // FEAT-024: the tenant's name and greeting, through the visitor zone's function only.
-    const { persona, theme, privacy, channel } = await withTenant(
+    const { tenantState, theme, privacy, channel } = await withTenant(
       visitorDb,
       install.tenantId,
       async (tx) => {
@@ -407,7 +409,7 @@ export async function buildApp(deps: Deps) {
           install.allowedOrigins,
         );
         return {
-          persona: (await visitorTenantState(tx))?.persona,
+          tenantState: await visitorTenantState(tx),
           theme: await visitorWidgetTheme(tx, install.tenantId, key, config.PUBLIC_API_URL),
           privacy: await visitorPrivacy(tx),
           // ONB-10 (FEAT-034): an offline widget still loads, so the install check works.
@@ -415,6 +417,7 @@ export async function buildApp(deps: Deps) {
         };
       },
     );
+    const persona = tenantState?.persona;
     reply.header('access-control-allow-origin', origin).header('vary', 'origin');
     return WidgetConfigResponse.parse({
       token,
@@ -434,6 +437,16 @@ export async function buildApp(deps: Deps) {
       availability: channel.live
         ? { live: true }
         : { live: false, mode: channel.mode, message: channel.message, contact: channel.contact },
+      // GOV-08 (FEAT-057 §3): the fallback the turn sends while paused, and the contacts.
+      aiPaused: tenantState?.aiPaused
+        ? {
+            message: {
+              en: textsFor('en', persona).fallback,
+              zh: textsFor('zh', persona).fallback,
+            },
+            contact: channel.contact,
+          }
+        : null,
     });
   });
 
@@ -530,6 +543,7 @@ export async function buildApp(deps: Deps) {
   registerWidgetRoutes(app, deps, sessionFrom);
   registerPrivacyRoutes(app, deps, sessionFrom);
   registerChannelRoutes(app, deps, sessionFrom);
+  registerAiRoutes(app, deps, sessionFrom, notify);
 
   return app;
 }

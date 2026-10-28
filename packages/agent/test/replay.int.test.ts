@@ -70,7 +70,9 @@ afterAll(async () => {
   await tdb?.stop();
 });
 beforeEach(async () => {
-  await owner.query(`update tenants set ai_paused = false`);
+  await owner.query(
+    `update tenants set ai_paused = false, ai_paused_at = null, ai_paused_by = null`,
+  );
   await owner.query(
     `update facts set value = jsonb_set(value, '{priceCents}', '5500') where id = $1`,
     [fudge],

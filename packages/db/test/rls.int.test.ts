@@ -1239,7 +1239,6 @@ describe('business profile and holidays (FEAT-009)', () => {
       });
       // Each refused statement in its own transaction (a failed one aborts the rest).
       for (const stmt of [
-        `update tenants set ai_paused = true`,
         `update tenants set widget_key = 'x'`,
         `update business_profiles set tenant_id = tenant_id`,
       ])
@@ -1965,6 +1964,51 @@ describe('corrections queue (FEAT-018)', () => {
       );
       expect(own.rowCount).toBe(1);
     });
+  });
+
+  it("the dashboard pauses and resumes its own tenant's AI only (FEAT-057 D5)", async () => {
+    try {
+      await asRole('app_dashboard', TENANT_B, async (c) => {
+        const other = await c.query(
+          `update tenants set ai_paused = true, ai_paused_at = now() where id = $1`,
+          [TENANT_A],
+        );
+        expect(other.rowCount).toBe(0);
+        const own = await c.query(
+          `update tenants set ai_paused = true, ai_paused_at = now(), ai_paused_by = null`,
+        );
+        expect(own.rowCount).toBe(1);
+        // The session sees only its own row, and the rollback below leaves it untouched.
+        expect((await c.query(`select id, ai_paused from tenants`)).rows).toEqual([
+          { id: TENANT_B, ai_paused: true },
+        ]);
+      });
+      expect((await owner.query(`select bool_or(ai_paused) as any from tenants`)).rows[0].any).toBe(
+        false,
+      );
+      for (const stmt of [
+        `update tenants set route_complexity_threshold = 0`,
+        `update tenants set cost_governor_step = 1`,
+        `update tenants set widget_key = 'x'`,
+      ])
+        await expect(asRole('app_dashboard', TENANT_B, (c) => c.query(stmt))).rejects.toThrow(
+          /permission denied/,
+        );
+      await expect(
+        owner.query(`update tenants set ai_paused = true, ai_paused_at = null where id = $1`, [
+          TENANT_A,
+        ]),
+      ).rejects.toThrow(/tenants_ai_paused_at_ck/);
+      await expect(
+        owner.query(`update tenants set ai_paused = false, ai_paused_at = now() where id = $1`, [
+          TENANT_B,
+        ]),
+      ).rejects.toThrow(/tenants_ai_paused_at_ck/);
+    } finally {
+      await owner.query(
+        `update tenants set ai_paused = false, ai_paused_at = null, ai_paused_by = null`,
+      );
+    }
   });
 
   it('deleting a conversation removes its replayed answers from a correction replay', async () => {

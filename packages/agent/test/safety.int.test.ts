@@ -51,7 +51,9 @@ afterAll(async () => {
   await tdb?.stop();
 });
 beforeEach(async () => {
-  await owner.query(`update tenants set ai_paused = false`);
+  await owner.query(
+    `update tenants set ai_paused = false, ai_paused_at = null, ai_paused_by = null`,
+  );
   // Always open, so no after-hours notice mixes in unless a test sets it.
   const day = [{ open: '00:00', close: '24:00' }];
   await owner.query(`update business_profiles set hours = $2 where tenant_id = $1`, [

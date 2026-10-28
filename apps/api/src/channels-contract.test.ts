@@ -59,6 +59,7 @@ describe('channels contract (FEAT-034 §3)', () => {
       theme: { position: 'right', overrides: {}, detected: null, logoUrl: null },
       privacyNoticeUrl: null,
       controls: { talkToPerson: false },
+      aiPaused: null,
     };
     expect(WidgetConfigResponse.safeParse({ ...base, availability: { live: true } }).success).toBe(
       true,

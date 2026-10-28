@@ -1,4 +1,5 @@
 import {
+  AiStatusResponse,
   CoachSessionDetail,
   CoachSessionList,
   CoachSessionResponse,
@@ -188,6 +189,9 @@ export const api = {
   businessProfile: () => getJson('/api/v1/settings/business-profile', BusinessProfileResponse),
   saveBusinessProfile: (body: BusinessProfileBody) =>
     request('PUT', '/api/v1/settings/business-profile', BusinessProfileResponse, body),
+  aiStatus: () => getJson('/api/v1/ai/status', AiStatusResponse),
+  pauseAi: () => request('POST', '/api/v1/ai/pause', AiStatusResponse),
+  resumeAi: () => request('POST', '/api/v1/ai/resume', AiStatusResponse),
   channels: () => getJson('/api/v1/channels', ChannelsResponse),
   setChannelState: (id: string, state: 'live' | 'offline', version: number) =>
     request('POST', `/api/v1/channels/${id}/${state}`, ChannelItem, { version }),

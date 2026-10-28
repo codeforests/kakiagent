@@ -248,11 +248,14 @@ export async function runVisitorTurn(
     language === 'zh' ? offline.message.zh : offline.message.en;
 
   if (!gate.open) {
-    // UC-20 5e. Paused: the visitor gets the fallback (architecture §6.5). Not live: the
-    // channel's offline message, once, with no model call (ONB-10). A human owner or a
-    // closed conversation: the AI says nothing.
-    if (gate.reason === 'paused')
-      return store('paused', 'system', textsFor(language, persona).fallback, null);
+    // UC-20 5e. Paused: the visitor gets the fallback (architecture §6.5), once per run of
+    // visitor messages while staff answer (FEAT-057 D2). Not live: the channel's offline
+    // message, once, with no model call (ONB-10). A human owner or a closed conversation:
+    // the AI says nothing.
+    if (gate.reason === 'paused') {
+      const text = textsFor(language, persona).fallback;
+      return prep.lastReply === text ? null : store('paused', 'system', text, null);
+    }
     if (gate.reason === 'not_live') {
       const text = offlineText(gate.offline);
       return prep.lastReply === text ? null : store('not_live', 'system', text, null);

@@ -1,6 +1,7 @@
 import { RealtimeEvent, type ConversationSummary } from '@kaki/contracts';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
+import { AI_STATUS_KEY } from './ai-status.ts';
 
 export type LiveState = 'connecting' | 'live' | 'offline';
 
@@ -31,6 +32,11 @@ export function useInboxSocket(): LiveState {
           return;
         }
         const event = RealtimeEvent.safeParse(data);
+        // The kill switch changed (FEAT-057): a nudge to refetch the status.
+        if (event.success && event.data.type === 'ai_status') {
+          void queryClient.invalidateQueries({ queryKey: AI_STATUS_KEY });
+          return;
+        }
         if (event.success && event.data.type === 'conversation') {
           const summary = event.data.conversation;
           queryClient.setQueryData<{ conversations: ConversationSummary[] }>(

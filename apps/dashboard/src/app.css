@@ -3283,3 +3283,117 @@ a.settings-row:hover {
 .banner__dismiss:hover {
   background: var(--color-bg-subtle);
 }
+.banner--danger {
+  background: var(--color-danger-soft);
+}
+.banner--danger > svg {
+  flex: none;
+  color: var(--color-danger-default);
+}
+@media (max-width: 767px) {
+  .banner:has(.banner__action) {
+    flex-wrap: wrap;
+  }
+  .banner__action {
+    width: 100%;
+  }
+}
+
+/* FEAT-057: the AI status pill (design.md `ai-status-pill`): dot or icon plus text. */
+.status-pill--live {
+  background: var(--color-success-soft);
+  color: var(--color-text-primary);
+}
+.status-pill--live .status-pill__dot {
+  background: var(--color-success-default);
+}
+.status-pill--paused {
+  background: var(--color-danger-soft);
+  color: var(--color-text-primary);
+}
+.status-pill--paused .ai-icon--paused {
+  color: var(--color-danger-default);
+}
+.status-pill--button {
+  border: 0;
+  font-family: inherit;
+  cursor: pointer;
+}
+.status-pill--button:hover {
+  box-shadow: inset 0 0 0 1px var(--color-border-strong);
+}
+.status-pill__spinner {
+  width: var(--space-4);
+  height: var(--space-4);
+}
+.status-pill__skeleton {
+  display: inline-block;
+  width: var(--space-9);
+  height: var(--space-3);
+  border-radius: var(--radius-full);
+  background: var(--color-border-default);
+}
+.status-pill__short {
+  display: none;
+}
+@media (max-width: 767px) {
+  .status-pill {
+    min-height: var(--size-control-lg);
+  }
+  .status-pill__long {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .status-pill__short {
+    display: inline;
+  }
+}
+
+/* design.md `tooltip`: shown on hover and keyboard focus. */
+.tooltip-anchor {
+  position: relative;
+  display: inline-flex;
+}
+.tooltip {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  z-index: var(--z-dropdown);
+  width: max-content;
+  max-width: calc(var(--size-reading-max) * 0.4);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-text-primary);
+  color: var(--color-bg-surface);
+  font-size: var(--type-body-sm-size);
+  line-height: var(--type-body-sm-line);
+  visibility: hidden;
+}
+.tooltip-anchor:hover .tooltip,
+.tooltip-anchor:focus-within .tooltip {
+  visibility: visible;
+}
+
+/* SCR-APP-058 */
+.kill-switch__fallback {
+  margin-top: var(--space-4);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
+}
+.kill-switch__quote {
+  margin: 0 0 var(--space-2);
+}
+.kill-switch__caption,
+.kill-switch__meta {
+  margin: 0;
+  font-size: var(--type-body-sm-size);
+  color: var(--color-text-secondary);
+}
+.kill-switch__meta {
+  margin-top: var(--space-3);
+}

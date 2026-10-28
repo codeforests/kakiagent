@@ -9,6 +9,7 @@ import {
   ChannelNotFoundError,
   checkChannelNow,
   listChannels,
+  liveChannelCount,
   NoHealthCheckError,
   OFFLINE_DEFAULTS,
   OfflineModeError,
@@ -191,6 +192,21 @@ describe('go live and go offline (ONB-10, AC-2)', () => {
         }),
       ),
     ).rejects.toBeInstanceOf(ChannelNotFoundError);
+  });
+});
+
+describe('live channel count (FEAT-057 §5.2)', () => {
+  it("counts only the current tenant's live channels", async () => {
+    const count = (tenantId: string) => dash(tenantId, (tx) => liveChannelCount(tx));
+    expect(await count(TENANT_A)).toBe(1);
+    await telegram(TENANT_A);
+    expect(await count(TENANT_A)).toBe(2);
+    expect(await count(TENANT_B)).toBe(1);
+    await owner.query(`update channel_connections set state = 'offline' where tenant_id = $1`, [
+      TENANT_A,
+    ]);
+    expect(await count(TENANT_A)).toBe(0);
+    expect(await count(TENANT_B)).toBe(1);
   });
 });
 

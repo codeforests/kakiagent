@@ -42,6 +42,7 @@ export {
   CHECK_AGAIN_MS,
   checkChannelNow,
   listChannels,
+  liveChannelCount,
   NoHealthCheckError,
   OFFLINE_DEFAULTS,
   OfflineModeError,

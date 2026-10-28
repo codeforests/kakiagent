@@ -17,6 +17,7 @@ import {
   langOf,
   menuItems,
   notLiveView,
+  pausedNotice,
   pendingText,
   rowsOf,
   withMessage,
@@ -258,6 +259,28 @@ const PHONE_ICON = (
   </svg>
 );
 
+/** The business's email and phone links, each only when present (SCR-WGT-005). */
+function ContactLines({ view, t }: { view: NotLiveView; t: Strings }) {
+  return (
+    <>
+      {view.email && (
+        <p class="contact">
+          {MAIL_ICON}
+          <span class="sr-only">{t.notLiveEmail}: </span>
+          <a href={view.email.href}>{view.email.label}</a>
+        </p>
+      )}
+      {view.phone && (
+        <p class="contact">
+          {PHONE_ICON}
+          <span class="sr-only">{t.notLivePhone}: </span>
+          <a href={view.phone.href}>{view.phone.label}</a>
+        </p>
+      )}
+    </>
+  );
+}
+
 /** SCR-WGT-005 not live: the business's message and contacts in place of the chat. */
 function NotLiveCard({
   view,
@@ -276,22 +299,41 @@ function NotLiveCard({
         <p tabIndex={-1} ref={cardRef} lang={langOf(view.text)}>
           {view.text}
         </p>
-        {view.email && (
-          <p class="contact">
-            {MAIL_ICON}
-            <span class="sr-only">{t.notLiveEmail}: </span>
-            <a href={view.email.href}>{view.email.label}</a>
-          </p>
-        )}
-        {view.phone && (
-          <p class="contact">
-            {PHONE_ICON}
-            <span class="sr-only">{t.notLivePhone}: </span>
-            <a href={view.phone.href}>{view.phone.label}</a>
-          </p>
-        )}
+        <ContactLines view={view} t={t} />
       </div>
     </div>
+  );
+}
+
+const PAUSE_ICON = (
+  <svg
+    width="16"
+    height="16"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <circle cx="12" cy="12" r="10" />
+    <path d="M10 15V9M14 15V9" />
+  </svg>
+);
+
+/** SCR-WGT-005 paused (FEAT-057): the fallback and contacts at the top of the log; the composer stays. */
+function PausedNotice({ view, t, business }: { view: NotLiveView; t: Strings; business: string }) {
+  return (
+    <li class="paused">
+      <div class="offline-card" role="region" aria-label={t.notLiveRegion(business)}>
+        <p class="paused-text" lang={langOf(view.text)}>
+          {PAUSE_ICON}
+          <span>{view.text}</span>
+        </p>
+        <ContactLines view={view} t={t} />
+      </div>
+    </li>
   );
 }
 
@@ -343,6 +385,8 @@ function Panel({
   const t = strings(locale);
   // Offline with "Show a message" (FEAT-034, SCR-WGT-005): no chat, only the message.
   const notLive = preview ? null : notLiveView(ctx.config.availability, navigator.language);
+  // AI paused (FEAT-057): a notice in place of the greeting; visitors can still write.
+  const paused = preview ? null : pausedNotice(ctx.config, navigator.language);
   const greeting = greetingFor(ctx.config.greeting, locale);
   useEffect(() => ctx.mount.setAttribute('lang', locale), [locale]);
 
@@ -488,7 +532,8 @@ function Panel({
       ) : (
         <>
           <ol class="log" ref={logRef} aria-live="polite" aria-relevant="additions">
-            {chat.messages.length === 0 && (
+            {paused && <PausedNotice view={paused} t={t} business={ctx.config.botName} />}
+            {!paused && chat.messages.length === 0 && (
               <li class="empty" lang={langOf(greeting)}>
                 {greeting}
               </li>

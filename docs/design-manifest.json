@@ -1395,16 +1395,19 @@
       "states": {
         "covered": [
           "not live (hidden)",
-          "not live (message)"
+          "not live (message)",
+          "AI paused (FEAT-057)"
         ],
         "gaps": [
-          "AI paused (FEAT-057)",
           "Contact form (FEAT-049)"
         ],
-        "supplements": []
+        "supplements": [
+          "AI paused state (features/FEAT-057-kill-switch/ui-design.md#scr-wgt-005--fallback-adds-ai-paused)"
+        ]
       },
       "contract_bindings": [
-        "GET /widget/v1/config (availability)"
+        "GET /widget/v1/config (availability)",
+        "GET /widget/v1/config (aiPaused)"
       ],
       "conformance": {
         "result": "pass",
@@ -1412,7 +1415,45 @@
         "escalations": []
       },
       "status": "designed",
-      "designed_at": "2026-10-27"
+      "designed_at": "2026-10-28"
+    },
+    "SCR-APP-058": {
+      "name": "Pause AI dialog",
+      "surface": "APP",
+      "feature": "FEAT-057",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-057-kill-switch/ui-design.md#scr-app-058--pause-ai-dialog"
+      },
+      "states": {
+        "covered": [
+          "live (pause mode)",
+          "paused (resume mode)",
+          "not live",
+          "pausing",
+          "resuming",
+          "action failed",
+          "permission",
+          "already changed"
+        ],
+        "gaps": [],
+        "supplements": [
+          "AI status pill in the top bar (features/FEAT-057-kill-switch/ui-design.md#ai-status-pill-top-bar-every-page)",
+          "AI paused banner in the app shell (features/FEAT-057-kill-switch/ui-design.md#banner--ai-paused-app-shell-shellbannerstsx)"
+        ]
+      },
+      "contract_bindings": [
+        "GET /api/v1/ai/status",
+        "POST /api/v1/ai/pause",
+        "POST /api/v1/ai/resume"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-10-28"
     }
   }
 }

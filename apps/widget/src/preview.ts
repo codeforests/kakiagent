@@ -97,6 +97,7 @@ function show(m: PreviewMessage) {
     privacyNoticeUrl: null,
     controls: { talkToPerson: false },
     availability: { live: true },
+    aiPaused: null,
   } satisfies WidgetConfigResponse;
   mountPanel({
     shadow,

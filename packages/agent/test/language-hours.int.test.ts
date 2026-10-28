@@ -63,7 +63,9 @@ afterAll(async () => {
   await tdb?.stop();
 });
 beforeEach(async () => {
-  await owner.query(`update tenants set ai_paused = false`);
+  await owner.query(
+    `update tenants set ai_paused = false, ai_paused_at = null, ai_paused_by = null`,
+  );
   await setHours(ALWAYS);
 });
 
@@ -278,7 +280,9 @@ describe('after hours (FEAT-023 AC-7)', () => {
     await setHours(closedNow());
     const zh = await ask(await conversation(), 'chocolate fudge cake 多少钱？');
     expect(zh.result!.message.notice).toMatch(/^我们现在休息中，团队将于(今天|明天)/);
-    await owner.query(`update tenants set ai_paused = true where id = $1`, [TENANT_A]);
+    await owner.query(`update tenants set ai_paused = true, ai_paused_at = now() where id = $1`, [
+      TENANT_A,
+    ]);
     const paused = await ask(await conversation(), 'hello?');
     expect(paused.result).toMatchObject({ outcome: 'paused', afterHours: true });
     expect(paused.result!.message.body).toBe(textsFor('en').fallback);
