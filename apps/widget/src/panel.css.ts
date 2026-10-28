@@ -64,4 +64,7 @@ export const PANEL_CSS = `
 .contact svg{flex:none;color:var(--kaki-muted)}
 .contact a{color:var(--kaki-text);text-decoration:underline;min-height:24px;display:inline-flex;align-items:center}
 .contact a:focus-visible{outline:2px solid var(--kaki-accent);outline-offset:2px}
+.paused{display:flex;flex-direction:column}
+.paused-text{display:flex;align-items:flex-start;gap:8px}
+.paused-text svg{flex:none;margin-top:2px;color:var(--kaki-muted)}
 `;

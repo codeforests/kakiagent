@@ -145,11 +145,34 @@ export function notLiveView(
   navLang: string | undefined,
 ): NotLiveView | null {
   if (availability.live || availability.mode !== 'message') return null;
+  return noticeView(availability, navLang);
+}
+
+/**
+ * The paused notice (SCR-WGT-005 paused, FEAT-057): the tenant's fallback and contacts,
+ * same language rule as the not-live view; null while the AI runs, and while the widget
+ * isn't live, where the not-live view wins (D7).
+ */
+export function pausedNotice(
+  config: Pick<WidgetConfigResponse, 'availability' | 'aiPaused'>,
+  navLang: string | undefined,
+): NotLiveView | null {
+  if (!config.aiPaused || !config.availability.live) return null;
+  return noticeView(config.aiPaused, navLang);
+}
+
+function noticeView(
+  notice: {
+    message: { en: string; zh: string };
+    contact: { email: string | null; phone: string | null };
+  },
+  navLang: string | undefined,
+): NotLiveView {
   const locale = pickLocale(navLang);
-  const { email, phone } = availability.contact;
+  const { email, phone } = notice.contact;
   return {
     locale,
-    text: locale === 'zh-Hans' ? availability.message.zh : availability.message.en,
+    text: locale === 'zh-Hans' ? notice.message.zh : notice.message.en,
     email: email ? { label: email, href: `mailto:${email}` } : null,
     phone: phone ? { label: phoneLabel(phone), href: `tel:${phone.replace(/[^+\d]/g, '')}` } : null,
   };

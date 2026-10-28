@@ -19,7 +19,7 @@
 - [x] T6 — Pill, dialog and banner: `shell/ai-status.tsx` (`AiStatusPill`, `KillSwitchDialog`), wired in `app-shell.tsx`; `useAiPausedBanner` first in `shell/banners.tsx`, its "Resume AI" opening the dialog (ui-design SCR-APP-058, Banner; AC-8, AC-9)
       Done when: dashboard typecheck and unit tests pass; `pnpm --filter @kaki/dashboard build` succeeds; only `var(--…)` tokens (grep shows no hex or px colour literals in the new files).
       Note: renders and interaction are checked by T8's E2E in the verify stage's GitHub CI (no local stack in cloud sessions).
-- [ ] T7 — Widget paused notice: `chat.ts` `pausedNotice`, `panel.tsx` notice above the composer (no greeting, no disclosure row), `strings.ts` en/zh; unit tests in `chat.test.ts` (ui-design SCR-WGT-005 paused; D7; AC-4, AC-10)
+- [x] T7 — Widget paused notice: `chat.ts` `pausedNotice`, `panel.tsx` notice above the composer (no greeting, no disclosure row), `strings.ts` en/zh; unit tests in `chat.test.ts` (ui-design SCR-WGT-005 paused; D7; AC-4, AC-10)
       Done when: `pnpm --filter @kaki/widget test` passes with `pausedNotice` cases (null when not paused; zh text for a `zh` browser; contacts only when present; offline wins); `pnpm --filter @kaki/widget build && pnpm size` within budget.
 - [ ] T8 — E2E: `e2e/tests/kill-switch.e2e.ts` per design §5.7 with `afterEach` resume; axe light and dark; 375 px run (AC-3, AC-4, AC-5, AC-8, AC-9, AC-10)
       Done when: the spec typechecks and lints; it runs in the verify stage's GitHub CI on Chromium, Firefox and WebKit.

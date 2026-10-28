@@ -9,6 +9,7 @@ import {
   langOf,
   menuItems,
   notLiveView,
+  pausedNotice,
   pendingText,
   rowsOf,
   withMessage,
@@ -226,5 +227,50 @@ describe('not-live view (SCR-WGT-005, FEAT-034 AC-4)', () => {
     expect(menuItems(config, { conversationId: null, ended: true, preview: false })).toEqual([
       'privacy',
     ]);
+  });
+});
+
+describe('paused notice (SCR-WGT-005 paused, FEAT-057 AC-4, D7)', () => {
+  const aiPaused = {
+    message: { en: 'Our team will get back to you soon.', zh: '我们的团队会尽快回复您。' },
+    contact: { email: 'hello@kakibakery.sg', phone: '+6561234567' },
+  };
+  const live = { live: true as const };
+
+  it('is null while the AI runs', () => {
+    expect(pausedNotice({ availability: live, aiPaused: null }, 'en-SG')).toBeNull();
+  });
+
+  it('shows the fallback in the browser language', () => {
+    expect(pausedNotice({ availability: live, aiPaused }, 'en-SG')).toMatchObject({
+      locale: 'en',
+      text: 'Our team will get back to you soon.',
+    });
+    expect(pausedNotice({ availability: live, aiPaused }, 'zh-CN')).toMatchObject({
+      locale: 'zh-Hans',
+      text: '我们的团队会尽快回复您。',
+    });
+  });
+
+  it('links each contact the business has, and only those', () => {
+    expect(pausedNotice({ availability: live, aiPaused }, 'en')).toMatchObject({
+      email: { href: 'mailto:hello@kakibakery.sg' },
+      phone: { label: '+65 6123 4567', href: 'tel:+6561234567' },
+    });
+    const none = { ...aiPaused, contact: { email: null, phone: null } };
+    expect(pausedNotice({ availability: live, aiPaused: none }, 'en')).toMatchObject({
+      email: null,
+      phone: null,
+    });
+  });
+
+  it('gives way to the not-live view while the widget is offline', () => {
+    const offline = {
+      live: false as const,
+      mode: 'message' as const,
+      message: { en: "Our chat isn't open yet.", zh: '我们的聊天尚未开放。' },
+      contact: { email: null, phone: null },
+    };
+    expect(pausedNotice({ availability: offline, aiPaused }, 'en')).toBeNull();
   });
 });
