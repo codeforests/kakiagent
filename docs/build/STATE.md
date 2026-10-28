@@ -53,7 +53,7 @@ GitHub Actions CI is never started or waited on (Ken's rule from FEAT-019 on): i
 - **Every feature:** the verify stage runs the full local checks through `scripts/test-env.sh` (`pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `test:coverage` for each package the feature touches) and lists the results in the PR body. Ken merges on those.
 - **Ask Ken to run CI locally** on the PR's branch before merging when: it's the third feature since the last CI run, a milestone closes, or the feature touches the widget (size budget), `infra/`, `.github/` or the lockfile. The verify stage says so in its reply and in `pending-actions.md`, then waits for his summary. Never call `actions_run_trigger` or poll GitHub checks.
 - **E2E** runs only in Ken's local CI. Between runs, specs and screen renders are "pending CI" in the acceptance report; a red E2E in the next run is fixed before that PR merges.
-- **Features since the last CI run:** 0 once Ken's local CI on FEAT-034 (PR #36; widget, lockfile, new E2E spec) passes; the run before was FEAT-058 at `cbea038`, 2026-10-27.
+- **Features since the last CI run:** 0 (last run: GitHub CI on FEAT-034 at `2d203b6`, 2026-10-28, green; Ken made the repo public and asked for it on GitHub).
 
 ## Token tracking (Ken, 2026-10-24; every feature)
 

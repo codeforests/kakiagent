@@ -1,6 +1,6 @@
 # Acceptance Report: FEAT-034 — Channel framework: adapter contract, go-live and go-offline per channel, health and degraded alerts
 
-> Verdict: **Accepted** (E2E `channels.e2e.ts` pending Ken's local CI) · Date: 2026-10-27
+> Verdict: **Accepted** (GitHub CI green at `2d203b6`, 2026-10-28, incl. E2E `channels.e2e.ts` in Chromium, Firefox and WebKit) · Date: 2026-10-27
 > Standard: [technical-design.md](technical-design.md) §6 (AC-1..AC-10) · Sources: SRS v0.4 (CHN-01, ONB-10, CHN-12), use-cases v0.4 (UC-25 steps 4, 4a; UC-03 go live), ADR-005, ADR-011, ADR-013, ADR-014, NFR-05
 > Repo state audited: `e4a8323` (implementation head); one test strengthened (see Corrected tests)
 
@@ -62,3 +62,5 @@ Test ref appended: CHN-01, ONB-10 (partial: pre-live lead capture with FEAT-049;
 ## CI
 
 Widget files, the lockfile and a new E2E spec changed, so Ken's local CI is due before merge (STATE.md cadence). E2E `channels.e2e.ts` (2 tests) and its axe checks are judged from that run; a red result goes back to a build fix before merge.
+
+GitHub CI (run 72, at Ken's request once the repo was public), `2d203b6`, 2026-10-28: all 11 jobs green. Run 71 before it had two faults, both fixed on this branch: E2E test 1 in every browser ran axe on a visitor page opened with `browser.newPage()` (axe needs a page from `browser.newContext()`; `visit()` now opens its own context), and `terraform fmt -check` flagged a comment alignment in `envs/prod/main.tf` from FEAT-032 (formatted). The other 55 E2E tests per browser, integration, unit, static, build/size, eval and scanning were green in both runs.
