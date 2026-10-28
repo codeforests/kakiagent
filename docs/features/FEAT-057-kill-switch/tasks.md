@@ -1,7 +1,7 @@
 # Tasks: FEAT-057 — Kill switch: pause and resume the AI on all channels
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: designed (backend T1–T4 built) · Last updated: 2026-10-28
+> Status: developer-done · Last updated: 2026-10-28
 
 - [x] T1 — Schema: `0035_kill_switch.sql` (`ai_paused_at`, `ai_paused_by`, check, column grant to `app_dashboard`) + Drizzle columns; RLS suite: replace the refused `ai_paused` statement with the own-tenant and cross-tenant case (design §4; D5; AC-7)
       Done when: `pnpm db:setup` applies 0035 on a database at 0034 and `drizzle-kit generate` reports no drift; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes with: as `app_dashboard` in tenant B, setting B's kill-switch columns works and A's row is unchanged; `route_complexity_threshold`, `cost_governor_step` and `widget_key` updates stay permission denied; the check rejects `ai_paused = true` with a null `ai_paused_at`.
@@ -24,17 +24,16 @@
 - [x] T8 — E2E: `e2e/tests/kill-switch.e2e.ts` per design §5.7 with `afterEach` resume; axe light and dark; 375 px run (AC-3, AC-4, AC-5, AC-8, AC-9, AC-10)
       Done when: the spec typechecks and lints; it runs in the verify stage's GitHub CI on Chromium, Firefox and WebKit.
       Note: no local stack in cloud sessions; before CI, try the widget steps in the session's Chromium against the widget dev server with a stubbed config (code-map E2E pitfalls).
-- [ ] T9 — Verify: full `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `test:coverage` for db, governance, channels, agent, api, dashboard, widget through `scripts/test-env.sh`; status `developer-done`; draft PR
+- [x] T9 — Verify: full `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `test:coverage` for db, governance, channels, agent, api, dashboard, widget through `scripts/test-env.sh`; status `developer-done`; draft PR
 
 ## Verification evidence
 
-- AC-1 …
-- AC-2 …
-- AC-3 …
-- AC-4 …
-- AC-5 …
-- AC-6 …
-- AC-7 …
-- AC-8 …
-- AC-9 …
-- AC-10 …
+Build (UI) session, 2026-10-28, at the T9 commit. Local, through `scripts/test-env.sh`: `pnpm format:check`, `pnpm lint` (ESLint and dependency-cruiser), `pnpm typecheck`, `pnpm test` all pass; `test:coverage` passes for db, channels, agent, dashboard and widget; governance and api fail only on the known S3 suites (`anchors.int.test.ts`, `uploads.int.test.ts` "the S3 presigner": no S3 in cloud sessions), every other case passing. `pnpm size`: loader 4.43 KB gz, panel 12.83 KB gz. E2E runs in the verify stage's GitHub CI.
+
+- AC-1, AC-2, AC-7: `packages/governance/test/kill-switch.int.test.ts`, `apps/api/test/ai.int.test.ts`, `packages/db/test/rls.int.test.ts` (T1, T2, T4).
+- AC-3: `packages/agent/test` paused case (T3); E2E `kill-switch.e2e.ts` step "one fallback within 5 s".
+- AC-4: `ai.int.test.ts` widget config; `apps/widget/src/chat.test.ts` "paused notice"; E2E visitor steps. Tried in this session's Chromium against the widget dev server with a stubbed config (en and zh): notice with fallback and contacts, no greeting, composer enabled.
+- AC-5: visitor half in `ai.int.test.ts` and E2E; staff-reply half pending the inbox reply feature (handoff).
+- AC-6: agent paused case (resume → answer); E2E last step.
+- AC-8, AC-9: `apps/dashboard/src/lib/ai-status.test.ts` (`pillState`, `pausedSince`); E2E main spec. Tried in Chromium against the dashboard dev server with a stubbed API: pill Live → dialog → "Pausing…" → Paused, focus back on the pill, banner with Resume AI → resume dialog "Paused since 2:05 pm, 28 Oct" → Live, banner gone; Agent sees the pill with the tooltip and no button.
+- AC-10: E2E axe (light and dark) on dialog, banner page and widget notice; 375 px spec (short pill text, 44 px, bottom sheet); `pnpm size` above.

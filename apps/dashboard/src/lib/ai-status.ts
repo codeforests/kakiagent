@@ -1,4 +1,4 @@
-import type { AiStatus, AiStatusResponse } from '@kaki/contracts';
+import type { AiStatus, AiStatusResponse, Role } from '@kaki/contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from './api.ts';
 
@@ -27,6 +27,9 @@ export function useSetAiPaused() {
     onSuccess: (res) => queryClient.setQueryData<AiStatusResponse>(AI_STATUS_KEY, res),
   });
 }
+
+/** `killswitch.toggle`: Owners and Admins pause and resume. */
+export const canToggle = (role: Role | null | undefined) => role === 'owner' || role === 'admin';
 
 export type PillState = 'live' | 'paused' | 'not_live';
 

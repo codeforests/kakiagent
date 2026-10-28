@@ -3,6 +3,7 @@ import { ConfirmDialog } from '@kaki/ui';
 import { forwardRef, useId } from 'react';
 import { Link } from 'react-router';
 import {
+  canToggle,
   PILL_TEXT,
   pausedSince,
   pillState,
@@ -14,8 +15,6 @@ import { ApiError } from '../lib/api.ts';
 /** The top-bar AI status pill and SCR-APP-058, the kill-switch dialog (FEAT-057 ui-design). */
 
 export type KillSwitchMode = 'pause' | 'resume';
-
-export const canToggle = (role: Role | null | undefined) => role === 'owner' || role === 'admin';
 
 // Lucide `circle-pause` and `circle-help` (design.md §2.4). Decorative: text carries the meaning.
 export function PauseIcon({ size = 16 }: { size?: number }) {

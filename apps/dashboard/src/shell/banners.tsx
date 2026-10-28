@@ -2,9 +2,9 @@ import type { Role } from '@kaki/contracts';
 import { useState, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router';
 import { Button } from '@kaki/ui';
-import { useAiStatus } from '../lib/ai-status.ts';
+import { canToggle, useAiStatus } from '../lib/ai-status.ts';
 import { degradedBannerText, degradedChannels, useChannels } from '../lib/channels.ts';
-import { canToggle, PauseIcon } from './ai-status.tsx';
+import { PauseIcon } from './ai-status.tsx';
 
 /**
  * The page-wide banner slot (design.md `banner`): in priority order, at most two at once.
