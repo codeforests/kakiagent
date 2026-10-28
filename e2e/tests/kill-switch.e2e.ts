@@ -78,12 +78,12 @@ test('the owner pauses the AI; visitors get the fallback; resuming brings answer
   const notice = panel.getByRole('region', { name: /^Message from / });
   await expect(notice).toContainText(fallback);
   await expect(panel.locator('.empty')).toHaveCount(0);
-  await expect(panel.getByLabel('Message')).toBeEnabled();
+  await expect(panel.getByLabel('Message', { exact: true })).toBeEnabled();
   await expectNoSeriousA11yViolations(visitor, 'kaki-agent');
   await visitor.emulateMedia({ colorScheme: 'dark' });
   await expectNoSeriousA11yViolations(visitor, 'kaki-agent');
   await visitor.emulateMedia({ colorScheme: 'light' });
-  await panel.getByLabel('Message').fill('Do you have kaya toast today?');
+  await panel.getByLabel('Message', { exact: true }).fill('Do you have kaya toast today?');
   await panel.getByRole('button', { name: 'Send' }).click();
   const system = panel.locator('[data-author="system"]');
   await expect(system).toHaveCount(1, { timeout: 5_000 });
@@ -100,7 +100,7 @@ test('the owner pauses the AI; visitors get the fallback; resuming brings answer
   await expect(banner).toHaveCount(0);
 
   // The next visitor message gets an AI answer.
-  await panel.getByLabel('Message').fill('What time do you open?');
+  await panel.getByLabel('Message', { exact: true }).fill('What time do you open?');
   await panel.getByRole('button', { name: 'Send' }).click();
   await expect(panel.locator('[data-author="agent"]:not([data-pending])')).toBeVisible({
     timeout: 30_000,

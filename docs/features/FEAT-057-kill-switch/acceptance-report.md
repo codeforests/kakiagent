@@ -2,7 +2,7 @@
 
 > Verdict: **Accepted** (GitHub CI: see CI below) · Date: 2026-10-28
 > Standard: [technical-design.md](technical-design.md) §6 (AC-1..AC-10) · Sources: SRS v0.4 (GOV-08), use-cases v0.4 (UC-31 steps 1–4, UC-20 5e), ADR-005, ADR-013, ADR-014, NFR-02, NFR-08
-> Repo state audited: `2e76834` (implementation head); no tests corrected
+> Repo state audited: `2e76834` (implementation head); one test locator corrected (see Corrected tests)
 
 ## Verdict summary
 
@@ -31,7 +31,7 @@ GOV-08 (M): "Kill switch: the Owner or an Admin can pause the AI on all channels
 
 ## Corrected tests
 
-None.
+- `e2e/tests/kill-switch.e2e.ts` (AC-4, AC-5): `panel.getByLabel('Message')` also matched the paused notice region "Message from …" (label match is a substring), so the first CI run failed in strict mode at the composer check. The locator is now `getByLabel('Message', { exact: true })`; the assertions are unchanged.
 
 ## Independent execution
 
