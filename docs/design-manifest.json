@@ -53,10 +53,14 @@
           "expired",
           "used",
           "invalid",
-          "error"
+          "error",
+          "re-auth confirmed (FEAT-006)",
+          "link opened in another browser (FEAT-006)"
         ],
         "gaps": [],
-        "supplements": []
+        "supplements": [
+          "FEAT-006 additions: features/FEAT-006-mfa-reauth/ui-design.md#scr-app-002--verify-link-additions"
+        ]
       },
       "contract_bindings": [
         "POST /api/v1/auth/magic-link",
@@ -1446,6 +1450,125 @@
         "GET /api/v1/ai/status",
         "POST /api/v1/ai/pause",
         "POST /api/v1/ai/resume"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-10-28"
+    },
+    "SCR-APP-005": {
+      "name": "Two-step verification",
+      "surface": "APP",
+      "feature": "FEAT-006",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-006-mfa-reauth/ui-design.md#scr-app-005--two-step-verification"
+      },
+      "states": {
+        "covered": [
+          "challenge",
+          "wrong code",
+          "recovery",
+          "few recovery codes left",
+          "locked",
+          "enrol: scan",
+          "enrol: confirm",
+          "enrol: recovery codes",
+          "forced enrolment",
+          "voluntary enrolment",
+          "loading",
+          "start failed",
+          "already enrolled"
+        ],
+        "gaps": [],
+        "supplements": [
+          "reauth-dialog, opened by the re-auth guard on any sensitive action (features/FEAT-006-mfa-reauth/ui-design.md#reauth-dialog--confirm-its-you-designmd-43)"
+        ]
+      },
+      "contract_bindings": [
+        "GET /api/v1/auth/mfa",
+        "POST /api/v1/auth/mfa/challenge",
+        "POST /api/v1/auth/mfa/enrolment",
+        "POST /api/v1/auth/mfa/enrolment/confirm",
+        "GET /api/v1/auth/reauth",
+        "POST /api/v1/auth/reauth",
+        "POST /api/v1/auth/reauth/email"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-10-28"
+    },
+    "SCR-APP-055": {
+      "name": "My account",
+      "surface": "APP",
+      "feature": "FEAT-006",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-006-mfa-reauth/ui-design.md#scr-app-055--my-account-part-two-step-verification"
+      },
+      "states": {
+        "covered": [
+          "loading",
+          "error",
+          "two-step off",
+          "two-step on",
+          "few recovery codes left",
+          "required by a workspace",
+          "new recovery codes",
+          "turn off"
+        ],
+        "gaps": [
+          "name, email change and sessions (FEAT-008)"
+        ],
+        "supplements": []
+      },
+      "contract_bindings": [
+        "GET /api/v1/auth/mfa",
+        "POST /api/v1/auth/mfa/recovery-codes",
+        "DELETE /api/v1/auth/mfa"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-10-28"
+    },
+    "SCR-APP-045": {
+      "name": "Team",
+      "surface": "APP",
+      "feature": "FEAT-006",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-006-mfa-reauth/ui-design.md#scr-app-045--team-part-require-two-step-verification"
+      },
+      "states": {
+        "covered": [
+          "loading",
+          "error",
+          "off",
+          "on",
+          "owner not enrolled",
+          "read-only (Admin, Agent)",
+          "saving",
+          "save failed"
+        ],
+        "gaps": [
+          "members, roles, invitations (FEAT-007)"
+        ],
+        "supplements": []
+      },
+      "contract_bindings": [
+        "GET /api/v1/team/mfa",
+        "PUT /api/v1/team/mfa"
       ],
       "conformance": {
         "result": "pass",
