@@ -48,9 +48,14 @@ async function openChannels(page: Page) {
   await expect(page.getByRole('heading', { level: 1, name: 'Channels' })).toBeVisible();
 }
 
-/** A fresh visitor page on the widget host; resolves once the config has been answered. */
+/**
+ * A fresh visitor page, in its own browser context (axe needs one made by
+ * `browser.newContext()`), on the widget host; resolves once the config has been answered.
+ * Close it with `visitor.context().close()`.
+ */
 async function visit(page: Page) {
-  const visitor = await page.context().browser()!.newPage();
+  const context = await page.context().browser()!.newContext();
+  const visitor = await context.newPage();
   await openShadowRoots(visitor);
   const config = visitor.waitForResponse(/\/widget\/v1\/config/);
   await visitor.goto(WIDGET_HOST);
@@ -85,7 +90,7 @@ test('the owner takes the widget offline and back live; the widget follows', asy
   // Hidden: the host page gets no widget at all.
   let visitor = await visit(page);
   expect(await visitor.locator('kaki-agent').count()).toBe(0);
-  await visitor.close();
+  await visitor.context().close();
 
   // "Show a message" with the owner's text: the launcher shows, the panel has no composer.
   await card.getByLabel('Show a message').check();
@@ -104,7 +109,7 @@ test('the owner takes the widget offline and back live; the widget follows', asy
   await expectNoSeriousA11yViolations(visitor);
   await visitor.emulateMedia({ colorScheme: 'dark' });
   await expectNoSeriousA11yViolations(visitor);
-  await visitor.close();
+  await visitor.context().close();
 
   // Go live again: the composer is back.
   await card.getByRole('button', { name: 'Go live' }).click();
@@ -117,7 +122,7 @@ test('the owner takes the widget offline and back live; the widget follows', asy
   visitor = await visit(page);
   await visitor.locator('kaki-agent button.launcher').click();
   await expect(visitor.locator('kaki-agent textarea')).toBeVisible();
-  await visitor.close();
+  await visitor.context().close();
 });
 
 test('a degraded channel shows its alert on Channels and the banner elsewhere', async ({
