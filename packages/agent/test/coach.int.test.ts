@@ -76,7 +76,9 @@ afterAll(async () => {
   await tdb?.stop();
 });
 beforeEach(async () => {
-  await owner.query(`update tenants set ai_paused = false`);
+  await owner.query(
+    `update tenants set ai_paused = false, ai_paused_at = null, ai_paused_by = null`,
+  );
 });
 
 function gateway() {
@@ -183,11 +185,16 @@ describe('a coaching answer (AC-2, AC-3)', () => {
 
   it('works while paused or not live, and says what visitors get instead (AC-11)', async () => {
     const s = await session();
-    await owner.query(`update tenants set ai_paused = true where id = $1`, [TENANT_A]);
+    await owner.query(`update tenants set ai_paused = true, ai_paused_at = now() where id = $1`, [
+      TENANT_A,
+    ]);
     const paused = await turn(s.id, 'How much is the chocolate fudge cake?');
     expect(paused.answer.body).toContain('$55.00');
     expect(paused.answer.explainer).toMatchObject({ visitorsWouldGet: 'fallback_paused' });
-    await owner.query(`update tenants set ai_paused = false where id = $1`, [TENANT_A]);
+    await owner.query(
+      `update tenants set ai_paused = false, ai_paused_at = null, ai_paused_by = null where id = $1`,
+      [TENANT_A],
+    );
     const notLive = await turn(s.id, 'How much is the chocolate fudge cake?', false, {
       channelLive: async () => false,
     });

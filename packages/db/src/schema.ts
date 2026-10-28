@@ -48,6 +48,9 @@ export const tenants = pgTable(
       .default(sql`'{}'::text[]`),
     /** Kill switch (architecture §6.5, ADR-013): read by the send gate via `visitor_tenant_state()`. */
     aiPaused: boolean('ai_paused').notNull().default(false),
+    /** When the current pause started and who started it (GOV-08, FEAT-057 §4); null while running. */
+    aiPausedAt: timestamp('ai_paused_at', { withTimezone: true }),
+    aiPausedBy: uuid('ai_paused_by').references(() => users.id, { onDelete: 'set null' }),
     /**
      * Reply routing policy (ADR-007 decision 1, FEAT-004 D10): operator settings, read by
      * the visitor zone through `visitor_tenant_state()`. The cost governor moves the step.
@@ -72,6 +75,10 @@ export const tenants = pgTable(
     ),
     check('tenants_route_min_confidence_ck', sql`${t.routeMinConfidence} between 0 and 1`),
     check('tenants_cost_governor_step_ck', sql`${t.costGovernorStep} between 0 and 3`),
+    check(
+      'tenants_ai_paused_at_ck',
+      sql`(${t.aiPaused} and ${t.aiPausedAt} is not null) or (not ${t.aiPaused} and ${t.aiPausedAt} is null and ${t.aiPausedBy} is null)`,
+    ),
     check(
       'tenants_fact_review_months_ck',
       sql`jsonb_typeof(${t.factReviewMonths} -> 'product') = 'number' and (${t.factReviewMonths} -> 'product')::numeric in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24) and jsonb_typeof(${t.factReviewMonths} -> 'faq') = 'number' and (${t.factReviewMonths} -> 'faq')::numeric in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24) and jsonb_typeof(${t.factReviewMonths} -> 'policy') = 'number' and (${t.factReviewMonths} -> 'policy')::numeric in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24) and jsonb_typeof(${t.factReviewMonths} -> 'promotion') = 'number' and (${t.factReviewMonths} -> 'promotion')::numeric in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24)`,

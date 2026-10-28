@@ -53,7 +53,9 @@ afterAll(async () => {
   await tdb?.stop();
 });
 beforeEach(async () => {
-  await owner.query(`update tenants set ai_paused = false`);
+  await owner.query(
+    `update tenants set ai_paused = false, ai_paused_at = null, ai_paused_by = null`,
+  );
   await owner.query(`update business_profiles set hours = null where tenant_id = $1`, [TENANT_A]);
   await owner.query(`delete from assistant_settings`);
 });
@@ -121,11 +123,16 @@ describe('the persona through the turn (FEAT-024)', () => {
 
   it("uses the tenant's fallback when paused and when the model is unavailable (AC-6)", async () => {
     await savePersona(PERSONA);
-    await owner.query(`update tenants set ai_paused = true where id = $1`, [TENANT_A]);
+    await owner.query(`update tenants set ai_paused = true, ai_paused_at = now() where id = $1`, [
+      TENANT_A,
+    ]);
     const paused = await ask('hello?');
     expect(paused).toMatchObject({ outcome: 'paused' });
     expect(paused.message.body).toBe('We will reply within a day.');
-    await owner.query(`update tenants set ai_paused = false where id = $1`, [TENANT_A]);
+    await owner.query(
+      `update tenants set ai_paused = false, ai_paused_at = null, ai_paused_by = null where id = $1`,
+      [TENANT_A],
+    );
     const down = await ask('how much is the chocolate fudge cake?', () => {
       throw new Error('model unavailable');
     });
