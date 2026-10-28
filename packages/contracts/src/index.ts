@@ -122,6 +122,13 @@ export const WidgetConfigResponse = z.object({
       contact: z.object({ email: z.string().nullable(), phone: z.string().nullable() }),
     }),
   ]),
+  /** Kill switch (GOV-08; FEAT-057): null while the AI runs. Paused → the panel shows this notice above the composer. */
+  aiPaused: z
+    .object({
+      message: z.object({ en: z.string(), zh: z.string() }),
+      contact: z.object({ email: z.string().nullable(), phone: z.string().nullable() }),
+    })
+    .nullable(),
 });
 export type WidgetConfigResponse = z.infer<typeof WidgetConfigResponse>;
 
@@ -1706,10 +1713,14 @@ export const SegmentEvent = z.object({
   text: z.string(),
 });
 export type SegmentEvent = z.infer<typeof SegmentEvent>;
+/** The kill switch changed (FEAT-057 §3): a nudge to refetch `GET /api/v1/ai/status`. */
+export const AiStatusEvent = z.object({ type: z.literal('ai_status'), paused: z.boolean() });
+export type AiStatusEvent = z.infer<typeof AiStatusEvent>;
 export const RealtimeEvent = z.discriminatedUnion('type', [
   MessageEvent,
   ConversationEvent,
   SegmentEvent,
+  AiStatusEvent,
 ]);
 export type RealtimeEvent = z.infer<typeof RealtimeEvent>;
 
@@ -1925,3 +1936,18 @@ export const ChannelOfflineBody = z.object({
   version: z.number().int().positive(),
 });
 export type ChannelOfflineBody = z.infer<typeof ChannelOfflineBody>;
+
+// ---- Dashboard API: kill switch (GOV-08; FEAT-057 §3) ------------------------------
+
+export const AiStatus = z.object({
+  paused: z.boolean(),
+  /** When the current pause started; null while not paused. */
+  pausedAt: z.iso.datetime().nullable(),
+  /** Channels in state `live` (FEAT-034). 0 and not paused → the pill says "Not live". */
+  liveChannels: z.number().int().min(0),
+  /** The fallback visitors get while paused, resolved (tenant wording or the default). */
+  fallback: z.object({ en: z.string(), zh: z.string() }),
+});
+export type AiStatus = z.infer<typeof AiStatus>;
+export const AiStatusResponse = z.object({ status: AiStatus });
+export type AiStatusResponse = z.infer<typeof AiStatusResponse>;

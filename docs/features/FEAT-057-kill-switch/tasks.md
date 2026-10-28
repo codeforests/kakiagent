@@ -1,7 +1,7 @@
 # Tasks: FEAT-057 — Kill switch: pause and resume the AI on all channels
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: designed · Last updated: 2026-10-28
+> Status: designed (backend T1–T4 built) · Last updated: 2026-10-28
 
 - [x] T1 — Schema: `0035_kill_switch.sql` (`ai_paused_at`, `ai_paused_by`, check, column grant to `app_dashboard`) + Drizzle columns; RLS suite: replace the refused `ai_paused` statement with the own-tenant and cross-tenant case (design §4; D5; AC-7)
       Done when: `pnpm db:setup` applies 0035 on a database at 0034 and `drizzle-kit generate` reports no drift; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes with: as `app_dashboard` in tenant B, setting B's kill-switch columns works and A's row is unchanged; `route_complexity_threshold`, `cost_governor_step` and `widget_key` updates stay permission denied; the check rejects `ai_paused = true` with a null `ai_paused_at`.
@@ -9,7 +9,7 @@
       Done when: governance and channels integration tests pass through `scripts/test-env.sh`: pause sets the three columns and appends one `ai.paused` entry (payload `{}`, actor user ID); a repeat is `changed: false` with no new entry; two concurrent `setAiPaused(paused: true)` in separate transactions give one entry; resume clears the columns and appends `ai.resumed`; `verifyChain` holds; `liveChannelCount` counts only the current tenant's live rows.
 - [x] T3 — Agent: the paused branch of `runVisitorTurn` stores the fallback once per run of visitor messages; code-map visitor-turn line updated (design §5.3; D2; AC-3)
       Done when: `scripts/test-env.sh pnpm --filter @kaki/agent test:integration` passes, including a new case: paused → first visitor message gets one `system` fallback (outcome `paused`, fake provider call count unchanged), a second message gets nothing; after resume the next message gets an answer (AC-6); the existing "with the kill switch on…" and "stops between segments…" cases pass unchanged.
-- [ ] T4 — Contracts and API: kill-switch contract section, `AiStatusEvent` in `RealtimeEvent`, `aiPaused` on `WidgetConfigResponse`; `apps/api/src/ai.ts` (`GET /api/v1/ai/status`, `POST /api/v1/ai/pause|resume`, post-commit `ai_status` publish), widget config `aiPaused`; contract unit test (design §3, §5.4; AC-1, AC-4, AC-5, AC-7)
+- [x] T4 — Contracts and API: kill-switch contract section, `AiStatusEvent` in `RealtimeEvent`, `aiPaused` on `WidgetConfigResponse`; `apps/api/src/ai.ts` (`GET /api/v1/ai/status`, `POST /api/v1/ai/pause|resume`, post-commit `ai_status` publish), widget config `aiPaused`; contract unit test (design §3, §5.4; AC-1, AC-4, AC-5, AC-7)
       Done when: `pnpm --filter @kaki/contracts test` and `scripts/test-env.sh pnpm --filter @kaki/api test:integration` pass with a new `ai.int.test.ts`: Owner and Admin pause/resume return `AiStatus`; Agent 403 and unchanged; repeat is a no-op (no second audit entry); the publisher fake gets one `ai_status` event per change and none for a repeat; status for an Agent works; tenant B's status is unaffected by A's pause; widget config returns `aiPaused` with the persona fallback (custom and default) and contacts while paused, null after resume; `POST /widget/v1/conversations` and a visitor message still succeed while paused, and a staff reply is stored.
 
 ## Build session 2 (UI)
