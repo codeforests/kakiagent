@@ -1,6 +1,6 @@
 # Acceptance Report: FEAT-057 — Kill switch: pause and resume the AI on all channels
 
-> Verdict: **Accepted** (GitHub CI: see CI below) · Date: 2026-10-28
+> Verdict: **Accepted** (GitHub CI run 74 green at `6dd5f6f`, 2026-10-28, incl. E2E `kill-switch.e2e.ts` in Chromium, Firefox and WebKit) · Date: 2026-10-28
 > Standard: [technical-design.md](technical-design.md) §6 (AC-1..AC-10) · Sources: SRS v0.4 (GOV-08), use-cases v0.4 (UC-31 steps 1–4, UC-20 5e), ADR-005, ADR-013, ADR-014, NFR-02, NFR-08
 > Repo state audited: `2e76834` (implementation head); one test locator corrected (see Corrected tests)
 
@@ -58,4 +58,6 @@ Test ref appended: GOV-08 (partial: lead capture on the fallback with FEAT-049; 
 
 ## CI
 
-Widget, dashboard and a new E2E spec changed, so GitHub CI (`ci.yml`, workflow_dispatch on `feat/FEAT-057-kill-switch`) decides the E2E and axe rows above. Result recorded below once green.
+Widget, dashboard and a new E2E spec changed, so GitHub CI (`ci.yml`, workflow_dispatch on `feat/FEAT-057-kill-switch`) decides the E2E and axe rows above. 
+
+GitHub CI run 74, `6dd5f6f`, 2026-10-28: all jobs green, including E2E `kill-switch.e2e.ts` (both tests, axe light and dark, 375 px) in Chromium, Firefox and WebKit. Run 73 before it (`4230e11`) failed in Chromium at the composer check: the test's `getByLabel('Message')` also matched the paused notice region (see Corrected tests); it was cancelled once the cause was clear. The E2E rows of the audit table pass on run 74.
