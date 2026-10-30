@@ -10,9 +10,7 @@
       }
     ],
     "rules": {
-      "blockedTopics": [
-        "Politics"
-      ]
+      "blockedTopics": ["Politics"]
     },
     "expect": [
       {
@@ -35,9 +33,7 @@
       }
     ],
     "rules": {
-      "blockedTopics": [
-        "Competitor price"
-      ]
+      "blockedTopics": ["Competitor price"]
     },
     "expect": [
       {
@@ -61,9 +57,7 @@
       }
     ],
     "rules": {
-      "blockedTopics": [
-        "Competitors' prices"
-      ]
+      "blockedTopics": ["Competitors' prices"]
     },
     "expect": [
       {
@@ -87,9 +81,7 @@
       }
     ],
     "rules": {
-      "blockedTopics": [
-        "政治"
-      ]
+      "blockedTopics": ["政治"]
     },
     "expect": [
       {
@@ -112,13 +104,9 @@
       }
     ],
     "rules": {
-      "blockedTopics": [
-        "politics"
-      ]
+      "blockedTopics": ["politics"]
     },
-    "expectTasks": [
-      "out_of_scope"
-    ],
+    "expectTasks": ["out_of_scope"],
     "expect": [
       {
         "kind": "outcome",
@@ -144,14 +132,9 @@
       }
     ],
     "rules": {
-      "blockedTopics": [
-        "politics"
-      ]
+      "blockedTopics": ["politics"]
     },
-    "expectTasks": [
-      "escalate",
-      "out_of_scope"
-    ],
+    "expectTasks": ["escalate", "out_of_scope"],
     "expect": [
       {
         "kind": "contains",
@@ -169,12 +152,8 @@
       }
     ],
     "rules": {
-      "allowedTopics": [
-        "Menu and prices"
-      ],
-      "blockedTopics": [
-        "Politics"
-      ]
+      "allowedTopics": ["Menu and prices"],
+      "blockedTopics": ["Politics"]
     },
     "expect": [
       {
@@ -243,9 +222,7 @@
         "content": "any discount on the chocolate fudge cake?"
       }
     ],
-    "recorded": [
-      "We don't offer discounts, but the [[f:b1000001.name]] is [[f:b1000001.price]]."
-    ],
+    "recorded": ["We don't offer discounts, but the [[f:b1000001.name]] is [[f:b1000001.price]]."],
     "expect": [
       {
         "kind": "outcome",
@@ -308,9 +285,7 @@
       }
     ],
     "rules": {
-      "customCommitments": [
-        "same-day delivery"
-      ]
+      "customCommitments": ["same-day delivery"]
     },
     "recorded": [
       "Yes, we do same-day delivery for you.",
