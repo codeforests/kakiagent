@@ -2660,3 +2660,76 @@ describe('two-step verification (FEAT-006)', () => {
     await owner.query(`delete from sessions where id = $1`, [s.rows[0].id]);
   });
 });
+
+describe('boundary rules (FEAT-054)', () => {
+  const USER = '00000000-0000-4000-8000-0000000000ab';
+  const insert = (c: pg.Client, tenantId: string, version: number, extra = '') =>
+    c.query(
+      `insert into boundary_rules (tenant_id, version, created_by${extra ? ', forbidden_commitments' : ''})
+       values ($1, $2, $3${extra ? `, ${extra}` : ''})`,
+      [tenantId, version, USER],
+    );
+
+  it("tenant B can't read or insert tenant A's rules", async () => {
+    await insert(owner, TENANT_A, 1);
+    try {
+      await asRole('app_dashboard', TENANT_B, async (c) => {
+        expect((await c.query(`select * from boundary_rules`)).rows).toEqual([]);
+        await expect(insert(c, TENANT_A, 2)).rejects.toThrow(/row-level security/);
+      });
+      const visitorB = await asRole(
+        'app_agent_visitor',
+        TENANT_B,
+        async (c) => (await c.query(`select * from boundary_rules`)).rows,
+      );
+      expect(visitorB).toEqual([]);
+      const visitorA = await asRole(
+        'app_agent_visitor',
+        TENANT_A,
+        async (c) => (await c.query(`select version from boundary_rules`)).rows,
+      );
+      expect(visitorA).toEqual([{ version: 1 }]);
+    } finally {
+      await owner.query(`delete from boundary_rules`);
+    }
+  });
+
+  it('the dashboard inserts versions but never updates or deletes them; the visitor only reads', async () => {
+    await asRole('app_dashboard', TENANT_A, async (c) => {
+      await insert(c, TENANT_A, 1);
+      await c.query('savepoint s');
+      await expect(c.query(`update boundary_rules set max_discount_pct = 5`)).rejects.toThrow(
+        /permission denied/,
+      );
+      await c.query('rollback to savepoint s');
+      await expect(c.query(`delete from boundary_rules`)).rejects.toThrow(/permission denied/);
+    });
+    await expect(
+      asRole('app_agent_visitor', TENANT_A, (c) => insert(c, TENANT_A, 1)),
+    ).rejects.toThrow(/permission denied/);
+  });
+
+  it('the checks refuse a missing locked commitment, an unknown key, 101% and a duplicate version', async () => {
+    try {
+      await expect(insert(owner, TENANT_A, 1, `'{refund,medical_advice}'`)).rejects.toThrow(
+        /boundary_rules_commitments_ck/,
+      );
+      await expect(
+        insert(owner, TENANT_A, 1, `'{legal_advice,medical_advice,free_cake}'`),
+      ).rejects.toThrow(/boundary_rules_commitments_ck/);
+      await expect(
+        owner.query(
+          `insert into boundary_rules (tenant_id, version, created_by, max_discount_pct) values ($1, 1, $2, 101)`,
+          [TENANT_A, USER],
+        ),
+      ).rejects.toThrow(/boundary_rules_discount_ck/);
+      await expect(insert(owner, TENANT_A, 0)).rejects.toThrow(/boundary_rules_version_ck/);
+      await insert(owner, TENANT_A, 1, `'{legal_advice,medical_advice}'`);
+      await expect(insert(owner, TENANT_A, 1)).rejects.toThrow(
+        /boundary_rules_tenant_id_version_pk/,
+      );
+    } finally {
+      await owner.query(`delete from boundary_rules`);
+    }
+  });
+});
