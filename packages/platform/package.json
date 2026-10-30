@@ -7,7 +7,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./outbox": "./src/outbox.ts",
-    "./pii-mask": "./src/pii-mask.ts"
+    "./pii-mask": "./src/pii-mask.ts",
+    "./secrets": "./src/secrets.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
