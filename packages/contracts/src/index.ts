@@ -2030,3 +2030,71 @@ export type TeamMfa = z.infer<typeof TeamMfa>;
 
 export const TeamMfaBody = z.object({ required: z.boolean() });
 export type TeamMfaBody = z.infer<typeof TeamMfaBody>;
+
+// ---- Dashboard API: boundary rules (APR-01; FEAT-054 §3) ---------------------------------
+
+export const COMMITMENT_KEYS = [
+  'delivery_guarantee',
+  'refund',
+  'legal_advice',
+  'medical_advice',
+] as const;
+export const CommitmentKey = z.enum(COMMITMENT_KEYS);
+export type CommitmentKey = z.infer<typeof CommitmentKey>;
+/** Always forbidden: AGT-13 declines advice in code, so these can't be switched off (D6). */
+export const LOCKED_COMMITMENTS = ['legal_advice', 'medical_advice'] as const;
+
+export const BOUNDARY_LIMITS = { topics: 25, customCommitments: 10, topicMin: 2, topicMax: 80 };
+
+/** One topic or phrase. */
+const Topic = z.string().trim().min(BOUNDARY_LIMITS.topicMin).max(BOUNDARY_LIMITS.topicMax);
+
+const lower = (s: string) => s.trim().replace(/\s+/g, ' ').toLowerCase();
+
+export const BoundaryRules = z
+  .object({
+    allowedTopics: z.array(Topic).max(BOUNDARY_LIMITS.topics),
+    blockedTopics: z.array(Topic).max(BOUNDARY_LIMITS.topics),
+    maxDiscountPct: z.number().int().min(0).max(100),
+    quotesNeedApproval: z.boolean(),
+    forbiddenCommitments: z.array(CommitmentKey),
+    /** The owner's own, such as "same-day delivery". */
+    customCommitments: z.array(Topic).max(BOUNDARY_LIMITS.customCommitments),
+  })
+  .superRefine((r, ctx) => {
+    // No duplicate in a list, ignoring case and spacing.
+    for (const field of ['allowedTopics', 'blockedTopics', 'customCommitments'] as const) {
+      const seen = new Set<string>();
+      r[field].forEach((v, i) => {
+        if (seen.has(lower(v)))
+          ctx.addIssue({ code: 'custom', path: [field, i], message: 'duplicate' });
+        seen.add(lower(v));
+      });
+    }
+    const allowed = new Set(r.allowedTopics.map(lower));
+    r.blockedTopics.forEach((v, i) => {
+      if (allowed.has(lower(v)))
+        ctx.addIssue({ code: 'custom', path: ['blockedTopics', i], message: 'also_allowed' });
+    });
+    for (const key of LOCKED_COMMITMENTS)
+      if (!r.forbiddenCommitments.includes(key))
+        ctx.addIssue({ code: 'custom', path: ['forbiddenCommitments'], message: 'locked' });
+  });
+export type BoundaryRules = z.infer<typeof BoundaryRules>;
+
+export const BoundaryRulesResponse = z.object({
+  rules: BoundaryRules,
+  /** Null until the first save; a template prefill is shown but only the defaults are in force. */
+  version: z.number().int().positive().nullable(),
+  savedAt: z.iso.datetime().nullable(),
+  /** Where the shown rules come from: the saved version, the industry template, or the safe defaults. */
+  source: z.enum(['saved', 'template', 'default']),
+});
+export type BoundaryRulesResponse = z.infer<typeof BoundaryRulesResponse>;
+
+export const SaveBoundaryRulesRequest = z.object({
+  /** The version the form was loaded from (null when never saved): optimistic concurrency. */
+  version: z.number().int().positive().nullable(),
+  rules: BoundaryRules,
+});
+export type SaveBoundaryRulesRequest = z.infer<typeof SaveBoundaryRulesRequest>;

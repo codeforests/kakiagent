@@ -99,6 +99,9 @@ importers:
       '@kaki/analytics':
         specifier: workspace:*
         version: link:../../packages/analytics
+      '@kaki/approvals':
+        specifier: workspace:*
+        version: link:../../packages/approvals
       '@kaki/channels':
         specifier: workspace:*
         version: link:../../packages/channels
@@ -676,6 +679,9 @@ importers:
         specifier: 4.6.7
         version: 4.6.7
     devDependencies:
+      '@kaki/approvals':
+        specifier: workspace:*
+        version: link:../approvals
       vitest:
         specifier: 5.0.5
         version: 5.0.5(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(@vitest/coverage-v8@5.0.5)(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))
