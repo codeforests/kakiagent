@@ -33,6 +33,7 @@ All in `packages/agent/src`; read a function by range only when a task changes i
 - Unit: `src/**/*.test.ts` next to the code. `pnpm --filter <pkg> test`.
 - Integration: `<pkg>/test/*.int.test.ts`, real Postgres via `startTestDatabase()` and `TENANT_A`/`TENANT_B` from `@kaki/db/testing`. API helpers in `apps/api/test/support.ts` (`testApp(tdb, …)`, `sessionCookie(tdb, email)`, `fakeMailer`, `testConfig`). Write a new suite from these names; read a neighbour's setup and one case only. Without Docker: `scripts/test-env.sh pnpm --filter <pkg> test:integration`.
 - Cross-tenant: every new route or table gets a tenant-B-can't-see-tenant-A case.
+- Dev seed: `packages/db/src/setup.ts` (`devTenants`, `seed`): fixed tenant IDs, profiles, the widget seeded live, terms at `SEED_TERMS_VERSION`. A feature whose new state the dev tenants need (e.g. FEAT-035's onboarding row) adds it in `seed`.
 - E2E: `e2e/tests/<area>.e2e.ts`, helpers in `e2e/tests/support.ts` (`signIn`, `expectNoSeriousA11yViolations`, `openShadowRoots`). Runs in CI.
 - E2E pitfalls (each cost a local CI run in FEAT-032; details in its `handoff.md`):
   - A cross-origin response without a CORS header is `requestfailed` in Chromium and WebKit, never `response`, so `waitForResponse` hangs. Read it through `page.route` + `route.fetch()` (keeps the Origin): `configAnswer` in `widget-install.e2e.ts`.
