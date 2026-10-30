@@ -11,6 +11,8 @@ Next: build (backend, T1–T3) — kickoff: "Build FEAT-035 (backend) on branch 
 - Fresh tenants for tests: no progress row, widget offline (FEAT-034 trigger). Build them like the welcome-flow tests do.
 - UI session: the setup routes move under one `/setup` layout route with `AppShell focused`; paths stay (D7). `review.e2e.ts:209` and `privacy.e2e.ts:192,202` assert "Step N of the setup" and must change to the header text.
 
+- Token tracking: each stage appends to `/mnt/project-files/reviews/feat-035-token-use.md`. The verify stage also writes the closing comparison against FEAT-054 and earlier features, separating what the FEAT-054 token fixes (PRs #39, #40) saved from what is just feature size (Ken, 2026-10-30).
+
 ## Left to CI or later
 - E2E (`onboarding.e2e.ts`, the changed review/privacy/channels specs) and screen renders run in the verify stage's GitHub CI (no Docker here).
 
