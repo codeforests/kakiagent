@@ -64,6 +64,8 @@ export const tenants = pgTable(
       .$type<{ product: number; faq: number; policy: number; promotion: number }>()
       .notNull()
       .default(sql`'{"product":6,"faq":6,"policy":6,"promotion":6}'::jsonb`),
+    /** The Owner requires two-step verification of every member (AUTH-03, FEAT-006 §4). */
+    mfaRequired: boolean('mfa_required').notNull().default(false),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -935,6 +937,8 @@ export const sessions = pgTable(
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     /** The last fresh authentication, for AUTH-03's 10-minute re-auth window (FEAT-006). */
     reauthAt: timestamp('reauth_at', { withTimezone: true }).notNull().defaultNow(),
+    /** The second factor was passed on this session (ADR-020, FEAT-006 §5.2). */
+    mfaAt: timestamp('mfa_at', { withTimezone: true }),
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
   },
   (t) => [
@@ -961,12 +965,73 @@ export const magicLinks = pgTable(
     sentAt: timestamp('sent_at', { withTimezone: true }),
     sendAttempts: integer('send_attempts').notNull().default(0),
     nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
+    /** `reauth` links confirm a fresh authentication of one session (FEAT-006 §5.2). */
+    purpose: text('purpose', { enum: ['sign_in', 'reauth'] })
+      .notNull()
+      .default('sign_in'),
+    sessionId: uuid('session_id').references(() => sessions.id),
   },
   (t) => [
     index('magic_links_unsent_idx')
       .on(t.nextAttemptAt)
       .where(sql`${t.sentAt} is null`),
     index('magic_links_created_idx').on(t.createdAt),
+    check('magic_links_purpose_ck', sql`${t.purpose} in ('sign_in', 'reauth')`),
+    check('magic_links_session_ck', sql`(${t.purpose} = 'reauth') = (${t.sessionId} is not null)`),
+  ],
+);
+
+/**
+ * A user's second factor (AUTH-03, FEAT-006 §4): a TOTP secret sealed with AES-GCM
+ * (AAD `mfa:{id}`). A person's table like `users`: no tenant_id, identity zone only.
+ * At most one confirmed and one unconfirmed factor per user.
+ */
+export const mfaFactors = pgTable(
+  'mfa_factors',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    kind: text('kind', { enum: ['totp'] })
+      .notNull()
+      .default('totp'),
+    secretCiphertext: bytea('secret_ciphertext').notNull(),
+    keyRef: text('key_ref').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
+    /** The last accepted TOTP step: a code at or before it is a replay. */
+    lastUsedStep: bigint('last_used_step', { mode: 'number' }),
+    failedAttempts: integer('failed_attempts').notNull().default(0),
+    lockedUntil: timestamp('locked_until', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('mfa_factors_confirmed_uq')
+      .on(t.userId)
+      .where(sql`${t.confirmedAt} is not null`),
+    uniqueIndex('mfa_factors_pending_uq')
+      .on(t.userId)
+      .where(sql`${t.confirmedAt} is null`),
+    check('mfa_factors_kind_ck', sql`${t.kind} in ('totp')`),
+  ],
+);
+
+/** Single-use recovery codes (AUTH-03): SHA-256 of the normalised code only (FEAT-006 D5). */
+export const recoveryCodes = pgTable(
+  'recovery_codes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    codeHash: bytea('code_hash').notNull().unique(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    usedAt: timestamp('used_at', { withTimezone: true }),
+  },
+  (t) => [
+    index('recovery_codes_unused_idx')
+      .on(t.userId)
+      .where(sql`${t.usedAt} is null`),
   ],
 );
 

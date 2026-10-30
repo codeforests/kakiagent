@@ -2524,3 +2524,139 @@ describe('channel connections (FEAT-034 §4)', () => {
       ).rejects.toThrow(/permission denied/);
   });
 });
+
+// ---- FEAT-006: two-step verification (AUTH-03, FEAT-006 §4; AC-8) ----------------------
+
+describe('two-step verification (FEAT-006)', () => {
+  let ownerA: string;
+  let ownerB: string;
+
+  beforeAll(async () => {
+    const ids = await owner.query<{ email: string; id: string }>(
+      `select email, id from users where email in ('owner@kaki-bakery.test', 'owner@second-tenant.test')`,
+    );
+    ownerA = ids.rows.find((r) => r.email === 'owner@kaki-bakery.test')!.id;
+    ownerB = ids.rows.find((r) => r.email === 'owner@second-tenant.test')!.id;
+    await owner.query(
+      `insert into mfa_factors (user_id, secret_ciphertext, key_ref, confirmed_at)
+       values ($1, '\\x00', 'local', now())`,
+      [ownerB],
+    );
+    await owner.query(`insert into recovery_codes (user_id, code_hash) values ($1, '\\x01')`, [
+      ownerB,
+    ]);
+  });
+
+  afterAll(async () => {
+    await owner.query(`delete from recovery_codes`);
+    await owner.query(`delete from mfa_factors`);
+    await owner.query(`update tenants set mfa_required = false`);
+  });
+
+  it('the new person tables are RLS-forced with policies for the identity zone and the counter only', async () => {
+    const { rows } = await owner.query(`
+      select c.relname as table, c.relforcerowsecurity as forced,
+             (select array_agg(distinct r::text order by r::text) from pg_policies p, unnest(p.roles) r
+               where p.schemaname = 'public' and p.tablename = c.relname) as roles
+      from pg_class c join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'public' and c.relname in ('mfa_factors', 'recovery_codes')
+      order by 1`);
+    expect(rows).toEqual([
+      { table: 'mfa_factors', forced: true, roles: ['app_identity', 'kaki_mfa_count'] },
+      { table: 'recovery_codes', forced: true, roles: ['app_identity'] },
+    ]);
+  });
+
+  it.each(['app_dashboard', 'app_agent_visitor', 'app_outbox'] as const)(
+    '%s cannot read or insert factors or recovery codes',
+    async (role) => {
+      for (const table of ['mfa_factors', 'recovery_codes']) {
+        await expect(
+          asRole(role, TENANT_B, (c) => c.query(`select * from ${table}`)),
+          `${role} reads ${table}`,
+        ).rejects.toThrow(/permission denied/);
+      }
+      await expect(
+        asRole(role, TENANT_B, (c) =>
+          c.query(
+            `insert into mfa_factors (user_id, secret_ciphertext, key_ref) values ($1, '\\x00', 'x')`,
+            [ownerB],
+          ),
+        ),
+      ).rejects.toThrow(/permission denied/);
+      await expect(
+        asRole(role, TENANT_B, (c) =>
+          c.query(`insert into recovery_codes (user_id, code_hash) values ($1, '\\x02')`, [ownerB]),
+        ),
+      ).rejects.toThrow(/permission denied/);
+    },
+  );
+
+  it("the dashboard in tenant B sets B's requirement only", async () => {
+    const changed = await asRole('app_dashboard', TENANT_B, async (c) => {
+      const r = await c.query(
+        `update tenants set mfa_required = true where id in ($1, $2) returning id`,
+        [TENANT_A, TENANT_B],
+      );
+      return r.rows;
+    });
+    expect(changed).toEqual([{ id: TENANT_B }]);
+  });
+
+  it('the identity zone cannot set the requirement and still sees only its current tenant', async () => {
+    await expect(
+      asRole('app_identity', TENANT_B, (c) => c.query(`update tenants set mfa_required = true`)),
+    ).rejects.toThrow(/permission denied/);
+    const rows = await asRole(
+      'app_identity',
+      TENANT_B,
+      async (c) => (await c.query(`select id from tenants`)).rows,
+    );
+    expect(rows).toEqual([{ id: TENANT_B }]);
+  });
+
+  it("tenant_mfa_enrolment() counts the session tenant's active members only, for the dashboard only", async () => {
+    const q = `select * from tenant_mfa_enrolment()`;
+    const b = await asRole('app_dashboard', TENANT_B, async (c) => (await c.query(q)).rows);
+    expect(b).toEqual([{ members: 1, enrolled: 1 }]);
+    const a = await asRole('app_dashboard', TENANT_A, async (c) => (await c.query(q)).rows);
+    expect(a).toEqual([{ members: 1, enrolled: 0 }]);
+    const none = await asRole('app_dashboard', null, async (c) => (await c.query(q)).rows);
+    expect(none).toEqual([{ members: 0, enrolled: 0 }]);
+    for (const role of ['app_identity', 'app_agent_visitor'] as const)
+      await expect(asRole(role, TENANT_B, (c) => c.query(q))).rejects.toThrow(/permission denied/);
+  });
+
+  it('user_mfa_required_by() lists the requiring workspaces, for the identity zone only', async () => {
+    await owner.query(`update tenants set mfa_required = (id = $1)`, [TENANT_B]);
+    const q = `select tenant_id from user_mfa_required_by($1)`;
+    const b = await asRole('app_identity', null, async (c) => (await c.query(q, [ownerB])).rows);
+    expect(b).toEqual([{ tenant_id: TENANT_B }]);
+    const a = await asRole('app_identity', null, async (c) => (await c.query(q, [ownerA])).rows);
+    expect(a).toEqual([]);
+    await expect(asRole('app_dashboard', TENANT_B, (c) => c.query(q, [ownerB]))).rejects.toThrow(
+      /permission denied/,
+    );
+    await owner.query(`update tenants set mfa_required = false`);
+  });
+
+  it('a reauth link needs a session, and a sign-in link must not have one', async () => {
+    const s = await owner.query(
+      `insert into sessions (user_id, token_hash, auth_method, expires_at)
+       values ($1, sha256(random()::text::bytea), 'magic_link', now() + interval '1 day') returning id`,
+      [ownerB],
+    );
+    const link = (purpose: string, session: string | null) =>
+      owner.query(
+        `insert into magic_links (email, token_hash, expires_at, purpose, session_id)
+         values ('x@y.test', sha256(random()::text::bytea), now() + interval '15 minutes', $1, $2)`,
+        [purpose, session],
+      );
+    await expect(link('reauth', null)).rejects.toThrow(/magic_links_session_ck/);
+    await expect(link('sign_in', s.rows[0].id)).rejects.toThrow(/magic_links_session_ck/);
+    await expect(link('reset', null)).rejects.toThrow(/magic_links_purpose_ck/);
+    await expect(link('reauth', s.rows[0].id)).resolves.toBeDefined();
+    await owner.query(`delete from magic_links where session_id = $1`, [s.rows[0].id]);
+    await owner.query(`delete from sessions where id = $1`, [s.rows[0].id]);
+  });
+});

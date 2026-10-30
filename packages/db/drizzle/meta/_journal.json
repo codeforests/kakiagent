@@ -253,6 +253,20 @@
       "when": 1793192797468,
       "tag": "0035_kill_switch",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1793318586064,
+      "tag": "0036_mfa",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1793318586701,
+      "tag": "0037_mfa_rls",
+      "breakpoints": true
     }
   ]
 }
