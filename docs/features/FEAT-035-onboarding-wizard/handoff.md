@@ -1,5 +1,5 @@
 # Handoff: FEAT-035 — Onboarding wizard frame and go-live readiness check
-Branch: feat/FEAT-035-onboarding-wizard · PR: draft (see below) · Updated: 2026-10-30 by build (UI)
+Branch: feat/FEAT-035-onboarding-wizard · PR: https://github.com/codeforests/kakiagent/pull/41 (draft) · Updated: 2026-10-30 by build (UI)
 Stage done: build (T1–T9 of 9), status developer-done
 Next: verify — kickoff: "Verify FEAT-035 on branch feat/FEAT-035-onboarding-wizard. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
 
