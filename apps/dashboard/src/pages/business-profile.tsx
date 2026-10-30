@@ -318,19 +318,24 @@ function ProfileForm({
         BusinessProfileBody.parse(bodyOf(draft, profile.version, calendar.holidays).body),
       ),
     onSuccess: (res) => {
-      queryClient.setQueryData(['business-profile'], res);
       if (mode === 'setup') {
-        // Records `done`, then moves on whether or not that worked (FEAT-035 D6).
+        // Records `done`, then moves on whether or not that worked (FEAT-035 D6). The cache is
+        // updated only then: the new version re-keys this form, and a remount would drop the
+        // per-call `onSettled` before it navigates.
         record.mutate(
           { step: 'profile', outcome: 'done' },
           {
             onSettled: () => {
+              queryClient.setQueryData(['business-profile'], res);
               wizardToast('Business profile saved. Next, add what your assistant should know.');
               void navigate('/setup/sources');
             },
           },
         );
-      } else onSaved('Business profile saved. Your assistant uses it from the next reply.');
+      } else {
+        queryClient.setQueryData(['business-profile'], res);
+        onSaved('Business profile saved. Your assistant uses it from the next reply.');
+      }
     },
   });
   const failure =
