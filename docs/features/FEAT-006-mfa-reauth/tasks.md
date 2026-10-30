@@ -34,8 +34,10 @@
 - [x] T9 — `/settings/team` (SCR-APP-045 p): require toggle with confirm-dialog and `guard`, counts, read-only for Admin and Agent, placeholder for FEAT-007; Settings "Team" row links it (ui-design SCR-APP-045; AC-4, AC-11)
       Done when: dashboard typecheck, unit tests and build pass.
       Evidence: dashboard `tsc -b`, eslint, unit tests (113) and `vite build` pass. `pages/team.tsx`: the change runs through `guard`, the toggle follows the response only (12 px spinner while saving), Admin and Agent get `aria-disabled` with "Only the Owner can change this."; Settings "Team" links `/settings/team`.
-- [ ] T10 — E2E: `e2e/tests/two-step.e2e.ts` per design §5.6 with a `totp` helper in `support.ts`; axe light and dark; 375 px (AC-2–AC-5, AC-9–AC-12)
+- [x] T10 — E2E: `e2e/tests/two-step.e2e.ts` per design §5.6 with a `totp` helper in `support.ts`; axe light and dark; 375 px (AC-2–AC-5, AC-9–AC-12)
       Done when: the spec typechecks and lints; it runs in the verify stage's GitHub CI on Chromium, Firefox and WebKit.
+      Evidence: `e2e` `tsc --noEmit` and eslint clean; the `totp` helper matches `@kaki/identity` `totpAt` on 20 random secrets (throwaway check). Order changed from §5.6 so the TOTP re-auth for "Require" runs before the lock (a locked factor refuses TOTP re-auth for 15 min); stale re-auth is simulated by setting `sessions.reauth_at` back 11 minutes through the owner connection (as `privacy.e2e.ts` uses it). Not in the spec: the forced-enrolment variant (needs a second member, FEAT-007) and Admin/Agent read-only Team; both, and every other screen, ran in a throwaway Chromium smoke against `vite preview` with a stubbed API (all steps passed, axe clean on each state, 375 px without horizontal scroll).
+      Note: runs in the verify stage's GitHub CI (no local stack here).
 - [ ] T11 — Verify: full `pnpm lint`, `pnpm typecheck`, `pnpm format:check`, `pnpm test`; `test:coverage` for identity, api, db, dashboard; Verification evidence below; status `developer-done`
       Done when: all pass through `scripts/test-env.sh`; every AC has an evidence bullet.
 
