@@ -1,6 +1,6 @@
 # Acceptance Report: FEAT-006 — Two-step verification and re-authentication for sensitive actions
 
-> Verdict: **Accepted** (pending GitHub CI: see CI) · Date: 2026-10-30
+> Verdict: **Accepted** (GitHub CI run 76 green at `b93d8f8`, 2026-10-30, incl. E2E `two-step.e2e.ts` in Chromium, Firefox and WebKit) · Date: 2026-10-30
 > Standard: [technical-design.md](technical-design.md) §6 (AC-1..AC-12) · Sources: SRS v0.4 (AUTH-03), use-cases v0.4 (UC-02 steps 3, 3a, 3c), ADR-005, ADR-014, ADR-020, NFR-08
 > Repo state audited: `053d369` (implementation head); one test strengthened (see Corrected tests)
 
@@ -26,10 +26,10 @@ AUTH-03 (M): tenant users can enrol a TOTP authenticator; the Owner can require 
 | AC-6 | AUTH-03 | identity `mfa.int` "new codes invalidate…", "other sessions…", workspace case | Yes | Pass |
 | AC-7 | ADR-014 | identity lock case (per-tenant entries, payload `{}`, `verifyChain`), api policy case | Yes | Pass |
 | AC-8 | ADR-005 | db `rls.int` "two-step verification (FEAT-006)" | Yes: zones, own-tenant `mfa_required`, SECURITY DEFINER counts per tenant, link check | Pass |
-| AC-9 | SCR-APP-005 | E2E `two-step.e2e.ts` (setup, wrong then right code, copy/download, gated Continue, challenge, locked, recovery) | Yes; forced-enrolment variant needs a second member (FEAT-007), not in E2E | CI |
-| AC-10 | design.md `reauth-dialog` | dashboard `lib/reauth.test.ts`; E2E stale actions by link and by TOTP | Yes: retries once, cancel rejects, other errors pass through | Unit pass; E2E CI |
-| AC-11 | SCR-APP-055 p, SCR-APP-045 p | E2E My account and Team | Yes for the Owner; Admin/Agent read-only not in E2E (needs FEAT-007 members) | CI |
-| AC-12 | NFR-08 | E2E axe light and dark, 375 px, `inputmode`/`autocomplete` asserted | Yes | CI |
+| AC-9 | SCR-APP-005 | E2E `two-step.e2e.ts` (setup, wrong then right code, copy/download, gated Continue, challenge, locked, recovery) | Yes; forced-enrolment variant needs a second member (FEAT-007), not in E2E | Pass (run 76) |
+| AC-10 | design.md `reauth-dialog` | dashboard `lib/reauth.test.ts`; E2E stale actions by link and by TOTP | Yes: retries once, cancel rejects, other errors pass through | Pass (run 76) |
+| AC-11 | SCR-APP-055 p, SCR-APP-045 p | E2E My account and Team | Yes for the Owner; Admin/Agent read-only not in E2E (needs FEAT-007 members) | Pass (run 76) |
+| AC-12 | NFR-08 | E2E axe light and dark, 375 px, `inputmode`/`autocomplete` asserted | Yes | Pass (run 76) |
 
 ## Corrected tests
 
@@ -61,3 +61,5 @@ Test ref appended: AUTH-03 (partial: operator MFA with FEAT-070; each sensitive 
 ## CI
 
 Dashboard, realtime and a new E2E spec changed, so GitHub CI (`ci.yml`, workflow_dispatch on `feat/FEAT-006-mfa-reauth`) decides the E2E and axe rows above.
+
+GitHub CI run 76, `b93d8f8`, 2026-10-30: all 11 jobs green, including E2E (`two-step.e2e.ts` with axe light and dark and 375 px) in Chromium, Firefox and WebKit, `terraform validate`, and the S3 and Valkey suites. Run 75 before it (`5edfe2f`) failed in integration on `@kaki/tenancy` `profile.int.test.ts` (FEAT-009, untouched here): it saves a closed exception at today + 10 days, which on 2026-10-30 is the Deepavali day off, so the rule drops it as redundant. `b93d8f8` makes the test pick the first non-holiday day from +10, with its assertions unchanged; run 75 was cancelled once the cause was clear.
