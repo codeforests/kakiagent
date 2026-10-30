@@ -230,6 +230,14 @@ describe('the sign-in challenge (AC-2, AC-3)', () => {
       passChallenge(d, await s2.auth(), { method: 'totp', code: codeFor(secret) }),
     ).rejects.toThrow(MfaLockedError);
     expect((await mfaStatus(d, await s2.auth())).lockedUntil).not.toBeNull();
+    // TOTP re-auth is locked too (AC-3), on a session that has passed the challenge.
+    const opened = await signIn('lock@mfa.test');
+    await owner.query(`update sessions set mfa_at = now() where id = $1`, [
+      (await opened.auth()).sessionId,
+    ]);
+    await expect(
+      reauthenticate(d, await opened.auth(), { method: 'totp', code: codeFor(secret) }),
+    ).rejects.toThrow(MfaLockedError);
 
     await passChallenge(d, await s2.auth(), { method: 'recovery', code: codes[0]!.toUpperCase() });
     expect((await s2.auth()).mfa).toBe('ok');
