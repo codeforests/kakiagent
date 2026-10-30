@@ -1,4 +1,5 @@
 import { createBrowserRouter } from 'react-router';
+import { AccountPage } from './pages/account.tsx';
 import { AssistantPage } from './pages/assistant.tsx';
 import { BusinessProfilePage, SetupProfilePage } from './pages/business-profile.tsx';
 import { AddWebsitePage, SetupSourcesPage } from './pages/add-website.tsx';
@@ -94,6 +95,8 @@ export const router = createBrowserRouter([
       { path: 'settings/channels', element: <ChannelsPage /> },
       // Website widget (FEAT-032, SCR-APP-037).
       { path: 'settings/widget', element: <WidgetSettingsPage /> },
+      // My account, its two-step part (FEAT-006, SCR-APP-055 p); FEAT-008 adds the rest.
+      { path: 'account', element: <AccountPage /> },
       { path: 'more', element: <MorePage /> },
       { path: 'no-permission', element: <NoPermission /> },
       { path: '*', element: <NotFound /> },

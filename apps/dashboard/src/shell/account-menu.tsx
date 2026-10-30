@@ -1,4 +1,5 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
+import { Link } from 'react-router';
 import { useSignOut } from '../lib/sign-out.ts';
 
 /** The top bar's avatar menu (design.md §3, §4.5 `menu`). */
@@ -14,6 +15,10 @@ export function AccountMenu({ email }: { email: string | undefined }) {
       <DropdownMenu.Portal>
         <DropdownMenu.Content className="menu" align="end" sideOffset={8}>
           {email && <DropdownMenu.Label className="menu__label">{email}</DropdownMenu.Label>}
+          <DropdownMenu.Item className="menu__item" asChild>
+            <Link to="/account">My account</Link>
+          </DropdownMenu.Item>
+          <DropdownMenu.Separator className="menu__divider" />
           <DropdownMenu.Item className="menu__item" onSelect={() => signOut.mutate()}>
             Sign out
           </DropdownMenu.Item>
