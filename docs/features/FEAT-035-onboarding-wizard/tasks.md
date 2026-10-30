@@ -12,7 +12,7 @@
 
 ## Build session 2 (UI)
 
-- [ ] T4 — Dashboard data: `api.getProgress`/`recordStep`/`getReadiness`/`goLive`, `lib/onboarding.ts` (`STEPS`, `stepOf`, `nextStep`, `prevStep`, `useProgress`, `useRecordStep`, `useReadiness`, `useGoLive`, `missingItems`), `lib/onboarding.test.ts` (design §5.4)
+- [x] T4 — Dashboard data: `api.getProgress`/`recordStep`/`getReadiness`/`goLive`, `lib/onboarding.ts` (`STEPS`, `stepOf`, `nextStep`, `prevStep`, `useProgress`, `useRecordStep`, `useReadiness`, `useGoLive`, `missingItems`), `lib/onboarding.test.ts` (design §5.4)
       Done when: `pnpm --filter @kaki/dashboard test` passes with `stepOf` (each path, unknown path), next/prev at the ends, `missingItems` order and fix paths; dashboard typecheck clean.
 - [ ] T5 — Wizard frame: `/setup` layout route with `AppShell focused`, `shell/wizard-header.tsx` (step N of 7, title, progress, step list, Save and exit, `visited` on step change), `WizardFooter` (Back, Skip for now, Continue) on steps 1–6 replacing their Continue links and "Step N of the setup" ledes; profile save → `/setup/sources`; existing E2E text asserts updated (ui-design "Wizard frame"; AC-1, AC-2, AC-9)
       Done when: dashboard typecheck and build pass; a stubbed-API Chromium run at 1280 and 375 shows the header, the step list states, Skip and Save and exit recording outcomes (logged request bodies only), focus on the step title after navigation, axe clean.
