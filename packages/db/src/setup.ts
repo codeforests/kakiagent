@@ -130,6 +130,14 @@ export async function seed(client: pg.ClientBase, tenants: SeedTenant[]): Promis
          state_changed_at = coalesce(channel_connections.state_changed_at, now())`,
       [t.id],
     );
+    // Seeded live, so already past the first go-live (FEAT-035 D4).
+    await client.query(
+      `insert into onboarding_progress (tenant_id, current_step, first_live_at)
+       values ($1, 'go_live', now())
+       on conflict (tenant_id) do update set
+         first_live_at = coalesce(onboarding_progress.first_live_at, now())`,
+      [t.id],
+    );
     await client.query(
       `insert into business_profiles (tenant_id, gst_registered, hours, open_on_public_holidays,
          uen, industry, contact_email, contact_phone, languages)

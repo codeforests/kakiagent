@@ -274,6 +274,13 @@
       "when": 1793361693350,
       "tag": "0038_boundary_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1793401471932,
+      "tag": "0039_onboarding_progress",
+      "breakpoints": true
     }
   ]
 }
