@@ -36,6 +36,12 @@ import {
   CreateWorkspaceResponse,
   MagicLinkResponse,
   MagicLinkVerifyResponse,
+  MfaEnrolmentStart,
+  MfaStatus,
+  RecoveryCodes,
+  ReauthStatus,
+  TeamMfa,
+  type MfaCode,
   FactList,
   FactResponse,
   ImportPreview,
@@ -77,13 +83,14 @@ import type { z } from 'zod';
 
 /**
  * A 401 (FEAT-005 §3.6): `unauthorized` when no session was sent, `session_expired` when
- * the one sent has ended (idle, too old or signed out elsewhere).
+ * the one sent has ended (idle, too old or signed out elsewhere), `mfa_required` when it
+ * still owes a two-step code (FEAT-006 §3).
  */
 export class UnauthorizedError extends Error {
-  readonly code: 'unauthorized' | 'session_expired';
+  readonly code: 'unauthorized' | 'session_expired' | 'mfa_required';
   constructor(code: string) {
     super('Sign in to continue');
-    this.code = code === 'session_expired' ? 'session_expired' : 'unauthorized';
+    this.code = code === 'session_expired' || code === 'mfa_required' ? code : 'unauthorized';
   }
 }
 
@@ -164,6 +171,20 @@ export const api = {
     request('POST', '/api/v1/auth/magic-link/verify', MagicLinkVerifyResponse, { token }),
   signOut: async () => void (await send('POST', '/api/v1/auth/sign-out')),
   signOutEverywhere: async () => void (await send('POST', '/api/v1/auth/sign-out-everywhere')),
+  // Two-step verification and re-auth (FEAT-006 §3).
+  mfaStatus: () => getJson('/api/v1/auth/mfa', MfaStatus),
+  passMfaChallenge: async (body: MfaCode) =>
+    void (await send('POST', '/api/v1/auth/mfa/challenge', body)),
+  startMfaEnrolment: () => request('POST', '/api/v1/auth/mfa/enrolment', MfaEnrolmentStart),
+  confirmMfaEnrolment: (code: string) =>
+    request('POST', '/api/v1/auth/mfa/enrolment/confirm', RecoveryCodes, { code }),
+  newRecoveryCodes: () => request('POST', '/api/v1/auth/mfa/recovery-codes', RecoveryCodes),
+  removeMfa: async () => void (await send('DELETE', '/api/v1/auth/mfa')),
+  reauthStatus: () => getJson('/api/v1/auth/reauth', ReauthStatus),
+  reauthenticate: async (body: MfaCode) => void (await send('POST', '/api/v1/auth/reauth', body)),
+  requestReauthLink: () => request('POST', '/api/v1/auth/reauth/email', MagicLinkResponse),
+  teamMfa: () => getJson('/api/v1/team/mfa', TeamMfa),
+  setTeamMfa: (required: boolean) => request('PUT', '/api/v1/team/mfa', TeamMfa, { required }),
   createWorkspace: (body: CreateWorkspaceBody) =>
     request('POST', '/api/v1/workspaces', CreateWorkspaceResponse, body),
   conversations: () => getJson('/api/v1/conversations', ConversationList),

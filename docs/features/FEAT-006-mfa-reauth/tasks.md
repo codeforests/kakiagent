@@ -21,7 +21,7 @@
 
 ## Build session 2 (UI)
 
-- [ ] T6 — Dashboard data layer: `lib/api.ts` calls, `UnauthorizedError` `mfa_required`, `routeAuthError` routes; `lib/mfa.ts` (hooks, `formatRecoveryCode`, `normaliseCode`, `recoveryCodesFile`); `lib/reauth.ts` (`ReauthProvider`, `useReauthGuard`, `ReauthCancelled`) with `lib/mfa.test.ts` and `lib/reauth.test.ts` (design §5.4; AC-10)
+- [x] T6 — Dashboard data layer: `lib/api.ts` calls, `UnauthorizedError` `mfa_required`, `routeAuthError` routes; `lib/mfa.ts` (hooks, `formatRecoveryCode`, `normaliseCode`, `recoveryCodesFile`); `lib/reauth.ts` (`ReauthProvider`, `useReauthGuard`, `ReauthCancelled`) with `lib/mfa.test.ts` and `lib/reauth.test.ts` (design §5.4; AC-10)
       Done when: `pnpm --filter @kaki/dashboard test` passes with: `normaliseCode(' 123 456 ')` → `123456`; recovery file lists the ten codes and the email; `guard` retries once after the dialog resolves, rejects with `ReauthCancelled` on cancel, passes other errors through untouched, and doesn't open for a second `reauth_required` on the retry (shows the dialog's error instead); `pnpm --filter @kaki/dashboard typecheck` is clean.
 - [ ] T7 — SCR-APP-005 pages: `/two-step` (challenge, recovery, locked) and `/two-step/setup` (QR via `uqr`, manual key, confirm, recovery codes with copy and download, forced and voluntary variants); `/auth/verify` new `next` values and `link_other_session` (ui-design SCR-APP-005, Verify additions; D6; AC-9, AC-12)
       Done when: dashboard typecheck, unit tests and `pnpm --filter @kaki/dashboard build` pass; `uqr` is in a lazy chunk (the build's main chunk doesn't contain `renderSVG`); only `var(--…)` tokens in the new files.
