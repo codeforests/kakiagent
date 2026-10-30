@@ -23,6 +23,7 @@ Every call re-reads the whole context, and the session's starting prompt alone i
 - Never read a previous feature's `tasks.md` evidence or its whole `ui-design.md` or `acceptance-report.md` as a format: the headings and one entry show the shape (FEAT-019: ~18k spent this way in design, ~6k in verify).
 - Inside big files, jump to the anchors in `code-map.md` ("Big files by anchor") and read ~40–80 lines from there, not the whole function or file.
 - Write integration tests from the helpers named in `code-map.md` (Tests); read a neighbouring test file's setup and one case, not the whole file.
+- Code the feature calls but doesn't change: read its signature and return type only (FEAT-054: `verifySegment`'s shape mattered, its patterns didn't).
 - Diff against the remote: `git fetch origin main` then `git diff origin/main...HEAD`. Local `main` is stale in a fresh clone (FEAT-019 verify got a 166-file diff that way).
 - `docs/02-design/design.md` is long: index it (`grep -n '^#\|^\*\*`' docs/02-design/design.md`) and read only the components the screen uses.
 - Typecheck and test one package at a time while working; full `pnpm lint` and `pnpm typecheck` once, in the final task.
@@ -36,7 +37,7 @@ Every call re-reads the whole context, and the session's starting prompt alone i
 2. Inputs: the plan row, the cited FR/UC/SCR/NFR blocks, the ADRs it names, and the code the feature extends (via `code-map.md`). If the feature builds on the previous one, read that feature's design by section rather than surveying the code again.
 3. Write `technical-design.md`, `tasks.md` (status `designed`), `ui-design.md` and the manifest entries. In `tasks.md`, order backend tasks before UI tasks and mark the split with a `## Build session 2 (UI)` heading before the first UI task, unless the feature is small enough for one build session (STATE.md).
 4. Open questions that change the design go to Ken with a decision card before finishing; record answers as D-n.
-5. If the feature changes the agent pipeline, the dashboard's patterns or the layers, update `code-map.md` in the same commit.
+5. If the feature changes the agent pipeline, the dashboard's patterns or the layers, update `code-map.md` in the same commit. Any file the design had to read by range because `code-map.md` didn't cover it gets one line there too (FEAT-054: `prompt.ts`, `guard.ts`, ~5k).
 6. Write `handoff.md`, commit, push. Reply with the build kickoff (the backend one when the build is split).
 
 ## Stage: build
