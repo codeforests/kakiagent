@@ -1,7 +1,7 @@
 # Tasks: FEAT-035 — Onboarding wizard frame and go-live readiness check
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: developer-done · Last updated: 2026-10-30
+> Status: accepted · Last updated: 2026-10-30
 
 - [x] T1 — Schema: `0039_onboarding_progress.sql` (table, checks, forced RLS, policy, `select, insert, update` to `app_dashboard`, backfill of tenants already live) + Drizzle table; name in `TENANT_SCOPED_TABLES`; RLS suite case; dev seed row for both dev tenants (design §4; D4; AC-8)
       Done when: `drizzle-kit generate` reports no drift after 0039; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes with: tenant B reads and updates none of A's rows; inserting A's tenant ID in B's context fails; `app_dashboard` delete is refused; a tenant with a live widget before 0039 has `first_live_at` set.
