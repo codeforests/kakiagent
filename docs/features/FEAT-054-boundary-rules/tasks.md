@@ -25,7 +25,7 @@
       Note: screen renders and axe run in the verify stage's GitHub CI (no Docker here).
 - [x] T9 — SCR-APP-009: `setup-rules.tsx` shows `RulesForm` (setup variant) above the privacy block; the ready caption counts saved rules; manifest status (ui-design SCR-APP-009; AC-9, AC-11)
       Done when: dashboard typecheck and build pass; the step shows the rules block with the template prefill for the dev F&B tenant (CI if not runnable here).
-- [ ] T10 — E2E `e2e/tests/rules.e2e.ts` (design §5.6; AC-3, AC-5, AC-6, AC-11)
+- [x] T10 — E2E `e2e/tests/rules.e2e.ts` (design §5.6; AC-3, AC-5, AC-6, AC-11)
       Done when: the spec typechecks and lints; it runs in the verify stage's GitHub CI (all three browsers).
 - [ ] T11 — Verify: full `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, this feature's tests; `code-map.md` updated (approvals module, the boundary step in the agent pipeline, `rules-parts.tsx`); tasks status `developer-done`
       Done when: all pass, evidence below, draft PR open.
