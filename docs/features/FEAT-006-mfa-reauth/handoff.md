@@ -1,5 +1,5 @@
 # Handoff: FEAT-006 — Two-step verification and re-authentication
-Branch: feat/FEAT-006-mfa-reauth · PR: draft (see the thread) · Updated: 2026-10-30 by build (UI)
+Branch: feat/FEAT-006-mfa-reauth · PR: https://github.com/codeforests/kakiagent/pull/38 (draft) · Updated: 2026-10-30 by build (UI)
 Stage done: build (T1–T11 of 11), status `developer-done`
 Next: verify — kickoff: "Verify FEAT-006 on branch feat/FEAT-006-mfa-reauth. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
 
