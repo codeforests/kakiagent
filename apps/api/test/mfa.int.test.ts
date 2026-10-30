@@ -2,7 +2,7 @@
  * Two-step verification and re-auth over HTTP (FEAT-006 §3; AC-1–AC-3, AC-5).
  */
 import { ReauthRequired } from '@kaki/contracts';
-import { startTestDatabase, TENANT_A, type TestDatabase } from '@kaki/db/testing';
+import { startTestDatabase, TENANT_A, TENANT_B, type TestDatabase } from '@kaki/db/testing';
 import { base32Decode, SESSION_COOKIE, totpAt, totpStep } from '@kaki/identity';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -27,18 +27,24 @@ afterAll(async () => {
   await tdb?.stop();
 });
 
-const req = (method: 'GET' | 'POST' | 'DELETE', url: string, cookie?: string, payload?: object) =>
+const req = (
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE',
+  url: string,
+  cookie?: string,
+  payload?: object,
+) =>
   app.inject({ method, url, headers: cookie ? { cookie } : {}, ...(payload ? { payload } : {}) });
 const cookieOf = (res: { cookies: { name: string; value: string }[] }) => {
   const c = res.cookies.find((x) => x.name === SESSION_COOKIE);
   return c ? `${SESSION_COOKIE}=${c.value}` : undefined;
 };
 
-async function member(email: string) {
+async function member(email: string, tenantId = TENANT_A, role = 'agent') {
   const u = await owner.query(`insert into users (email) values ($1) returning id`, [email]);
-  await owner.query(`insert into memberships (tenant_id, user_id, role) values ($1, $2, 'agent')`, [
-    TENANT_A,
+  await owner.query(`insert into memberships (tenant_id, user_id, role) values ($1, $2, $3)`, [
+    tenantId,
     u.rows[0].id,
+    role,
   ]);
   return u.rows[0].id as string;
 }
@@ -64,8 +70,8 @@ async function code(userId: string, secret: string) {
 }
 
 /** Signs in and enrols over HTTP; returns the cookie, secret and codes. */
-async function enrolled(email: string) {
-  const userId = await member(email);
+async function enrolled(email: string, tenantId = TENANT_A, role = 'agent') {
+  const userId = await member(email, tenantId, role);
   const { cookie } = await signIn(email);
   const start = await req('POST', '/api/v1/auth/mfa/enrolment', cookie);
   expect(start.statusCode).toBe(201);
@@ -222,5 +228,97 @@ describe('lockout and recovery limits (AC-3)', () => {
       code: 'aaaaa-aaaaa',
     });
     expect([limited.statusCode, limited.json().error]).toEqual([429, 'too_many_attempts']);
+  });
+});
+
+describe('the workspace requirement (AC-4, AC-7, AC-8)', () => {
+  it('only a fresh, enrolled Owner turns it on; members then must enrol before anything else', async () => {
+    const tenant = (
+      await owner.query(
+        `insert into tenants (slug, name, widget_key) values ('strict', 'Strict Shop', 'wk_strict')
+         returning id`,
+      )
+    ).rows[0].id as string;
+    const put = (cookie: string, required: boolean) =>
+      req('PUT', '/api/v1/team/mfa', cookie, { required });
+
+    // Not enrolled yet: refused, with nothing changed.
+    const ownerId = await member('team-owner@mfa.test', tenant, 'owner');
+    let ownerCookie = (await signIn('team-owner@mfa.test')).cookie;
+    expect((await put(ownerCookie, true)).json().error).toBe('mfa_not_enrolled');
+    await staleReauth(ownerId);
+    expect((await put(ownerCookie, true)).json().error).toBe('reauth_required');
+
+    await member('team-admin@mfa.test', tenant, 'admin');
+    const agentId = await member('team-agent@mfa.test', tenant, 'agent');
+    const admin = (await signIn('team-admin@mfa.test')).cookie;
+    const agent = (await signIn('team-agent@mfa.test')).cookie;
+    for (const cookie of [admin, agent]) {
+      const res = await put(cookie, true);
+      expect([res.statusCode, res.json().error]).toEqual([403, 'forbidden']);
+    }
+
+    await owner.query(`delete from memberships where user_id = $1`, [ownerId]);
+    const o = await enrolled('team-owner2@mfa.test', tenant, 'owner');
+    ownerCookie = o.cookie;
+    const on = await put(ownerCookie, true);
+    expect(on.statusCode).toBe(200);
+    expect(on.json()).toEqual({ required: true, members: 3, enrolled: 1 });
+    expect((await put(ownerCookie, true)).json()).toEqual(on.json());
+    const audited = await owner.query(
+      `select payload, actor_ref from audit_entries
+       where tenant_id = $1 and event_type = 'tenant.mfa_policy_changed'`,
+      [tenant],
+    );
+    expect(audited.rows).toEqual([{ payload: { required: true }, actor_ref: o.userId }]);
+
+    // The agent's existing session can only enrol, after re-auth by email link.
+    const blocked = await req('GET', '/api/v1/conversations', agent);
+    expect([blocked.statusCode, blocked.json().error]).toEqual([403, 'mfa_enrolment_required']);
+    expect((await req('GET', '/api/v1/team/mfa', agent)).statusCode).toBe(403);
+    expect((await req('GET', '/api/v1/auth/mfa', agent)).json()).toMatchObject({
+      state: 'enrol',
+      requiredBy: [{ tenantId: tenant, name: 'Strict Shop' }],
+    });
+    await staleReauth(agentId);
+    const stale = await req('POST', '/api/v1/auth/mfa/enrolment', agent);
+    expect(ReauthRequired.parse(stale.json()).methods).toEqual(['email']);
+    const before = mailer.sent.length;
+    expect((await req('POST', '/api/v1/auth/reauth/email', agent)).statusCode).toBe(202);
+    const verified = await req('POST', '/api/v1/auth/magic-link/verify', agent, {
+      token: tokenIn(mailer.sent[before]!),
+    });
+    expect(verified.json()).toEqual({ next: 'reauthed' });
+    const start = await req('POST', '/api/v1/auth/mfa/enrolment', agent);
+    expect(start.statusCode).toBe(201);
+    const confirmed = await req('POST', '/api/v1/auth/mfa/enrolment/confirm', agent, {
+      code: await code(agentId, start.json().secret),
+    });
+    expect(confirmed.statusCode).toBe(200);
+    expect((await req('GET', '/api/v1/conversations', agent)).statusCode).toBe(200);
+    expect((await req('GET', '/api/v1/team/mfa', agent)).json()).toEqual({
+      required: true,
+      members: 3,
+      enrolled: 2,
+    });
+    // Turning it off isn't possible while the workspace requires it.
+    expect((await req('DELETE', '/api/v1/auth/mfa', agent)).json()).toMatchObject({
+      error: 'mfa_required_by_workspace',
+      workspaces: ['Strict Shop'],
+    });
+
+    // Other workspaces are unaffected.
+    const other = (await signIn('owner@second-tenant.test')).cookie;
+    expect((await req('GET', '/api/v1/conversations', other)).statusCode).toBe(200);
+    expect((await req('GET', '/api/v1/team/mfa', other)).json()).toEqual({
+      required: false,
+      members: 1,
+      enrolled: 0,
+    });
+    const b = await owner.query(`select mfa_required from tenants where id = $1`, [TENANT_B]);
+    expect(b.rows[0].mfa_required).toBe(false);
+
+    expect((await put(ownerCookie, false)).json().required).toBe(false);
+    expect((await req('DELETE', '/api/v1/auth/mfa', agent)).statusCode).toBe(204);
   });
 });
