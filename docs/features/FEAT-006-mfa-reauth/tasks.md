@@ -1,7 +1,7 @@
 # Tasks: FEAT-006 — Two-step verification and re-authentication for sensitive actions
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: in build (backend T1–T5 done) · Last updated: 2026-10-30
+> Status: developer-done · Last updated: 2026-10-30
 
 - [x] T1 — Schema: Drizzle tables `mfa_factors`, `recovery_codes`, columns `sessions.mfa_at`, `magic_links.purpose`/`session_id` (+ check), `tenants.mfa_required`; `0036_mfa.sql` (generated) and `0037_mfa_rls.sql` (RLS, `app_identity` policies and grants, `identity_read` on tenants, `app_dashboard` column grant, `kaki_mfa_count` + `tenant_mfa_enrolment()`); RLS suite cases (design §4; AC-8)
       Done when: `pnpm db:setup` applies 0036–0037 on a database at 0035 and `drizzle-kit generate` reports no drift; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes with the §4 cases: dashboard and visitor read and insert nothing in the two new tables; dashboard in B sets B's `mfa_required`, A's unchanged; `tenant_mfa_enrolment()` in B counts only B; `app_identity` can't update `mfa_required`; the `magic_links` check rejects `reauth` without a session.
@@ -38,9 +38,19 @@
       Done when: the spec typechecks and lints; it runs in the verify stage's GitHub CI on Chromium, Firefox and WebKit.
       Evidence: `e2e` `tsc --noEmit` and eslint clean; the `totp` helper matches `@kaki/identity` `totpAt` on 20 random secrets (throwaway check). Order changed from §5.6 so the TOTP re-auth for "Require" runs before the lock (a locked factor refuses TOTP re-auth for 15 min); stale re-auth is simulated by setting `sessions.reauth_at` back 11 minutes through the owner connection (as `privacy.e2e.ts` uses it). Not in the spec: the forced-enrolment variant (needs a second member, FEAT-007) and Admin/Agent read-only Team; both, and every other screen, ran in a throwaway Chromium smoke against `vite preview` with a stubbed API (all steps passed, axe clean on each state, 375 px without horizontal scroll).
       Note: runs in the verify stage's GitHub CI (no local stack here).
-- [ ] T11 — Verify: full `pnpm lint`, `pnpm typecheck`, `pnpm format:check`, `pnpm test`; `test:coverage` for identity, api, db, dashboard; Verification evidence below; status `developer-done`
+- [x] T11 — Verify: full `pnpm lint`, `pnpm typecheck`, `pnpm format:check`, `pnpm test`; `test:coverage` for identity, api, db, dashboard; Verification evidence below; status `developer-done`
       Done when: all pass through `scripts/test-env.sh`; every AC has an evidence bullet.
+      Evidence: `pnpm format:check`, `pnpm lint` (ESLint + dependency-cruiser), `pnpm typecheck`, `pnpm test` all pass. `test:coverage`: identity 52 passed, db 149 passed, api 286 passed + 1 skipped with one known failing file, `uploads.int.test.ts` "the S3 presigner" (needs Docker; already listed for CI by the backend session). Dashboard has no coverage script; its 113 unit tests run in `pnpm test`.
 
 ## Verification evidence
 
-(filled in by T11)
+- AC-1, AC-6, AC-7: identity `mfa.int.test.ts`, api `mfa.int.test.ts` (T3–T5); E2E enrols, gets ten codes once, and is refused turning off while required.
+- AC-2: identity/api/realtime integration (T3, T4); E2E signs in through `/two-step` to the inbox.
+- AC-3: identity integration (lock, recovery while locked, 429 on recovery); E2E: five wrong codes → locked view → recovery code → inbox.
+- AC-4: api `mfa.int.test.ts` policy case (T5); E2E turns on "Require" (1 of 1 members) after re-auth.
+- AC-5: identity/api integration (T3, T4); E2E re-auths by emailed link (other tab shows "You're confirmed") and by TOTP.
+- AC-8: db RLS cases (T1), 149 passed.
+- AC-9: E2E (scan, confirm with a wrong then right code, codes copy/download, Continue gated); challenge/recovery/locked states in E2E; forced variant in the stubbed Chromium smoke only (needs FEAT-007 for a second member).
+- AC-10: `lib/reauth.test.ts` (guard retries once, cancel, pass-through); E2E: dialog opens on stale actions and the action continues without a second click.
+- AC-11: E2E My account (off, on, required) and Team toggle; Admin/Agent read-only in the smoke only.
+- AC-12: E2E axe on every SCR-APP-005 state, the dialog, My account and Team, dark on the challenge; 375 px on setup and challenge; `inputmode`/`autocomplete` asserted. All pending the verify stage's GitHub CI run.

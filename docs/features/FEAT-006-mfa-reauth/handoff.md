@@ -1,22 +1,20 @@
 # Handoff: FEAT-006 — Two-step verification and re-authentication
-Branch: feat/FEAT-006-mfa-reauth · PR: none · Updated: 2026-10-30 by build (backend)
-Stage done: build (T1–T5 of 11)
-Next: build (UI) — kickoff: "Build FEAT-006 (UI) on branch feat/FEAT-006-mfa-reauth. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage build."
+Branch: feat/FEAT-006-mfa-reauth · PR: draft (see the thread) · Updated: 2026-10-30 by build (UI)
+Stage done: build (T1–T11 of 11), status `developer-done`
+Next: verify — kickoff: "Verify FEAT-006 on branch feat/FEAT-006-mfa-reauth. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
 
 ## What the next stage needs
-- Routes are live exactly as design §3, in `apps/api/src/mfa.ts`; contracts in `@kaki/contracts` (section "two-step verification and re-auth"): `MfaStatus`, `MfaCode`, `MfaEnrolmentStart`, `MfaEnrolmentConfirm`, `RecoveryCodes`, `ReauthStatus`, `ReauthRequired`, `TeamMfa`, `TeamMfaBody`; `MagicLinkVerifyResponse.next` has `mfa`, `mfa-enrol`, `reauthed`.
-- Error bodies: 401 `mfa_required`; 403 `mfa_enrolment_required`; 403 `reauth_required` + `methods`; 400 `code_invalid` (+ `attemptsLeft` on a TOTP challenge or re-auth only); 429 `mfa_locked` + `until`; 429 `too_many_attempts`; 409 `mfa_required_by_workspace` + `workspaces` (names); 409 `use_authenticator`, `mfa_not_enrolled`, `mfa_already_enrolled`; 404 `no_enrolment`; 400 `link_other_session` on verify.
-- `/api/v1/me` refuses a pending session (401/403 above), so `routeAuthError` must route those before the shell renders. `GET /auth/mfa` works pending; `GET /auth/reauth` and the reauth POSTs accept `ok` and `enrol` but not `challenge`.
-- `POST /auth/mfa/enrolment` needs a fresh re-auth too, so the setup page needs the `ReauthProvider` (ui-design already says so). After `confirm`, the session is fresh and passed.
-- A verify with a re-auth token returns `{ next: 'reauthed' }` and sets no cookie; the dialog's tab learns it by polling `GET /auth/reauth`.
-- `PUT /api/v1/team/mfa` order of checks: 403 `forbidden` (Admin/Agent) → 403 `reauth_required` → 409 `mfa_not_enrolled` (turning on).
-- Build deviation B1 (tasks T1 note): no `identity_read` on `tenants`; `user_mfa_required_by(user)` instead. No UI impact.
-- E2E: TOTP for the `totp` helper is RFC 6238 SHA-1/6/30 s; the base32 secret comes from `POST /auth/mfa/enrolment`. A code is refused if its step isn't later than the last accepted one, so wait for the next 30 s step (or use step +1) between two codes of one user.
+- Dashboard: `/two-step` (`pages/two-step.tsx`), `/two-step/setup` (`pages/two-step-setup.tsx`, inside its own `ReauthProvider`), `/account` (`pages/account.tsx`), `/settings/team` (`pages/team.tsx`); shared parts in `pages/two-step-parts.tsx`; `/auth/verify` handles `mfa`, `mfa-enrol`, `reauthed` and `link_other_session`.
+- Guard: `lib/reauth.ts` (`makeGuard`, `useReauthGuard`, `ReauthCancelled`); `ReauthProvider` and the dialog are in `shell/reauth-dialog.tsx` (build note B2: lib can't import shell). `AppShell` is wrapped in the provider.
+- Routing: `main.tsx` sends 401 `mfa_required` to `/two-step?next=…` and 403 `mfa_enrolment_required` to `/two-step/setup?next=…`; both count as auth errors (no retry).
+- `uqr` 0.1.3 is a dashboard dependency, imported dynamically by `QrCode` (own chunk; main chunk has no `renderSVG`).
+- E2E `e2e/tests/two-step.e2e.ts`: a fresh Owner per run; it sets `sessions.reauth_at` back 11 minutes through the owner DB connection to make re-auth stale, and runs the TOTP "Require" re-auth before the lock (order differs from design §5.6 for that reason). `totp(secret, step)` in `support.ts` matches `@kaki/identity` `totpAt`.
+- Dashboard has no `test:coverage` script (as before this feature); its unit tests run in `pnpm test`.
 
 ## Left to CI or later
-- `terraform validate` (provider registry blocked here; `fmt -check` passes) and the S3 presigner case of `uploads.int.test.ts` (needs Docker): the verify stage's GitHub CI.
-- E2E (`two-step.e2e.ts`), renders and axe: verify stage's GitHub CI (no local stack).
-- Google re-prompt for re-auth deferred (D4).
+- E2E on Chromium, Firefox and WebKit, real renders and axe against the stack: verify stage's GitHub CI. A throwaway Chromium smoke against `vite preview` with a stubbed API passed every screen state here (axe clean, 375 px).
+- Not in the E2E: the forced-enrolment variant (needs a second member, FEAT-007) and Team read-only for Admin/Agent; covered by the smoke only.
+- Still from the backend session: `terraform validate` and the S3 presigner case of `uploads.int.test.ts` (Docker).
 
 ## Pending for Ken
 - Nothing blocking. Already in pending-actions: lost authenticator + all recovery codes has no self-service reset until an operator tool exists (design §8 item 2).
