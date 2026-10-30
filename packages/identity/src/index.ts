@@ -1,6 +1,17 @@
 export { can, type Role, type Capability } from './capabilities.js';
 export { CURRENT_TERMS, TERMS_DOCUMENTS, termsAreCurrent, type TermsDocument } from './terms.js';
-export { LinkError, GoogleSignInError, TermsOutdatedError } from './errors.js';
+export {
+  GoogleSignInError,
+  LinkError,
+  MfaChallengeError,
+  MfaCodeError,
+  MfaEnrolmentError,
+  MfaLockedError,
+  MfaRateLimitError,
+  MfaStateError,
+  TermsOutdatedError,
+  type MfaStateCode,
+} from './errors.js';
 export { normaliseEmail, magicLinkEmail } from './email.js';
 export { hashToken, isTokenShaped, magicLinkToken, newSessionToken } from './tokens.js';
 export {
@@ -11,6 +22,7 @@ export {
   sendMagicLink,
   sendPendingMagicLinks,
   type MagicLinkConfig,
+  type Reauthed,
 } from './magic-link.js';
 export { findOrCreateUser, startSession, type SignedIn } from './users.js';
 export {
@@ -33,3 +45,27 @@ export {
   type GoogleConfig,
   type GoogleSignIn,
 } from './google.js';
+export {
+  confirmEnrolment,
+  MFA_MAX_ATTEMPTS,
+  mfaStatus,
+  passChallenge,
+  reauthenticate,
+  reauthStatus,
+  regenerateRecoveryCodes,
+  removeFactor,
+  requestReauthLink,
+  startEnrolment,
+  type MfaCodeInput,
+  type MfaDeps,
+  type MfaStatusView,
+  type ReauthStatusView,
+} from './mfa.js';
+export {
+  REAUTH_WINDOW_MINUTES,
+  ReauthRequiredError,
+  reauthMethods,
+  requireReauth,
+  type ReauthMethod,
+} from './reauth.js';
+export { base32Decode, otpauthUri, totpAt, totpStep } from './totp.js';

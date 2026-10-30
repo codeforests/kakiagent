@@ -12,7 +12,9 @@ export type Capability =
   /** Create and edit facts by hand (KB-07; FEAT-022). */
   | 'kb.manage'
   /** Chat with the assistant in the dashboard and teach it corrections (AGT-17; FEAT-027). */
-  | 'coach.use';
+  | 'coach.use'
+  /** Require two-step verification of every member (AUTH-03; FEAT-006 D8). Owner only. */
+  | 'security.manage';
 
 const POLICY: Record<Role, ReadonlySet<Capability>> = {
   owner: new Set([
@@ -22,6 +24,7 @@ const POLICY: Record<Role, ReadonlySet<Capability>> = {
     'killswitch.toggle',
     'kb.manage',
     'coach.use',
+    'security.manage',
   ]),
   admin: new Set([
     'inbox.read',
