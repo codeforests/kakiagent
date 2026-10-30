@@ -3397,3 +3397,130 @@ a.settings-row:hover {
 .kill-switch__meta {
   margin-top: var(--space-3);
 }
+
+/* ---- Two-step verification and re-auth (SCR-APP-005, reauth-dialog, SCR-APP-055/045 p; FEAT-006) */
+.auth__icon {
+  display: inline-flex;
+  color: var(--color-accent-default);
+}
+.auth__icon--warning {
+  color: var(--color-warning-default);
+}
+.auth__icon--success {
+  color: var(--color-success-default);
+}
+.auth__card .page-title:focus {
+  outline: none;
+}
+.code-input {
+  width: 12ch;
+  box-sizing: content-box;
+  font-family: var(--font-family-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.1em;
+}
+.code-input--recovery {
+  width: 14ch;
+  letter-spacing: normal;
+}
+.qr-plate {
+  align-self: center;
+  padding: var(--space-5);
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+}
+.qr,
+.skeleton-qr {
+  width: calc(var(--space-11) * 3);
+  height: calc(var(--space-11) * 3);
+}
+.qr svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.skeleton-qr {
+  align-self: center;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-subtle);
+}
+.skeleton-line {
+  height: var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-subtle);
+}
+.setup-key {
+  margin: 0;
+  font-family: var(--font-family-mono);
+  word-spacing: var(--space-2);
+  overflow-wrap: anywhere;
+}
+.recovery-codes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  padding: var(--space-4);
+  list-style: none;
+  font-family: var(--font-family-mono);
+  background: var(--color-bg-subtle);
+  border-radius: var(--radius-md);
+}
+.recovery-codes__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.reauth-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.reauth-form .kaki-dialog__body {
+  margin: 0;
+}
+.reauth-form__swap {
+  align-self: flex-start;
+}
+.reauth-wait {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+.reauth-wait p {
+  margin: 0;
+}
+.two-step-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-4);
+  max-width: var(--size-reading-max);
+  margin-bottom: var(--space-6);
+}
+.two-step-card p {
+  margin: 0;
+}
+.two-step-card__status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.two-step-card__status--on {
+  color: var(--color-success-default);
+}
+.two-step-card__codes--few {
+  color: var(--color-warning-default);
+}
+.two-step-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.team-mfa__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}

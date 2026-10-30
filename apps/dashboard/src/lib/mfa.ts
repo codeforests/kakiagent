@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
 import { api, ApiError } from './api.ts';
 
 /** Helpers for two-step verification: SCR-APP-005, My account and Team (FEAT-006 ui-design). */
@@ -103,4 +104,40 @@ export function safeNext(next: string | null) {
   return next && next.startsWith('/') && !next.startsWith('//') && !next.startsWith('/\\')
     ? next
     : '/inbox';
+}
+
+/** The code fields' texts (ui-design "Code inputs", Challenge, Recovery). */
+export type CodeKind = 'totp' | 'recovery';
+
+export const TOTP_FORMAT = 'Enter the 6 digits from your authenticator app';
+const RECOVERY_FORMAT = 'Enter a recovery code, like abcde-fghij';
+export const TOTP_WRONG =
+  "That code didn't work. Check the time on your phone is set automatically, then try the newest code.";
+export const RECOVERY_WRONG =
+  "That recovery code didn't work. Check for typos; used codes don't work again.";
+
+/** The format error shown on submit, or null when the code can be sent. */
+export function codeFormatError(kind: CodeKind, code: string) {
+  if (kind === 'totp') return isTotpCode(code) ? null : TOTP_FORMAT;
+  return normaliseCode(code).length === 10 ? null : RECOVERY_FORMAT;
+}
+
+/** The field error for a refused code, with "{n} tries left" when two or fewer remain. */
+export function wrongCodeText(kind: CodeKind, err: unknown, wrong = TOTP_WRONG) {
+  if (!(err instanceof ApiError) || err.code !== 'code_invalid') return null;
+  if (kind === 'recovery') return RECOVERY_WRONG;
+  const left = attemptsLeft(err);
+  return left !== null && left <= 2
+    ? `${wrong} ${left} ${left === 1 ? 'try' : 'tries'} left.`
+    : wrong;
+}
+
+/** The clock, ticking every `ms` (lock and resend timers re-render without effects). */
+export function useNow(ms: number) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), ms);
+    return () => clearInterval(timer);
+  }, [ms]);
+  return now;
 }

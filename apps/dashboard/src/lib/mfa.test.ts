@@ -3,6 +3,7 @@ import { ApiError } from './api.ts';
 import {
   attemptsLeft,
   clockTime,
+  codeFormatError,
   dayDate,
   formatKey,
   formatRecoveryCode,
@@ -11,6 +12,9 @@ import {
   normaliseCode,
   recoveryCodesFile,
   safeNext,
+  TOTP_FORMAT,
+  TOTP_WRONG,
+  wrongCodeText,
 } from './mfa.ts';
 
 describe('codes', () => {
@@ -61,5 +65,22 @@ describe('safeNext', () => {
     expect(safeNext('/\\evil.example')).toBe('/inbox');
     expect(safeNext('https://evil.example')).toBe('/inbox');
     expect(safeNext(null)).toBe('/inbox');
+  });
+});
+
+describe('code field texts', () => {
+  it('validates the format on submit', () => {
+    expect(codeFormatError('totp', '12345')).toBe(TOTP_FORMAT);
+    expect(codeFormatError('totp', '123 456')).toBeNull();
+    expect(codeFormatError('recovery', 'abcde-fghjk')).toBeNull();
+    expect(codeFormatError('recovery', 'abc')).not.toBeNull();
+  });
+  it('adds the tries left only when two or fewer remain', () => {
+    const wrong = (n: number) => new ApiError(400, 'code_invalid', 'x', { attemptsLeft: n });
+    expect(wrongCodeText('totp', wrong(4))).toBe(TOTP_WRONG);
+    expect(wrongCodeText('totp', wrong(2))).toBe(`${TOTP_WRONG} 2 tries left.`);
+    expect(wrongCodeText('totp', wrong(1))).toBe(`${TOTP_WRONG} 1 try left.`);
+    expect(wrongCodeText('recovery', wrong(1))).toMatch(/^That recovery code didn't work/);
+    expect(wrongCodeText('totp', new ApiError(429, 'mfa_locked', 'x'))).toBeNull();
   });
 });

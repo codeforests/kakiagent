@@ -22,6 +22,8 @@ import { PrivacyPage } from './pages/privacy.tsx';
 import { SettingsPage } from './pages/settings.tsx';
 import { SetupRulesPage } from './pages/setup-rules.tsx';
 import { SignInPage } from './pages/sign-in.tsx';
+import { TwoStepPage } from './pages/two-step.tsx';
+import { TwoStepSetupPage } from './pages/two-step-setup.tsx';
 import { NoPermission, NotFound, SessionExpired } from './pages/system.tsx';
 import { VerifyPage } from './pages/verify.tsx';
 import { WelcomePage } from './pages/welcome.tsx';
@@ -40,6 +42,9 @@ export const router = createBrowserRouter([
   { path: '/welcome', element: <WelcomePage /> },
   { path: '/legal/:document', element: <LegalPage /> },
   { path: '/session-expired', element: <SessionExpired /> },
+  // Two-step verification (FEAT-006, SCR-APP-005): the challenge and enrolment.
+  { path: '/two-step', element: <TwoStepPage /> },
+  { path: '/two-step/setup', element: <TwoStepSetupPage /> },
   {
     path: '/',
     element: <AppShell />,
