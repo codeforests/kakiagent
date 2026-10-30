@@ -19,7 +19,7 @@
       Note: renders against the real stack and full axe run in the verify stage's GitHub CI.
 - [x] T6 — SCR-APP-009: extract `AssistantBlock` from `pages/assistant.tsx` (Settings page unchanged), add it to `setup-rules.tsx` as the "Assistant" section with `id="assistant"`; the ready caption also needs saved assistant settings (ui-design SCR-APP-009; AC-10)
       Done when: dashboard typecheck and build pass; Settings → Assistant behaves as before (its E2E spec unchanged and green in CI); the step shows the block.
-- [ ] T7 — SCR-APP-012 `pages/go-live.tsx` (`/setup/go-live`): checklist, warnings, pre-live form line, channel choice, "I understand", confirm dialog, live state, 409 handling; Website step's Continue → go-live; Home "Continue setup" card; Channels page `not_ready` alert (ui-design SCR-APP-012, Home, Channels; AC-4–AC-6, AC-9)
+- [x] T7 — SCR-APP-012 `pages/go-live.tsx` (`/setup/go-live`): checklist, warnings, pre-live form line, channel choice, "I understand", confirm dialog, live state, 409 handling; Website step's Continue → go-live; Home "Continue setup" card; Channels page `not_ready` alert (ui-design SCR-APP-012, Home, Channels; AC-4–AC-6, AC-9)
       Done when: dashboard typecheck and build pass; a stubbed-API Chromium run covers blocked, warnings (Go live disabled until "I understand"), ready → confirm → live, 409 `not_ready` refresh, at 1280 and 375 with axe clean.
 - [ ] T8 — E2E `e2e/tests/onboarding.e2e.ts` (design §5.5; AC-1, AC-2, AC-4, AC-9)
       Done when: the spec typechecks and lints; it runs in the verify stage's GitHub CI (all three browsers).

@@ -34,6 +34,7 @@ import { SetupWebsitePage, WidgetSettingsPage } from './pages/widget.tsx';
 import { AppShell } from './shell/app-shell.tsx';
 import { MorePage } from './shell/more.tsx';
 import { SetupLayout } from './shell/wizard-header.tsx';
+import { GoLivePage } from './pages/go-live.tsx';
 
 /**
  * Routes. Sections not yet built render a placeholder naming the feature that
@@ -66,6 +67,7 @@ export const router = createBrowserRouter([
           { path: 'rules', element: <SetupRulesPage /> },
           { path: 'test', element: <SetupTestPage /> },
           { path: 'website', element: <SetupWebsitePage /> },
+          { path: 'go-live', element: <GoLivePage /> },
         ],
       },
     ],

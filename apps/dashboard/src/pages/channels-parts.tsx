@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useId, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { api, ApiError } from '../lib/api.ts';
+import { notReadyMissing } from '../lib/onboarding.ts';
 import {
   channelStatus,
   CHANNELS_KEY,
@@ -92,6 +93,9 @@ export function ChannelCard({
   const [confirming, setConfirming] = useState(false);
   const actionRef = useRef<HTMLButtonElement>(null);
   const [conflict, setConflict] = useState(false);
+  // FEAT-035: a 409 `not_ready` before the first go-live; the failing item count.
+  const [notReady, setNotReady] = useState<number | null>(null);
+  const notReadyRef = useRef<HTMLDivElement>(null);
   const next = status.live ? 'offline' : 'live';
   const change = useMutation({
     mutationFn: () => api.setChannelState(item.id, next, item.version),
@@ -108,6 +112,12 @@ export function ChannelCard({
       if (err instanceof ApiError && err.code === 'version_conflict') {
         setConfirming(false);
         setConflict(true);
+      }
+      const missing = notReadyMissing(err);
+      if (missing) {
+        setConfirming(false);
+        setNotReady(missing.length);
+        setTimeout(() => notReadyRef.current?.focus());
       }
     },
   });
@@ -148,6 +158,7 @@ export function ChannelCard({
               variant="primary"
               onClick={() => {
                 change.reset();
+                setNotReady(null);
                 setConfirming(true);
               }}
             >
@@ -156,6 +167,18 @@ export function ChannelCard({
           )}
         </div>
       </div>
+
+      {notReady !== null && (
+        <div className="alert alert--warning" role="alert" tabIndex={-1} ref={notReadyRef}>
+          <p>
+            Finish the go-live check first. {notReady} required {notReady === 1 ? 'item' : 'items'}{' '}
+            missing.
+          </p>
+          <Button asChild variant="ghost">
+            <Link to="/setup/go-live">Open the go-live check</Link>
+          </Button>
+        </div>
+      )}
 
       {conflict && (
         <div className="alert alert--danger" role="alert">
@@ -187,7 +210,7 @@ export function ChannelCard({
         busyLabel={next === 'live' ? 'Going live…' : 'Going offline…'}
         onConfirm={() => change.mutate()}
         alert={
-          change.isError && !conflict ? (
+          change.isError && !conflict && notReady === null ? (
             <div className="alert alert--danger" role="alert">
               <p>We couldn't {verb}. Check your connection and try again.</p>
             </div>
