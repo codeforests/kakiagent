@@ -1,6 +1,6 @@
 # Acceptance Report: FEAT-054 — Boundary rules with safe defaults
 
-> Verdict: **Accepted** (pending GitHub CI on the PR branch; run recorded under CI) · Date: 2026-10-30
+> Verdict: **Accepted** (GitHub CI run 78 green at `044fa9b`, 2026-10-30, incl. E2E `rules.e2e.ts` in Chromium, Firefox and WebKit) · Date: 2026-10-30
 > Standard: [technical-design.md](technical-design.md) §6 (AC-1..AC-11) · Sources: SRS v0.4 (APR-01, AUTH-03 "change boundary rules", GOV-01, ONB-06, ONB-09), use-cases v0.4 (UC-29 steps 1–3), ADR-005, ADR-008, ADR-014, ADR-025
 > Repo state audited: `5871f83` (implementation head); one E2E step corrected (see Corrected tests)
 
@@ -54,4 +54,5 @@ APR-01 Test ref appended; AUTH-03's partial note gains this feature's "change bo
 
 ## CI
 
-Pending: GitHub CI on `feat/FEAT-054-boundary-rules`.
+- Run 77 at `cd497b8`: every job green except `rules.e2e.ts` in Firefox and WebKit (axe `target-size` under the fixed tab bar; see Corrected tests).
+- Run 78 at `044fa9b`, 2026-10-30: all jobs green (format, lint, typecheck, unit, integration and coverage, eval, build and size, scanning, Terraform, E2E in Chromium, Firefox and WebKit).
