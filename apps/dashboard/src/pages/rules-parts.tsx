@@ -289,7 +289,8 @@ export function RulesForm({
   const dirty = lines.length > 0 || discount.trim() !== String(base.maxDiscountPct);
   const pending = save.isPending;
   const neverSaved = data.version === null;
-  const saveDisabled = pending || (variant === 'settings' && !dirty && data.source === 'saved');
+  // Nothing to save: aria-disabled, not disabled, so focus can come back to it after a save.
+  const nothingToSave = variant === 'settings' && !dirty && data.source === 'saved';
 
   const set = <K extends keyof BoundaryRules>(key: K, value: BoundaryRules[K]) => {
     setDraft((d) => ({ ...d, [key]: value }));
@@ -518,9 +519,10 @@ export function RulesForm({
       <div className="privacy-form__actions">
         <Button
           ref={saveRef}
-          disabled={saveDisabled}
+          disabled={pending}
+          aria-disabled={nothingToSave || undefined}
           aria-busy={pending || undefined}
-          onClick={startSave}
+          onClick={() => !nothingToSave && startSave()}
         >
           Save rules
         </Button>

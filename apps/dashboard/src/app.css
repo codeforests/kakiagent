@@ -805,7 +805,8 @@ a {
     bottom: 0;
   }
 }
-.kaki-btn:disabled {
+.kaki-btn:disabled,
+.rules-form .kaki-btn[aria-disabled='true'] {
   opacity: 0.6;
   cursor: default;
 }
@@ -3533,6 +3534,9 @@ a.settings-row:hover {
 .rules-page,
 .rules-setup {
   max-width: var(--size-reading-max);
+}
+.rules-setup {
+  margin-bottom: var(--space-6);
 }
 .rules-form > .alert,
 .rules-form .card > .alert {
