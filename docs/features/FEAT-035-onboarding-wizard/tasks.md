@@ -1,7 +1,7 @@
 # Tasks: FEAT-035 — Onboarding wizard frame and go-live readiness check
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: in progress (T1–T3 done) · Last updated: 2026-10-30
+> Status: developer-done · Last updated: 2026-10-30
 
 - [x] T1 — Schema: `0039_onboarding_progress.sql` (table, checks, forced RLS, policy, `select, insert, update` to `app_dashboard`, backfill of tenants already live) + Drizzle table; name in `TENANT_SCOPED_TABLES`; RLS suite case; dev seed row for both dev tenants (design §4; D4; AC-8)
       Done when: `drizzle-kit generate` reports no drift after 0039; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes with: tenant B reads and updates none of A's rows; inserting A's tenant ID in B's context fails; `app_dashboard` delete is refused; a tenant with a live widget before 0039 has `first_live_at` set.
@@ -23,18 +23,19 @@
       Done when: dashboard typecheck and build pass; a stubbed-API Chromium run covers blocked, warnings (Go live disabled until "I understand"), ready → confirm → live, 409 `not_ready` refresh, at 1280 and 375 with axe clean.
 - [x] T8 — E2E `e2e/tests/onboarding.e2e.ts` (design §5.5; AC-1, AC-2, AC-4, AC-9)
       Done when: the spec typechecks and lints; it runs in the verify stage's GitHub CI (all three browsers).
-- [ ] T9 — Verify: full `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, this feature's tests; `code-map.md` updated (tenancy readiness and onboarding, the focused shell and wizard parts, migration 0039); tasks status `developer-done`
+- [x] T9 — Verify: full `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, this feature's tests; `code-map.md` updated (tenancy readiness and onboarding, the focused shell and wizard parts, migration 0039); tasks status `developer-done`
       Done when: all pass, evidence below, draft PR open.
 
 ## Verification evidence
 
-- AC-1 — backend: progress round-trip and a new transaction reads the same step (`tenancy/test/readiness.int.test.ts` "visited moves the step…", `api/test/onboarding.int.test.ts` "round-trips"). UI part: T5, T8.
-- AC-2 — backend: 400 `not_skippable` for profile and go_live, skipped then done overwrites (both suites). UI part: T5.
+- AC-1 — backend: progress round-trip and a new transaction reads the same step (`tenancy/test/readiness.int.test.ts` "visited moves the step…", `api/test/onboarding.int.test.ts` "round-trips"). UI: `lib/onboarding.test.ts` (step order, state, counts); `onboarding.e2e.ts` (visited/done/skipped, Save and exit, Home card after reload).
+- AC-2 — backend: 400 `not_skippable` for profile and go_live, skipped then done overwrites (both suites). UI: Skip for now only on steps 2–6 (`STEPS.skippable`, unit), the Skipped chip in the step list (`onboarding.e2e.ts`).
 - AC-3 — each of the seven items flips on its own input and only that one; UEN optional, missing contact fails (`readiness.int.test.ts`); unit `profileComplete` per missing field (`onboarding.test.ts`).
-- AC-4 — 409 `not_ready` with exactly the failing keys on both routes, channel offline, no `channel.live` or `onboarding.first_live` audit, `firstLiveAt` null (both suites). Fix links: T7.
+- AC-4 — 409 `not_ready` with exactly the failing keys on both routes, channel offline, no `channel.live` or `onboarding.first_live` audit, `firstLiveAt` null (both suites). UI: the go-live check's failing rows link to their fix and Go live stays disabled; the Channels page shows the not-ready alert and the widget stays "Not live yet" (`onboarding.e2e.ts`); `goLiveBlocked`, `notReadyMissing` (unit).
 - AC-5 — 409 `warnings_unacknowledged` without the flag; with it the widget goes live and `visitor_facts` shows only the approved fact (`onboarding.int.test.ts`); the Channels route never blocks on warnings (`readiness.int.test.ts`).
 - AC-6 — one `onboarding.first_live` and one `channel.live`, `firstLiveAt` and `currentStep = go_live`; later go-lives (both routes) with a failing item skip the gate and do not re-audit; stale version 409 changes nothing.
 - AC-7 — audit payload `{ minutesToLive: 95, channels: [id] }` for a tenant created 95 minutes earlier, actor the user, no PII (`readiness.int.test.ts`).
-- AC-8 — RLS cases in `db/test/rls.int.test.ts` (B reads only its row, can't update or insert A's, no delete, visitor no access, backfill); Agent 403 on all four routes; B going live with A's channel is 404 (`onboarding.int.test.ts`). Home card: T7.
-- AC-9 — 
-- AC-10 — 
+- AC-8 — RLS cases in `db/test/rls.int.test.ts` (B reads only its row, can't update or insert A's, no delete, visitor no access, backfill); Agent 403 on all four routes; B going live with A's channel is 404 (`onboarding.int.test.ts`). UI: no Home card and no request for Agents (`useProgress` enabled only for Owner/Admin, `pages/home.tsx`).
+- AC-9 — focused shell, header (step N of 7, progress valuetext, step list current/done/skipped, All steps below 768 px), Back/Skip/Continue, the go-live check's blocked state, axe at 1280 and 375 (tall), light and dark (`onboarding.e2e.ts`, runs in the verify stage's CI). A stubbed-API Chromium run here (scratch script, not committed) also checked: ready → confirm dialog → body `{channels:[{id,version}], acknowledgeWarnings:true}` → "You're live" focused with the toast; focus moves to the h1 on a step change; axe clean on blocked (1280, 375), live and Home. Specs updated for the frame: `review`, `privacy`, `coach`, `business-profile` (profile now continues to step 2).
+- AC-10 — `AssistantBlock variant="setup"` under `h2#assistant` on `/setup/rules`, same query key and save as Settings → Assistant; "Save assistant" is enabled for never-saved settings so the defaults can be saved (D3); the caption needs saved assistant settings (`privacy.e2e.ts` caption text). 
+- T9 — `pnpm format:check`, `pnpm lint` (ESLint + dependency-cruiser, no violations), `pnpm typecheck` (26 tasks) clean; `pnpm --filter @kaki/dashboard test` 132 passed (9 in `lib/onboarding.test.ts`); dashboard build ok; `code-map.md` updated.
