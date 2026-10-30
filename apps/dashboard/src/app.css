@@ -3524,3 +3524,7 @@ a.settings-row:hover {
   align-items: center;
   gap: var(--space-4);
 }
+.spinner--sm {
+  width: var(--space-4);
+  height: var(--space-4);
+}

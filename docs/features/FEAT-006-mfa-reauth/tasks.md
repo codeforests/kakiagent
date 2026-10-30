@@ -31,8 +31,9 @@
 - [x] T8 — `reauth-dialog` (`shell/reauth-dialog.tsx`, TOTP/recovery and email modes, polling `GET /auth/reauth` every 3 s and on focus while waiting), provider in `AppShell` and `/two-step/setup`; `/account` (SCR-APP-055 p) with the two-step card and account-menu link (ui-design reauth-dialog, SCR-APP-055; AC-10, AC-11)
       Done when: dashboard typecheck, unit tests and build pass; turn off, new codes and set up are wrapped in `guard`.
       Evidence: dashboard `tsc -b`, eslint and unit tests (113) pass. `AppShell` is wrapped in `ReauthProvider`; `pages/account.tsx` wraps new codes and turn off in `guard`, and set up goes to `/two-step/setup`, whose start is wrapped in `guard` (T7). Account menu: "My account" first.
-- [ ] T9 — `/settings/team` (SCR-APP-045 p): require toggle with confirm-dialog and `guard`, counts, read-only for Admin and Agent, placeholder for FEAT-007; Settings "Team" row links it (ui-design SCR-APP-045; AC-4, AC-11)
+- [x] T9 — `/settings/team` (SCR-APP-045 p): require toggle with confirm-dialog and `guard`, counts, read-only for Admin and Agent, placeholder for FEAT-007; Settings "Team" row links it (ui-design SCR-APP-045; AC-4, AC-11)
       Done when: dashboard typecheck, unit tests and build pass.
+      Evidence: dashboard `tsc -b`, eslint, unit tests (113) and `vite build` pass. `pages/team.tsx`: the change runs through `guard`, the toggle follows the response only (12 px spinner while saving), Admin and Agent get `aria-disabled` with "Only the Owner can change this."; Settings "Team" links `/settings/team`.
 - [ ] T10 — E2E: `e2e/tests/two-step.e2e.ts` per design §5.6 with a `totp` helper in `support.ts`; axe light and dark; 375 px (AC-2–AC-5, AC-9–AC-12)
       Done when: the spec typechecks and lints; it runs in the verify stage's GitHub CI on Chromium, Firefox and WebKit.
 - [ ] T11 — Verify: full `pnpm lint`, `pnpm typecheck`, `pnpm format:check`, `pnpm test`; `test:coverage` for identity, api, db, dashboard; Verification evidence below; status `developer-done`

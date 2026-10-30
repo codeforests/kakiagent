@@ -39,7 +39,7 @@ const GROUPS: { title: string; rows: Row[] }[] = [
         purpose: 'Your details and opening hours',
         to: '/settings/business-profile',
       },
-      { name: 'Team', purpose: 'Members and roles' },
+      { name: 'Team', purpose: 'Members and roles', to: '/settings/team' },
     ],
   },
   {

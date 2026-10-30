@@ -23,6 +23,7 @@ import { PrivacyPage } from './pages/privacy.tsx';
 import { SettingsPage } from './pages/settings.tsx';
 import { SetupRulesPage } from './pages/setup-rules.tsx';
 import { SignInPage } from './pages/sign-in.tsx';
+import { TeamPage } from './pages/team.tsx';
 import { TwoStepPage } from './pages/two-step.tsx';
 import { TwoStepSetupPage } from './pages/two-step-setup.tsx';
 import { NoPermission, NotFound, SessionExpired } from './pages/system.tsx';
@@ -91,6 +92,8 @@ export const router = createBrowserRouter([
       { path: 'settings/assistant', element: <AssistantPage /> },
       { path: 'settings/business-profile', element: <BusinessProfilePage /> },
       { path: 'settings/privacy', element: <PrivacyPage /> },
+      // Team, its two-step part (FEAT-006, SCR-APP-045 p); FEAT-007 adds members.
+      { path: 'settings/team', element: <TeamPage /> },
       // Channels (FEAT-034, SCR-APP-036).
       { path: 'settings/channels', element: <ChannelsPage /> },
       // Website widget (FEAT-032, SCR-APP-037).
