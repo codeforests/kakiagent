@@ -79,7 +79,7 @@ create table onboarding_progress (
 
 ### 5.2 Tenancy (`packages/tenancy/src/onboarding.ts`, `readiness.ts`; exported from the index; package deps `@kaki/kb`, `@kaki/approvals`, `@kaki/identity`, `@kaki/channels`)
 - `ONBOARDING_STEPS` (the order), `getProgress(tx, tenantId)`, `recordStep(tx, tenantId, step, outcome)` (upsert; `NotSkippableError` for `profile`/`go_live` skipped). Last write wins: progress is a convenience, not a decision.
-- `profileComplete(p: BusinessProfile): boolean` — name, industry, weekly hours, an email or a phone, at least one language (D2). UEN stays optional (FEAT-009 D2; Ken's decision pending as Q1).
+- `profileComplete(p: BusinessProfile): boolean` — name, industry, weekly hours, an email or a phone, at least one language (D2). UEN stays optional (FEAT-009 D2; Ken confirmed 2026-10-30, Q1).
 - `goLiveReadiness(tx, tenantId, userId, today)` → the `ReadinessResponse` minus `channels`: `profile` = `profileComplete`; `approved_fact` = `approvedInUse ≥ 1`; `disclosure` = assistant settings saved at least once (D3); `purpose`/`notice` = `privacyReadiness`; `terms` = `termsAccepted`; `rules` = `rulesSaved`; warnings = `conflicts`, `needsReview`; `firstLiveAt` from the progress row.
 - `goLive(tx, { tenantId, userId, channels, acknowledgeWarnings, today })` — one transaction: lock the progress row (`insert … on conflict do nothing` then `select … for update`); if never live, compute readiness: any failing item → `NotReadyError(missing)`; warnings and not acknowledged → `WarningsUnacknowledgedError`. Then `setChannelState(…, 'live')` per channel (its errors pass through: 404, 409; any error rolls back every channel). If `first_live_at` is null: set it, `first_live_by`, `current_step = 'go_live'`, and append one audit `onboarding.first_live` (actor user, payload `{ minutesToLive, channels: <ids> }`, minutes from `tenants.created_at`; no PII, ADR-014).
 - `goLiveOne(tx, { tenantId, userId, id, version, today })` for the Channels page: the same gate with `acknowledgeWarnings: true` (warnings never block, ONB-09; the checkbox is the go-live check's UX, D5) and the same first-live bookkeeping.
@@ -116,7 +116,7 @@ A fresh sign-up (as `auth.e2e.ts`) lands in the focused shell at step 1; saves t
 ## 7. Decisions
 
 - **D1 — Readiness lives in `tenancy` and composes other modules.** The plan names `tenancy.readiness`; tenancy imports kb, approvals, governance, identity and channels through their package names (no cycle). The gate wraps `setChannelState` in `goLive`/`goLiveOne` rather than putting a tenancy call inside channels, which would create a cycle.
-- **D2 — A complete profile is name, industry, weekly hours, a contact (email or phone) and a language.** UEN stays optional (format-checked when given, FEAT-009 D2). Q1 to Ken; if he wants UEN required, it's one more condition in `profileComplete` and one copy line.
+- **D2 — A complete profile is name, industry, weekly hours, a contact (email or phone) and a language.** UEN stays optional (format-checked when given, FEAT-009 D2). Ken chose UEN optional on 2026-10-30 (Q1).
 - **D3 — "AI disclosure" means the assistant settings were saved once.** A default disclosure always shows (AGT-11 can't be removed), so the item asks the owner to look at it and save, like rules (FEAT-054) and privacy (FEAT-058 D6). The setup step gains the assistant block for that.
 - **D4 — The gate applies until the first go-live, as ONB-09 says ("before the first go-live").** After it, the Channels page takes channels live and offline freely; regressions (terms re-acceptance) belong to their own features (FEAT-073). Tenants already live are backfilled as live.
 - **D5 — Warnings are acknowledged in the go-live check only.** The server needs `acknowledgeWarnings` on the check's route; the Channels page route never blocks on warnings, since ONB-09 lets the owner go live with them and that page shows its own confirmation.
@@ -127,7 +127,7 @@ A fresh sign-up (as `auth.e2e.ts`) lands in the focused shell at step 1; saves t
 
 ## 8. Escalations and open items
 
-- **Q1 (Ken):** is a UEN required to go live? Recommended: no (D2). Decision card posted 2026-10-30.
+- **Q1 (Ken), answered 2026-10-30:** a UEN is not required to go live (D2).
 - **ONB-08 measurement:** the pilot median is `percentile_cont(0.5) within group (order by first_live_at - t.created_at)` over `onboarding_progress join tenants` for website-only pilot tenants; an operator report is FEAT-066/FEAT-070's. ONB-08 stays partial (instrumented) as the plan says.
 - **Not in this plan row:** the hours-and-location suggestion from the crawl (FEAT-012 §8 suggested crediting it here). ONB-09 and ONB-02 don't need it, so it isn't designed here; KB-05 stays partial. Suggest crediting it to FEAT-020 (re-crawl) in the plan's next revision.
 - The pre-live contact form itself (UX-R4) is FEAT-049; the check only reports whether it would be allowed (`preLiveForm`).

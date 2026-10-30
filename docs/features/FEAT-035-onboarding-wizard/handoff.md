@@ -17,4 +17,4 @@ Next: build (backend, T1–T3) — kickoff: "Build FEAT-035 (backend) on branch 
 - E2E (`onboarding.e2e.ts`, the changed review/privacy/channels specs) and screen renders run in the verify stage's GitHub CI (no Docker here).
 
 ## Pending for Ken
-- Q1: is a UEN required to go live? Recommended no (D2); designed that way, decision card open. A "yes" adds one condition to `profileComplete` and one copy line.
+- None. Q1 answered 2026-10-30: UEN optional (D2).
