@@ -193,7 +193,7 @@ test('the setup goes review → rules and privacy → test', async ({ page }) =>
   await expect(page.getByRole('heading', { level: 1, name: 'Rules and privacy' })).toBeVisible();
   await expect(
     page.getByText(
-      "You'll need saved rules, a privacy notice and a purpose statement before you go live.",
+      "You'll need saved rules, saved assistant settings, a privacy notice and a purpose statement before you go live.",
     ),
   ).toBeVisible();
   await expectNoSeriousA11yViolations(page);

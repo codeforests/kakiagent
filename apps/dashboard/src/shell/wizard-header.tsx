@@ -6,6 +6,7 @@ import {
   finishedCount,
   nextStep,
   prevStep,
+  stepByKey,
   stepNumber,
   stepOf,
   stepState,
@@ -43,7 +44,7 @@ export function SetupLayout() {
 }
 
 export function WizardHeader() {
-  const { pathname } = useLocation();
+  const { pathname, hash } = useLocation();
   const navigate = useNavigate();
   const step = stepOf(pathname);
   const progress = useProgress().data ?? EMPTY;
@@ -53,25 +54,31 @@ export function WizardHeader() {
   const first = useRef(true);
   const key = step?.key;
 
-  // Each step change: record `visited` (fire and forget, D6), title, focus the page's h1.
+  // Each step change: record `visited` (fire and forget, D6) and set the title.
   useEffect(() => {
     if (!key) return;
     record.mutate({ step: key, outcome: 'visited' });
-    document.title = `${stepOf(pathname)!.title} · Setup · KakiAgent`;
-    if (first.current) {
-      first.current = false;
-      return;
-    }
-    const frame = requestAnimationFrame(() => {
-      const h1 = document.querySelector<HTMLElement>('#main h1');
-      if (!h1) return;
-      h1.tabIndex = -1;
-      h1.focus();
-    });
-    return () => cancelAnimationFrame(frame);
+    document.title = `${stepByKey(key).title} · Setup · KakiAgent`;
     // `record` changes identity each render; only the step matters.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
+
+  // Focus: a Fix link's section (`#assistant`, `#privacy`), else the page's h1 after a step change.
+  useEffect(() => {
+    if (!key) return;
+    const firstRender = first.current;
+    first.current = false;
+    if (firstRender && !hash) return;
+    const frame = requestAnimationFrame(() => {
+      const target =
+        (hash && document.getElementById(hash.slice(1))) ||
+        document.querySelector<HTMLElement>('#main h1');
+      if (!target) return;
+      target.tabIndex = -1;
+      target.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [key, hash]);
 
   if (!step) return null;
   const finished = finishedCount(progress);
