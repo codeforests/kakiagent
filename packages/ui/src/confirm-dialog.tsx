@@ -22,6 +22,8 @@ export interface ConfirmDialogProps {
   /** An inline alert shown above the buttons (a failed attempt). */
   alert?: ReactNode;
   cancelLabel?: string;
+  /** Where focus goes on close; `preventDefault()` keeps Radix from returning it to the trigger. */
+  onCloseAutoFocus?: (e: Event) => void;
 }
 
 /**
@@ -43,6 +45,7 @@ export function ConfirmDialog({
   confirmDisabled = false,
   alert,
   cancelLabel = 'Cancel',
+  onCloseAutoFocus,
 }: ConfirmDialogProps) {
   const cancelRef = useRef<HTMLButtonElement>(null);
   const block = (e: Event) => {
@@ -59,6 +62,7 @@ export function ConfirmDialog({
             e.preventDefault();
             cancelRef.current?.focus();
           }}
+          onCloseAutoFocus={onCloseAutoFocus}
           onEscapeKeyDown={block}
           onPointerDownOutside={block}
           onInteractOutside={block}

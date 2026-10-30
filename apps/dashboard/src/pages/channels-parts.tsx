@@ -116,8 +116,8 @@ export function ChannelCard({
       const missing = notReadyMissing(err);
       if (missing) {
         setConfirming(false);
+        // Focus moves to the alert when the dialog closes (`onCloseAutoFocus` below).
         setNotReady(missing.length);
-        setTimeout(() => notReadyRef.current?.focus());
       }
     },
   });
@@ -209,6 +209,12 @@ export function ChannelCard({
         busy={change.isPending}
         busyLabel={next === 'live' ? 'Going live…' : 'Going offline…'}
         onConfirm={() => change.mutate()}
+        onCloseAutoFocus={(e) => {
+          // Radix returns focus to the trigger on close; a not-ready refusal sends it to the alert.
+          if (!notReadyRef.current) return;
+          e.preventDefault();
+          notReadyRef.current.focus();
+        }}
         alert={
           change.isError && !conflict && notReady === null ? (
             <div className="alert alert--danger" role="alert">
