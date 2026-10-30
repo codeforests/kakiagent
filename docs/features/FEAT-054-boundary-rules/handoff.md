@@ -1,5 +1,5 @@
 # Handoff: FEAT-054 — Boundary rules with safe defaults
-Branch: feat/FEAT-054-boundary-rules · PR: see below (draft) · Updated: 2026-10-30 by build (UI)
+Branch: feat/FEAT-054-boundary-rules · PR: https://github.com/codeforests/kakiagent/pull/39 (draft) · Updated: 2026-10-30 by build (UI)
 Stage done: build (T1–T11 of 11), status developer-done
 Next: verify — kickoff: "Verify FEAT-054 on branch feat/FEAT-054-boundary-rules. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
 
