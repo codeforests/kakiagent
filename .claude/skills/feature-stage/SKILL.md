@@ -23,8 +23,7 @@ Every call re-reads the whole context, and the session's starting prompt alone i
 - Never read a previous feature's `tasks.md` evidence or its whole `ui-design.md` or `acceptance-report.md` as a format: the headings and one entry show the shape (FEAT-019: ~18k spent this way in design, ~6k in verify).
 - Inside big files, jump to the anchors in `code-map.md` ("Big files by anchor") and read ~40–80 lines from there, not the whole function or file.
 - Write integration tests from the helpers named in `code-map.md` (Tests); read a neighbouring test file's setup and one case, not the whole file.
-- Code the feature calls but doesn't change: read its signature and return type only (FEAT-054: `verifySegment`'s shape mattered, its patterns didn't). Copy a UI pattern by the functions `code-map.md` names, not the whole file.
-- Before writing fake replies or eval cases, check what the verifier blocks (code-map, Verifier): its `policy` words cost FEAT-054 a fix loop.
+- Code the feature calls but doesn't change: read its signature and return type only (FEAT-054: `verifySegment`'s shape mattered, its patterns didn't).
 - Diff against the remote: `git fetch origin main` then `git diff origin/main...HEAD`. Local `main` is stale in a fresh clone (FEAT-019 verify got a 166-file diff that way).
 - `docs/02-design/design.md` is long: index it (`grep -n '^#\|^\*\*`' docs/02-design/design.md`) and read only the components the screen uses.
 - Typecheck and test one package at a time while working; full `pnpm lint` and `pnpm typecheck` once, in the final task.
