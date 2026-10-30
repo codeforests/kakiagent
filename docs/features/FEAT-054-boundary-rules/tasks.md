@@ -1,7 +1,7 @@
 # Tasks: FEAT-054 — Boundary rules with safe defaults
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: developer-done · Last updated: 2026-10-30
+> Status: accepted · Last updated: 2026-10-30
 
 - [x] T1 — Schema: `0038_boundary_rules.sql` (table, checks, forced RLS, policy, `select, insert` to `app_dashboard`, `select` to `app_visitor`) + Drizzle table; name in `TENANT_SCOPED_TABLES`; RLS suite cases (design §4; D1; AC-4, AC-10)
       Done when: `drizzle-kit generate` reports no drift after 0038; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes with: tenant B reads none of A's rows; inserting A's tenant ID in B's context fails; `app_dashboard` update and delete are permission denied; `app_visitor` insert is denied; the check refuses a row without `legal_advice`, with an unknown key, or 101%.

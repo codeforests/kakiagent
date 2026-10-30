@@ -27,6 +27,7 @@ Every call re-reads the whole context, and the session's starting prompt alone i
 - `docs/02-design/design.md` is long: index it (`grep -n '^#\|^\*\*`' docs/02-design/design.md`) and read only the components the screen uses.
 - Typecheck and test one package at a time while working; full `pnpm lint` and `pnpm typecheck` once, in the final task.
 - Integration tests always through `scripts/test-env.sh` (no Docker in cloud sessions).
+- A stubbed-API Playwright script is worth running for new screens (FEAT-054 caught a focus bug with one), but log only the fields it asserts, never a whole page's text.
 - Keep replies to Ken short; details go in the files.
 
 ## Stage: design
