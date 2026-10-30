@@ -1,7 +1,7 @@
 # Tasks: FEAT-054 — Boundary rules with safe defaults
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: designed · Last updated: 2026-10-30
+> Status: developer-done · Last updated: 2026-10-30
 
 - [x] T1 — Schema: `0038_boundary_rules.sql` (table, checks, forced RLS, policy, `select, insert` to `app_dashboard`, `select` to `app_visitor`) + Drizzle table; name in `TENANT_SCOPED_TABLES`; RLS suite cases (design §4; D1; AC-4, AC-10)
       Done when: `drizzle-kit generate` reports no drift after 0038; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes with: tenant B reads none of A's rows; inserting A's tenant ID in B's context fails; `app_dashboard` update and delete are permission denied; `app_visitor` insert is denied; the check refuses a row without `legal_advice`, with an unknown key, or 101%.
@@ -27,19 +27,21 @@
       Done when: dashboard typecheck and build pass; the step shows the rules block with the template prefill for the dev F&B tenant (CI if not runnable here).
 - [x] T10 — E2E `e2e/tests/rules.e2e.ts` (design §5.6; AC-3, AC-5, AC-6, AC-11)
       Done when: the spec typechecks and lints; it runs in the verify stage's GitHub CI (all three browsers).
-- [ ] T11 — Verify: full `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, this feature's tests; `code-map.md` updated (approvals module, the boundary step in the agent pipeline, `rules-parts.tsx`); tasks status `developer-done`
+- [x] T11 — Verify: full `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, this feature's tests; `code-map.md` updated (approvals module, the boundary step in the agent pipeline, `rules-parts.tsx`); tasks status `developer-done`
       Done when: all pass, evidence below, draft PR open.
 
 ## Verification evidence
 
-- AC-1 —
-- AC-2 —
-- AC-3 —
-- AC-4 —
-- AC-5 —
-- AC-6 —
-- AC-7 —
-- AC-8 —
-- AC-9 —
-- AC-10 —
-- AC-11 —
+- AC-1 — `rulesInForce`/`GET` defaults and F&B template: approvals and API integration suites (T2, T6). UI: prefill alert per `source` (stubbed-API Chromium check; `rules.e2e.ts` asserts the template).
+- AC-2 — API integration cases (T6); `rulesFieldErrors` maps the 400 codes to fields (`lib/rules.test.ts`); locked checkboxes are `aria-disabled` and always sent.
+- AC-3 — API: 403 `reauth_required` writes nothing (T6). UI: `useSaveRules` wraps the PUT in `guard`; stubbed-API Chromium run: confirm → re-auth dialog → save completes with no second click. E2E: `rules.e2e.ts` (CI).
+- AC-4 — Approvals and RLS integration suites (T1, T2).
+- AC-5 — Agent integration (T3); E2E visitor step after the save (CI).
+- AC-6 — Agent unit and integration (T3), evals subset `boundary` (T5); E2E visitor refusal (CI).
+- AC-7 — Guard unit and integration cases (T4), evals (T5).
+- AC-8 — `commitmentDecision` table test (T2); `boundaryRules()` in visitor, coaching, replay (T3).
+- AC-9 — `rulesSaved` (T2); setup step renders `RulesBlock variant="setup"` above Privacy and the caption needs saved rules (stubbed-API render; `privacy.e2e.ts` caption updated).
+- AC-10 — RLS suite and API cross-tenant case (T1, T6).
+- AC-11 — `diffRules` unit cases; stubbed-API Chromium at 1280 and 375: confirm lines, toast, focus back on Save, 409 alert with Reload, axe (serious/critical) clean on page and dialog. Full light/dark axe in `rules.e2e.ts` (CI).
+
+T11 (2026-10-30, UI build): `pnpm format:check`, `pnpm lint` (ESLint + dependency-cruiser), `pnpm typecheck` all pass; dashboard unit tests 123 passed; dashboard build passes. E2E and screen renders run in the verify stage's GitHub CI (no Docker here).
