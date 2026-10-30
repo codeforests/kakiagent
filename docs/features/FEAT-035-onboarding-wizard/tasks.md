@@ -21,7 +21,7 @@
       Done when: dashboard typecheck and build pass; Settings → Assistant behaves as before (its E2E spec unchanged and green in CI); the step shows the block.
 - [x] T7 — SCR-APP-012 `pages/go-live.tsx` (`/setup/go-live`): checklist, warnings, pre-live form line, channel choice, "I understand", confirm dialog, live state, 409 handling; Website step's Continue → go-live; Home "Continue setup" card; Channels page `not_ready` alert (ui-design SCR-APP-012, Home, Channels; AC-4–AC-6, AC-9)
       Done when: dashboard typecheck and build pass; a stubbed-API Chromium run covers blocked, warnings (Go live disabled until "I understand"), ready → confirm → live, 409 `not_ready` refresh, at 1280 and 375 with axe clean.
-- [ ] T8 — E2E `e2e/tests/onboarding.e2e.ts` (design §5.5; AC-1, AC-2, AC-4, AC-9)
+- [x] T8 — E2E `e2e/tests/onboarding.e2e.ts` (design §5.5; AC-1, AC-2, AC-4, AC-9)
       Done when: the spec typechecks and lints; it runs in the verify stage's GitHub CI (all three browsers).
 - [ ] T9 — Verify: full `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, this feature's tests; `code-map.md` updated (tenancy readiness and onboarding, the focused shell and wizard parts, migration 0039); tasks status `developer-done`
       Done when: all pass, evidence below, draft PR open.
