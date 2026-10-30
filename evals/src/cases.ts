@@ -17,6 +17,8 @@ export const Subset = z.enum([
   'multi-task',
   /** Retrieval for Singlish and mixed or pure Chinese questions (FEAT-023; plan P3, R5). */
   'retrieval',
+  /** Boundary rules: blocked topics, discount offers, commitments (FEAT-054, APR-01). */
+  'boundary',
 ]);
 export type Subset = z.infer<typeof Subset>;
 
@@ -129,6 +131,21 @@ export const Case = z
     plan: z.union([z.record(z.string(), z.unknown()), z.string()]).optional(),
     /** The tenant's assistant settings for this case, over the fixture's (FEAT-024). */
     persona: PersonaPatch.optional(),
+    /** The tenant's boundary rules for this case, over the safe defaults (FEAT-054). */
+    rules: z
+      .object({
+        allowedTopics: z.array(z.string()),
+        blockedTopics: z.array(z.string()),
+        maxDiscountPct: z.int().min(0).max(100),
+        quotesNeedApproval: z.boolean(),
+        forbiddenCommitments: z.array(
+          z.enum(['delivery_guarantee', 'refund', 'legal_advice', 'medical_advice']),
+        ),
+        customCommitments: z.array(z.string()),
+      })
+      .partial()
+      .strict()
+      .optional(),
     /** The tenant's holiday exceptions for this case, over the fixture's (FEAT-009 D4). */
     holidays: z
       .record(z.string().regex(/^\d{4}-\d{2}-\d{2}$/), z.enum(['open', 'closed']))

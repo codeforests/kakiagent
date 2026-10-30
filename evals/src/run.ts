@@ -10,8 +10,10 @@
  * until M1.5; with `LLM_PROVIDER=anthropic-dev` the real model answers instead, and the
  * LLM judge scores the `judge` expectations and its agreement sample (FEAT-023 D8).
  */
+import { SAFE_DEFAULTS, type BoundaryRules } from '@kaki/approvals';
 import {
   answerTurn,
+  applyBoundary,
   buildVisitorPrompt,
   dispatchPlan,
   fakeAgentScript,
@@ -28,6 +30,7 @@ import {
   textsFor,
   triage,
   TRIAGE_SYSTEM,
+  triageTail,
   visitorRegistry,
   type ConversationPort,
   type DispatchContext,
@@ -216,6 +219,7 @@ async function dispatchCheck(
   plan: TurnPlan,
   tenantId: string,
   conversation: ConversationPort,
+  rules: BoundaryRules,
 ): Promise<{ error: string | null; replies: ReplyKey[]; endTurn: SafetyKey | null }> {
   const audited: string[] = [];
   const ctx: DispatchContext = {
@@ -225,7 +229,7 @@ async function dispatchCheck(
     turnId: 'eval',
     gateOpen: async () => true,
     consentGiven: async () => false,
-    boundaryRules: async () => null,
+    boundaryRules: async () => rules,
     audit: async (e) => void audited.push(`${e.task}:${e.outcome}`),
     conversation,
   };
@@ -296,9 +300,12 @@ async function runCase(c: Case) {
   const meta = { tenantId: fixture.tenantId };
   const query = c.messages.filter((m) => m.role === 'user').at(-1)!.content;
   const at = new Date(c.at);
-  const plan = await triage(llm, { history: c.messages, meta });
+  // FEAT-054: the case's rules over the safe defaults, applied as the worker applies them.
+  const rules: BoundaryRules = { ...SAFE_DEFAULTS, ...c.rules };
+  const triaged = await triage(llm, { history: c.messages, meta, tail: triageTail(rules) });
+  const { plan } = applyBoundary(triaged, rules, query);
   const conversation = memoryConversation(c.priorAbuse);
-  const dispatch = await dispatchCheck(plan, fixture.tenantId, conversation.port);
+  const dispatch = await dispatchCheck(plan, fixture.tenantId, conversation.port, rules);
   const route = routeReply(routeSignals(plan, false), DEFAULT_ROUTE_POLICY);
   const language = replyLanguage(plan, query);
   const hours = hoursAt(fixture, c, at);
@@ -341,6 +348,7 @@ async function runCase(c: Case) {
       replies: dispatch.replies,
       minConfidence: DEFAULT_ROUTE_POLICY.minConfidence,
       persona,
+      rules,
     },
     { llm, gateOpen: async () => true, publish: async () => {} },
   );

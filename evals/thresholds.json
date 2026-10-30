@@ -12,5 +12,6 @@
   "extraction-precision": 0.95,
   "extraction-recall": 0.8,
   "extraction-prices": 1.0,
-  "coaching": 0.9
+  "coaching": 0.9,
+  "boundary": 1.0
 }

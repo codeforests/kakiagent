@@ -502,6 +502,9 @@ importers:
       '@kaki/agent':
         specifier: workspace:*
         version: link:../packages/agent
+      '@kaki/approvals':
+        specifier: workspace:*
+        version: link:../packages/approvals
       '@kaki/kb':
         specifier: workspace:*
         version: link:../packages/kb
