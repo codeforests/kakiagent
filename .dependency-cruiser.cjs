@@ -19,7 +19,7 @@ module.exports = {
           '^packages/$2/',
           '^packages/[^/]+/src/index\\.tsx?$',
           // Declared secondary entry points (package.json "exports").
-          '^packages/platform/src/(outbox|pii-mask)\\.ts$',
+          '^packages/platform/src/(outbox|pii-mask|secrets)\\.ts$',
           '^packages/db/src/(setup|testing)\\.ts$',
           '^packages/identity/src/testing\\.ts$',
           '^packages/kb/src/(stale|gap-cluster)\\.ts$',

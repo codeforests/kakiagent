@@ -1,7 +1,7 @@
 # Tasks: FEAT-006 — Two-step verification and re-authentication for sensitive actions
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: designed · Last updated: 2026-10-28
+> Status: in build (backend T1–T5 done) · Last updated: 2026-10-30
 
 - [x] T1 — Schema: Drizzle tables `mfa_factors`, `recovery_codes`, columns `sessions.mfa_at`, `magic_links.purpose`/`session_id` (+ check), `tenants.mfa_required`; `0036_mfa.sql` (generated) and `0037_mfa_rls.sql` (RLS, `app_identity` policies and grants, `identity_read` on tenants, `app_dashboard` column grant, `kaki_mfa_count` + `tenant_mfa_enrolment()`); RLS suite cases (design §4; AC-8)
       Done when: `pnpm db:setup` applies 0036–0037 on a database at 0035 and `drizzle-kit generate` reports no drift; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes with the §4 cases: dashboard and visitor read and insert nothing in the two new tables; dashboard in B sets B's `mfa_required`, A's unchanged; `tenant_mfa_enrolment()` in B counts only B; `app_identity` can't update `mfa_required`; the `magic_links` check rejects `reauth` without a session.
