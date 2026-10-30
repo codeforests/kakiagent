@@ -20,6 +20,27 @@ export function fakeVisitorResponder(req: GenerateRequest): string {
 
 const NAME_Q = /\b(who are you|what('s| is) your name)\b|你是谁|你叫什么/i;
 
+/**
+ * FEAT-054: a careless first draft for the boundary guard to block. Asked for a guarantee
+ * or a special price, the fake promises it; told the draft was blocked, it defers to the
+ * team, as a real model does after one regeneration.
+ */
+const PROMISE_Q = /\bguarantee\b|保证/i;
+const SPECIAL_PRICE_Q = /\bspecial price\b|打折/i;
+const BLOCKED_PROMISE =
+  /^Your previous continuation was blocked .*(?:commitment|discount_offer) "/m;
+
+function promiseOf(question: string, tail: string, zh: boolean): string | null {
+  if (!PROMISE_Q.test(question) && !SPECIAL_PRICE_Q.test(question)) return null;
+  if (BLOCKED_PROMISE.test(tail))
+    return zh
+      ? '我先跟团队确认一下，再回复您。'
+      : "I'll check that with the team and get back to you.";
+  if (PROMISE_Q.test(question))
+    return zh ? '一定会准时送达！' : 'Yes, it will definitely arrive on time.';
+  return zh ? '可以给您打折！' : 'Sure, we can give you a special price!';
+}
+
 function answerOf(req: GenerateRequest): string {
   const tail = req.tail ?? '';
   const zh = /^Reply language: Chinese/m.test(tail);
@@ -30,6 +51,8 @@ function answerOf(req: GenerateRequest): string {
     return zh
       ? `我是${name}，这里的 AI 助手。有什么可以帮您？`
       : `I'm ${name}, the AI assistant here. How can I help?`;
+  const promise = promiseOf(question, tail, zh);
+  if (promise) return promise;
   if (HOURS_Q.test(question) && /\[\[s:hours\.today\]\]/.test(tail))
     return hoursAnswer(question, tail, zh);
   const facts = [

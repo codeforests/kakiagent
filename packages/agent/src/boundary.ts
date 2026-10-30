@@ -1,6 +1,7 @@
 import type { BoundaryRules } from '@kaki/approvals';
 import type { Task, TurnPlan } from './plan.js';
 import { asData } from './prompt.js';
+import type { Violation } from './verify.js';
 
 /**
  * Boundary rules in the turn (APR-01; FEAT-054 §5.3). Blocked topics are refused in code:
@@ -103,4 +104,93 @@ export function triageTail(
       : []),
   ];
   return lines.length ? lines.join('\n') : undefined;
+}
+
+/**
+ * The reply-side segment check (FEAT-054 §5.3, D4, D5; ADR-008 decision 3): model-typed
+ * text must not offer a discount or make a commitment the business forbids. Run after the
+ * leak guard on the same text, slot renderings masked, so the business's own policy text
+ * ("full refund", "delivery fee") never trips it. Rules, not a classifier.
+ */
+const NOT = String.raw`(?<!\b(?:not|never|cannot|can't|can not|don't|do not|won't|unable to|no)\s+)`;
+
+/** Offers, not the word: "we don't offer discounts" passes. Always on until FEAT-055 (D4). */
+const DISCOUNT_OFFER: RegExp[] = [
+  /\b(?:we|i)\s*(?:can|could|will|'ll|would)\s+(?:give|offer|do|provide|arrange|apply)\s+(?:you\s+)?(?:a\s+|an\s+|some\s+)?(?:\w+\s+)?(?:discount|special price|cheaper price|promo)/u,
+  /\b(?:discount|promo)\s+(?:for you|is possible|can be arranged)/u,
+  /(?<!不)(?:给您|帮您|可以给您|可以)\s*(?:打.{0,2}折|优惠|折扣)/u,
+];
+
+const COMMITMENTS: Record<'delivery_guarantee' | 'refund', RegExp[]> = {
+  delivery_guarantee: [
+    new RegExp(
+      String.raw`${NOT}\bguarantee[ds]?\b(?:\W+\w+){0,6}?\W+(?:deliver\w*|arriv\w*|reach\w*|on time)`,
+      'u',
+    ),
+    new RegExp(
+      String.raw`\b(?:deliver\w*|arriv\w*|on time)\b(?:\W+\w+){0,6}?\W+${NOT}guarantee[ds]?\b`,
+      'u',
+    ),
+    /\b(?:will|'ll)\s+(?:definitely|surely|certainly)\s+(?:arrive|be delivered|reach)/u,
+    /(?<!不|无法|不能)保证.{0,6}(?:送达|到)/u,
+    /(?<!不)一定(?:会|能)?.{0,4}(?:送达|送到|到货)/u,
+  ],
+  refund: [
+    /\b(?:we|i)\s*(?:can|will|'ll)\s+(?:give|offer|issue|process|arrange)\s+(?:you\s+)?(?:a\s+)?(?:full\s+)?refund/u,
+    new RegExp(String.raw`${NOT}\bmoney[- ]back\b`, 'u'),
+    /\brefund(?:ed)?\s+in\s+full\b/u,
+    /(?<!不)(?:给您|可以|会)\s*退款/u,
+  ],
+};
+
+export interface BoundaryGuard {
+  check(text: string, spans: [number, number][]): Violation[];
+}
+
+/** Built once per reply from the rules in force; unticked keys aren't checked. */
+export function boundaryGuard(
+  rules: Pick<BoundaryRules, 'forbiddenCommitments' | 'customCommitments'>,
+): BoundaryGuard {
+  const commitments = [
+    ...rules.forbiddenCommitments.flatMap((k) =>
+      k === 'delivery_guarantee' || k === 'refund' ? COMMITMENTS[k] : [],
+    ),
+  ];
+  const custom = rules.customCommitments;
+  return {
+    check(text, spans) {
+      const typed = norm(maskSpans(text, spans)).replace(/’/g, "'");
+      const found: Violation[] = [];
+      for (const re of DISCOUNT_OFFER) {
+        const m = re.exec(typed);
+        if (m) {
+          found.push({ kind: 'discount_offer', text: m[0] });
+          break;
+        }
+      }
+      for (const re of commitments) {
+        const m = re.exec(typed);
+        if (m) {
+          found.push({ kind: 'commitment', text: m[0] });
+          break;
+        }
+      }
+      if (!found.some((v) => v.kind === 'commitment') && custom.length) {
+        const hit = custom.find((phrase) => blockedTopicHit({ blockedTopics: [phrase] }, typed));
+        if (hit) found.push({ kind: 'commitment', text: hit });
+      }
+      return found;
+    },
+  };
+}
+
+/** The segment without its slot renderings: only what the model typed (as `verifySegment`). */
+function maskSpans(text: string, spans: [number, number][]): string {
+  let out = '';
+  let pos = 0;
+  for (const ch of text) {
+    out += spans.some(([s, e]) => pos >= s && pos < e) ? ' ' : ch;
+    pos += ch.length;
+  }
+  return out;
 }

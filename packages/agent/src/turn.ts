@@ -31,6 +31,7 @@ import { systemSlots, type HoursContext } from './hours-text.js';
 import { replyLanguage, type ReplyLanguage } from './language.js';
 import { routeSignals, triage, type TurnPlan } from './plan.js';
 import { HISTORY_LIMIT } from './prompt.js';
+import type { Violation } from './verify.js';
 import { safetyText, textsFor, type SafetyKey } from './texts.js';
 
 export interface TurnDeps {
@@ -79,6 +80,12 @@ export type TurnResult = Stored & {
  * reply does nothing, and the unique `in_reply_to` index settles a race.
  */
 /** Turn outcomes that mark the visitor's question as a coverage gap (FEAT-019 D2). */
+/** FEAT-054: a boundary hit has its own guardrail action; other kinds are `segment_blocked`. */
+const GUARDRAIL_ACTION: Partial<Record<Violation['kind'], string>> = {
+  commitment: 'guardrail.boundary_commitment',
+  discount_offer: 'guardrail.boundary_discount',
+};
+
 const GAP_OUTCOMES = new Map<TurnOutcome, GapReason>([
   ['unavailable', 'unavailable'],
   ['unsure', 'unsure'],
@@ -202,7 +209,9 @@ export async function runVisitorTurn(
         });
       // Guardrail results (ADR-008 decision 5, GOV-01): the rule that fired, never the text.
       for (const v of composed?.violations ?? [])
-        await entry('guardrail.segment_blocked', { kind: auditCode(v.kind) });
+        await entry(GUARDRAIL_ACTION[v.kind] ?? 'guardrail.segment_blocked', {
+          kind: auditCode(v.kind),
+        });
       if (outcome === 'escalated') await entry('guardrail.escalated');
       if (outcome === 'unavailable' || outcome === 'paused') await entry('agent.fallback_sent');
       // UC-20 3a and 3d (ADR-009): the attempt is audit-logged, as codes only (FEAT-025).
@@ -382,6 +391,7 @@ export async function runVisitorTurn(
       replies: dispatch.replies,
       minConfidence: gate.tenant.routePolicy.minConfidence,
       persona,
+      rules: rules.rules,
     },
     {
       llm,

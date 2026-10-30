@@ -1,4 +1,5 @@
 import type { GenerateRequest } from '@kaki/llm-gateway';
+import type { BoundaryRules } from '@kaki/approvals';
 import type { VisitorFact } from '@kaki/kb';
 import type { Persona } from '@kaki/tenancy';
 import { hoursLines, type HoursContext } from './hours-text.js';
@@ -77,6 +78,39 @@ export function sgtNow(now: Date): string {
  * The tenant's persona (AGT-08; FEAT-024 §5.3, D5): settings only, so `system` changes
  * only when the owner saves (ADR-007 decision 2).
  */
+const PROMISES: Partial<Record<BoundaryRules['forbiddenCommitments'][number], string>> = {
+  delivery_guarantee: 'delivery dates or guaranteed delivery',
+  refund: 'refunds or money back',
+};
+
+/**
+ * The tenant's boundary rules (APR-01; FEAT-054 §5.3) after `<business>`, so the leak
+ * guard's `ruleText` treats them as tenant data. Changes only on a save, so it stays in
+ * the cached prefix. Legal and medical advice are already in the platform rules.
+ */
+export function rulesLines(rules: BoundaryRules | undefined): string[] {
+  if (!rules) return [];
+  const list = (items: string[]) => items.map(asData).join('; ');
+  const never = [
+    ...rules.forbiddenCommitments.flatMap((k) => PROMISES[k] ?? []),
+    ...rules.customCommitments.map(asData),
+  ];
+  return [
+    '<rules>',
+    ...(rules.allowedTopics.length ? [`Topics you help with: ${list(rules.allowedTopics)}`] : []),
+    ...(rules.blockedTopics.length
+      ? [`Topics you never discuss; say you can't help with that: ${list(rules.blockedTopics)}`]
+      : []),
+    // D4: no discount is offered in text until approvals exist (FEAT-055).
+    'Never offer or hint at a discount; say the team will confirm any special price.',
+    ...(rules.quotesNeedApproval
+      ? ['Never quote a total or accept a custom order; say the team will confirm it.']
+      : []),
+    ...(never.length ? [`Never promise: ${never.join('; ')}.`] : []),
+    '</rules>',
+  ];
+}
+
 export function assistantLines(persona: Persona | undefined): string[] {
   if (!persona) return [];
   return [
@@ -125,6 +159,8 @@ export function buildVisitorPrompt(input: {
   /** AGT-07, AGT-16 (FEAT-025): triage flagged an injection attempt or a claim to be staff. */
   injection?: boolean | undefined;
   impersonation?: boolean | undefined;
+  /** APR-01 (FEAT-054): the rules block, in the cached tenant block after `<business>`. */
+  rules?: BoundaryRules | undefined;
 }): GenerateRequest {
   const lines = input.ordered.map((f) =>
     factLine(input.facts.refOf.get(f.id)!, f, input.gstRegistered),
@@ -152,6 +188,7 @@ export function buildVisitorPrompt(input: {
     ...(input.hours ? hoursLines(input.hours.hours, input.hours.openOnPublicHolidays) : []),
     '</business>',
     ...assistantLines(input.persona),
+    ...rulesLines(input.rules),
   ];
   const tail = [
     '<facts>',

@@ -260,7 +260,7 @@ interface Answered {
 export async function answerStep(
   deps: CoachDeps,
   input: Pick<CoachTurnInput, 'tenantId' | 'sessionId'>,
-  prep: Pick<Prep, 'tenant' | 'hours'>,
+  prep: Pick<Prep, 'tenant' | 'hours' | 'rules'>,
   text: string,
   history: HistoryMessage[],
   plan: TurnPlan | null,
@@ -312,6 +312,7 @@ export async function answerStep(
       replies: dispatch.replies,
       minConfidence: tenant.routePolicy.minConfidence,
       persona,
+      rules: prep.rules,
     },
     // D5: the send gate doesn't apply; nothing is published anywhere.
     { llm: deps.llm, gateOpen: async () => true, publish: async () => {} },

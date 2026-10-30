@@ -14,6 +14,7 @@ import {
   createGateway,
   defaultRegistry,
   gatewayFromConfig,
+  scriptedOutputs,
   type FakeScript,
   type GenerateRequest,
 } from '@kaki/llm-gateway';
@@ -176,5 +177,50 @@ describe('boundary rules in the visitor turn (FEAT-054)', () => {
     expect(seen).toEqual([
       expect.objectContaining({ maxDiscountPct: 15, quotesNeedApproval: false }),
     ]);
+  });
+
+  it('never releases a guarantee: one regeneration, then the escalation text, audited (AC-7)', async () => {
+    const { result, requests } = await ask(
+      'Will my cake arrive by 3pm?',
+      // The verifier already blocks the word "guarantee" (policy); this is the phrasing
+      // only the boundary guard catches.
+      scriptedOutputs([
+        'Yes, it will definitely arrive on time.',
+        'It will surely arrive by then.',
+      ]),
+    );
+    expect(result.outcome).toBe('escalated');
+    expect(result.message.body).toBe(textsFor('en').escalation);
+    expect(requests.filter((r) => r.model !== 'triage').map((r) => r.model)).toEqual([
+      'reply.simple',
+      'reply.complex',
+    ]);
+    // The rules reach the reply prompt's cached block (safe defaults: no version yet).
+    expect(requests[1]!.system).toContain('Never promise: delivery dates or guaranteed delivery');
+    const rows = await audits(result.message.id);
+    expect(rows.filter((r) => r.event_type.startsWith('guardrail.'))).toEqual([
+      { event_type: 'guardrail.boundary_commitment', payload: { kind: 'commitment' } },
+      { event_type: 'guardrail.boundary_commitment', payload: { kind: 'commitment' } },
+      { event_type: 'guardrail.escalated', payload: {} },
+    ]);
+    expect(JSON.stringify(rows)).not.toMatch(/definitely|surely/i);
+  });
+
+  it('blocks a discount offer and the fake model defers to the team on regeneration (AC-7, D4)', async () => {
+    await save({ maxDiscountPct: 20 });
+    const { result } = await ask('Can I get a special price for 3 cakes?');
+    expect(result.message.body).toBe("I'll check that with the team and get back to you.");
+    const rows = await audits(result.message.id);
+    expect(rows.map((r) => r.event_type)).toContain('guardrail.boundary_discount');
+  });
+
+  it('releases a guarantee once delivery_guarantee is unticked (AC-7)', async () => {
+    await save({ forbiddenCommitments: ['refund', 'legal_advice', 'medical_advice'] });
+    const { result } = await ask(
+      'Will my cake arrive by 3pm?',
+      scriptedOutputs(['Yes, it will definitely arrive on time.']),
+    );
+    expect(result.outcome).toBe('answered');
+    expect(result.message.body).toBe('Yes, it will definitely arrive on time.');
   });
 });

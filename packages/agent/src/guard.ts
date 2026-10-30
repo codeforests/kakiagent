@@ -14,7 +14,7 @@ export const WINDOW = 10;
 
 /** The prompt's own vocabulary: no visitor-facing reply ever needs it. */
 export const LEAK_MARKERS: RegExp[] = [
-  /[<‹]\s*\/?\s*(?:business|facts|assistant)\s*[>›]/iu,
+  /[<‹]\s*\/?\s*(?:business|facts|assistant|rules)\s*[>›]/iu,
   /\[f:[0-9a-f]{4,36}\]/iu,
   /\bslot\s+rule\b/iu,
   /\bslot\s+tokens?\b/iu,
