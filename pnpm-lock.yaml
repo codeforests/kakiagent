@@ -961,12 +961,24 @@ importers:
 
   packages/tenancy:
     dependencies:
+      '@kaki/approvals':
+        specifier: workspace:*
+        version: link:../approvals
+      '@kaki/channels':
+        specifier: workspace:*
+        version: link:../channels
       '@kaki/db':
         specifier: workspace:*
         version: link:../db
       '@kaki/governance':
         specifier: workspace:*
         version: link:../governance
+      '@kaki/identity':
+        specifier: workspace:*
+        version: link:../identity
+      '@kaki/kb':
+        specifier: workspace:*
+        version: link:../kb
       zod:
         specifier: 4.6.7
         version: 4.6.7
