@@ -11,6 +11,7 @@ import {
   getBusinessProfile,
   INDUSTRY_TEMPLATES,
   InvalidProfileError,
+  isSgPublicHoliday,
   questionKey,
   saveBusinessProfile,
   SettingsConflictError,
@@ -137,17 +138,20 @@ describe('business profile (FEAT-009)', () => {
       `insert into holidays (tenant_id, day, kind, label) values ($1, $2, 'closed', 'Old')`,
       [TENANT_B, day(-30)],
     );
+    // A closed day that isn't a public holiday, or the rule already closes it (D4).
+    let n = 10;
+    while (isSgPublicHoliday(day(n))) n++;
     const { version } = await read(TENANT_B);
     const saved = await save(TENANT_B, version, {
       ...PROFILE,
-      exceptions: [{ day: day(10), kind: 'closed', label: null }],
+      exceptions: [{ day: day(n), kind: 'closed', label: null }],
     });
-    expect(saved.exceptions).toEqual([{ day: day(10), kind: 'closed', label: null }]);
+    expect(saved.exceptions).toEqual([{ day: day(n), kind: 'closed', label: null }]);
     const { rows } = await owner.query(
       `select day::text from holidays where tenant_id = $1 order by day`,
       [TENANT_B],
     );
-    expect(rows.map((r) => r.day)).toEqual([day(-30), day(10)]);
+    expect(rows.map((r) => r.day)).toEqual([day(-30), day(n)]);
   });
 
   it('drops redundant exceptions and refuses an open one on a normal day (AC-5)', async () => {
