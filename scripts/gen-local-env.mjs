@@ -32,6 +32,7 @@ const s = {
   VISITOR_TOKEN_SECRET: prev.VISITOR_TOKEN_SECRET ?? rand() + rand(),
   SESSION_SECRET: prev.SESSION_SECRET ?? rand() + rand(),
   MAGIC_LINK_SECRET: prev.MAGIC_LINK_SECRET ?? rand() + rand(),
+  MFA_SECRET_KEY: prev.MFA_SECRET_KEY ?? randomBytes(32).toString('base64url'),
 };
 const pg = (user, pw) => `postgres://${user}:${pw}@localhost:5432/kakiagent`;
 const mail = {
@@ -66,6 +67,7 @@ const files = {
     VISITOR_DATABASE_URL: pg('app_agent_visitor', s.APP_AGENT_VISITOR_PASSWORD),
     VISITOR_TOKEN_SECRET: s.VISITOR_TOKEN_SECRET,
     SESSION_SECRET: s.SESSION_SECRET,
+    MFA_SECRET_KEY: s.MFA_SECRET_KEY,
     // `https://kakibakery.test` (the fixture site) is accepted locally (FEAT-012 §5.6).
     CRAWL_ALLOW_PRIVATE_HOSTS: 'true',
     // LocalStack signs upload URLs with these (FEAT-015).

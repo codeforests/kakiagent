@@ -101,7 +101,8 @@ module "edge" {
   origin_domain_name                 = var.origin_domain_name
 }
 
-# Application secrets: the per-trust-zone database URLs (ADR-005), token keys and the SMTP
+# Application secrets: the per-trust-zone database URLs (ADR-005), token keys, the MFA sealing
+# key (FEAT-006, until the KMS sealer at MD) and the SMTP
 # URL (it carries the SES SMTP credentials). Values
 # are set out of band at MD (`pnpm db:setup` creates the roles), never in Terraform state.
 # Each role's URL points at the database endpoint output.
@@ -110,6 +111,7 @@ resource "aws_secretsmanager_secret" "app" {
     "dashboard-database-url", "visitor-database-url", "outbox-database-url", "identity-database-url",
     "ingest-database-url",
     "visitor-token-secret", "session-secret", "magic-link-secret", "smtp-url",
+    "mfa-secret-key",
   ])
   name       = "${var.name}/${each.key}"
   kms_key_id = module.data.kms_key_arn
@@ -276,6 +278,7 @@ module "service" {
       IDENTITY_DATABASE_URL  = local.secret["identity-database-url"]
       MAGIC_LINK_SECRET      = local.secret["magic-link-secret"]
       SMTP_URL               = local.secret["smtp-url"]
+      MFA_SECRET_KEY         = local.secret["mfa-secret-key"]
     }
     realtime = {
       DASHBOARD_DATABASE_URL = local.secret["dashboard-database-url"]

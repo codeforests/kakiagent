@@ -23,6 +23,8 @@ import {
   SESSION_COOKIE,
   signInWithGoogle,
   TERMS_DOCUMENTS,
+  MfaChallengeError,
+  MfaEnrolmentError,
   type AuthContext,
   type MagicLinkConfig,
   type Role,
@@ -50,14 +52,32 @@ export interface TenantSession {
   userId: string;
   tenantId: string;
   role: Role;
+  /** For `requireReauth` (AUTH-03; FEAT-006 §5.3). */
+  reauthFresh: boolean;
+  mfaEnrolled: boolean;
 }
 
-const LINK_WINDOW_MS = 15 * 60_000;
-const LINKS_PER_EMAIL = 5;
+/** Which pending two-step states a route accepts (FEAT-006 §3); none by default. */
+export interface AuthOpts {
+  allow?: readonly ('challenge' | 'enrol')[];
+}
+export type AuthFrom = (req: FastifyRequest, opts?: AuthOpts) => Promise<AuthContext>;
+export type SessionFrom = (req: FastifyRequest) => Promise<TenantSession>;
+
+export const LINK_WINDOW_MS = 15 * 60_000;
+export const LINKS_PER_EMAIL = 5;
 const LINKS_PER_IP = 20;
 const SESSION_MAX_AGE_S = 30 * 24 * 3600;
 
-const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
+export const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
+
+/** Where the Google callback sends each `next` (FEAT-005 §3.3, FEAT-006 §3). */
+const GOOGLE_NEXT = {
+  mfa: '/two-step',
+  'mfa-enrol': '/two-step/setup',
+  app: '/',
+  'create-workspace': '/welcome',
+} as const;
 
 /**
  * Sign-in, sessions and workspaces (FEAT-005 design §3), plus the session readers every
@@ -92,16 +112,31 @@ export function registerAuth(app: App, deps: Deps) {
       return reply.code(403).send({ error: 'forbidden', message: 'Not allowed' });
   });
 
-  async function authFrom(req: FastifyRequest): Promise<AuthContext> {
+  /**
+   * The signed-in session. A session that still owes the code challenge or enrolment
+   * (FEAT-006 §5.2) is refused unless the route allows that state, so every existing
+   * route is closed to it without changing.
+   */
+  async function authFrom(req: FastifyRequest, opts: AuthOpts = {}): Promise<AuthContext> {
     const r = await authenticate(identityDb, req.cookies[SESSION_COOKIE]);
     if (!r.ok) throw new UnauthenticatedError(r.reason !== 'missing');
+    const { mfa } = r.auth;
+    if (mfa !== 'ok' && !opts.allow?.includes(mfa))
+      throw mfa === 'challenge' ? new MfaChallengeError() : new MfaEnrolmentError();
     return r.auth;
   }
 
   async function sessionFrom(req: FastifyRequest): Promise<TenantSession> {
     const a = await authFrom(req);
     if (!a.tenantId || !a.role) throw new NoWorkspaceError();
-    return { sessionId: a.sessionId, userId: a.userId, tenantId: a.tenantId, role: a.role };
+    return {
+      sessionId: a.sessionId,
+      userId: a.userId,
+      tenantId: a.tenantId,
+      role: a.role,
+      reauthFresh: a.reauthFresh,
+      mfaEnrolled: a.mfaEnrolled,
+    };
   }
 
   app.get('/api/v1/auth/options', async () =>
@@ -134,9 +169,15 @@ export function registerAuth(app: App, deps: Deps) {
 
   app.post('/api/v1/auth/magic-link/verify', async (req, reply) => {
     const { token } = MagicLinkVerifyBody.parse(req.body);
-    const signedIn = await consumeMagicLink(identityDb, token);
-    setSession(reply, signedIn.token);
-    return MagicLinkVerifyResponse.parse({ next: signedIn.next });
+    // A re-auth link counts only in the browser of the session that asked for it (FEAT-006).
+    const current = await authenticate(identityDb, req.cookies[SESSION_COOKIE]);
+    const result = await consumeMagicLink(
+      identityDb,
+      token,
+      current.ok ? current.auth.sessionId : null,
+    );
+    if (result.next !== 'reauthed') setSession(reply, result.token);
+    return MagicLinkVerifyResponse.parse({ next: result.next });
   });
 
   app.get('/api/v1/auth/google/start', async (_req, reply) => {
@@ -160,7 +201,7 @@ export function registerAuth(app: App, deps: Deps) {
       const who = await google.finish(new URL(req.url, appOrigin), req.cookies[OAUTH_COOKIE]);
       const signedIn = await signInWithGoogle(identityDb, who);
       setSession(reply, signedIn.token);
-      return reply.redirect(signedIn.next === 'app' ? '/' : '/welcome', 302);
+      return reply.redirect(GOOGLE_NEXT[signedIn.next], 302);
     } catch (err) {
       req.log.warn({ err }, 'google sign-in refused');
       return reply.redirect('/sign-in?error=google', 302);
@@ -174,7 +215,7 @@ export function registerAuth(app: App, deps: Deps) {
   });
 
   app.post('/api/v1/auth/sign-out-everywhere', async (req, reply) => {
-    const a = await authFrom(req);
+    const a = await authFrom(req, { allow: ['challenge', 'enrol'] });
     await revokeAllSessions(identityDb, a.userId);
     return reply.clearCookie(SESSION_COOKIE, { path: '/' }).code(204).send();
   });

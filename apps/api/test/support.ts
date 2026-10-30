@@ -66,6 +66,7 @@ export function testConfig(tdb: TestDatabase, env: Record<string, string> = {}) 
     VISITOR_TOKEN_SECRET: 'v'.repeat(32),
     SESSION_SECRET: 's'.repeat(32),
     MAGIC_LINK_SECRET: 'm'.repeat(32),
+    MFA_SECRET_KEY: Buffer.alloc(32, 7).toString('base64url'),
     SMTP_URL: 'smtp://localhost:1025',
     QUARANTINE_BUCKET: 'kaki-test-quarantine',
     ...env,

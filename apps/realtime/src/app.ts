@@ -152,6 +152,15 @@ export async function buildApp(deps: Deps) {
       socket.close(4401, 'unauthorized');
       return;
     }
+    // A session that still owes the code challenge or enrolment gets nothing (FEAT-006 §5.3).
+    if (result.auth.mfa === 'challenge') {
+      socket.close(4401, 'mfa_required');
+      return;
+    }
+    if (result.auth.mfa === 'enrol') {
+      socket.close(4403, 'mfa_enrolment_required');
+      return;
+    }
     const { tenantId } = result.auth;
     if (!tenantId) {
       socket.close(4403, 'no_workspace');
