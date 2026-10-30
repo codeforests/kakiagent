@@ -38,6 +38,7 @@ All in `packages/agent/src`; read a function by range only when a task changes i
   - A cross-origin response without a CORS header is `requestfailed` in Chromium and WebKit, never `response`, so `waitForResponse` hangs. Read it through `page.route` + `route.fetch()` (keeps the Origin): `configAnswer` in `widget-install.e2e.ts`.
   - WebKit's trace adds `__playwright_*` globals to the page; filter them out of "no globals added" checks.
   - JSX like `{busy && <span/>} {caption}` puts a leading space in the text, so `getByText(/^…/)` misses it. Use the role (`getByRole('status')`) with `toHaveText` and an unanchored pattern, and wait for the in-progress text first so an earlier result can't pass.
+  - An axe check at phone width runs at a tall viewport (`{ width: 375, height: 5000 }`): the fixed tab bar otherwise covers whatever targets sit at the bottom and WebKit reports `target-size` (FEAT-054; `conflicts.e2e.ts`).
   - A step that waits on a worker (detection, crawl, extraction) needs `test.setTimeout` above the default 60 s, as the ingest specs have.
   - A spec that changes shared dev-tenant state part-way (an allowed origin) restores it in `afterEach` on failure; otherwise the next browser's run fails and leaves data that breaks later specs. After a failed run: `pnpm stack:reset`, `pnpm db:setup`.
   - Before asking Ken for CI, run the spec's tricky steps in the cloud session's Chromium against the widget dev server with a stubbed config.

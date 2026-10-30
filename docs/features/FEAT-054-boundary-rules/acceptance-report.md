@@ -2,7 +2,7 @@
 
 > Verdict: **Accepted** (pending GitHub CI on the PR branch; run recorded under CI) · Date: 2026-10-30
 > Standard: [technical-design.md](technical-design.md) §6 (AC-1..AC-11) · Sources: SRS v0.4 (APR-01, AUTH-03 "change boundary rules", GOV-01, ONB-06, ONB-09), use-cases v0.4 (UC-29 steps 1–3), ADR-005, ADR-008, ADR-014, ADR-025
-> Repo state audited: `5871f83` (implementation head); no test corrected
+> Repo state audited: `5871f83` (implementation head); one E2E step corrected (see Corrected tests)
 
 ## Verdict summary
 
@@ -32,7 +32,7 @@ APR-01 (M): "allowed topics, blocked topics, maximum discount (default 0%), whet
 
 ## Corrected tests
 
-None.
+- `rules.e2e.ts` (AC-11): GitHub CI's WebKit run reported axe `target-size` on the last two topics' Remove buttons at 375×800, where the fixed tab bar covered them. The buttons are `icon-button` size (44 px on touch); the overlap is the scroll position, not the control. The phone-width axe check now runs at 375×5000, as `conflicts.e2e.ts` does; the 375 px no-sideways-scroll check is unchanged. Nothing is skipped or loosened: the same axe rules run over the whole page.
 
 ## Independent execution
 

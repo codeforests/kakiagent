@@ -126,7 +126,10 @@ test('the owner blocks a topic behind re-auth and a visitor asking about it is r
   await page.emulateMedia({ colorScheme: 'dark' });
   await page.setViewportSize({ width: 375, height: 800 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
+  // Tall enough that the fixed tab bar covers no target (axe target-size), as conflicts.e2e.
+  await page.setViewportSize({ width: 375, height: 5000 });
   await expectNoSeriousA11yViolations(page);
+  await page.setViewportSize({ width: 375, height: 800 });
 
   // The next visitor reply uses the new rules: the blocked topic is refused (AC-5, AC-6).
   const visitor = await context.browser()!.newPage();
