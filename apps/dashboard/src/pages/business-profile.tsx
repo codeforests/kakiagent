@@ -1,3 +1,4 @@
+import { useRecordStep, useWizardToast } from '../lib/onboarding.ts';
 import {
   BusinessProfileBody,
   exceptionIssues,
@@ -298,6 +299,8 @@ function ProfileForm({
 }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const record = useRecordStep();
+  const wizardToast = useWizardToast();
   const { profile, calendar, template } = data;
   const [initial] = useState(() => fromProfile(profile, calendar.holidays));
   const [draft, setDraft] = useState<Draft>(initial);
@@ -316,16 +319,23 @@ function ProfileForm({
       ),
     onSuccess: (res) => {
       queryClient.setQueryData(['business-profile'], res);
-      if (mode === 'setup')
-        void navigate('/knowledge', {
-          state: { toast: 'Business profile saved. Next, add what your assistant should know.' },
-        });
-      else onSaved('Business profile saved. Your assistant uses it from the next reply.');
+      if (mode === 'setup') {
+        // Records `done`, then moves on whether or not that worked (FEAT-035 D6).
+        record.mutate(
+          { step: 'profile', outcome: 'done' },
+          {
+            onSettled: () => {
+              wizardToast('Business profile saved. Next, add what your assistant should know.');
+              void navigate('/setup/sources');
+            },
+          },
+        );
+      } else onSaved('Business profile saved. Your assistant uses it from the next reply.');
     },
   });
   const failure =
     save.error instanceof ApiError ? save.error.code : save.error ? 'unavailable' : null;
-  const readOnly = save.isPending;
+  const readOnly = save.isPending || record.isPending;
 
   useEffect(() => {
     if (attempts) summaryRef.current?.focus();

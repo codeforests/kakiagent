@@ -42,9 +42,10 @@ function useShellToast() {
 
 /**
  * Dashboard shell (design.md §3): sidebar ≥ 768 px (collapsed to icons below 1024),
- * top bar on every page, bottom tab bar below 768 px. Light theme only (UX-Q1).
+ * top bar on every page, bottom tab bar below 768 px. Light theme only (UX-Q1). `focused` (the
+ * setup wizard, FEAT-035) drops the sidebar and the tab bar.
  */
-export function AppShell() {
+export function AppShell({ focused = false }: { focused?: boolean }) {
   const online = useOnline();
   const me = useQuery({ queryKey: ['me'], queryFn: api.me });
   const counts = useNavCounts();
@@ -63,22 +64,24 @@ export function AppShell() {
 
   return (
     <ReauthProvider>
-      <div className="shell">
+      <div className={focused ? 'shell shell--focused' : 'shell'}>
         <SkipLink />
-        <nav className="sidebar" aria-label="Main">
-          <div className="sidebar__brand">KakiAgent</div>
-          <ul>
-            {SIDEBAR.map((item) => (
-              <li key={item.to}>
-                <NavLink to={item.to} end={item.to === '/'} className="nav-item">
-                  <Icon name={item.icon} />
-                  <span className="nav-item__label">{item.label}</span>
-                  <NavCount value={counts[item.to]} />
-                </NavLink>
-              </li>
-            ))}
-          </ul>
-        </nav>
+        {!focused && (
+          <nav className="sidebar" aria-label="Main">
+            <div className="sidebar__brand">KakiAgent</div>
+            <ul>
+              {SIDEBAR.map((item) => (
+                <li key={item.to}>
+                  <NavLink to={item.to} end={item.to === '/'} className="nav-item">
+                    <Icon name={item.icon} />
+                    <span className="nav-item__label">{item.label}</span>
+                    <NavCount value={counts[item.to]} />
+                  </NavLink>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        )}
         <header className="topbar">
           <span className="topbar__tenant" data-testid="tenant-name">
             {me.data?.tenant?.name ?? ' '}
@@ -95,15 +98,17 @@ export function AppShell() {
           <Banners role={me.data?.role} onResumeAi={() => openKillSwitch('resume')} />
           {online ? <Outlet /> : <Offline />}
         </main>
-        <nav className="tabbar" aria-label="Main">
-          {TAB_BAR.map((item) => (
-            <NavLink key={item.to} to={item.to} end={item.to === '/'} className="tab-bar-item">
-              <Icon name={item.icon} size={24} />
-              <span>{item.label}</span>
-              <NavCount value={counts[item.to]} />
-            </NavLink>
-          ))}
-        </nav>
+        {!focused && (
+          <nav className="tabbar" aria-label="Main">
+            {TAB_BAR.map((item) => (
+              <NavLink key={item.to} to={item.to} end={item.to === '/'} className="tab-bar-item">
+                <Icon name={item.icon} size={24} />
+                <span>{item.label}</span>
+                <NavCount value={counts[item.to]} />
+              </NavLink>
+            ))}
+          </nav>
+        )}
         <KillSwitchDialog
           mode={killSwitch}
           onClose={() => setKillSwitch(null)}

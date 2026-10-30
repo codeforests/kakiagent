@@ -1,3 +1,4 @@
+import { WizardFooter } from '../shell/wizard-header.tsx';
 import type { FactRef, FactType, ReviewFact } from '@kaki/contracts';
 import { Button, EmptyState, ErrorState } from '@kaki/ui';
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
@@ -643,19 +644,13 @@ export function ReviewPage() {
 export function SetupReviewPage() {
   return (
     <div className="review">
-      <p className="page-lede">Step 3 of the setup</p>
       <h1 className="page-title">Review your facts</h1>
       <p className="page-lede">
         Approve what your assistant may tell customers. You can change any fact later in Knowledge.
       </p>
       <ReviewQueue setup />
       <CoverageSummary />
-      <div className="review-setup__footer">
-        <Button asChild>
-          <Link to="/setup/rules">Continue</Link>
-        </Button>
-        <p className="review-setup__caption">Facts you haven't approved stay out of answers.</p>
-      </div>
+      <WizardFooter caption="Facts you haven't approved stay out of answers." />
     </div>
   );
 }

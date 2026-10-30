@@ -6,6 +6,7 @@ import {
   type StepOutcomeBody,
 } from '@kaki/contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { createContext, useContext } from 'react';
 import { api, ApiError } from './api.ts';
 import { AI_STATUS_KEY } from './ai-status.ts';
 import { CHANNELS_KEY } from './channels.ts';
@@ -185,3 +186,7 @@ export function joinNames(names: readonly string[]): string {
   if (names.length <= 1) return names[0] ?? '';
   return `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
 }
+
+/** The wizard frame's toast, which outlives the step it was raised on (the frame stays mounted). */
+export const WizardToast = createContext<(text: string) => void>(() => {});
+export const useWizardToast = () => useContext(WizardToast);

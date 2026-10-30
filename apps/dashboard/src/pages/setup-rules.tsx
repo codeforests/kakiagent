@@ -1,4 +1,4 @@
-import { Button } from '@kaki/ui';
+import { WizardFooter } from '../shell/wizard-header.tsx';
 import { Link } from 'react-router';
 import { useToast } from '../lib/form.ts';
 import { useRules } from '../lib/rules.ts';
@@ -16,7 +16,6 @@ export function SetupRulesPage() {
   const rulesSaved = useRules().data?.version != null;
   const head = (
     <>
-      <p className="page-lede">Step 4 of the setup</p>
       <h1 className="page-title">Rules and privacy</h1>
       <p className="page-lede">
         Set what your assistant may talk about and promise, and tell visitors how you use their
@@ -42,17 +41,13 @@ export function SetupRulesPage() {
             <p className="privacy-lede">
               <Link to="/settings/privacy#documents">See where your data goes</Link>
             </p>
-            <div className="review-setup__footer">
-              <Button asChild>
-                <Link to="/setup/test">Continue</Link>
-              </Button>
-              {!ready && (
-                <p className="review-setup__caption">
-                  You'll need saved rules, a privacy notice and a purpose statement before you go
-                  live.
-                </p>
-              )}
-            </div>
+            <WizardFooter
+              caption={
+                ready
+                  ? undefined
+                  : "You'll need saved rules, a privacy notice and a purpose statement before you go live."
+              }
+            />
             {toast && (
               <div className="toast" role="status">
                 {toast}

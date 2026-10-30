@@ -84,10 +84,7 @@ test('a price taught in Coach reaches the widget after the owner confirms it', a
   await owner.goto('/setup/test');
   await expect(owner.getByRole('heading', { name: 'Test your assistant' })).toBeVisible();
   await expect(owner.getByRole('list', { name: 'Suggested questions' })).toBeVisible();
-  await expect(owner.getByRole('link', { name: 'Continue' })).toHaveAttribute(
-    'href',
-    '/setup/website',
-  );
+  await expect(owner.getByRole('button', { name: 'Continue' })).toBeVisible();
   await expectNoSeriousA11yViolations(owner);
 
   // The fact goes, so later specs start from the dev seed.

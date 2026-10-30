@@ -224,7 +224,7 @@ test('a staff member sees that only Owners and Admins can change the profile', a
   }
 });
 
-test('the setup step saves the profile and continues to Knowledge', async ({ page }) => {
+test('the setup step saves the profile and continues to the sources step', async ({ page }) => {
   await signIn(page, 'owner@kaki-bakery.test');
   await page.goto('/setup');
   await expect(
@@ -233,8 +233,9 @@ test('the setup step saves the profile and continues to Knowledge', async ({ pag
   await expect(page.getByRole('region', { name: /Suggested questions/ })).toHaveCount(0);
   await page.getByLabel('Contact email').fill('orders@kaki-bakery.test');
   await page.getByRole('button', { name: 'Save and continue' }).click();
-  await expect(page).toHaveURL(/\/knowledge$/);
-  await expect(page.getByRole('status')).toHaveText(
+  await expect(page).toHaveURL(/\/setup\/sources$/);
+  await expect(page.getByText('Step 2 of 7 · Add your sources')).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: 'Business profile saved.' })).toHaveText(
     'Business profile saved. Next, add what your assistant should know.',
   );
   const { rows } = await owner.query(

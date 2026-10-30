@@ -1,3 +1,4 @@
+import { WizardFooter } from '../shell/wizard-header.tsx';
 import { Button, EmptyState, ErrorState } from '@kaki/ui';
 import { useEffect, useRef, type ReactNode } from 'react';
 import { Link } from 'react-router';
@@ -142,7 +143,6 @@ export function SetupWebsitePage() {
 
   const head = (
     <>
-      <p className="page-lede">Step 6 of the setup</p>
       <h1 className="page-title">Add to your website</h1>
       <p className="page-lede">
         Your assistant's chat button, matched to your website. Change anything you like, then add
@@ -192,16 +192,13 @@ export function SetupWebsitePage() {
         <InstallCheck settings={s} />
         {showSites && <OriginsList settings={s} idPrefix="setup" />}
       </section>
-      <div className="review-setup__footer">
-        <Button asChild>
-          <Link to="/">Continue</Link>
-        </Button>
-        <p className="review-setup__caption">
-          {s.install.state === 'detected' && s.install.origin
+      <WizardFooter
+        caption={
+          s.install.state === 'detected' && s.install.origin
             ? `Your widget is on ${hostOf(s.install.origin)}.`
-            : 'You can change this any time in Settings → Website widget.'}
-        </p>
-      </div>
+            : 'You can change this any time in Settings → Website widget.'
+        }
+      />
       <UnsavedPrompt editor={editor} />
       <Toast text={editor.toast} />
     </div>
