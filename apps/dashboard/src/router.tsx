@@ -20,6 +20,7 @@ import { InboxPage } from './pages/inbox.tsx';
 import { LegalPage } from './pages/legal.tsx';
 import { ChannelsPage } from './pages/channels.tsx';
 import { PrivacyPage } from './pages/privacy.tsx';
+import { RulesPage } from './pages/rules.tsx';
 import { SettingsPage } from './pages/settings.tsx';
 import { SetupRulesPage } from './pages/setup-rules.tsx';
 import { SignInPage } from './pages/sign-in.tsx';
@@ -92,6 +93,7 @@ export const router = createBrowserRouter([
       { path: 'settings/assistant', element: <AssistantPage /> },
       { path: 'settings/business-profile', element: <BusinessProfilePage /> },
       { path: 'settings/privacy', element: <PrivacyPage /> },
+      { path: 'settings/rules', element: <RulesPage /> },
       // Team, its two-step part (FEAT-006, SCR-APP-045 p); FEAT-007 adds members.
       { path: 'settings/team', element: <TeamPage /> },
       // Channels (FEAT-034, SCR-APP-036).

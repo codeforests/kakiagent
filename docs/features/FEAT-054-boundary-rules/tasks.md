@@ -20,10 +20,10 @@
 
 - [x] T7 — Dashboard data: `api.getRules`/`api.saveRules`, `lib/rules.ts` (`useRules`, `useSaveRules` through `useReauthGuard().guard`, `diffRules`, `topicError`), `lib/rules.test.ts` (design §5.5; AC-3, AC-11)
       Done when: `pnpm --filter @kaki/dashboard test` passes with `diffRules` (each field's change line, no lines when equal) and `topicError` (empty, too short, too long, duplicate any case, already in the other list, list full) cases; dashboard typecheck clean.
-- [ ] T8 — SCR-APP-042: `pages/rules-parts.tsx` (`RulesForm`, `TopicListEditor`), `pages/rules.tsx`, route `settings/rules`, Settings index link, confirm dialog with change lines, toast, 409 alert, permission, loading and error states (ui-design SCR-APP-042; AC-2, AC-3, AC-11)
+- [x] T8 — SCR-APP-042: `pages/rules-parts.tsx` (`RulesForm`, `TopicListEditor`), `pages/rules.tsx`, route `settings/rules`, Settings index link, confirm dialog with change lines, toast, 409 alert, permission, loading and error states (ui-design SCR-APP-042; AC-2, AC-3, AC-11)
       Done when: dashboard typecheck and `pnpm --filter @kaki/dashboard build` pass; the page renders against the dev API in the cloud session's Chromium if the stack can run, else noted for CI.
       Note: screen renders and axe run in the verify stage's GitHub CI (no Docker here).
-- [ ] T9 — SCR-APP-009: `setup-rules.tsx` shows `RulesForm` (setup variant) above the privacy block; the ready caption counts saved rules; manifest status (ui-design SCR-APP-009; AC-9, AC-11)
+- [x] T9 — SCR-APP-009: `setup-rules.tsx` shows `RulesForm` (setup variant) above the privacy block; the ready caption counts saved rules; manifest status (ui-design SCR-APP-009; AC-9, AC-11)
       Done when: dashboard typecheck and build pass; the step shows the rules block with the template prefill for the dev F&B tenant (CI if not runnable here).
 - [ ] T10 — E2E `e2e/tests/rules.e2e.ts` (design §5.6; AC-3, AC-5, AC-6, AC-11)
       Done when: the spec typechecks and lints; it runs in the verify stage's GitHub CI (all three browsers).
