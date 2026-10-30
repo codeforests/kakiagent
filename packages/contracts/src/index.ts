@@ -2098,3 +2098,76 @@ export const SaveBoundaryRulesRequest = z.object({
   rules: BoundaryRules,
 });
 export type SaveBoundaryRulesRequest = z.infer<typeof SaveBoundaryRulesRequest>;
+
+// ---- Dashboard API: onboarding and go-live (ONB-02, ONB-09; FEAT-035 §3) ---------------------
+
+/** The wizard's steps, in order. */
+export const OnboardingStep = z.enum([
+  'profile',
+  'sources',
+  'review',
+  'rules',
+  'test',
+  'website',
+  'go_live',
+]);
+export type OnboardingStep = z.infer<typeof OnboardingStep>;
+
+export const OnboardingProgress = z.object({
+  /** `profile` when never saved. */
+  currentStep: OnboardingStep,
+  /** Partial: a step that's absent was not started. */
+  steps: z.partialRecord(OnboardingStep, z.enum(['done', 'skipped'])),
+  /** Null until the first go-live. */
+  firstLiveAt: z.iso.datetime().nullable(),
+});
+export type OnboardingProgress = z.infer<typeof OnboardingProgress>;
+
+export const StepOutcomeBody = z.object({ outcome: z.enum(['visited', 'done', 'skipped']) });
+export type StepOutcomeBody = z.infer<typeof StepOutcomeBody>;
+
+/** The go-live check's required items, in the order shown. */
+export const ReadinessKey = z.enum([
+  'profile',
+  'approved_fact',
+  'disclosure',
+  'purpose',
+  'notice',
+  'terms',
+  'rules',
+]);
+export type ReadinessKey = z.infer<typeof ReadinessKey>;
+
+export const ReadinessResponse = z.object({
+  /** Always all seven, in `ReadinessKey` order. */
+  items: z.array(z.object({ key: ReadinessKey, ok: z.boolean() })),
+  warnings: z.object({
+    conflicts: z.number().int().nonnegative(),
+    needsReview: z.number().int().nonnegative(),
+  }),
+  /** Every item ok. */
+  ready: z.boolean(),
+  /** Purpose statement and privacy notice in place (UX-R4). */
+  preLiveForm: z.boolean(),
+  firstLiveAt: z.iso.datetime().nullable(),
+  /** The Channels page's items, registry order. */
+  channels: z.array(ChannelItem),
+});
+export type ReadinessResponse = z.infer<typeof ReadinessResponse>;
+
+export const GoLiveBody = z.object({
+  channels: z
+    .array(z.object({ id: z.uuid(), version: z.number().int().positive() }))
+    .min(1)
+    .max(10),
+  /** Required when there are warnings (409 `warnings_unacknowledged` otherwise). */
+  acknowledgeWarnings: z.boolean(),
+});
+export type GoLiveBody = z.infer<typeof GoLiveBody>;
+
+/** 409 from Go live (the check or the Channels page) before the first go-live. */
+export const NotReady = z.object({
+  error: z.literal('not_ready'),
+  missing: z.array(ReadinessKey).min(1),
+});
+export type NotReady = z.infer<typeof NotReady>;

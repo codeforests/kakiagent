@@ -1,13 +1,13 @@
 # Tasks: FEAT-035 — Onboarding wizard frame and go-live readiness check
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: designed · Last updated: 2026-10-30
+> Status: in progress (T1–T3 done) · Last updated: 2026-10-30
 
 - [x] T1 — Schema: `0039_onboarding_progress.sql` (table, checks, forced RLS, policy, `select, insert, update` to `app_dashboard`, backfill of tenants already live) + Drizzle table; name in `TENANT_SCOPED_TABLES`; RLS suite case; dev seed row for both dev tenants (design §4; D4; AC-8)
       Done when: `drizzle-kit generate` reports no drift after 0039; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes with: tenant B reads and updates none of A's rows; inserting A's tenant ID in B's context fails; `app_dashboard` delete is refused; a tenant with a live widget before 0039 has `first_live_at` set.
 - [x] T2 — Domain: identity `termsAccepted`; tenancy `onboarding.ts` (`ONBOARDING_STEPS`, `getProgress`, `recordStep`, `NotSkippableError`) and `readiness.ts` (`profileComplete`, `goLiveReadiness`, `goLive`, `goLiveOne`, `NotReadyError`, `WarningsUnacknowledgedError`, the `onboarding.first_live` audit); exports; package deps (design §5.1, §5.2; D1–D6; AC-1–AC-7)
       Done when: `pnpm --filter @kaki/tenancy test` (unit: `profileComplete` per missing field, step order and next-step) and `scripts/test-env.sh pnpm --filter @kaki/tenancy test:integration` pass with: no row reads as profile/never live; skip of profile refused; each readiness item flips on its own input; `goLive` blocked lists exactly the failing keys and writes nothing; warnings need the acknowledgement; success sets channels live, `first_live_at` and one audit with `minutesToLive`; a second call doesn't re-audit; `goLiveOne` after first live skips the gate; `pnpm lint` dependency-cruiser shows no cycle.
-- [ ] T3 — Contracts and API: contract section (§3) + unit test; `apps/api/src/onboarding.ts` (four routes, error mapping); `channels.ts` `live` through `goLiveOne` with 409 `not_ready`; `apps/api/test/onboarding.int.test.ts` (design §5.3; AC-1–AC-8)
+- [x] T3 — Contracts and API: contract section (§3) + unit test; `apps/api/src/onboarding.ts` (four routes, error mapping); `channels.ts` `live` through `goLiveOne` with 409 `not_ready`; `apps/api/test/onboarding.int.test.ts` (design §5.3; AC-1–AC-8)
       Done when: `pnpm --filter @kaki/contracts test` and `scripts/test-env.sh pnpm --filter @kaki/api test:integration` pass with the cases in design §5.3 and the existing channels suite still green (dev-seeded tenants are already live); `pnpm --filter @kaki/api typecheck` is clean.
 
 ## Build session 2 (UI)
@@ -28,13 +28,13 @@
 
 ## Verification evidence
 
-- AC-1 — 
-- AC-2 — 
-- AC-3 — 
-- AC-4 — 
-- AC-5 — 
-- AC-6 — 
-- AC-7 — 
-- AC-8 — 
+- AC-1 — backend: progress round-trip and a new transaction reads the same step (`tenancy/test/readiness.int.test.ts` "visited moves the step…", `api/test/onboarding.int.test.ts` "round-trips"). UI part: T5, T8.
+- AC-2 — backend: 400 `not_skippable` for profile and go_live, skipped then done overwrites (both suites). UI part: T5.
+- AC-3 — each of the seven items flips on its own input and only that one; UEN optional, missing contact fails (`readiness.int.test.ts`); unit `profileComplete` per missing field (`onboarding.test.ts`).
+- AC-4 — 409 `not_ready` with exactly the failing keys on both routes, channel offline, no `channel.live` or `onboarding.first_live` audit, `firstLiveAt` null (both suites). Fix links: T7.
+- AC-5 — 409 `warnings_unacknowledged` without the flag; with it the widget goes live and `visitor_facts` shows only the approved fact (`onboarding.int.test.ts`); the Channels route never blocks on warnings (`readiness.int.test.ts`).
+- AC-6 — one `onboarding.first_live` and one `channel.live`, `firstLiveAt` and `currentStep = go_live`; later go-lives (both routes) with a failing item skip the gate and do not re-audit; stale version 409 changes nothing.
+- AC-7 — audit payload `{ minutesToLive: 95, channels: [id] }` for a tenant created 95 minutes earlier, actor the user, no PII (`readiness.int.test.ts`).
+- AC-8 — RLS cases in `db/test/rls.int.test.ts` (B reads only its row, can't update or insert A's, no delete, visitor no access, backfill); Agent 403 on all four routes; B going live with A's channel is 404 (`onboarding.int.test.ts`). Home card: T7.
 - AC-9 — 
 - AC-10 — 
