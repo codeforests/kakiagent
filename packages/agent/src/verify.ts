@@ -18,7 +18,10 @@ export type ViolationKind =
   | 'unknown_fact'
   | 'unknown_field'
   /** FEAT-025: the model repeated the platform's own instructions (`guard.ts`). */
-  | 'prompt_leak';
+  | 'prompt_leak'
+  /** FEAT-054: a commitment the business forbids, or a discount offer (`boundary.ts`). */
+  | 'commitment'
+  | 'discount_offer';
 
 export interface Violation {
   kind: ViolationKind;

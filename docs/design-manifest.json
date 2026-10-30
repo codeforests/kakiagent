@@ -930,6 +930,44 @@
       "status": "designed",
       "designed_at": "2026-10-21"
     },
+    "SCR-APP-042": {
+      "name": "Rules and approvals",
+      "surface": "APP",
+      "feature": "FEAT-054",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-054-boundary-rules/ui-design.md#scr-app-042--rules-and-approvals"
+      },
+      "states": {
+        "covered": [
+          "loading",
+          "error",
+          "never saved",
+          "saved",
+          "dirty",
+          "saving",
+          "re-auth",
+          "validation errors",
+          "conflict",
+          "permission"
+        ],
+        "gaps": [
+          "Approval SLA and approver rights (FEAT-055)"
+        ],
+        "supplements": []
+      },
+      "contract_bindings": [
+        "GET /api/v1/settings/rules",
+        "PUT /api/v1/settings/rules"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-10-30"
+    },
     "SCR-APP-044": {
       "name": "Business profile",
       "surface": "APP",
@@ -1321,16 +1359,19 @@
           "permission"
         ],
         "gaps": [
-          "Boundary rules (FEAT-054)",
           "Persona and disclosure on the step (FEAT-035; editable now in Settings → Assistant)",
           "Wizard frame and skip (FEAT-035)"
         ],
-        "supplements": []
+        "supplements": [
+          "Boundary rules block (FEAT-054): features/FEAT-054-boundary-rules/ui-design.md#scr-app-009--wizard--rules-and-privacy-adds-the-rules-block"
+        ]
       },
       "contract_bindings": [
         "GET /api/v1/settings/privacy",
         "PUT /api/v1/settings/privacy/notice",
-        "PUT /api/v1/settings/privacy/purpose"
+        "PUT /api/v1/settings/privacy/purpose",
+        "GET /api/v1/settings/rules",
+        "PUT /api/v1/settings/rules"
       ],
       "conformance": {
         "result": "pass",
@@ -1338,7 +1379,7 @@
         "escalations": []
       },
       "status": "designed",
-      "designed_at": "2026-10-27"
+      "designed_at": "2026-10-30"
     },
     "SCR-APP-036": {
       "name": "Channels",

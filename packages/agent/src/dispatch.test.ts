@@ -1,3 +1,4 @@
+import { commitmentDecision, SAFE_DEFAULTS, type BoundaryRules } from '@kaki/approvals';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import {
@@ -55,7 +56,7 @@ function context(over: Partial<DispatchContext> = {}) {
     turnId: 'turn-1',
     gateOpen: async () => true,
     consentGiven: async () => true,
-    boundaryRules: async () => ({ maxDiscountPercent: 10 }),
+    boundaryRules: async () => ({ ...SAFE_DEFAULTS, maxDiscountPct: 10 }),
     audit: async (e) => {
       audits.push(e);
     },
@@ -134,8 +135,12 @@ describe('dispatchPlan (ADR-025 decisions 2 and 6, AC-7)', () => {
     ['boundary', { checkBoundary: () => false }, {}],
     [
       'boundary',
-      { checkBoundary: (rules: unknown) => rules !== null },
-      { boundaryRules: async () => null },
+      // FEAT-054: the handler decides from the rules in force (a 20% discount above 10%).
+      {
+        checkBoundary: (rules: BoundaryRules) =>
+          commitmentDecision(rules, { discountPct: 20 }) !== 'refuse',
+      },
+      {},
     ],
   ])('refuses with %s and does not run the handler', async (reason, h, c) => {
     const ran: string[] = [];

@@ -1,3 +1,4 @@
+import { rulesInForce, type BoundaryRules } from '@kaki/approvals';
 import { withTenant, type ZoneDb } from '@kaki/db';
 import { audit, auditCode, auditId } from '@kaki/governance';
 import {
@@ -24,6 +25,7 @@ import {
   type CoachingMessageRow,
   type CoachingSessionRow,
 } from './coach-store.js';
+import { applyBoundary, triageTail } from './boundary.js';
 import { dispatchPlan } from './dispatch.js';
 import type { HoursContext } from './hours-text.js';
 import { replyLanguage } from './language.js';
@@ -276,6 +278,8 @@ export interface ReplayQuestionInput {
 
 interface ReplayPrep {
   tenant: VisitorTenantState;
+  /** The rules in force now: a replay re-answers under current settings (FEAT-054). */
+  rules: BoundaryRules;
   hours: HoursContext | null;
   question: MessageRow;
   history: HistoryMessage[];
@@ -344,7 +348,8 @@ async function prepareQuestion(deps: ReplayDeps, input: ReplayQuestionInput): Pr
     const priorAbuse = abuseTurns(
       earlier.filter((r) => (seqs.get(r.replayOf!) ?? Infinity) < question.seq).map(storedEffects),
     );
-    return { tenant, hours, question, history, priorAbuse };
+    const { rules } = await rulesInForce(tx, tenantId);
+    return { tenant, rules, hours, question, history, priorAbuse };
   });
 }
 
@@ -377,10 +382,11 @@ export async function replayQuestion(
   const meta = { tenantId: input.tenantId, coachingSessionId: input.sessionId };
   // The live visitor triage prompt, not coaching's (D3).
   const [p, f] = await Promise.allSettled([
-    triage(deps.llm, { history: prep.history, meta }),
+    triage(deps.llm, { history: prep.history, meta, tail: triageTail(prep.rules) }),
     search(deps, input, text),
   ]);
-  const plan: TurnPlan | null = p.status === 'fulfilled' ? p.value : null;
+  const plan: TurnPlan | null =
+    p.status === 'fulfilled' ? applyBoundary(p.value, prep.rules, text).plan : null;
   const facts = f.status === 'fulfilled' ? f.value : null;
 
   const ports = new ReplayPorts(prep.priorAbuse);
@@ -389,6 +395,7 @@ export async function replayQuestion(
     sessionId: input.sessionId,
     turnId: prep.question.id,
     ports,
+    rules: prep.rules,
   });
   const dispatch = plan && facts ? await dispatchPlan(replayRegistry, plan, ctx) : null;
   const effects = effectsOf(dispatch?.reports ?? []);

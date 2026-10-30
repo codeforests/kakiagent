@@ -2,7 +2,7 @@ import type { Industry } from './profile.js';
 
 /**
  * Industry templates (ONB-06; FEAT-009 §5.1, D5). F&B is the pilot vertical (D1) and the
- * only template so far; FEAT-054 adds its boundary rules and FEAT-049 its lead fields.
+ * only template so far; FEAT-054 adds its boundary-rule topics and FEAT-049 its lead fields.
  * A template holds questions and hints only, never answers: the owner writes each answer
  * as a FAQ fact, so nothing here can reach a visitor as a claim.
  */
@@ -17,9 +17,26 @@ export interface SuggestedFaq {
 
 export interface IndustryTemplate {
   suggestedFaqs: readonly SuggestedFaq[];
+  /**
+   * Topics prefilled on the rules form (FEAT-054 §5.2, D3). A suggestion: in force only once
+   * saved. Commitments and discounts stay at the safe defaults for every industry.
+   */
+  suggestedRules: { allowedTopics: readonly string[]; blockedTopics: readonly string[] };
 }
 
 const FNB: IndustryTemplate = {
+  suggestedRules: {
+    allowedTopics: [
+      'Menu and prices',
+      'Custom and celebration cakes',
+      'Ordering and notice needed',
+      'Delivery and self-collection',
+      'Allergens, halal and dietary needs',
+      'Payment',
+      'Events and bulk orders',
+    ],
+    blockedTopics: ["Competitors' prices", 'Health or weight-loss claims'],
+  },
   suggestedFaqs: [
     {
       id: 'fnb.custom-orders',

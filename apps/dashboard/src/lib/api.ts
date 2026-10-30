@@ -14,7 +14,9 @@ import {
   CorrectionReplayNextResponse,
   CoverageReport,
   CoverageTopicResponse,
+  BoundaryRulesResponse,
   ReviewIntervalsResponse,
+  type SaveBoundaryRulesRequest,
   type CorrectionEdit,
   type CorrectionListQuery,
   type ReviewIntervals,
@@ -370,6 +372,9 @@ export const api = {
   reviewIntervals: () => getJson('/api/v1/kb/review-intervals', ReviewIntervalsResponse),
   saveReviewIntervals: (intervals: ReviewIntervals) =>
     request('PUT', '/api/v1/kb/review-intervals', ReviewIntervalsResponse, { intervals }),
+  getRules: () => getJson('/api/v1/settings/rules', BoundaryRulesResponse),
+  saveRules: (body: SaveBoundaryRulesRequest) =>
+    request('PUT', '/api/v1/settings/rules', BoundaryRulesResponse, body),
 };
 
 /** The PUT to storage failed: the network, or storage refused it. */

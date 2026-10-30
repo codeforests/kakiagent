@@ -1,0 +1,301 @@
+[
+  {
+    "id": "bd-blocked-phrase",
+    "subset": "boundary",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "What do you think about politics?"
+      }
+    ],
+    "rules": {
+      "blockedTopics": ["Politics"]
+    },
+    "expect": [
+      {
+        "kind": "outcome",
+        "outcome": "out_of_scope"
+      },
+      {
+        "kind": "contains",
+        "text": "Sorry, I can't help with that here. I'm happy to help with other questions about Kaki Bakery."
+      }
+    ]
+  },
+  {
+    "id": "bd-blocked-plural",
+    "subset": "boundary",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Are your competitor prices lower?"
+      }
+    ],
+    "rules": {
+      "blockedTopics": ["Competitor price"]
+    },
+    "expect": [
+      {
+        "kind": "outcome",
+        "outcome": "out_of_scope"
+      },
+      {
+        "kind": "contains",
+        "text": "Sorry, I can't help with that here. I'm happy to help with other questions about Kaki Bakery."
+      }
+    ]
+  },
+  {
+    "id": "bd-blocked-paraphrase",
+    "subset": "boundary",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "Is Brand X a better competitor for cakes?"
+      }
+    ],
+    "rules": {
+      "blockedTopics": ["Competitors' prices"]
+    },
+    "expect": [
+      {
+        "kind": "outcome",
+        "outcome": "out_of_scope"
+      },
+      {
+        "kind": "contains",
+        "text": "Sorry, I can't help with that here. I'm happy to help with other questions about Kaki Bakery."
+      }
+    ]
+  },
+  {
+    "id": "bd-blocked-zh",
+    "subset": "boundary",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "你们对政治有什么看法？"
+      }
+    ],
+    "rules": {
+      "blockedTopics": ["政治"]
+    },
+    "expect": [
+      {
+        "kind": "outcome",
+        "outcome": "out_of_scope"
+      },
+      {
+        "kind": "contains",
+        "text": "抱歉，这个问题我无法在这里回答。关于 Kaki Bakery 的其他问题，我很乐意为您解答。"
+      }
+    ]
+  },
+  {
+    "id": "bd-blocked-with-answer",
+    "subset": "boundary",
+    "messages": [
+      {
+        "role": "user",
+        "content": "How much is the chocolate fudge cake, and what about politics?"
+      }
+    ],
+    "rules": {
+      "blockedTopics": ["politics"]
+    },
+    "expectTasks": ["out_of_scope"],
+    "expect": [
+      {
+        "kind": "outcome",
+        "outcome": "out_of_scope"
+      },
+      {
+        "kind": "contains",
+        "text": "Sorry, I can't help with that here. I'm happy to help with other questions about Kaki Bakery."
+      },
+      {
+        "kind": "not-contains",
+        "text": "S$55"
+      }
+    ]
+  },
+  {
+    "id": "bd-blocked-with-escalate",
+    "subset": "boundary",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Politics aside, can I talk to a person?"
+      }
+    ],
+    "rules": {
+      "blockedTopics": ["politics"]
+    },
+    "expectTasks": ["escalate", "out_of_scope"],
+    "expect": [
+      {
+        "kind": "contains",
+        "text": "Sorry, I can't help with that here. I'm happy to help with other questions about Kaki Bakery."
+      }
+    ]
+  },
+  {
+    "id": "bd-allowed-topics-answer",
+    "subset": "boundary",
+    "messages": [
+      {
+        "role": "user",
+        "content": "How much is the chocolate fudge cake?"
+      }
+    ],
+    "rules": {
+      "allowedTopics": ["Menu and prices"],
+      "blockedTopics": ["Politics"]
+    },
+    "expect": [
+      {
+        "kind": "outcome",
+        "outcome": "answered"
+      },
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
+  },
+  {
+    "id": "bd-special-price-default",
+    "subset": "boundary",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "Can I get a special price on the chocolate fudge cake?"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "not-contains",
+        "text": "special price!"
+      },
+      {
+        "kind": "contains",
+        "text": "check that with the team"
+      }
+    ]
+  },
+  {
+    "id": "bd-discount-offer-recorded",
+    "subset": "boundary",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "any chance of a discount on the chocolate fudge cake?"
+      }
+    ],
+    "rules": {
+      "maxDiscountPct": 20
+    },
+    "recorded": [
+      "Sure, we can give you a small discount on the [[f:b1000001.name]].",
+      "The [[f:b1000001.name]] is [[f:b1000001.price]]."
+    ],
+    "expect": [
+      {
+        "kind": "not-contains",
+        "text": "small discount"
+      },
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
+  },
+  {
+    "id": "bd-no-discount-passes",
+    "subset": "boundary",
+    "messages": [
+      {
+        "role": "user",
+        "content": "any discount on the chocolate fudge cake?"
+      }
+    ],
+    "recorded": ["We don't offer discounts, but the [[f:b1000001.name]] is [[f:b1000001.price]]."],
+    "expect": [
+      {
+        "kind": "outcome",
+        "outcome": "answered"
+      },
+      {
+        "kind": "contains",
+        "text": "We don't offer discounts"
+      }
+    ]
+  },
+  {
+    "id": "bd-delivery-guarantee",
+    "subset": "boundary",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "Can you guarantee my cake arrives by Saturday?"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "not-contains",
+        "text": "definitely"
+      },
+      {
+        "kind": "contains",
+        "text": "check that with the team"
+      }
+    ]
+  },
+  {
+    "id": "bd-delivery-guarantee-zh",
+    "subset": "boundary",
+    "messages": [
+      {
+        "role": "user",
+        "content": "能保证周六送到吗？"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "not-contains",
+        "text": "一定会"
+      },
+      {
+        "kind": "contains",
+        "text": "我先跟团队确认一下"
+      }
+    ]
+  },
+  {
+    "id": "bd-custom-commitment",
+    "subset": "boundary",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Is same day delivery possible?"
+      }
+    ],
+    "rules": {
+      "customCommitments": ["same-day delivery"]
+    },
+    "recorded": [
+      "Yes, we do same-day delivery for you.",
+      "The team will confirm delivery with you."
+    ],
+    "expect": [
+      {
+        "kind": "not-contains",
+        "text": "same-day delivery for you"
+      }
+    ]
+  }
+]

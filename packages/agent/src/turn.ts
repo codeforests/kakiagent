@@ -1,3 +1,4 @@
+import { rulesInForce } from '@kaki/approvals';
 import { withTenant, type ZoneDb } from '@kaki/db';
 import { audit, auditCode, auditId, type AuditPayload } from '@kaki/governance';
 import {
@@ -17,6 +18,7 @@ import { searchVisitorFacts, visitorKb, type VisitorFact } from '@kaki/kb';
 import { routeReply, type LlmGateway, type LogicalModel } from '@kaki/llm-gateway';
 import { openStatus } from '@kaki/tenancy';
 import { answerTurn, type AnswerOutcome, type AnswerResult } from './answer.js';
+import { applyBoundary, triageTail } from './boundary.js';
 import {
   dispatchPlan,
   visitorRegistry,
@@ -29,6 +31,7 @@ import { systemSlots, type HoursContext } from './hours-text.js';
 import { replyLanguage, type ReplyLanguage } from './language.js';
 import { routeSignals, triage, type TurnPlan } from './plan.js';
 import { HISTORY_LIMIT } from './prompt.js';
+import type { Violation } from './verify.js';
 import { safetyText, textsFor, type SafetyKey } from './texts.js';
 
 export interface TurnDeps {
@@ -77,6 +80,12 @@ export type TurnResult = Stored & {
  * reply does nothing, and the unique `in_reply_to` index settles a race.
  */
 /** Turn outcomes that mark the visitor's question as a coverage gap (FEAT-019 D2). */
+/** FEAT-054: a boundary hit has its own guardrail action; other kinds are `segment_blocked`. */
+const GUARDRAIL_ACTION: Partial<Record<Violation['kind'], string>> = {
+  commitment: 'guardrail.boundary_commitment',
+  discount_offer: 'guardrail.boundary_discount',
+};
+
 const GAP_OUTCOMES = new Map<TurnOutcome, GapReason>([
   ['unavailable', 'unavailable'],
   ['unsure', 'unsure'],
@@ -97,6 +106,8 @@ export async function runVisitorTurn(
     if (!message || message.author !== 'visitor') return null;
     if (await replyExists(tx, tenantId, message.id)) return null;
     const gate = await aiAllowed(tx, tenantId, conversationId);
+    // APR-01 (FEAT-054 §5.3): read every turn, no cache, so a save applies to the next reply.
+    const rules = await rulesInForce(tx, tenantId);
     const history = await recentMessages(tx, {
       tenantId,
       conversationId,
@@ -124,10 +135,10 @@ export async function runVisitorTurn(
       !(await noticeSince(tx, tenantId, conversationId, 'after_hours', status.since));
     // FEAT-034: the offline notice is stored once, not once per visitor message.
     const lastReply = history.filter((m) => m.author !== 'visitor').at(-1)?.body ?? null;
-    return { message, gate, history, disclosed, hours, noticeDue, lastReply };
+    return { message, gate, rules, history, disclosed, hours, noticeDue, lastReply };
   });
   if (!prep) return null;
-  const { message, gate, hours } = prep;
+  const { message, gate, hours, rules } = prep;
   const businessName = gate.tenant?.businessName ?? '';
   // AGT-08, AGT-11 (FEAT-024): the tenant's persona and wording; defaults when unset.
   const persona = gate.tenant?.persona;
@@ -139,6 +150,8 @@ export async function runVisitorTurn(
   let dispatched: DispatchReport[] = [];
   let route: LogicalModel | null = null;
   let triageMs: number | null = null;
+  // A blocked topic was refused in code this turn (FEAT-054 §5.3).
+  let blockedTopic = false;
   // The retrieval vector, kept to mark an unanswered question as a coverage gap (FEAT-019 D2).
   let queryVector: number[] | null = null;
 
@@ -196,12 +209,15 @@ export async function runVisitorTurn(
         });
       // Guardrail results (ADR-008 decision 5, GOV-01): the rule that fired, never the text.
       for (const v of composed?.violations ?? [])
-        await entry('guardrail.segment_blocked', { kind: auditCode(v.kind) });
+        await entry(GUARDRAIL_ACTION[v.kind] ?? 'guardrail.segment_blocked', {
+          kind: auditCode(v.kind),
+        });
       if (outcome === 'escalated') await entry('guardrail.escalated');
       if (outcome === 'unavailable' || outcome === 'paused') await entry('agent.fallback_sent');
       // UC-20 3a and 3d (ADR-009): the attempt is audit-logged, as codes only (FEAT-025).
       if (plan?.flags.injection) await entry('guardrail.injection_detected');
       if (plan?.flags.impersonation) await entry('guardrail.impersonation_detected');
+      if (blockedTopic) await entry('guardrail.boundary_topic');
       // The decision's structured rationale (GOV-01, architecture OI-8): what happened and
       // which facts it rests on.
       await entry('agent.decision', {
@@ -226,6 +242,8 @@ export async function runVisitorTurn(
         safety: safety ? auditCode(safety) : null,
         injection: plan?.flags.injection ?? false,
         impersonation: plan?.flags.impersonation ?? false,
+        // FEAT-054: which boundary rules applied (null: the safe defaults, never saved).
+        rulesVersion: rules.version,
       });
       return reply;
     });
@@ -270,7 +288,7 @@ export async function runVisitorTurn(
 
   // Triage runs alongside retrieval (ADR-007: no extra latency on the critical path, NFR-01).
   const triageStart = now();
-  const planned = triage(llm, { history, meta }).then((p) => {
+  const planned = triage(llm, { history, meta, tail: triageTail(rules.rules) }).then((p) => {
     triageMs = Math.round(now() - triageStart);
     return p;
   });
@@ -299,6 +317,7 @@ export async function runVisitorTurn(
     return store('unavailable', 'system', textsFor(language, persona).fallback, null);
   }
   const facts = factsResult.value;
+  ({ plan, blocked: blockedTopic } = applyBoundary(plan, rules.rules, message.body));
   language = replyLanguage(plan, message.body);
   slotValues = systemSlots(hours, language);
   const t = textsFor(language, persona);
@@ -311,9 +330,9 @@ export async function runVisitorTurn(
     turnId: message.id,
     gateOpen: async () =>
       (await withTenant(zdb, tenantId, (tx) => aiAllowed(tx, tenantId, conversationId))).open,
-    // Consent (LED-02) arrives with FEAT-049/058 and boundary rules (APR-01) with FEAT-054.
+    // Consent (LED-02) arrives with FEAT-049/058.
     consentGiven: async () => false,
-    boundaryRules: async () => null,
+    boundaryRules: async () => rules.rules,
     audit: async (e) => {
       await withTenant(zdb, tenantId, (tx) =>
         audit.append(tx, tenantId, {
@@ -372,6 +391,7 @@ export async function runVisitorTurn(
       replies: dispatch.replies,
       minConfidence: gate.tenant.routePolicy.minConfidence,
       persona,
+      rules: rules.rules,
     },
     {
       llm,

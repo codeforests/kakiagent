@@ -17,7 +17,11 @@ const GROUPS: { title: string; rows: Row[] }[] = [
         purpose: 'Name, tone, greeting and the messages visitors see',
         to: '/settings/assistant',
       },
-      { name: 'Rules and approvals', purpose: 'What your assistant may say and promise' },
+      {
+        name: 'Rules and approvals',
+        purpose: 'What your assistant may say and promise',
+        to: '/settings/rules',
+      },
     ],
   },
   {

@@ -105,6 +105,7 @@ import {
 } from './coach.js';
 import { FactNotFound, ForbiddenError, registerFactRoutes } from './facts.js';
 import { registerPrivacyRoutes } from './privacy.js';
+import { registerRuleRoutes, rulesErrorReply } from './rules.js';
 import { createServer, type Deps } from './server.js';
 import { registerUploadRoutes } from './uploads.js';
 import { registerConflictRoutes, toConflict } from './conflicts.js';
@@ -370,6 +371,8 @@ export async function buildApp(deps: Deps) {
       return reply
         .code(503)
         .send({ error: 'unavailable', message: 'Saving is unavailable; try again shortly' });
+    const rules = rulesErrorReply(err);
+    if (rules) return reply.code(rules.status).send(rules.body);
     const channel = channelErrorReply(err);
     if (channel) return reply.code(channel.status).send(channel.body);
     const widget = widgetErrorReply(err, req.url);
@@ -604,6 +607,7 @@ export async function buildApp(deps: Deps) {
   registerPrivacyRoutes(app, deps, sessionFrom);
   registerChannelRoutes(app, deps, sessionFrom);
   registerAiRoutes(app, deps, sessionFrom, notify);
+  registerRuleRoutes(app, deps, sessionFrom);
 
   return app;
 }

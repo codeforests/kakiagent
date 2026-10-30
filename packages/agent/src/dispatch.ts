@@ -1,3 +1,4 @@
+import type { BoundaryRules } from '@kaki/approvals';
 import type { ToolCall } from '@kaki/llm-gateway';
 import { z } from 'zod';
 import type { TaskKind, TurnPlan } from './plan.js';
@@ -32,8 +33,8 @@ export type Outcome = 'done' | 'refused' | 'failed' | 'unhandled';
 export type RefusalReason =
   'scope' | 'gate_closed' | 'consent' | 'boundary' | 'invalid_args' | 'not_in_plan';
 
-/** Boundary rules (APR-01); their shape arrives with FEAT-054. */
-export type BoundaryRules = Record<string, unknown>;
+/** Boundary rules (APR-01; FEAT-054), owned by `@kaki/approvals`. */
+export type { BoundaryRules };
 
 export interface DispatchAuditEntry {
   task: TaskKind;
@@ -74,8 +75,8 @@ export interface DispatchContext {
   gateOpen(): Promise<boolean>;
   /** LED-02. False until consent is recorded (FEAT-049, FEAT-058): fail closed. */
   consentGiven(): Promise<boolean>;
-  /** APR-01. Null until FEAT-054 adds the rules. */
-  boundaryRules(): Promise<BoundaryRules | null>;
+  /** APR-01: the rules in force for this turn (the safe defaults when none are saved). */
+  boundaryRules(): Promise<BoundaryRules>;
   /** One entry per dispatched task: kinds and codes, never arguments or text (ADR-014). */
   audit(entry: DispatchAuditEntry): Promise<void>;
   /** The conversation's own flags and AI state (FEAT-025). */
@@ -89,7 +90,8 @@ export interface DispatchContext {
  * (FEAT-023): AGT-04's out-of-scope refusal and (FEAT-025) the advice and illegal
  * declines from `out_of_scope`'s topic, and the triage flags' refusals.
  */
-export type ReplyKey = 'out_of_scope' | 'advice' | 'illegal' | 'injection' | 'impersonation';
+export type ReplyKey =
+  'out_of_scope' | 'advice' | 'illegal' | 'injection' | 'impersonation' | 'blocked_topic';
 
 export type { SafetyKey };
 
@@ -116,7 +118,7 @@ export interface TaskHandler<A = unknown> {
   args: z.ZodType<A>;
   needsConsent?: boolean;
   /** False refuses. With no rules (null) the handler decides; fail closed is expected. */
-  checkBoundary?(rules: BoundaryRules | null, args: A): boolean;
+  checkBoundary?(rules: BoundaryRules, args: A): boolean;
   /** The model-assisted tool for this kind, if any (ADR-025 decision 3). */
   tool?: string;
   run(ctx: DispatchContext, args: A, idempotencyKey: string): Promise<TaskResult>;
@@ -152,7 +154,7 @@ export function createRegistry(handlers: TaskHandler[]): Registry {
 /** What an off-topic request is about (FEAT-025 D3); anything unknown reads as `other`. */
 export const OutOfScopeArgs = z
   .object({
-    topic: z.enum(['medical', 'legal', 'financial', 'illegal', 'other']).catch('other'),
+    topic: z.enum(['medical', 'legal', 'financial', 'illegal', 'blocked', 'other']).catch('other'),
   })
   .catch({ topic: 'other' });
 
@@ -168,6 +170,8 @@ export const outOfScopeHandler: TaskHandler<z.infer<typeof OutOfScopeArgs>> = {
   args: OutOfScopeArgs,
   async run(_ctx, { topic }) {
     if (topic === 'illegal') return { reply: { key: 'illegal' } };
+    // APR-01 (FEAT-054 §5.3): a topic the business doesn't discuss.
+    if (topic === 'blocked') return { reply: { key: 'blocked_topic' } };
     if (topic === 'medical' || topic === 'legal' || topic === 'financial')
       return { reply: { key: 'advice' } };
     return { reply: { key: 'out_of_scope' } };

@@ -231,7 +231,11 @@ describe('safety in the plan (FEAT-025 §5.1)', () => {
     expect(TRIAGE_SYSTEM).toMatch(/flags\.impersonation/);
     expect(TRIAGE_SYSTEM).toMatch(/crisis: .*self-harm/);
     expect(TRIAGE_SYSTEM).toMatch(/abuse: insults/);
-    expect(TRIAGE_SYSTEM).toMatch(/topic, one of medical, legal, financial, illegal, other/);
+    expect(TRIAGE_SYSTEM).toMatch(
+      /topic, one of medical, legal, financial, illegal, blocked, other/,
+    );
+    // FEAT-054 D2: blocked topics come from the tail, never from the fixed prompt.
+    expect(TRIAGE_SYSTEM).toMatch(/topic blocked: the message is about a topic the business/);
     expect(TRIAGE_SYSTEM).not.toMatch(/Kaki/);
   });
 });

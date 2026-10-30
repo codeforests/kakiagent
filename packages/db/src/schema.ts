@@ -1478,6 +1478,62 @@ export const channelConnections = pgTable(
   ],
 );
 
+export const COMMITMENT_KEYS = [
+  'delivery_guarantee',
+  'refund',
+  'legal_advice',
+  'medical_advice',
+] as const;
+
+/**
+ * Boundary rules (APR-01; FEAT-054 §4, D1). Immutable versions: each save inserts the next
+ * `version`, the highest is in force and no row means the safe defaults. The primary key is the
+ * concurrency check. `app_dashboard` may insert but never update or delete; the visitor role
+ * only reads. `created_by` has no FK into the identity zone (as the audit's actor IDs).
+ */
+export const boundaryRules = pgTable(
+  'boundary_rules',
+  {
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    version: integer('version').notNull(),
+    allowedTopics: text('allowed_topics')
+      .array()
+      .notNull()
+      .default(sql`'{}'`),
+    blockedTopics: text('blocked_topics')
+      .array()
+      .notNull()
+      .default(sql`'{}'`),
+    maxDiscountPct: smallint('max_discount_pct').notNull().default(0),
+    quotesNeedApproval: boolean('quotes_need_approval').notNull().default(true),
+    forbiddenCommitments: text('forbidden_commitments')
+      .array()
+      .notNull()
+      .default(sql`'{delivery_guarantee,refund,legal_advice,medical_advice}'`),
+    customCommitments: text('custom_commitments')
+      .array()
+      .notNull()
+      .default(sql`'{}'`),
+    createdBy: uuid('created_by').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.version] }),
+    check('boundary_rules_version_ck', sql`${t.version} > 0`),
+    check('boundary_rules_discount_ck', sql`${t.maxDiscountPct} between 0 and 100`),
+    check(
+      'boundary_rules_commitments_ck',
+      sql`${t.forbiddenCommitments} <@ array['delivery_guarantee','refund','legal_advice','medical_advice']::text[] and ${t.forbiddenCommitments} @> array['legal_advice','medical_advice']::text[]`,
+    ),
+    check(
+      'boundary_rules_sizes_ck',
+      sql`cardinality(${t.allowedTopics}) <= 25 and cardinality(${t.blockedTopics}) <= 25 and cardinality(${t.customCommitments}) <= 10`,
+    ),
+  ],
+);
+
 /** Tables with `tenant_id` + forced RLS. The cross-tenant suite asserts this list is complete. */
 export const TENANT_SCOPED_TABLES = [
   'tenants',
@@ -1506,4 +1562,5 @@ export const TENANT_SCOPED_TABLES = [
   'wording_versions',
   'privacy_settings',
   'channel_connections',
+  'boundary_rules',
 ] as const;

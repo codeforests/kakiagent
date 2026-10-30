@@ -1,6 +1,8 @@
+import { SAFE_DEFAULTS, type BoundaryRules } from '@kaki/approvals';
 import type { VisitorFact } from '@kaki/kb';
 import type { GenerateRequest, LlmGateway, LogicalModel } from '@kaki/llm-gateway';
 import type { Persona } from '@kaki/tenancy';
+import { boundaryGuard } from './boundary.js';
 import { stripEmoji } from './emoji.js';
 import { leakGuard, type LeakGuard } from './guard.js';
 import type { HoursContext } from './hours-text.js';
@@ -47,6 +49,11 @@ export interface ComposeInput {
   /** AGT-07, AGT-16 (FEAT-025): triage's flags, for the tail. */
   injection?: boolean | undefined;
   impersonation?: boolean | undefined;
+  /**
+   * APR-01 (FEAT-054): the rules in force, for the prompt's rules block and the segment
+   * check. Absent: no rules block, and the check runs on the safe defaults.
+   */
+  rules?: BoundaryRules | undefined;
 }
 
 export interface ComposeDeps {
@@ -98,6 +105,7 @@ export async function composeReply(input: ComposeInput, deps: ComposeDeps): Prom
   const noEmoji = input.persona?.emoji === false;
   let emojiRemoved = false;
   let guard: LeakGuard = leakGuard({ system: '' });
+  const boundary = boundaryGuard(input.rules ?? SAFE_DEFAULTS);
 
   const result = (outcome: ComposeOutcome, attempts: number): ComposeResult => ({
     outcome,
@@ -134,6 +142,9 @@ export async function composeReply(input: ComposeInput, deps: ComposeDeps): Prom
     // FEAT-025: nothing of the platform's instructions reaches a visitor (AGT-07).
     const leaks = guard.check(rendered.text, rendered.spans);
     if (leaks.length) return { kind: 'fail', violations: leaks };
+    // FEAT-054: no discount offer and no forbidden commitment (APR-01, ADR-008 decision 3).
+    const promises = boundary.check(rendered.text, rendered.spans);
+    if (promises.length) return { kind: 'fail', violations: promises };
     if (!(await release(rendered.text))) return { kind: 'closed' };
     for (const id of rendered.factIds) factIds.add(id);
     for (const name of rendered.slots) slots.add(name);
@@ -169,6 +180,7 @@ export async function composeReply(input: ComposeInput, deps: ComposeDeps): Prom
       persona: input.persona,
       injection: input.injection,
       impersonation: input.impersonation,
+      rules: input.rules,
     });
     guard = leakGuard(req);
     const segmenter = new Segmenter();

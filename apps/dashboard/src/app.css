@@ -805,7 +805,8 @@ a {
     bottom: 0;
   }
 }
-.kaki-btn:disabled {
+.kaki-btn:disabled,
+.rules-form .kaki-btn[aria-disabled='true'] {
   opacity: 0.6;
   cursor: default;
 }
@@ -3527,4 +3528,69 @@ a.settings-row:hover {
 .spinner--sm {
   width: var(--space-4);
   height: var(--space-4);
+}
+
+/* ---- Rules and approvals (SCR-APP-042, SCR-APP-009 rules block; FEAT-054) ----------- */
+.rules-page,
+.rules-setup {
+  max-width: var(--size-reading-max);
+}
+.rules-setup {
+  margin-bottom: var(--space-6);
+}
+.rules-form > .alert,
+.rules-form .card > .alert {
+  margin-bottom: 0;
+}
+.rules-topics__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.rules-add {
+  display: flex;
+  gap: var(--space-3);
+}
+.rules-add .input {
+  flex: 1 1 auto;
+}
+.rules-discount {
+  width: calc(var(--size-control-lg) * 2);
+}
+.rules-check__help {
+  display: block;
+  margin: 0;
+}
+.rules-commitments {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.rules-commitments .chip {
+  margin-left: var(--space-2);
+}
+.rules-commitments input[aria-disabled='true'] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.rules-conflict__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+.rules-changes {
+  margin: var(--space-3) 0 0;
+  padding-left: var(--space-5);
+  font-size: var(--type-body-sm-size);
+  line-height: var(--type-body-sm-line);
+}
+@media (max-width: 479px) {
+  .rules-add {
+    flex-direction: column;
+  }
 }

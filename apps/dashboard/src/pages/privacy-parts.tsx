@@ -167,10 +167,12 @@ export function ErrorSummary({
   errors,
   prefix,
   focusKey,
+  title = 'Check these fields',
 }: {
   errors: Record<string, string | undefined>;
   prefix: string;
   focusKey: number;
+  title?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -180,7 +182,7 @@ export function ErrorSummary({
   if (!list.length) return null;
   return (
     <div className="alert alert--danger" role="alert" tabIndex={-1} ref={ref}>
-      <p className="alert__title">Check these fields</p>
+      <p className="alert__title">{title}</p>
       <ul>
         {list.map(([f, msg]) => (
           <li key={f}>

@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@kaki/agent": "workspace:*",
+    "@kaki/approvals": "workspace:*",
     "@kaki/kb": "workspace:*",
     "@kaki/llm-gateway": "workspace:*",
     "@kaki/tenancy": "workspace:*",
