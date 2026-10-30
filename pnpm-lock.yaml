@@ -530,6 +530,9 @@ importers:
 
   packages/agent:
     dependencies:
+      '@kaki/approvals':
+        specifier: workspace:*
+        version: link:../approvals
       '@kaki/channels':
         specifier: workspace:*
         version: link:../channels

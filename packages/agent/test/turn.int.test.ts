@@ -222,6 +222,7 @@ describe('runVisitorTurn (UC-20)', () => {
       safety: null,
       injection: false,
       impersonation: false,
+      rulesVersion: null,
     });
     expect((decision.payload.factIds as string[]).sort()).toEqual(result!.message.factIds.sort());
   });

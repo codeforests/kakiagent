@@ -1,6 +1,7 @@
 import {
   createRegistry,
   visitorRegistry,
+  type BoundaryRules,
   type ConversationPort,
   type DispatchAuditEntry,
   type DispatchContext,
@@ -61,6 +62,7 @@ export function replayContext(input: {
   sessionId: string;
   turnId: string;
   ports: ReplayPorts;
+  rules: BoundaryRules;
 }): DispatchContext {
   return {
     scope: 'coaching',
@@ -69,7 +71,7 @@ export function replayContext(input: {
     turnId: input.turnId,
     gateOpen: async () => true,
     consentGiven: async () => false,
-    boundaryRules: async () => null,
+    boundaryRules: async () => input.rules,
     audit: async (e) => {
       input.ports.audits.push(e);
     },

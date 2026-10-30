@@ -63,6 +63,8 @@ export function replyPlan(input: {
 
 /** The outcome of a fixed lead text (FEAT-023, FEAT-025). */
 function leadOutcome(lead: ReplyKey | 'unsure'): AnswerOutcome {
+  // A blocked topic (FEAT-054) is a business's own out-of-scope line.
+  if (lead === 'blocked_topic') return 'out_of_scope';
   return lead === 'out_of_scope' || lead === 'unsure' ? lead : 'refused';
 }
 
@@ -90,6 +92,8 @@ function render(key: ReplyKey | 'unsure', input: AnswerInput): string {
       return t.advice(b);
     case 'illegal':
       return t.illegal(b);
+    case 'blocked_topic':
+      return t.blockedTopic(b);
     case 'injection':
       return t.injection(b);
     case 'impersonation':

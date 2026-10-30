@@ -1,3 +1,4 @@
+import { SAFE_DEFAULTS } from '@kaki/approvals';
 import { describe, expect, it } from 'vitest';
 import { explain } from './coach.js';
 import { dispatchPlan, dispatchToolCall } from './dispatch.js';
@@ -35,7 +36,7 @@ class WatchedPorts extends ReplayPorts {
 }
 
 const ctxOf = (ports: ReplayPorts) =>
-  replayContext({ tenantId: 't', sessionId: 's', turnId: 'm-1', ports });
+  replayContext({ tenantId: 't', sessionId: 's', turnId: 'm-1', ports, rules: SAFE_DEFAULTS });
 
 const explainFor = (plan: TurnPlan, safety?: 'crisis' | 'abuse_warning' | 'abuse_ended') =>
   explain({

@@ -1,3 +1,4 @@
+import { SAFE_DEFAULTS } from '@kaki/approvals';
 import { gatewayFromConfig, type GenerateRequest } from '@kaki/llm-gateway';
 import type { VisitorFact } from '@kaki/kb';
 import { describe, expect, it } from 'vitest';
@@ -80,7 +81,7 @@ function dispatchCtx(scope: 'visitor' | 'coaching') {
     turnId: 'q',
     gateOpen: async () => true,
     consentGiven: async () => false,
-    boundaryRules: async () => null,
+    boundaryRules: async () => SAFE_DEFAULTS,
     audit: async (e) => void audits.push(e),
     conversation: {
       flag: async () => {},

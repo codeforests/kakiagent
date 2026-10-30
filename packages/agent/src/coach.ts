@@ -1,3 +1,4 @@
+import { rulesInForce, type BoundaryRules } from '@kaki/approvals';
 import { withTenant, type ZoneDb } from '@kaki/db';
 import { audit, auditCode, auditId } from '@kaki/governance';
 import {
@@ -31,6 +32,7 @@ import {
   type VisitorTenantState,
 } from '@kaki/tenancy';
 import { answerTurn, type AnswerResult } from './answer.js';
+import { applyBoundary, triageTail } from './boundary.js';
 import { coachingRegistry } from './coach-dispatch.js';
 import { COACH_TRIAGE_SYSTEM } from './coach-prompt.js';
 import {
@@ -146,6 +148,7 @@ const REPLY_REASONS: Record<ReplyKey, ReasonCode> = {
   illegal: 'illegal',
   injection: 'injection',
   impersonation: 'impersonation',
+  blocked_topic: 'out_of_scope',
 };
 
 /**
@@ -209,6 +212,8 @@ export function explain(input: {
 
 interface Prep {
   tenant: VisitorTenantState;
+  /** APR-01 (FEAT-054): the rules a visitor would get now, so the owner tests them. */
+  rules: BoundaryRules;
   history: CoachingMessageRow[];
   hours: HoursContext | null;
   profileVersion: number;
@@ -235,7 +240,8 @@ async function prepare(deps: CoachDeps, input: { tenantId: string; sessionId: st
             now: wall,
           }
         : null;
-    return { tenant, history, hours, profileVersion: profile.version };
+    const { rules } = await rulesInForce(tx, input.tenantId);
+    return { tenant, rules, history, hours, profileVersion: profile.version };
   });
 }
 
@@ -347,7 +353,7 @@ function dispatchContext(
     turnId,
     gateOpen: async () => true,
     consentGiven: async () => false,
-    boundaryRules: async () => null,
+    boundaryRules: async () => prep.rules,
     audit: async (e) => {
       await withTenant(deps.zdb, tenantId, (tx) =>
         audit.append(tx, tenantId, {
@@ -419,14 +425,16 @@ async function plan(
   input: CoachTurnInput,
   history: HistoryMessage[],
   text: string,
+  rules: BoundaryRules,
 ) {
   const meta = { tenantId: input.tenantId, coachingSessionId: input.sessionId };
   const [p, f] = await Promise.allSettled([
-    triage(deps.llm, { history, meta, system: COACH_TRIAGE_SYSTEM }),
+    triage(deps.llm, { history, meta, system: COACH_TRIAGE_SYSTEM, tail: triageTail(rules) }),
     search(deps, input, text),
   ]);
   return {
-    plan: p.status === 'fulfilled' ? p.value : null,
+    // FEAT-054: a blocked topic is refused here as in the visitor turn.
+    plan: p.status === 'fulfilled' ? applyBoundary(p.value, rules, text).plan : null,
     facts: f.status === 'fulfilled' ? f.value : null,
   };
 }
@@ -465,7 +473,7 @@ export async function runCoachingTurn(
   const history = [...toHistory(prep.history), { role: 'user' as const, content: text }];
   const turnId = crypto.randomUUID();
   const ctx = dispatchContext(deps, input, prep, turnId);
-  const { plan: p, facts } = await plan(deps, input, history, text);
+  const { plan: p, facts } = await plan(deps, input, history, text, prep.rules);
 
   let answer: Answered;
   let correctionId: string | null = null;
@@ -610,7 +618,7 @@ export async function reanswer(
     { role: 'user' as const, content: turn.text },
   ];
   const ctx = dispatchContext(deps, turn, prep, crypto.randomUUID());
-  const { plan: p, facts } = await plan(deps, turn, history, turn.text);
+  const { plan: p, facts } = await plan(deps, turn, history, turn.text, prep.rules);
   // A re-asked question is answered, never treated as a correction.
   const answerPlan = p ? { ...p, tasks: p.tasks.filter((t) => t.kind !== 'correct') } : null;
   if (answerPlan && !answerPlan.tasks.length) answerPlan.tasks = [{ kind: 'answer', args: {} }];

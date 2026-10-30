@@ -2,6 +2,7 @@
  * Coaching through the real turn on the fake provider (AGT-17, ONB-05; FEAT-027 §5.2,
  * §5.3; AC-2, AC-3, AC-4, AC-5, AC-8, AC-9, AC-11).
  */
+import { SAFE_DEFAULTS, saveRules } from '@kaki/approvals';
 import { withTenant } from '@kaki/db';
 import { startTestDatabase, TENANT_A, type TestDatabase } from '@kaki/db/testing';
 import { usageSink } from '@kaki/analytics';
@@ -181,6 +182,26 @@ describe('a coaching answer (AC-2, AC-3)', () => {
       reasons: expect.arrayContaining(['out_of_scope']),
       route: null,
     });
+  });
+
+  it('refuses a blocked topic as a visitor would get it (FEAT-054 AC-5)', async () => {
+    const s = await session();
+    await withTenant(tdb.zone('dashboard'), TENANT_A, (tx) =>
+      saveRules(tx, TENANT_A, {
+        expectedVersion: null,
+        rules: { ...SAFE_DEFAULTS, blockedTopics: ['politics'] },
+        userId: USER,
+      }),
+    );
+    try {
+      const r = await turn(s.id, 'What do you think about politics?');
+      const business = (await owner.query(`select name from tenants where id = $1`, [TENANT_A]))
+        .rows[0].name;
+      expect(r.answer.body).toBe(textsFor('en').blockedTopic(business));
+      expect(r.answer.explainer).toMatchObject({ outcome: 'out_of_scope', route: null });
+    } finally {
+      await owner.query(`delete from boundary_rules`);
+    }
   });
 
   it('works while paused or not live, and says what visitors get instead (AC-11)', async () => {

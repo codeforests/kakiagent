@@ -23,6 +23,8 @@ export interface Texts {
   advice(businessName: string): string;
   /** AGT-13: help with something illegal. */
   illegal(businessName: string): string;
+  /** APR-01: a topic the business doesn't discuss (FEAT-054). */
+  blockedTopic(businessName: string): string;
   /** AGT-13: self-harm or danger, with SG crisis contacts (`CRISIS_CONTACTS`). */
   crisis: string;
   /** AGT-13: the first abuse turn. */
@@ -97,6 +99,7 @@ type FixedKeys =
   | 'impersonation'
   | 'advice'
   | 'illegal'
+  | 'blockedTopic'
   | 'crisis'
   | 'abuseWarning'
   | 'abuseEnded'
@@ -119,6 +122,8 @@ const FIXED: Record<ReplyLanguage, Pick<Texts, FixedKeys>> = {
       `I can't give medical, legal or financial advice. Please speak to a qualified professional. I'm happy to help with questions about ${b}.`,
     illegal: (b: string) =>
       `Sorry, I can't help with that. I'm happy to help with questions about ${b}.`,
+    blockedTopic: (b: string) =>
+      `Sorry, I can't help with that here. I'm happy to help with other questions about ${b}.`,
     crisis: `I'm really sorry you're going through this. You don't have to face it alone. If you're in danger right now, call ${C.emergency}. You can talk to someone any time at Samaritans of Singapore on ${C.sos} (or WhatsApp ${C.sosWhatsApp}), or the National Mindline on ${C.mindline}. I've let the team know.`,
     abuseWarning: (b: string) =>
       `I'm here to help with questions about ${b}. Please keep the conversation respectful.`,
@@ -136,6 +141,8 @@ const FIXED: Record<ReplyLanguage, Pick<Texts, FixedKeys>> = {
     advice: (b: string) =>
       `我无法提供医疗、法律或财务方面的建议，请咨询相关专业人士。很乐意回答与 ${b} 有关的问题。`,
     illegal: (b: string) => `抱歉，这个我帮不了。很乐意回答与 ${b} 有关的问题。`,
+    blockedTopic: (b: string) =>
+      `抱歉，这个问题我无法在这里回答。关于 ${b} 的其他问题，我很乐意为您解答。`,
     crisis: `听到您这么难受，我真的很难过。您不需要独自面对。如果您现在有危险，请拨打 ${C.emergency}。您可以随时拨打新加坡援人协会（SOS）热线 ${C.sos}（或 WhatsApp ${C.sosWhatsApp}），或全国心理健康热线 ${C.mindline}。如需华语辅导，可拨打 Care Corner 热线 ${C.careCornerMandarin}（每天上午10点至晚上10点）。我已通知团队。`,
     abuseWarning: (b: string) => `我很乐意回答与 ${b} 有关的问题，请保持礼貌。`,
     abuseEnded: '我现在结束这次对话。我们的团队可以看到这段对话。',

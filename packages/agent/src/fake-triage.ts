@@ -1,4 +1,5 @@
 import type { GenerateRequest } from '@kaki/llm-gateway';
+import { TRIAGE_TOPICS_BLOCKED } from './boundary.js';
 import type { TaskKind } from './plan.js';
 
 /** Keyword rules for the fake triager, first match per kind. */
@@ -59,6 +60,31 @@ const IMPERSONATION =
   /\b(i'?m|i am|this is) (the )?(owner|boss|manager|admin|staff|developer)\b|\b(show|give|list|send)( me)? (the |all |today'?s )?(leads|customers|customer list|contacts|orders of others|settings|costs?)\b|我是老板|我是(这里的)?员工|客户名单/i;
 
 /**
+ * The tail's blocked topics (FEAT-054 D2): any long word of a topic (its stem) in the message
+ * stands in for the real model catching a paraphrase; CJK topics match as a substring.
+ */
+function blockedByTail(req: GenerateRequest, text: string): boolean {
+  const line = req.tail?.split('\n').find((l) => l.startsWith(TRIAGE_TOPICS_BLOCKED));
+  if (!line) return false;
+  let topics: string[];
+  try {
+    topics = JSON.parse(line.slice(TRIAGE_TOPICS_BLOCKED.length)) as string[];
+  } catch {
+    return false;
+  }
+  const msg = text.toLowerCase();
+  return topics.some((topic) =>
+    /\p{Script=Han}/u.test(topic)
+      ? msg.includes(topic)
+      : topic
+          .toLowerCase()
+          .split(/[^\p{L}]+/u)
+          .filter((w) => w.length >= 5)
+          .some((w) => msg.includes(w.replace(/s$/, ''))),
+  );
+}
+
+/**
  * What the fake triage model returns in local development and E2E (plan §2, P10): a
  * deterministic plan from keywords, in the wire shape the real model writes. It is not
  * a classifier; the M1.5 gate measures the real one on the eval set.
@@ -67,7 +93,7 @@ export function fakeTriage(req: GenerateRequest): string {
   const text = [...req.messages].reverse().find((m) => m.role === 'user')?.content ?? '';
   const tasks: { kind: TaskKind; args: { name: string; value: string }[] }[] = [];
   const kinds = RULES.filter(([, re]) => re.test(text)).map(([k]) => k);
-  const topic = TOPICS.find(([, re]) => re.test(text))?.[0];
+  const topic = blockedByTail(req, text) ? 'blocked' : TOPICS.find(([, re]) => re.test(text))?.[0];
   if (topic && !kinds.includes('out_of_scope')) kinds.push('out_of_scope');
   // A question goes with an answer task; beside an advice or illegal topic, only a
   // question about the business does (FEAT-025).
