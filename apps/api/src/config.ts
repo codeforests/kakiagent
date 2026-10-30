@@ -25,6 +25,12 @@ export const schema = envSchemas.base
     PUBLIC_APP_URL: envSchemas.url,
     /** Derives each magic link's token from its ID (FEAT-005 D6). */
     MAGIC_LINK_SECRET: envSchemas.secret,
+    /** Seals TOTP secrets (FEAT-006 §5.1): 32 random bytes, base64url. KMS replaces it (FEAT-037/MD). */
+    MFA_SECRET_KEY: z
+      .string()
+      .refine((v) => Buffer.from(v, 'base64url').length === 32, 'must be 32 bytes, base64url'),
+    /** The product name authenticator apps show as the issuer (D4 placeholder name). */
+    APP_NAME: z.string().min(1).max(40).default('KakiAgent'),
     /** `smtp://localhost:1025` (Mailpit) locally; the SES SMTP endpoint in AWS (MD). */
     SMTP_URL: z.string().regex(/^smtps?:\/\//),
     EMAIL_FROM: z.string().min(3).default('KakiAgent <no-reply@kakiagent.local>'),

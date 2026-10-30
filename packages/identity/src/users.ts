@@ -23,8 +23,11 @@ export interface SignedIn {
   /** The session cookie value. */
   token: string;
   userId: string;
-  /** Where the dashboard goes next: the app, or SCR-APP-003 (FEAT-005 §3.2). */
-  next: 'app' | 'create-workspace';
+  /**
+   * Where the dashboard goes next: the code challenge, forced enrolment (FEAT-006 §5.2),
+   * the app, or SCR-APP-003 (FEAT-005 §3.2).
+   */
+  next: 'mfa' | 'mfa-enrol' | 'app' | 'create-workspace';
 }
 
 /**
@@ -51,5 +54,13 @@ export async function startSession(
     authMethod: method,
     expiresAt: sql`now() + interval '30 days'`,
   });
-  return { token, userId, next: tenantId ? 'app' : 'create-workspace' };
+  const mfa = await tx.execute<{ enrolled: boolean; required: boolean }>(
+    sql`select exists (select 1 from mfa_factors
+                       where user_id = ${userId} and confirmed_at is not null) as enrolled,
+               exists (select 1 from user_mfa_required_by(${userId}) r
+                       where r.tenant_id = ${tenantId}) as required`,
+  );
+  const { enrolled, required } = mfa.rows[0]!;
+  const next = enrolled ? 'mfa' : required ? 'mfa-enrol' : tenantId ? 'app' : 'create-workspace';
+  return { token, userId, next };
 }

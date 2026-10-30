@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { Link } from 'react-router';
 
 /**
@@ -8,17 +8,29 @@ import { Link } from 'react-router';
 export function AuthLayout({
   title,
   busy,
+  focusKey,
   children,
 }: {
   title: string;
   busy?: boolean;
+  /** A step or state: when it changes, the heading takes focus (FEAT-006 SCR-APP-005). */
+  focusKey?: string;
   children?: ReactNode;
 }) {
+  const heading = useRef<HTMLHeadingElement>(null);
+  const firstKey = useRef(focusKey);
+  useEffect(() => {
+    if (focusKey === undefined || focusKey === firstKey.current) return;
+    firstKey.current = undefined;
+    heading.current?.focus();
+  }, [focusKey]);
   return (
     <main id="main" className="auth">
       <div className="auth__card" aria-busy={busy || undefined}>
         <p className="auth__brand">KakiAgent</p>
-        <h1 className="page-title">{title}</h1>
+        <h1 className="page-title" ref={heading} tabIndex={focusKey === undefined ? undefined : -1}>
+          {title}
+        </h1>
         {children}
       </div>
     </main>

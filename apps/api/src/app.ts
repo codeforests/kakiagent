@@ -17,7 +17,19 @@ import {
   type RealtimeEvent,
 } from '@kaki/contracts';
 import { ping, withTenant } from '@kaki/db';
-import { LinkError, SESSION_COOKIE, TermsOutdatedError } from '@kaki/identity';
+import {
+  LinkError,
+  MfaChallengeError,
+  MfaCodeError,
+  MfaEnrolmentError,
+  MfaLockedError,
+  MfaRateLimitError,
+  MfaStateError,
+  ReauthRequiredError,
+  SESSION_COOKIE,
+  TermsOutdatedError,
+  type MfaStateCode,
+} from '@kaki/identity';
 import {
   appendVisitorMessage,
   ConversationClosedError,
@@ -84,6 +96,7 @@ import {
   UnauthenticatedError,
   UnavailableError,
 } from './auth.js';
+import { registerMfaRoutes } from './mfa.js';
 import {
   CoachRateLimitedError,
   InvalidCoachBodyError,
@@ -125,6 +138,15 @@ const LINK_MESSAGES: Record<LinkError['code'], string> = {
   link_expired: 'This link has expired.',
   link_used: 'This link has already been used.',
   link_invalid: "This link isn't valid.",
+  link_other_session: 'Open this link in the browser where you asked for it.',
+};
+
+const MFA_STATE_MESSAGES: Record<MfaStateCode, string> = {
+  mfa_already_enrolled: 'Two-step verification is already on.',
+  mfa_not_enrolled: 'Two-step verification is off.',
+  no_enrolment: 'Start setting up two-step verification again.',
+  mfa_required_by_workspace: 'A workspace you belong to requires two-step verification.',
+  use_authenticator: 'Use your authenticator app to confirm it’s you.',
 };
 
 export async function buildApp(deps: Deps) {
@@ -207,6 +229,43 @@ export async function buildApp(deps: Deps) {
         .code(401)
         .send({ error: 'session_expired', message: 'Your session has ended. Sign in again.' });
     }
+    if (err instanceof MfaChallengeError)
+      return reply
+        .code(401)
+        .send({ error: 'mfa_required', message: 'Enter the code from your authenticator app.' });
+    if (err instanceof MfaEnrolmentError)
+      return reply.code(403).send({
+        error: 'mfa_enrolment_required',
+        message: 'Your workspace requires two-step verification. Set it up to continue.',
+      });
+    if (err instanceof ReauthRequiredError)
+      return reply.code(403).send({
+        error: 'reauth_required',
+        message: 'Confirm it’s you to continue.',
+        methods: err.methods,
+      });
+    if (err instanceof MfaCodeError)
+      return reply.code(400).send({
+        error: 'code_invalid',
+        message: "That code didn't work. Check it and try again.",
+        ...(err.attemptsLeft !== undefined ? { attemptsLeft: err.attemptsLeft } : {}),
+      });
+    if (err instanceof MfaLockedError)
+      return reply.code(429).send({
+        error: 'mfa_locked',
+        message: 'Too many wrong codes. Try again later, or use a recovery code.',
+        until: err.until.toISOString(),
+      });
+    if (err instanceof MfaRateLimitError)
+      return reply
+        .code(429)
+        .send({ error: 'too_many_attempts', message: 'Too many tries. Wait 15 minutes.' });
+    if (err instanceof MfaStateError)
+      return reply.code(err.code === 'no_enrolment' ? 404 : 409).send({
+        error: err.code,
+        message: MFA_STATE_MESSAGES[err.code],
+        ...(err.workspaces ? { workspaces: err.workspaces } : {}),
+      });
     if (err instanceof NoWorkspaceError)
       return reply
         .code(403)
@@ -521,7 +580,8 @@ export async function buildApp(deps: Deps) {
   });
 
   // ---- Dashboard API (dashboard trust zone) -------------------------------------------
-  const { sessionFrom } = registerAuth(app, deps);
+  const { authFrom, sessionFrom } = registerAuth(app, deps);
+  registerMfaRoutes(app, deps, { authFrom, sessionFrom });
 
   app.get('/api/v1/conversations', async (req) => {
     const s = await sessionFrom(req);

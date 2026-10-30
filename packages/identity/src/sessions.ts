@@ -1,5 +1,6 @@
 import { sql, type ZoneDb } from '@kaki/db';
 import type { Role } from './capabilities.js';
+import { REAUTH_WINDOW_MINUTES } from './reauth.js';
 import { hashToken, isTokenShaped } from './tokens.js';
 
 /** Who is calling, re-read from the database on every request (ADR-020, D5). */
@@ -10,6 +11,15 @@ export interface AuthContext {
   /** The active membership's tenant and role; null without one (no workspace yet). */
   tenantId: string | null;
   role: Role | null;
+  /**
+   * Two-step state, computed on every request (FEAT-006 §5.2, D2): `challenge` until an
+   * enrolled user passes the code on this session, `enrol` while the active workspace
+   * requires a factor the user hasn't set up.
+   */
+  mfa: 'ok' | 'challenge' | 'enrol';
+  mfaEnrolled: boolean;
+  /** A fresh authentication in the last 10 minutes (AUTH-03; `requireReauth`). */
+  reauthFresh: boolean;
 }
 
 export type AuthFailure = 'missing' | 'unknown' | 'revoked' | 'idle' | 'expired' | 'user_disabled';
@@ -27,12 +37,17 @@ interface Row extends Record<string, unknown> {
   tenant_id: string | null;
   role: Role | null;
   membership_status: string | null;
+  mfa_enrolled: boolean;
+  mfa_passed: boolean;
+  tenant_requires_mfa: boolean;
+  reauth_fresh: boolean;
 }
 
 /**
  * Validates a session token (AUTH-02, §5.2): not revoked, under 30 days old, used in the
  * last 12 hours, and its user active. The active tenant counts only while its membership
- * is active, so deactivation and role changes apply on the next request.
+ * is active, so deactivation and role changes apply on the next request; so does the
+ * two-step state.
  * `last_seen_at` moves forward at most once a minute.
  */
 export async function authenticate(idDb: ZoneDb, token: string | undefined): Promise<AuthResult> {
@@ -44,10 +59,16 @@ export async function authenticate(idDb: ZoneDb, token: string | undefined): Pro
           s.expires_at <= now() as expired,
           s.last_seen_at <= now() - interval '12 hours' as idle,
           s.last_seen_at < now() - interval '60 seconds' as stale,
-          m.tenant_id, m.role, m.status as membership_status
+          m.tenant_id, m.role, m.status as membership_status,
+          f.id is not null as mfa_enrolled,
+          s.mfa_at is not null as mfa_passed,
+          exists (select 1 from user_mfa_required_by(s.user_id) r
+                  where r.tenant_id = s.active_tenant_id) as tenant_requires_mfa,
+          s.reauth_at > now() - make_interval(mins => ${REAUTH_WINDOW_MINUTES}) as reauth_fresh
         from sessions s
         join users u on u.id = s.user_id
         left join memberships m on m.tenant_id = s.active_tenant_id and m.user_id = s.user_id
+        left join mfa_factors f on f.user_id = s.user_id and f.confirmed_at is not null
         where s.token_hash = ${hashToken(token)}`,
   );
   const r = rows[0];
@@ -70,8 +91,18 @@ export async function authenticate(idDb: ZoneDb, token: string | undefined): Pro
       email: r.email,
       tenantId: member ? r.tenant_id : null,
       role: member ? r.role : null,
+      mfa: mfaState(r),
+      mfaEnrolled: r.mfa_enrolled,
+      reauthFresh: r.reauth_fresh,
     },
   };
+}
+
+/** The state rule of FEAT-006 §5.2, in order. */
+function mfaState(r: Row): AuthContext['mfa'] {
+  if (r.mfa_enrolled && !r.mfa_passed) return 'challenge';
+  if (r.tenant_requires_mfa && !r.mfa_enrolled) return 'enrol';
+  return 'ok';
 }
 
 /** Sign out (UC-02 step 6). */

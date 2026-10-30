@@ -183,7 +183,13 @@ export const MagicLinkRequest = z.object({
 export const MagicLinkResponse = z.object({ delayed: z.boolean() });
 
 export const MagicLinkVerifyBody = z.object({ token: z.string().max(100) });
-export const MagicLinkVerifyResponse = z.object({ next: z.enum(['app', 'create-workspace']) });
+/**
+ * Where the dashboard goes next. FEAT-006: `mfa` (the code challenge), `mfa-enrol` (forced
+ * enrolment) and `reauthed` (a re-auth link was confirmed; "go back to your tab").
+ */
+export const MagicLinkVerifyResponse = z.object({
+  next: z.enum(['app', 'create-workspace', 'mfa', 'mfa-enrol', 'reauthed']),
+});
 export type MagicLinkVerifyResponse = z.infer<typeof MagicLinkVerifyResponse>;
 
 export const CreateWorkspaceBody = z.object({
@@ -1951,3 +1957,76 @@ export const AiStatus = z.object({
 export type AiStatus = z.infer<typeof AiStatus>;
 export const AiStatusResponse = z.object({ status: AiStatus });
 export type AiStatusResponse = z.infer<typeof AiStatusResponse>;
+
+// ---- Dashboard API: two-step verification and re-auth (AUTH-03; FEAT-006 §3) -------------
+
+export const MfaState = z.enum(['ok', 'challenge', 'enrol']);
+export type MfaState = z.infer<typeof MfaState>;
+
+export const MfaStatus = z.object({
+  /** `challenge`: pass a code first; `enrol`: a workspace requires two-step (§5.2). */
+  state: MfaState,
+  enrolled: z.boolean(),
+  enrolledAt: z.iso.datetime({ offset: true }).nullable(),
+  recoveryCodesLeft: z.number().int().min(0),
+  /** The user's workspaces that require two-step verification (removal is refused). */
+  requiredBy: z.array(z.object({ tenantId: z.uuid(), name: z.string() })),
+  /** Set while five wrong codes lock the code challenge (UC-02 3c). */
+  lockedUntil: z.iso.datetime({ offset: true }).nullable(),
+  email: z.string(),
+});
+export type MfaStatus = z.infer<typeof MfaStatus>;
+
+/** A code from the authenticator app (6 digits) or a recovery code (`xxxxx-xxxxx`). */
+export const MfaCode = z.object({
+  method: z.enum(['totp', 'recovery']),
+  code: z.string().trim().min(1).max(32),
+});
+export type MfaCode = z.infer<typeof MfaCode>;
+
+export const MfaEnrolmentStart = z.object({
+  /** Base32, for typing into the app by hand. */
+  secret: z.string(),
+  otpauthUri: z.string().startsWith('otpauth://totp/'),
+});
+export type MfaEnrolmentStart = z.infer<typeof MfaEnrolmentStart>;
+
+export const MfaEnrolmentConfirm = z.object({ code: z.string().trim().min(1).max(32) });
+export type MfaEnrolmentConfirm = z.infer<typeof MfaEnrolmentConfirm>;
+
+/** Shown once (AUTH-03): ten single-use codes. */
+export const RecoveryCodes = z.object({ codes: z.array(z.string()).length(10) });
+export type RecoveryCodes = z.infer<typeof RecoveryCodes>;
+
+export const ReauthMethod = z.enum(['totp', 'recovery', 'email']);
+export type ReauthMethod = z.infer<typeof ReauthMethod>;
+
+export const ReauthStatus = z.object({
+  fresh: z.boolean(),
+  /** When the 10-minute window closes; null when it's already closed. */
+  until: z.iso.datetime({ offset: true }).nullable(),
+  methods: z.array(ReauthMethod),
+});
+export type ReauthStatus = z.infer<typeof ReauthStatus>;
+
+/**
+ * 403 from any sensitive action without a fresh re-authentication (AUTH-03). Later
+ * features' tests use this one shape; the dashboard's `reauth-dialog` opens with `methods`.
+ */
+export const ReauthRequired = z.object({
+  error: z.literal('reauth_required'),
+  message: z.string(),
+  methods: z.array(ReauthMethod).min(1),
+});
+export type ReauthRequired = z.infer<typeof ReauthRequired>;
+
+export const TeamMfa = z.object({
+  required: z.boolean(),
+  /** Active members of the session's workspace, and how many have two-step on. */
+  members: z.number().int().min(0),
+  enrolled: z.number().int().min(0),
+});
+export type TeamMfa = z.infer<typeof TeamMfa>;
+
+export const TeamMfaBody = z.object({ required: z.boolean() });
+export type TeamMfaBody = z.infer<typeof TeamMfaBody>;

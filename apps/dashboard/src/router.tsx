@@ -1,4 +1,5 @@
 import { createBrowserRouter } from 'react-router';
+import { AccountPage } from './pages/account.tsx';
 import { AssistantPage } from './pages/assistant.tsx';
 import { BusinessProfilePage, SetupProfilePage } from './pages/business-profile.tsx';
 import { AddWebsitePage, SetupSourcesPage } from './pages/add-website.tsx';
@@ -22,6 +23,9 @@ import { PrivacyPage } from './pages/privacy.tsx';
 import { SettingsPage } from './pages/settings.tsx';
 import { SetupRulesPage } from './pages/setup-rules.tsx';
 import { SignInPage } from './pages/sign-in.tsx';
+import { TeamPage } from './pages/team.tsx';
+import { TwoStepPage } from './pages/two-step.tsx';
+import { TwoStepSetupPage } from './pages/two-step-setup.tsx';
 import { NoPermission, NotFound, SessionExpired } from './pages/system.tsx';
 import { VerifyPage } from './pages/verify.tsx';
 import { WelcomePage } from './pages/welcome.tsx';
@@ -40,6 +44,9 @@ export const router = createBrowserRouter([
   { path: '/welcome', element: <WelcomePage /> },
   { path: '/legal/:document', element: <LegalPage /> },
   { path: '/session-expired', element: <SessionExpired /> },
+  // Two-step verification (FEAT-006, SCR-APP-005): the challenge and enrolment.
+  { path: '/two-step', element: <TwoStepPage /> },
+  { path: '/two-step/setup', element: <TwoStepSetupPage /> },
   {
     path: '/',
     element: <AppShell />,
@@ -85,10 +92,14 @@ export const router = createBrowserRouter([
       { path: 'settings/assistant', element: <AssistantPage /> },
       { path: 'settings/business-profile', element: <BusinessProfilePage /> },
       { path: 'settings/privacy', element: <PrivacyPage /> },
+      // Team, its two-step part (FEAT-006, SCR-APP-045 p); FEAT-007 adds members.
+      { path: 'settings/team', element: <TeamPage /> },
       // Channels (FEAT-034, SCR-APP-036).
       { path: 'settings/channels', element: <ChannelsPage /> },
       // Website widget (FEAT-032, SCR-APP-037).
       { path: 'settings/widget', element: <WidgetSettingsPage /> },
+      // My account, its two-step part (FEAT-006, SCR-APP-055 p); FEAT-008 adds the rest.
+      { path: 'account', element: <AccountPage /> },
       { path: 'more', element: <MorePage /> },
       { path: 'no-permission', element: <NoPermission /> },
       { path: '*', element: <NotFound /> },
