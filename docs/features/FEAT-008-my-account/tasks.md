@@ -12,7 +12,7 @@
 
 ## Build session 2 (UI)
 
-- [ ] T4 — Dashboard data: `api.account`/`updateProfile`/`requestEmailChange`/`cancelEmailChange`/`confirmEmailChange`/`sessions`/`revokeSession`; `lib/account.ts` (hooks, the request through `useReauthGuard`, `accountErrorText`, `nameError`), `lib/account.test.ts` (design §5.4)
+- [x] T4 — Dashboard data: `api.account`/`updateProfile`/`requestEmailChange`/`cancelEmailChange`/`confirmEmailChange`/`sessions`/`revokeSession`; `lib/account.ts` (hooks, the request through `useReauthGuard`, `accountErrorText`, `nameError`), `lib/account.test.ts` (design §5.4)
       Done when: `pnpm --filter @kaki/dashboard test` passes with `nameError` (empty, 61 chars, control characters, trimmed) and `accountErrorText` per code; dashboard typecheck clean.
 - [ ] T5 — SCR-APP-055 My account: Profile, Email (default, pending, queued; change dialog; cancel) and Devices cards (list, this device, sign out one with confirm, sign out of all devices) above the FEAT-006 two-step card; placeholder removed; the account menu shows the name; the Team row shows the name (ui-design SCR-APP-055; AC-1, AC-4, AC-5, AC-8)
       Done when: dashboard typecheck and build pass; a stubbed-API Chromium run at 1280 and 375 shows each state in ui-design, logs the bodies of the profile patch and the email request, the re-auth dialog opens on a stubbed 403 `reauth_required` and the request re-runs, focus returns to the trigger after each dialog, axe clean.
