@@ -1,5 +1,5 @@
 # Handoff: FEAT-007 — Team, invitations, roles, approval-rights grants, tenant switcher
-Branch: feat/FEAT-007-team · PR: PRLINK · Updated: 2026-10-31 by build (UI)
+Branch: feat/FEAT-007-team · PR: https://github.com/codeforests/kakiagent/pull/42 · Updated: 2026-10-31 by build (UI)
 Stage done: build (T1–T10 of 10), status developer-done
 Next: verify — kickoff: "Verify FEAT-007 on branch feat/FEAT-007-team. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
 
