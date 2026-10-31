@@ -43,6 +43,10 @@ import {
   type PrivacyNoticeBody,
   type PurposeStatementBody,
   ConversationList,
+  ConversationThread,
+  ThreadPage,
+  CloseConversationResponse,
+  type InboxView,
   CreateWorkspaceResponse,
   MagicLinkResponse,
   MagicLinkVerifyResponse,
@@ -234,7 +238,35 @@ export const api = {
   sessions: () => getJson('/api/v1/me/sessions', DeviceSessionList),
   revokeSession: async (id: string) =>
     void (await send('DELETE', `/api/v1/me/sessions/${encodeURIComponent(id)}`)),
-  conversations: () => getJson('/api/v1/conversations', ConversationList),
+  // Inbox (FEAT-042 §3): views, the thread with older pages, and close.
+  conversations: (q: {
+    view: InboxView;
+    channel: 'widget' | null;
+    cursor?: string | undefined;
+    limit?: number;
+  }) => {
+    const params = new URLSearchParams();
+    if (q.view !== 'open') params.set('view', q.view);
+    if (q.channel) params.set('channel', q.channel);
+    if (q.cursor) params.set('cursor', q.cursor);
+    if (q.limit) params.set('limit', String(q.limit));
+    const qs = params.toString();
+    return getJson(`/api/v1/conversations${qs ? `?${qs}` : ''}`, ConversationList);
+  },
+  conversation: (id: string) =>
+    getJson(`/api/v1/conversations/${encodeURIComponent(id)}`, ConversationThread),
+  conversationMessages: (id: string, before: number) =>
+    getJson(
+      `/api/v1/conversations/${encodeURIComponent(id)}/messages?before=${before}`,
+      ThreadPage,
+    ),
+  closeConversation: (id: string, version: number) =>
+    request(
+      'POST',
+      `/api/v1/conversations/${encodeURIComponent(id)}/close`,
+      CloseConversationResponse,
+      { version },
+    ),
   facts: (filter: FactListQuery) => {
     const params = new URLSearchParams();
     for (const [k, v] of Object.entries(filter))

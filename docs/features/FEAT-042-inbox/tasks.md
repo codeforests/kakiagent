@@ -14,7 +14,7 @@
 
 ## Build session 2 (UI)
 
-- [ ] T5 — Dashboard data: `lib/api.ts` calls, `lib/inbox.ts` (view ↔ URL, `matchesView`, `applySummary`, `appendMessage`, labels), `lib/inbox.test.ts`, `lib/realtime.ts` (list patching per view, counts, thread append, refetch on `ready`) (design §5.5; AC-1, AC-2)
+- [x] T5 — Dashboard data: `lib/api.ts` calls, `lib/inbox.ts` (view ↔ URL, `matchesView`, `applySummary`, `appendMessage`, labels), `lib/inbox.test.ts`, `lib/realtime.ts` (list patching per view, counts, thread append, refetch on `ready`) (design §5.5; AC-1, AC-2)
       Done when: `pnpm --filter @kaki/dashboard test` passes with `applySummary` (insert, move to top, drop on leaving the view, flagged view keeps a closed flagged row), `appendMessage` (dedupe, order), view ↔ URL (default view gives `/inbox`); dashboard typecheck clean.
 - [ ] T6 — SCR-APP-014 Inbox: page header with live state, view tabs with counts, channel filter, rows (avatar with channel badge, state chip, Flagged chip, preview, time), Load more, empty / filtered-empty / loading / error / reconnecting, the pane layout per width and routes `/inbox`, `/inbox/:conversationId` (ui-design SCR-APP-014; AC-1–AC-3, AC-10)
       Done when: dashboard typecheck and build pass; a stubbed-API Chromium run at 1440, 1100 and 375 (tall viewport) shows each list state, switching views updates the URL and list, a stubbed WebSocket `conversation` event moves a row to the top and drops it from a view it left, axe clean; the skeleton testids are kept.

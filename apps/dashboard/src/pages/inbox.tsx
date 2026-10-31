@@ -23,7 +23,10 @@ const time = new Intl.DateTimeFormat('en-SG', {
  */
 export function InboxPage() {
   const live = useInboxSocket();
-  const list = useQuery({ queryKey: ['conversations'], queryFn: api.conversations });
+  const list = useQuery({
+    queryKey: ['inbox-skeleton'],
+    queryFn: () => api.conversations({ view: 'open', channel: null }),
+  });
 
   return (
     <>
