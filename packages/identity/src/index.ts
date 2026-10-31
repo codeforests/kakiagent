@@ -65,7 +65,21 @@ export {
   type AuthFailure,
   type AuthResult,
 } from './sessions.js';
-export { createWorkspace, workspaceSlug, type CreatedWorkspace } from './workspaces.js';
+export {
+  createWorkspace,
+  listWorkspaces,
+  switchWorkspace,
+  workspaceSlug,
+  type CreatedWorkspace,
+  type WorkspaceView,
+} from './workspaces.js';
+export {
+  listTeam,
+  updateMember,
+  type MemberPatch,
+  type TeamMemberView,
+  type TeamView,
+} from './team.js';
 
 /** The session cookie (ADR-020): opaque token, HttpOnly, SameSite=Lax. */
 export const SESSION_COOKIE = 'kaki_session';
