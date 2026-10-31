@@ -1,7 +1,7 @@
 # Tasks: FEAT-008 — My account: profile, email change, sessions list
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: designed · Last updated: 2026-10-31
+> Status: developer-done · Last updated: 2026-10-31
 
 - [x] T1 — Schema: `0041_my_account.sql` (`users.display_name` + check; `sessions.user_agent`; `email_changes` with the partial unique and the due index; grants to `app_identity` only) + Drizzle tables; RLS suite assertion that `app_dashboard` and `app_visitor` can't read `email_changes` or `users` (design §4; AC-7)
       Done when: `drizzle-kit generate` reports no drift after 0041; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes with: a 61-character name refused by the check; a second live request for one user refused by the partial unique; the zone assertions.
@@ -21,16 +21,18 @@
 - [x] T7 — E2E: `e2e/tests/account.e2e.ts` (design §5.5; AC-1–AC-8)
       Done when: the spec typechecks (`pnpm --filter @kaki/e2e typecheck`); it runs in the verify stage's GitHub CI.
       Note: no Docker in cloud sessions, so the E2E run and the screen renders are checked in GitHub CI.
-- [ ] T8 — Verify: full `pnpm lint`, `pnpm typecheck`, `pnpm test`, `test:coverage` for identity, api, dashboard; update `code-map.md` (identity `account.ts`, `device.ts`, `audit-user.ts`; `apps/api/src/account.ts`; `channels.session`; `pages/account-parts.tsx`, `pages/verify-email.tsx`); evidence below
+- [x] T8 — Verify: full `pnpm lint`, `pnpm typecheck`, `pnpm test`, `test:coverage` for identity, api, dashboard; update `code-map.md` (identity `account.ts`, `device.ts`, `audit-user.ts`; `apps/api/src/account.ts`; `channels.session`; `pages/account-parts.tsx`, `pages/verify-email.tsx`); evidence below
       Done when: all pass; evidence recorded.
 
 ## Verification evidence
 
-- AC-1 —
-- AC-2 —
-- AC-3 —
-- AC-4 —
-- AC-5 —
-- AC-6 —
-- AC-7 —
-- AC-8 —
+- AC-1 — identity `account.test.ts` + `api/test/account.int.test.ts` (profile, audit without the name); dashboard `lib/account.test.ts` (`nameError`); E2E `account.e2e.ts` sets, refuses, shows in the menu and clears the name. Stubbed-API browser run (2026-10-31): menu label "Mei Ling / owner@…", focus stays on the field after Save.
+- AC-2 — api `account.int.test.ts` (request leaves the email, confirm changes it, used/expired/replaced/cancelled refused); E2E: link at the new address, old address signs in while pending, confirm, used link refused.
+- AC-3 — identity `account.test.ts` (notice with masked address, queued retry); E2E reads the notice at the old address and checks the new address is not in it.
+- AC-4 — api `account.int.test.ts` (cancel, replace, `same_email` 409, taken address 202 + "already in use" email, `email_taken` 409 on confirm); E2E: `same_email` field error.
+- AC-5 — api `account.int.test.ts` (list, revoke other, 409 current, 404 other user); E2E: two devices listed, the other signed out, its next load goes to sign-in. Stubbed browser run: row removed, toast, focus on the Devices heading, "You're only signed in here."
+- AC-6 — api `ws.int.test.ts` (4401 `session_ended` on sign-out paths, other sessions stay open).
+- AC-7 — db `rls.int.test.ts` (`email_changes`, `users` unreadable by dashboard and visitor zones); api `account.int.test.ts` (another user's session 404).
+- AC-8 — Stubbed-API Playwright run (Chromium, 2026-10-31): My account default and pending, `/verify-email` confirmed/expired/used/taken/error/invalid, each with the `h1` focused, axe serious/critical clean at 1280 light and 375 dark (it caught the FEAT-006 loading `div` with `aria-label`, now a `section`). E2E `account.e2e.ts` covers axe at 1280, 375 and dark in GitHub CI.
+
+Checks (2026-10-31, build UI session): `pnpm format:check`, `pnpm lint` (ESLint + dependency-cruiser), `pnpm typecheck` (26/26) and `pnpm test` (24/24) green. `test:coverage` through `scripts/test-env.sh`: identity 102/102; api 330 passed, only `uploads.int.test.ts` fails (needs LocalStack, fails on main in cloud sessions too); the dashboard has no coverage script (its unit tests run in `pnpm test`). E2E and screen renders: GitHub CI in the verify stage (no Docker here).
