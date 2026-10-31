@@ -62,4 +62,6 @@ GitHub CI run 85 at `e0d0153` (cancelled after Chromium E2E failed) found one de
 
 - F1 (`0911c82`): `/verify-email` "Your email address is now {email}" overflowed the page at 375 px (scrollWidth 449) with a long address, failing AC-8's no-horizontal-scroll check. `.auth__card` gets `min-width: 0` and its title `overflow-wrap: anywhere`. Reproduced locally against the built CSS (401 px before, 375 after).
 
-Run 86 at `0911c82`: integration and coverage failed on FEAT-027's known flake, `apps/api/test/coach.int.test.ts:270` (audit payloads must not match `/fudge|58/i`, and a random fact UUID held `58`). Ken's recorded decision (pending-actions, found verifying FEAT-018) is applied here: UUIDs are stripped from the payload before the match, which keeps the PII check. Not this feature's code.
+Run 86 at `0911c82`: integration and coverage failed on FEAT-027's known flake, `apps/api/test/coach.int.test.ts:270` (audit payloads must not match `/fudge|58/i`, and a random fact UUID held `58`). Ken's recorded decision (pending-actions, found verifying FEAT-018) is applied here: UUIDs are stripped from the payload before the match, which keeps the PII check. Not this feature's code. The same run's Firefox E2E found the `fill` issue corrected above.
+
+Run 87 at `d70ecd4`, 2026-10-31: all jobs green (E2E Chromium, Firefox, WebKit; integration and coverage; unit; lint/typecheck; build and size; eval; Terraform; scanning).
