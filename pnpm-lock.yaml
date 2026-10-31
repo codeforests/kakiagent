@@ -422,6 +422,9 @@ importers:
       '@kaki/identity':
         specifier: workspace:*
         version: link:../../packages/identity
+      '@kaki/inbox':
+        specifier: workspace:*
+        version: link:../../packages/inbox
       '@kaki/kb':
         specifier: workspace:*
         version: link:../../packages/kb

@@ -1,12 +1,19 @@
 import { visitorChannel, type VisitorChannel } from '@kaki/channels';
 import type { Tx } from '@kaki/db';
-import { getConversation } from '@kaki/inbox';
+import { getConversation, type ConversationStatus } from '@kaki/inbox';
 import { visitorTenantState, type VisitorTenantState } from '@kaki/tenancy';
 
 export type GateResult =
   | { open: true; tenant: VisitorTenantState }
   | { open: false; reason: 'paused' | 'not_ai' | 'missing'; tenant: VisitorTenantState | null }
   | { open: false; reason: 'not_live'; tenant: VisitorTenantState; offline: VisitorChannel };
+
+/**
+ * Whether the AI may speak in a conversation in this state (ADR-013 d3; FEAT-042 D2):
+ * escalated and waiting-for-approval conversations are still answered until a person
+ * takes over; `human` stands in for "has a human owner" until FEAT-043's owner row.
+ */
+export const statusOpen = (status: ConversationStatus) => status !== 'human' && status !== 'closed';
 
 /**
  * The AI send gate (ADR-013 decision 3): checked before every turn and before each
@@ -24,7 +31,7 @@ export async function aiAllowed(
   if (!tenant || tenant.aiPaused) return { open: false, reason: 'paused', tenant };
   const conversation = await getConversation(tx, tenantId, conversationId);
   if (!conversation) return { open: false, reason: 'missing', tenant };
-  if (conversation.status !== 'ai') return { open: false, reason: 'not_ai', tenant };
+  if (!statusOpen(conversation.status)) return { open: false, reason: 'not_ai', tenant };
   const channel = await visitorChannel(tx, conversation.channel);
   if (!channel.live) return { open: false, reason: 'not_live', tenant, offline: channel };
   return { open: true, tenant };

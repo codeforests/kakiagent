@@ -20,6 +20,7 @@ import { z } from 'zod';
 import { channelHealthOnce } from './channel-health.js';
 import { gapClusterOnce } from './gap-cluster.js';
 import { staleScanOnce } from './stale-scan.js';
+import { autoCloseOnce } from './auto-close.js';
 
 const config = loadConfig(
   envSchemas.base
@@ -75,6 +76,8 @@ const config = loadConfig(
         .int()
         .positive()
         .default(5 * 60_000),
+      /** Auto-close of idle conversations (INB-08, FEAT-042 §5.3): every minute, first run at start-up. */
+      AUTO_CLOSE_INTERVAL_MS: z.coerce.number().int().positive().default(60_000),
     }),
 );
 const stopTelemetry = startTelemetry('scheduler-worker', config.OTEL_EXPORTER_OTLP_ENDPOINT);
@@ -198,6 +201,14 @@ const channelTimer = setInterval(
   config.CHANNEL_HEALTH_INTERVAL_MS,
 );
 
+// Auto-close (FEAT-042 §5.3, D3): queues a close job for each conversation idle past its
+// channel's limit; the agent-worker closes it with reason `inactive`.
+const autoCloseRun = autoCloseOnce(outboxDb, logger);
+const autoCloseTimer = setInterval(
+  () => void autoCloseOnce(outboxDb, logger),
+  config.AUTO_CLOSE_INTERVAL_MS,
+);
+
 async function shutdown() {
   abort.abort();
   clearInterval(anchorTimer);
@@ -206,6 +217,7 @@ async function shutdown() {
   clearInterval(staleTimer);
   clearInterval(gapTimer);
   clearInterval(channelTimer);
+  clearInterval(autoCloseTimer);
   await Promise.all([
     running.catch(() => {}),
     anchorRun,
@@ -214,6 +226,7 @@ async function shutdown() {
     staleRun,
     gapRun,
     channelRun,
+    autoCloseRun,
   ]);
   health.close();
   await mailer.close();

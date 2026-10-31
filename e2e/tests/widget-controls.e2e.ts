@@ -97,7 +97,8 @@ test('the visitor ends the chat by keyboard and starts a new one', async ({ page
   try {
     const dashboard = await context.newPage();
     await signIn(dashboard, 'owner@kaki-bakery.test');
-    const res = await dashboard.request.get(`${DASHBOARD}/api/v1/conversations`);
+    // Closed conversations are listed under the Closed view (FEAT-042; Open leaves them out).
+    const res = await dashboard.request.get(`${DASHBOARD}/api/v1/conversations?view=closed`);
     expect(res.ok()).toBe(true);
     const { conversations } = (await res.json()) as {
       conversations: { id: string; status: string }[];

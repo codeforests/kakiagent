@@ -232,6 +232,8 @@ export const assistantSettings = pgTable(
   ],
 );
 
+const inList = (values: readonly string[]) => sql.raw(values.map((v) => `'${v}'`).join(', '));
+
 /** System notice kinds on a message (FEAT-023 §4); later kinds extend `messages_notice_ck`. */
 export const NOTICE_KINDS = ['after_hours', 'chat_ended'] as const;
 /** Embedding dimensions: Cohere Embed Multilingual v3 (ADR-019). */
@@ -240,6 +242,30 @@ export const EMBEDDING_DIMENSIONS = 1024;
 export const GAP_REASONS = ['unavailable', 'unsure', 'escalated'] as const;
 /** Why a conversation is flagged for staff (AGT-13, FEAT-025 §4); the inbox filters on it (FEAT-042). */
 export const FLAG_REASONS = ['abuse', 'crisis'] as const;
+/** The INB-08 lifecycle states (FEAT-042 D1: `ai` is "AI handling"). */
+export const CONVERSATION_STATUSES = [
+  'ai',
+  'escalated',
+  'human',
+  'waiting_approval',
+  'closed',
+] as const;
+/** Why a conversation closed (FEAT-042 §4): staff, auto-close, the visitor's End chat, the abuse rule. */
+export const CLOSE_REASONS = ['staff', 'inactive', 'visitor', 'abuse'] as const;
+/** Triage's task kinds as stored on agent replies (FEAT-042 D4); equals `TaskKind.options` (agent test). */
+export const MESSAGE_TASK_KINDS = [
+  'answer',
+  'capture_lead',
+  'request_commitment',
+  'escalate',
+  'handoff_channel',
+  'withdraw_consent',
+  'data_request',
+  'crisis',
+  'abuse',
+  'out_of_scope',
+  'correct',
+] as const;
 
 export const conversations = pgTable(
   'conversations',
@@ -250,9 +276,13 @@ export const conversations = pgTable(
     id: uuid('id').notNull().defaultRandom(),
     channel: text('channel', { enum: ['widget'] }).notNull(),
     visitorId: uuid('visitor_id').notNull(),
-    status: text('status', { enum: ['ai', 'human', 'closed'] })
-      .notNull()
-      .default('ai'),
+    status: text('status', { enum: CONVERSATION_STATUSES }).notNull().default('ai'),
+    /** Bumped by every lifecycle transition: the compare-and-set token (ADR-013 d1). */
+    version: integer('version').notNull().default(0),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+    closeReason: text('close_reason', { enum: CLOSE_REASONS }),
+    /** When the auto-close scan last queued this conversation (FEAT-042 D3). */
+    autoCloseQueuedAt: timestamp('auto_close_queued_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     lastMessageAt: timestamp('last_message_at', { withTimezone: true }).notNull().defaultNow(),
     /** When the conversation was first flagged for staff (AGT-13). */
@@ -279,6 +309,26 @@ export const conversations = pgTable(
       sql`${t.flagReasons} <@ array['abuse', 'crisis']::text[] and (${t.flaggedAt} is null) = (cardinality(${t.flagReasons}) = 0)`,
     ),
     check('conversations_abuse_turns_ck', sql`cardinality(${t.abuseTurns}) <= 20`),
+    check('conversations_status_ck', sql`${t.status} in (${inList(CONVERSATION_STATUSES)})`),
+    check(
+      'conversations_close_reason_ck',
+      sql`${t.closeReason} is null or ${t.closeReason} in (${inList(CLOSE_REASONS)})`,
+    ),
+    check(
+      'conversations_closed_ck',
+      sql`(${t.status} = 'closed') = (${t.closedAt} is not null and ${t.closeReason} is not null)`,
+    ),
+    /** The cross-tenant auto-close scan (FEAT-042 §4). */
+    index('conversations_open_idle_idx')
+      .on(t.lastMessageAt)
+      .where(sql`${t.status} <> 'closed'`),
+    /** The inbox views (FEAT-042 §5.2). */
+    index('conversations_tenant_status_last_idx').on(
+      t.tenantId,
+      t.status,
+      t.lastMessageAt.desc(),
+      t.id.desc(),
+    ),
   ],
 );
 
@@ -315,6 +365,11 @@ export const messages = pgTable(
     gapReason: text('gap_reason', { enum: GAP_REASONS }),
     gapEmbedding: vector('gap_embedding', { dimensions: EMBEDDING_DIMENSIONS }),
     gapCorrectionId: uuid('gap_correction_id'),
+    /** Triage's task kinds on an agent reply, distinct in plan order (FEAT-042 D4). */
+    taskKinds: text('task_kinds', { enum: MESSAGE_TASK_KINDS })
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -352,6 +407,10 @@ export const messages = pgTable(
     check(
       'messages_gap_ck',
       sql`(${t.gapReason} is null) = (${t.gapEmbedding} is null) and (${t.gapCorrectionId} is null or ${t.gapReason} is not null) and (${t.gapReason} is null or ${t.gapReason} in ('unavailable', 'unsure', 'escalated'))`,
+    ),
+    check(
+      'messages_task_kinds_ck',
+      sql`${t.taskKinds} <@ array[${inList(MESSAGE_TASK_KINDS)}]::text[]`,
     ),
   ],
 );
@@ -429,8 +488,6 @@ export const PAGE_REASONS = [
   'bad_stock',
   'too_long',
 ] as const;
-
-const inList = (values: readonly string[]) => sql.raw(values.map((v) => `'${v}'`).join(', '));
 
 /**
  * Knowledge sources (KB_SOURCE, ADR-018 decision 1): one row per website (FEAT-012),

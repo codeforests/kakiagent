@@ -226,7 +226,10 @@ describe('abuse (FEAT-025 AC-7, AC-9)', () => {
 
     const events = (await entriesFor(c.conversationId)).map((e) => [e.event_type, e.payload]);
     expect(events).toContainEqual(['conversation.flagged', { reason: 'abuse' }]);
-    expect(events).toContainEqual(['conversation.ai_ended', { reason: 'abuse' }]);
+    expect(events).toContainEqual([
+      'conversation.ai_ended',
+      { from: 'ai', to: 'closed', reason: 'abuse' },
+    ]);
     const decision = (await entriesFor(second.result!.message.id)).find(
       (e) => e.event_type === 'agent.decision',
     );

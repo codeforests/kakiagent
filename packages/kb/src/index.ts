@@ -279,3 +279,4 @@ export {
   type GapStat,
 } from './coverage.js';
 export { runGapCluster, type GapClusterRow } from './gap-cluster.js';
+export { factChips, type FactChip } from './chips.js';

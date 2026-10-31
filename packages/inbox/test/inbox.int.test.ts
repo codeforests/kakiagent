@@ -153,12 +153,12 @@ describe('inbox repository (visitor trust zone)', () => {
 
   it('lists conversations with the latest message for the dashboard, per tenant', async () => {
     const list = await withTenant(tdb.zone('dashboard'), TENANT_A, (tx) =>
-      listConversations(tx, TENANT_A),
+      listConversations(tx, TENANT_A, { view: 'open', limit: 50 }).then((l) => l.conversations),
     );
     expect(list.length).toBeGreaterThanOrEqual(3);
     expect(list.some((c) => c.lastMessage === 'a')).toBe(true);
     const other = await withTenant(tdb.zone('dashboard'), TENANT_B, (tx) =>
-      listConversations(tx, TENANT_B),
+      listConversations(tx, TENANT_B, { view: 'open', limit: 50 }).then((l) => l.conversations),
     );
     expect(other).toEqual([]);
     const count = await withTenant(tdb.zone('dashboard'), TENANT_B, (tx) =>
@@ -185,7 +185,7 @@ describe('inbox repository (visitor trust zone)', () => {
       flagReasons: ['crisis', 'abuse'],
     });
     const listed = await withTenant(tdb.zone('dashboard'), TENANT_A, (tx) =>
-      listConversations(tx, TENANT_A),
+      listConversations(tx, TENANT_A, { view: 'flagged', limit: 50 }).then((l) => l.conversations),
     );
     expect(listed.find((c) => c.id === conv.id)?.flagReasons).toEqual(['crisis', 'abuse']);
     // Another tenant's context can't flag it.
@@ -446,7 +446,11 @@ describe('visitor ends the chat (FEAT-033 §5.1)', () => {
       expect(again.ended).toBe(false);
       expect(again.conversation.status).toBe('closed');
       expect(await endedAudits(conv.id)).toEqual([
-        { actor_type: 'visitor', actor_ref: visitorId, payload: {} },
+        {
+          actor_type: 'visitor',
+          actor_ref: visitorId,
+          payload: { from, to: 'closed', reason: 'visitor' },
+        },
       ]);
     },
   );

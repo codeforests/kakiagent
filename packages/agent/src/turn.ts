@@ -187,6 +187,8 @@ export async function runVisitorTurn(
         disclosure,
         notice,
         language,
+        // The sidebar's intent signals (FEAT-042 D4).
+        taskKinds: plan?.tasks.map((task) => task.kind) ?? [],
       });
       if (!reply) return null;
       // KB-09 (FEAT-019 §5.2): a question the turn tried to answer and couldn't is a gap.

@@ -476,7 +476,8 @@ describe('flagged conversations and chat-ended notices (FEAT-025)', () => {
       const r = await c.query(
         `update conversations
          set flagged_at = now(), flag_reasons = array['abuse'],
-             abuse_turns = array[gen_random_uuid()], status = 'closed'
+             abuse_turns = array[gen_random_uuid()], status = 'closed',
+             closed_at = now(), close_reason = 'abuse'
          where id = $1 returning flag_reasons, cardinality(abuse_turns) as n`,
         [convA],
       );
@@ -2969,5 +2970,174 @@ describe('my account (FEAT-008)', () => {
       return (await c.query(`select id from email_changes`)).rows;
     });
     expect(rows.length).toBeGreaterThan(0);
+  });
+});
+
+// ---- FEAT-042: inbox lifecycle (FEAT-042 §4; AC-5, AC-6, AC-9) ---------------------------
+
+describe('inbox lifecycle (FEAT-042)', () => {
+  /** Inserts a widget conversation; `sql` maps extra columns to SQL expressions. */
+  const conversation = async (t: string, sql: Record<string, string> = {}) => {
+    const cols = Object.keys(sql);
+    const r = await owner.query<{ id: string }>(
+      `insert into conversations (tenant_id, channel, visitor_id${cols.map((c) => ', ' + c).join('')})
+       values ($1, 'widget', gen_random_uuid()${cols.map((c) => ', ' + sql[c]).join('')}) returning id`,
+      [t],
+    );
+    return r.rows[0]!.id;
+  };
+  const queuedFor = (c: pg.Client, id: string) =>
+    c
+      .query<{
+        n: number;
+      }>(
+        `select count(*)::int as n from outbox where group_key = $1 and payload ->> 'kind' = 'auto_close'`,
+        [id],
+      )
+      .then((r) => r.rows[0]!.n);
+
+  it('a closed conversation needs a close time and reason, and only known states', async () => {
+    await expect(
+      owner.query(
+        `insert into conversations (tenant_id, channel, visitor_id, status) values ($1, 'widget', gen_random_uuid(), 'closed')`,
+        [TENANT_A],
+      ),
+    ).rejects.toThrow(/conversations_closed_ck/);
+    await expect(
+      owner.query(
+        `insert into conversations (tenant_id, channel, visitor_id, status) values ($1, 'widget', gen_random_uuid(), 'paused')`,
+        [TENANT_A],
+      ),
+    ).rejects.toThrow(/conversations_status_ck/);
+    await expect(
+      owner.query(
+        `insert into conversations (tenant_id, channel, visitor_id, closed_at, close_reason) values ($1, 'widget', gen_random_uuid(), now(), 'staff')`,
+        [TENANT_A],
+      ),
+    ).rejects.toThrow(/conversations_closed_ck/);
+    await owner.query(
+      `insert into conversations (tenant_id, channel, visitor_id, status, closed_at, close_reason)
+       values ($1, 'widget', gen_random_uuid(), 'closed', now(), 'staff')`,
+      [TENANT_A],
+    );
+  });
+
+  it('an agent reply stores only known task kinds', async () => {
+    const id = await conversation(TENANT_A);
+    await expect(
+      owner.query(
+        `insert into messages (tenant_id, conversation_id, author, body, task_kinds) values ($1, $2, 'agent', 'x', '{answer,dance}')`,
+        [TENANT_A, id],
+      ),
+    ).rejects.toThrow(/messages_task_kinds_ck/);
+    await owner.query(
+      `insert into messages (tenant_id, conversation_id, author, body, task_kinds) values ($1, $2, 'agent', 'x', '{answer,capture_lead}')`,
+      [TENANT_A, id],
+    );
+  });
+
+  it('the dashboard zone can update the lifecycle columns only', async () => {
+    const id = await conversation(TENANT_A);
+    const rows = await asRole('app_dashboard', TENANT_A, async (c) => {
+      await c.query(
+        `update conversations set status = 'closed', version = version + 1, closed_at = now(), close_reason = 'staff' where id = $1`,
+        [id],
+      );
+      return (await c.query(`select status, version from conversations where id = $1`, [id])).rows;
+    });
+    expect(rows).toEqual([{ status: 'closed', version: 1 }]);
+    for (const set of [
+      `last_message_at = now()`,
+      `flag_reasons = '{abuse}'`,
+      `auto_close_queued_at = now()`,
+    ])
+      await expect(
+        asRole('app_dashboard', TENANT_A, (c) =>
+          c.query(`update conversations set ${set} where id = $1`, [id]),
+        ),
+      ).rejects.toThrow(/permission denied/);
+    // Tenant B's dashboard can't touch tenant A's conversation.
+    const other = await asRole('app_dashboard', TENANT_B, (c) =>
+      c.query(`update conversations set version = version + 1 where id = $1`, [id]),
+    );
+    expect(other.rowCount).toBe(0);
+  });
+
+  it('the visitor zone can write the lifecycle columns', async () => {
+    const id = await conversation(TENANT_A);
+    const out = await asRole('app_agent_visitor', TENANT_A, (c) =>
+      c.query(
+        `update conversations set status = 'closed', version = version + 1, closed_at = now(), close_reason = 'visitor' where id = $1`,
+        [id],
+      ),
+    );
+    expect(out.rowCount).toBe(1);
+  });
+
+  it('inbox_queue_auto_close queues each idle conversation once per idle period', async () => {
+    const idle = await conversation(TENANT_A, { last_message_at: `now() - interval '31 minutes'` });
+    const fresh = await conversation(TENANT_A, {
+      last_message_at: `now() - interval '29 minutes'`,
+    });
+    const closed = await owner.query<{ id: string }>(
+      `insert into conversations (tenant_id, channel, visitor_id, status, closed_at, close_reason, last_message_at)
+       values ($1, 'widget', gen_random_uuid(), 'closed', now(), 'staff', now() - interval '2 hours') returning id`,
+      [TENANT_B],
+    );
+    const counts = await asRole('app_outbox', null, async (c) => {
+      await c.query(`select * from inbox_queue_auto_close()`);
+      const first = [
+        await queuedFor(c, idle),
+        await queuedFor(c, fresh),
+        await queuedFor(c, closed.rows[0]!.id),
+      ];
+      const payload = (
+        await c.query(`select tenant_id, topic, payload from outbox where group_key = $1`, [idle])
+      ).rows;
+      await c.query(`select * from inbox_queue_auto_close()`);
+      const second = await queuedFor(c, idle);
+      return { first, payload, second };
+    });
+    expect(counts.first).toEqual([1, 0, 0]);
+    expect(counts.second).toBe(1);
+    expect(counts.payload).toEqual([
+      {
+        tenant_id: TENANT_A,
+        topic: 'conversation-turns',
+        payload: { kind: 'auto_close', tenantId: TENANT_A, conversationId: idle },
+      },
+    ]);
+  });
+
+  it('a conversation queued before its latest message is due again once idle', async () => {
+    const id = await conversation(TENANT_A, {
+      last_message_at: `now() - interval '40 minutes'`,
+      auto_close_queued_at: `now() - interval '50 minutes'`,
+    });
+    const already = await conversation(TENANT_A, {
+      last_message_at: `now() - interval '50 minutes'`,
+      auto_close_queued_at: `now() - interval '40 minutes'`,
+    });
+    const n = await asRole('app_outbox', null, async (c) => {
+      await c.query(`select * from inbox_queue_auto_close()`);
+      return [await queuedFor(c, id), await queuedFor(c, already)];
+    });
+    expect(n).toEqual([1, 0]);
+  });
+
+  it('only the outbox zone can run the auto-close scan, and its owner cannot sign in', async () => {
+    for (const role of [
+      'app_agent_visitor',
+      'app_dashboard',
+      'app_identity',
+      'app_ingest',
+    ] as const)
+      await expect(
+        asRole(role, TENANT_A, (c) => c.query(`select * from inbox_queue_auto_close()`)),
+      ).rejects.toThrow(/permission denied/);
+    const login = await owner.query(
+      `select rolcanlogin from pg_roles where rolname = 'kaki_inbox_timer'`,
+    );
+    expect(login.rows).toEqual([{ rolcanlogin: false }]);
   });
 });
