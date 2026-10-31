@@ -7,6 +7,7 @@ import {
   MagicLinkVerifyBody,
   MagicLinkVerifyResponse,
   Me,
+  type SessionEndedEvent,
 } from '@kaki/contracts';
 import { eq, schema, withTenant } from '@kaki/db';
 import {
@@ -31,8 +32,9 @@ import {
   type MagicLinkConfig,
   type Role,
 } from '@kaki/identity';
+import { channels, type Publisher } from '@kaki/platform';
 import { createHash } from 'node:crypto';
-import type { FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyBaseLogger, FastifyReply, FastifyRequest } from 'fastify';
 import type { App, Deps } from './server.js';
 
 /** No session (401): `expired` when a cookie was sent but its session is gone (AUTH-02). */
@@ -74,6 +76,22 @@ export const LINKS_PER_EMAIL = 5;
 const LINKS_PER_IP = 20;
 const SESSION_MAX_AGE_S = 30 * 24 * 3600;
 
+/** Tells the realtime role to close each session's sockets (FEAT-008 §5.3), after commit. */
+export async function publishSessionsEnded(
+  publisher: Publisher,
+  log: FastifyBaseLogger,
+  sessionIds: readonly string[],
+) {
+  const event: SessionEndedEvent = { type: 'session_ended' };
+  await Promise.all(
+    sessionIds.map((id) =>
+      publisher
+        .publish(channels.session(id), event)
+        .catch((err: unknown) => log.warn({ err }, 'session_ended publish failed')),
+    ),
+  );
+}
+
 export const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 
 /** Where the Google callback sends each `next` (FEAT-005 §3.3, FEAT-006 §3). */
@@ -93,7 +111,7 @@ const OAUTH_NEXT_COOKIE = 'kaki_oauth_next';
  * (ADR-020, D5), so sign-out, expiry and deactivation apply at once.
  */
 export function registerAuth(app: App, deps: Deps) {
-  const { config, identityDb, dashboardDb, mailer, rateLimiter, google } = deps;
+  const { config, identityDb, dashboardDb, mailer, rateLimiter, google, publisher } = deps;
   const appOrigin = new URL(config.PUBLIC_APP_URL).origin;
   const secure = config.COOKIE_SECURE === 'true';
   const links: MagicLinkConfig = {
@@ -194,6 +212,7 @@ export function registerAuth(app: App, deps: Deps) {
       identityDb,
       token,
       current.ok ? current.auth.sessionId : null,
+      req.headers['user-agent'],
     );
     if (result.next !== 'reauthed') setSession(reply, result.token);
     return MagicLinkVerifyResponse.parse({ next: result.next });
@@ -223,7 +242,7 @@ export function registerAuth(app: App, deps: Deps) {
     if (toInvite) reply.clearCookie(OAUTH_NEXT_COOKIE, { path: '/api/v1/auth/google' });
     try {
       const who = await google.finish(new URL(req.url, appOrigin), req.cookies[OAUTH_COOKIE]);
-      const signedIn = await signInWithGoogle(identityDb, who);
+      const signedIn = await signInWithGoogle(identityDb, who, req.headers['user-agent']);
       setSession(reply, signedIn.token);
       // Back to the invitation, which joins (FEAT-007 D4); two-step comes first if owed.
       const invite = toInvite && (signedIn.next === 'app' || signedIn.next === 'create-workspace');
@@ -236,13 +255,17 @@ export function registerAuth(app: App, deps: Deps) {
 
   app.post('/api/v1/auth/sign-out', async (req, reply) => {
     const r = await authenticate(identityDb, req.cookies[SESSION_COOKIE]);
-    if (r.ok) await revokeSession(identityDb, r.auth.sessionId);
+    if (r.ok) {
+      await revokeSession(identityDb, r.auth.sessionId);
+      await publishSessionsEnded(publisher, req.log, [r.auth.sessionId]);
+    }
     return reply.clearCookie(SESSION_COOKIE, { path: '/' }).code(204).send();
   });
 
   app.post('/api/v1/auth/sign-out-everywhere', async (req, reply) => {
     const a = await authFrom(req, { allow: ['challenge', 'enrol'] });
-    await revokeAllSessions(identityDb, a.userId);
+    const revoked = await revokeAllSessions(identityDb, a.userId);
+    await publishSessionsEnded(publisher, req.log, revoked);
     return reply.clearCookie(SESSION_COOKIE, { path: '/' }).code(204).send();
   });
 
@@ -257,7 +280,7 @@ export function registerAuth(app: App, deps: Deps) {
       if (row) tenant = { id: row.id, name: row.name, status: row.status };
     }
     return Me.parse({
-      user: { id: a.userId, email: a.email },
+      user: { id: a.userId, email: a.email, displayName: a.displayName },
       role: tenant ? a.role : null,
       tenant,
       canApprove:

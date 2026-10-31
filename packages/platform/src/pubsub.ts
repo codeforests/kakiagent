@@ -11,6 +11,12 @@ export const channels = {
   inbox: (tenantId: string) => `t:${tenantId}:inbox`,
   /** One member of a tenant: `session_ended` closes their sockets there (FEAT-007 D5). */
   member: (tenantId: string, userId: string) => `t:${tenantId}:user:${userId}`,
+  /**
+   * One sign-in session: `session_ended` closes its sockets when it is signed out
+   * (FEAT-008 §5.3). Not tenant-prefixed: a session belongs to a user, not a tenant, and
+   * its ID is a random UUID that only the identity zone and the realtime role see.
+   */
+  session: (sessionId: string) => `s:${sessionId}`,
 };
 
 export interface Publisher {

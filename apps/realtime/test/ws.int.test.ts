@@ -163,4 +163,22 @@ describe('/ws', () => {
     expect(a.ws.readyState).toBe(a.ws.OPEN);
     a.ws.terminate();
   });
+
+  it("signing one session out closes its socket; the user's other session stays open (FEAT-008 AC-6)", async () => {
+    const first = await signIn('owner@kaki-bakery.test');
+    const second = await signIn('owner@kaki-bakery.test');
+    const open = async (cookie: string) => {
+      const ws = await app.injectWS('/ws', { headers: { cookie } });
+      const closed = new Promise<number>((resolve) => ws.on('close', (code) => resolve(code)));
+      await new Promise((resolve) => ws.once('message', resolve));
+      return { ws, closed };
+    };
+    const a = await open(first.cookie);
+    const b = await open(second.cookie);
+    expect(subscribed).toContain(channels.session(second.sessionId));
+    emit(channels.session(second.sessionId), { type: 'session_ended' });
+    expect(await b.closed).toBe(4401);
+    expect(a.ws.readyState).toBe(a.ws.OPEN);
+    a.ws.terminate();
+  });
 });

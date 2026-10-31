@@ -153,7 +153,8 @@ export type Role = z.infer<typeof Role>;
 
 /** The signed-in user; role and tenant are null until they have a workspace (FEAT-005 D10). */
 export const Me = z.object({
-  user: z.object({ id: z.uuid(), email: z.string() }),
+  /** `displayName` is the profile name (AUTH-05; FEAT-008), null until set. */
+  user: z.object({ id: z.uuid(), email: z.string(), displayName: z.string().nullable() }),
   role: Role.nullable(),
   tenant: z
     .object({ id: z.uuid(), name: z.string(), status: z.enum(['active', 'suspended']) })
@@ -1734,8 +1735,9 @@ export const RealtimeEvent = z.discriminatedUnion('type', [
 ]);
 export type RealtimeEvent = z.infer<typeof RealtimeEvent>;
 /**
- * A member's role changed or they were deactivated (FEAT-007 D5), on `channels.member`:
- * the realtime role closes their sockets on that tenant with 4401. Never sent to clients.
+ * A member's role changed or they were deactivated (FEAT-007 D5), on `channels.member`, or
+ * a session was signed out (FEAT-008), on `channels.session`: the realtime role closes the
+ * matching sockets with 4401. Never sent to clients.
  */
 export const SessionEndedEvent = z.object({ type: z.literal('session_ended') });
 export type SessionEndedEvent = z.infer<typeof SessionEndedEvent>;
@@ -2191,6 +2193,8 @@ export type InvitableRole = z.infer<typeof InvitableRole>;
 export const TeamMember = z.object({
   userId: z.uuid(),
   email: z.string(),
+  /** The member's profile name (FEAT-008); the page falls back to the email. */
+  displayName: z.string().nullable(),
   role: Role,
   status: z.enum(['active', 'deactivated']),
   /** Only ever true for an agent. */
@@ -2255,3 +2259,59 @@ export const Workspace = z.object({
 export type Workspace = z.infer<typeof Workspace>;
 export const WorkspaceList = z.object({ workspaces: z.array(Workspace) });
 export type WorkspaceList = z.infer<typeof WorkspaceList>;
+
+// ---- Dashboard API: my account (AUTH-05, AUTH-02; FEAT-008 §3) -------------------------
+
+// Tabs, newlines and other control characters would break the menu and the team list.
+// eslint-disable-next-line no-control-regex
+const noControlChars = (s: string) => !/[\u0000-\u001f\u007f-\u009f]/.test(s);
+
+/** The profile name shown to the team and, from FEAT-042, visitors. */
+export const DisplayName = z
+  .string()
+  .trim()
+  .min(1)
+  .max(60)
+  .refine(noControlChars, { message: 'Use letters, numbers and punctuation only' });
+
+export const Account = z.object({
+  email: z.string(),
+  displayName: z.string().nullable(),
+  googleLinked: z.boolean(),
+  /** A requested change not yet confirmed; `queued` while its emails wait for a retry. */
+  pendingEmail: z
+    .object({
+      email: z.string(),
+      requestedAt: z.iso.datetime(),
+      expiresAt: z.iso.datetime(),
+      delivery: z.enum(['sent', 'queued']),
+    })
+    .nullable(),
+});
+export type Account = z.infer<typeof Account>;
+
+/** `null` clears the name. */
+export const ProfilePatch = z.object({ displayName: DisplayName.nullable() }).strict();
+export type ProfilePatch = z.infer<typeof ProfilePatch>;
+
+export const EmailChangeBody = z.object({ email: MagicLinkRequest.shape.email });
+export type EmailChangeBody = z.infer<typeof EmailChangeBody>;
+
+/** The answer to `/email-change/confirm` (its body is `MagicLinkVerifyBody`). */
+export const EmailChangeConfirmed = z.object({ email: z.string() });
+export type EmailChangeConfirmed = z.infer<typeof EmailChangeConfirmed>;
+
+export const DeviceSession = z.object({
+  id: z.uuid(),
+  /** "Chrome on Windows", "Safari on iPhone" or "Unknown device" (D6). */
+  device: z.string(),
+  authMethod: z.enum(['magic_link', 'google']),
+  signedInAt: z.iso.datetime(),
+  lastActiveAt: z.iso.datetime(),
+  current: z.boolean(),
+});
+export type DeviceSession = z.infer<typeof DeviceSession>;
+
+/** Live sessions only, this device first, then by last activity. */
+export const DeviceSessionList = z.object({ sessions: z.array(DeviceSession) });
+export type DeviceSessionList = z.infer<typeof DeviceSessionList>;

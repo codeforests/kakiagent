@@ -6,6 +6,7 @@ import { inviteErrorText, lastActiveText, memberActions, roleLabel, withArticle 
 const member = (over: Partial<TeamMember> = {}): TeamMember => ({
   userId: '00000000-0000-4000-8000-000000000001',
   email: 'staff@kaki-bakery.test',
+  displayName: null,
   role: 'agent',
   status: 'active',
   approvalRights: false,
