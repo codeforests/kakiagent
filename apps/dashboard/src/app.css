@@ -491,6 +491,8 @@ a {
 }
 .inbox__filters {
   display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
   margin-bottom: var(--space-4);
 }
 .inbox__list > .alert {

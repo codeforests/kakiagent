@@ -24,7 +24,7 @@
       Done when: dashboard typecheck and build pass; a stubbed-API Chromium run at 1440 and 375 (tall viewport) shows ai → take over → composer → send → hand back, the 409 `owned` alert and owned bar, request sent, the take-from dialog's focus return, no horizontal scroll, axe clean.
 - [x] T9 — SCR-APP-014 assignee filter and owner captions (ui-design SCR-APP-014; AC-7, AC-10)
       Done when: the stubbed run switches Anyone → Mine → Unassigned → a teammate, the URL follows and a stubbed `conversation` event with a new owner moves the row in or out of the filtered list; axe clean.
-- [ ] T10 — E2E `e2e/tests/takeover.e2e.ts` (design §5.7; AC-1–AC-7, AC-10)
+- [x] T10 — E2E `e2e/tests/takeover.e2e.ts` (design §5.7; AC-1–AC-7, AC-10)
       Done when: the spec typechecks and its steps pass in the cloud session's Chromium where they can run without the stack (stubbed); the full spec runs in the verify stage's GitHub CI.
       Note: no Docker here, so the live-stack run is left to CI (STATE.md, Environment).
 - [ ] T11 — Verify: full `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `test:coverage` for inbox, agent, api, identity, widget, dashboard through `scripts/test-env.sh`; tick tasks; status `developer-done`.
