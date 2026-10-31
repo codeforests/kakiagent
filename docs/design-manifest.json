@@ -268,31 +268,92 @@
       "status": "designed",
       "designed_at": "2026-10-24"
     },
+    "SCR-APP-014": {
+      "name": "Inbox",
+      "surface": "APP",
+      "feature": "FEAT-042",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-042-inbox/ui-design.md#scr-app-014--inbox"
+      },
+      "states": {
+        "covered": [
+          "loading",
+          "empty",
+          "empty view",
+          "filtered-empty",
+          "error",
+          "reconnecting",
+          "populated",
+          "load more",
+          "load more error",
+          "live update",
+          "three-pane",
+          "two-pane",
+          "one-pane"
+        ],
+        "gaps": [
+          "search (FEAT-046)",
+          "assignee filter (FEAT-043)"
+        ],
+        "supplements": []
+      },
+      "contract_bindings": [
+        "GET /api/v1/conversations",
+        "GET /api/v1/conversations/:id",
+        "GET /api/v1/conversations/:id/messages",
+        "POST /api/v1/conversations/:id/close",
+        "WS /ws (message, conversation events)"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-10-31"
+    },
     "SCR-APP-015": {
       "name": "Conversation",
       "surface": "APP",
-      "feature": "anchor",
+      "feature": "FEAT-042",
       "strategy": "code-native",
       "source": {
-        "spec": "02-design/anchor-screens.md#scr-app-015--conversation",
-        "prototype": "02-design/anchors/scr-app-015-conversation.html"
+        "spec": "features/FEAT-042-inbox/ui-design.md#scr-app-015--conversation",
+        "prototype": "02-design/anchors/scr-app-015-conversation.html",
+        "anchor": "02-design/anchor-screens.md#scr-app-015--conversation"
       },
       "states": {
         "covered": [
           "ai-handling",
-          "human-mine",
-          "human-other",
-          "context-sheet"
-        ],
-        "gaps": [
+          "escalated",
+          "human",
           "waiting-for-approval",
           "closed",
+          "closed (not reopenable)",
           "flagged",
+          "loading",
+          "not found",
+          "error",
+          "context-sheet",
+          "context drawer",
+          "context pane",
+          "close conflict",
           "desktop two-pane and three-pane layouts"
+        ],
+        "gaps": [
+          "human-mine, human-other, takeover bar (FEAT-043)",
+          "AI suggestion in the composer (FEAT-045)",
+          "internal notes and tags (FEAT-047)"
         ],
         "supplements": []
       },
-      "contract_bindings": [],
+      "contract_bindings": [
+        "GET /api/v1/conversations/:id",
+        "GET /api/v1/conversations/:id/messages",
+        "POST /api/v1/conversations/:id/close",
+        "WS /ws (message, conversation events)"
+      ],
       "conformance": {
         "result": "pass",
         "corrections": [
@@ -301,7 +362,7 @@
         "escalations": []
       },
       "status": "designed",
-      "designed_at": "2026-10-19"
+      "designed_at": "2026-10-31"
     },
     "SCR-APP-019": {
       "name": "Review · Facts",

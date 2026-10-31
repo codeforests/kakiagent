@@ -63,6 +63,7 @@ All in `packages/agent/src`; read a function by range only when a task changes i
 
 Jump with `grep -n '<anchor>' <file>`, then `sed -n` ~40–80 lines from there. List a file's functions with `grep -n '^export \|^async function\|^function' <file>`. Anchors, not line numbers, so they survive edits.
 
+- `packages/inbox/src/index.ts` (~760, conversations and messages; FEAT-042 adds `lifecycle.ts`, the only writer of `conversations.status`, and `views.ts`): `appendVisitorMessage(` (reopen, FEAT-042), `appendAgentReply(`, `listConversations(`, `flagConversation(`, `endAiConversation(`, `endVisitorConversation(`. Audit entries are read back for the thread's state dividers (`threadEvents`). `apps/agent-worker/src/main.ts` `TurnJob` (turns, and from FEAT-042 the auto-close job).
 - `packages/agent/src/turn.ts` (~370 lines, one big `runVisitorTurn`): `async function store(` (stores the reply, audits the decision; turn outcomes are recorded here), `searchVisitorFacts(` (the retrieval step), `aiAllowed(` (the gate check), `dispatchPlan(`, `answerTurn(`.
 - `packages/agent/src/coach.ts` (~700): `async function prepare(` (tenant state), `export async function answerStep(`, `runCoachingTurn(`, `reanswer(`. `replay.ts` (~480): `prepareQuestion(` (tenant state), `replayQuestion(`, `replayNext(`.
 - `apps/api/src/corrections.ts` (~340): helpers `toItem`, `itemOf`, `contextOf`, `kbEditOf`, `toReplay` above `registerCorrectionRoutes`; inside it, find a route by its path (`grep -n "app\.\(get\|post\)" <file>`). Other `apps/api/src/<area>.ts` files follow the same shape.
