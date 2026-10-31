@@ -92,7 +92,7 @@ export function AppShell({ focused = false }: { focused?: boolean }) {
             acting={change.isPending}
             onOpen={openKillSwitch}
           />
-          <AccountMenu email={me.data?.user.email} />
+          <AccountMenu email={me.data?.user.email} name={me.data?.user.displayName} />
         </header>
         <main id="main" className="content" tabIndex={-1}>
           {lostWorkspace && (

@@ -96,6 +96,7 @@ import {
   UnauthenticatedError,
   UnavailableError,
 } from './auth.js';
+import { accountErrorReply, registerAccountRoutes } from './account.js';
 import { registerMfaRoutes } from './mfa.js';
 import {
   CoachRateLimitedError,
@@ -377,6 +378,8 @@ export async function buildApp(deps: Deps) {
     if (rules) return reply.code(rules.status).send(rules.body);
     const team = teamErrorReply(err);
     if (team) return reply.code(team.status).send(team.body);
+    const account = accountErrorReply(err);
+    if (account) return reply.code(account.status).send(account.body);
     const onboarding = onboardingErrorReply(err);
     if (onboarding) return reply.code(onboarding.status).send(onboarding.body);
     const channel = channelErrorReply(err);
@@ -616,6 +619,7 @@ export async function buildApp(deps: Deps) {
   registerRuleRoutes(app, deps, sessionFrom);
   registerOnboardingRoutes(app, deps, sessionFrom);
   registerTeamRoutes(app, deps, { authFrom, sessionFrom, meOf });
+  registerAccountRoutes(app, deps, { authFrom });
 
   return app;
 }

@@ -19,6 +19,7 @@ describe('team contract (FEAT-007 §3)', () => {
         {
           userId: ID,
           email: 'a@b.sg',
+          displayName: null,
           role: 'agent',
           status: 'active',
           approvalRights: true,

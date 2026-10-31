@@ -51,12 +51,13 @@ async function resetSignInLimits() {
 
 /**
  * Waits for the newest email to `email` sent after `since` holding a link to `path`
- * (a sign-in link by default, `invite` for an invitation, FEAT-007), and returns it.
+ * (a sign-in link by default, `invite` for an invitation, FEAT-007, `verify-email` for an
+ * email change, FEAT-008), and returns it.
  */
 export async function magicLinkFor(
   email: string,
   since: Date,
-  path: 'auth/verify' | 'invite' = 'auth/verify',
+  path: 'auth/verify' | 'invite' | 'verify-email' = 'auth/verify',
 ): Promise<string> {
   const pattern = new RegExp(`https?://\\S+/${path}#token=[\\w-]+`);
   for (let i = 0; i < 60; i++) {
@@ -74,6 +75,29 @@ export async function magicLinkFor(
     await new Promise((r) => setTimeout(r, 500));
   }
   throw new Error(`no email with a ${path} link reached ${email}`);
+}
+
+/** Waits for an email to `email` sent after `since` with this subject; returns its text. */
+export async function emailWithSubject(
+  email: string,
+  since: Date,
+  subject: string,
+): Promise<string> {
+  for (let i = 0; i < 60; i++) {
+    const query = encodeURIComponent(`to:"${email}" subject:"${subject}"`);
+    const list = (await (await fetch(`${MAILPIT}/search?query=${query}`)).json()) as {
+      messages: { ID: string; Created: string }[];
+    };
+    const fresh = list.messages.find((m) => new Date(m.Created) >= since);
+    if (fresh) {
+      const msg = (await (await fetch(`${MAILPIT}/message/${fresh.ID}`)).json()) as {
+        Text: string;
+      };
+      return msg.Text;
+    }
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  throw new Error(`no email "${subject}" reached ${email}`);
 }
 
 /** Asks for a sign-in link on SCR-APP-001 and returns it from Mailpit (FEAT-005). */

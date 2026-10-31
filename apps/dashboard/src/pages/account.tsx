@@ -1,23 +1,35 @@
 import type { MfaStatus } from '@kaki/contracts';
-import { Button, ConfirmDialog, EmptyState, ErrorState, FormDialog } from '@kaki/ui';
+import { Button, ConfirmDialog, ErrorState, FormDialog } from '@kaki/ui';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router';
+import { useAccount } from '../lib/account.ts';
 import { api, ApiError } from '../lib/api.ts';
 import { useToast } from '../lib/form.ts';
 import { dayDate, MFA_KEY, useMfaStatus } from '../lib/mfa.ts';
 import { ReauthCancelled, useReauthGuard } from '../lib/reauth.ts';
+import { CardState, DevicesCard, EmailCard, ProfileCard } from './account-parts.tsx';
 import { RecoveryCodesList, ShieldCheckIcon } from './two-step-parts.tsx';
 
 /**
- * SCR-APP-055 My account, the two-step part (FEAT-006 ui-design); FEAT-008 adds the name,
- * email and devices.
+ * SCR-APP-055 My account: name, email and devices (FEAT-008 ui-design), then the two-step
+ * part (FEAT-006 ui-design).
  */
 export function AccountPage() {
   const status = useMfaStatus();
+  const account = useAccount();
   const [toast, setToast] = useToast();
   const { hash } = useLocation();
   const loaded = !!status.data;
+
+  // Confirmed in another tab: the re-read on focus brings the new address (ui-design).
+  const email = account.data?.email;
+  const seen = useRef(email);
+  useEffect(() => {
+    if (email && seen.current && seen.current !== email)
+      setToast(`Your email address is now ${email}.`);
+    seen.current = email;
+  }, [email, setToast]);
 
   // "Get new codes" from the challenge lands on the card.
   useEffect(() => {
@@ -27,6 +39,27 @@ export function AccountPage() {
   return (
     <>
       <h1 className="page-title">My account</h1>
+      <p className="page-lede">
+        How your team sees you, how you sign in, and where you're signed in.
+      </p>
+      {account.data ? (
+        <>
+          <ProfileCard account={account.data} onToast={setToast} />
+          <EmailCard account={account.data} onToast={setToast} />
+        </>
+      ) : (
+        (['profile', 'email'] as const).map((id) => (
+          <CardState
+            key={id}
+            id={id}
+            title={id === 'profile' ? 'Profile' : 'Email address'}
+            what={id === 'profile' ? 'your profile' : 'your email address'}
+            error={account.isError}
+            onRetry={() => void account.refetch()}
+          />
+        ))
+      )}
+      <DevicesCard onToast={setToast} />
       {status.isError ? (
         <ErrorState
           title="We couldn't load your two-step setting."
@@ -39,18 +72,15 @@ export function AccountPage() {
       ) : status.data ? (
         <TwoStepCard status={status.data} onToast={setToast} />
       ) : (
-        <div
+        <section
           className="card two-step-card"
           aria-busy="true"
           aria-label="Loading two-step verification"
         >
           <div className="skeleton-field" />
           <div className="skeleton-field" />
-        </div>
+        </section>
       )}
-      <EmptyState title="Not built yet">
-        Your name, email and devices arrive here soon, with FEAT-008.
-      </EmptyState>
       {toast && (
         <div className="toast" role="status">
           {toast}

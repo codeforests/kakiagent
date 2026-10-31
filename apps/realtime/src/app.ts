@@ -171,18 +171,25 @@ export async function buildApp(deps: Deps) {
       if (parsedEvent.success && socket.readyState === socket.OPEN)
         socket.send(JSON.stringify(parsedEvent.data));
     });
-    // A role change or deactivation ends this member's sessions here (FEAT-007 D5).
+    const endSession = (e: unknown) => {
+      if (SessionEndedEvent.safeParse(e).success && socket.readyState === socket.OPEN)
+        socket.close(4401, 'session_ended');
+    };
+    // A role change or deactivation ends this member's sessions here (FEAT-007 D5); signing
+    // this session out, from any device, ends it too (FEAT-008 §5.3).
     const unsubscribeMember = await subscriber.subscribe(
       channels.member(tenantId, result.auth.userId),
-      (e) => {
-        if (SessionEndedEvent.safeParse(e).success && socket.readyState === socket.OPEN)
-          socket.close(4401, 'session_ended');
-      },
+      endSession,
+    );
+    const unsubscribeSession = await subscriber.subscribe(
+      channels.session(result.auth.sessionId),
+      endSession,
     );
     socket.send(JSON.stringify({ type: 'ready' }));
     socket.on('close', () => {
       void unsubscribe();
       void unsubscribeMember();
+      void unsubscribeSession();
     });
   });
 

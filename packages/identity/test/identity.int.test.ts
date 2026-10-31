@@ -258,7 +258,7 @@ describe('sessions (AUTH-02)', () => {
     await revokeSession(id(), ra.auth.sessionId);
     expect(await authenticate(id(), a.token)).toEqual({ ok: false, reason: 'revoked' });
     expect((await authenticate(id(), b.token)).ok).toBe(true);
-    expect(await revokeAllSessions(id(), ra.auth.userId)).toBeGreaterThan(0);
+    expect((await revokeAllSessions(id(), ra.auth.userId)).length).toBeGreaterThan(0);
     expect(await authenticate(id(), b.token)).toEqual({ ok: false, reason: 'revoked' });
     expect((await authenticate(id(), other.token)).ok).toBe(true);
   });

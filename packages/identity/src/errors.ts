@@ -103,3 +103,13 @@ export class TeamError extends Error {
 export class NotMemberError extends Error {
   override name = 'NotMemberError';
 }
+
+export type AccountErrorCode = 'same_email' | 'email_taken' | 'current_session' | 'not_found';
+
+/** A My account change that can't be made (FEAT-008 §3); the API maps the code. */
+export class AccountError extends Error {
+  override name = 'AccountError';
+  constructor(readonly code: AccountErrorCode) {
+    super(code);
+  }
+}

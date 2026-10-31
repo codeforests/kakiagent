@@ -1,5 +1,8 @@
 import {
+  Account,
   AiStatusResponse,
+  DeviceSessionList,
+  EmailChangeConfirmed,
   CoachSessionDetail,
   CoachSessionList,
   CoachSessionResponse,
@@ -219,6 +222,18 @@ export const api = {
     request('POST', `/api/v1/workspaces/${encodeURIComponent(tenantId)}/switch`, Me),
   createWorkspace: (body: CreateWorkspaceBody) =>
     request('POST', '/api/v1/workspaces', CreateWorkspaceResponse, body),
+  // My account: name, email change, devices (FEAT-008 §3). Tokens go in bodies, never URLs.
+  account: () => getJson('/api/v1/me/account', Account),
+  updateProfile: (displayName: string | null) =>
+    request('PATCH', '/api/v1/me/profile', Account, { displayName }),
+  requestEmailChange: (email: string) =>
+    request('POST', '/api/v1/me/email-change', Account, { email }),
+  cancelEmailChange: async () => void (await send('DELETE', '/api/v1/me/email-change')),
+  confirmEmailChange: (token: string) =>
+    request('POST', '/api/v1/email-change/confirm', EmailChangeConfirmed, { token }),
+  sessions: () => getJson('/api/v1/me/sessions', DeviceSessionList),
+  revokeSession: async (id: string) =>
+    void (await send('DELETE', `/api/v1/me/sessions/${encodeURIComponent(id)}`)),
   conversations: () => getJson('/api/v1/conversations', ConversationList),
   facts: (filter: FactListQuery) => {
     const params = new URLSearchParams();

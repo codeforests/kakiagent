@@ -15,6 +15,7 @@ import {
   useRevoke,
   useTeam,
   useUpdateMember,
+  memberName,
   withArticle,
   type MemberAction,
 } from '../lib/team.ts';
@@ -170,8 +171,8 @@ function TeamManager({
           onSuccess: () =>
             onToast(
               grant
-                ? `${m.email} can now approve quotes and discounts.`
-                : `${m.email} can no longer approve.`,
+                ? `${memberName(m)} can now approve quotes and discounts.`
+                : `${memberName(m)} can no longer approve.`,
             ),
           onError: () => onToast("That didn't save. Try again."),
         },
@@ -296,14 +297,14 @@ function TeamManager({
         onCloseAutoFocus={returnFocus}
         onSubmit={(role) =>
           memberAsked &&
-          patch(memberAsked, { role }, `${memberAsked.email} is now ${withArticle(role)}.`)
+          patch(memberAsked, { role }, `${memberName(memberAsked)} is now ${withArticle(role)}.`)
         }
       />
 
       <ConfirmDialog
         open={asking?.kind === 'deactivate'}
         onOpenChange={(open) => !open && setAsking(null)}
-        title={`Deactivate ${memberAsked?.email ?? ''}?`}
+        title={`Deactivate ${memberAsked ? memberName(memberAsked) : ''}?`}
         confirmLabel="Deactivate"
         confirmVariant="danger"
         busy={update.isPending}
@@ -311,7 +312,11 @@ function TeamManager({
         onCloseAutoFocus={returnFocus}
         onConfirm={() =>
           memberAsked &&
-          patch(memberAsked, { status: 'deactivated' }, `${memberAsked.email} is deactivated.`)
+          patch(
+            memberAsked,
+            { status: 'deactivated' },
+            `${memberName(memberAsked)} is deactivated.`,
+          )
         }
         alert={changeFailed && <ChangeFailed />}
       >
@@ -322,14 +327,14 @@ function TeamManager({
       <ConfirmDialog
         open={asking?.kind === 'reactivate'}
         onOpenChange={(open) => !open && setAsking(null)}
-        title={`Reactivate ${memberAsked?.email ?? ''}?`}
+        title={`Reactivate ${memberAsked ? memberName(memberAsked) : ''}?`}
         confirmLabel="Reactivate"
         busy={update.isPending}
         busyLabel="Reactivating…"
         onCloseAutoFocus={returnFocus}
         onConfirm={() =>
           memberAsked &&
-          patch(memberAsked, { status: 'active' }, `${memberAsked.email} can sign in again.`)
+          patch(memberAsked, { status: 'active' }, `${memberName(memberAsked)} can sign in again.`)
         }
         alert={changeFailed && <ChangeFailed />}
       >

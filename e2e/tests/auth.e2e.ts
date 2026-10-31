@@ -98,8 +98,8 @@ test('signing out of all devices ends the session on the other device', async ({
   await expect(elsewhere).toHaveURL(/\/sign-in$/);
   await other.close();
 
-  // SCR-APP-059: the first device's next request finds its session ended.
-  await page.goto('/knowledge');
+  // SCR-APP-059: the first device's open socket closes at once (FEAT-008 AC-6), so the
+  // shell shows the session ended without waiting for its next navigation.
   await expect(page).toHaveURL(/\/session-expired$/);
   await expect(page.getByRole('heading', { name: 'Your session has ended' })).toBeVisible();
   await expectNoSeriousA11yViolations(page);

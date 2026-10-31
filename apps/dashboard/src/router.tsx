@@ -30,6 +30,7 @@ import { TwoStepPage } from './pages/two-step.tsx';
 import { TwoStepSetupPage } from './pages/two-step-setup.tsx';
 import { NoPermission, NotFound, SessionExpired } from './pages/system.tsx';
 import { VerifyPage } from './pages/verify.tsx';
+import { VerifyEmailPage } from './pages/verify-email.tsx';
 import { WelcomePage } from './pages/welcome.tsx';
 import { SetupWebsitePage, WidgetSettingsPage } from './pages/widget.tsx';
 import { AppShell } from './shell/app-shell.tsx';
@@ -50,6 +51,8 @@ export const router = createBrowserRouter([
   { path: '/session-expired', element: <SessionExpired /> },
   // Accept an invitation (FEAT-007, SCR-APP-004): signed in or not.
   { path: '/invite', element: <InvitePage /> },
+  // Confirm a new email address (FEAT-008, SCR-APP-055): signed in or not.
+  { path: '/verify-email', element: <VerifyEmailPage /> },
   // Two-step verification (FEAT-006, SCR-APP-005): the challenge and enrolment.
   { path: '/two-step', element: <TwoStepPage /> },
   { path: '/two-step/setup', element: <TwoStepSetupPage /> },
@@ -115,7 +118,7 @@ export const router = createBrowserRouter([
       { path: 'settings/channels', element: <ChannelsPage /> },
       // Website widget (FEAT-032, SCR-APP-037).
       { path: 'settings/widget', element: <WidgetSettingsPage /> },
-      // My account, its two-step part (FEAT-006, SCR-APP-055 p); FEAT-008 adds the rest.
+      // My account (SCR-APP-055): name, email and devices (FEAT-008), two-step (FEAT-006).
       { path: 'account', element: <AccountPage /> },
       { path: 'more', element: <MorePage /> },
       { path: 'no-permission', element: <NoPermission /> },
