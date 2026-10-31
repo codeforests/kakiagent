@@ -1,5 +1,5 @@
 # Handoff: FEAT-008 — My account: profile, email change, sessions list
-Branch: feat/FEAT-008-my-account · PR: draft (see the PR list) · Updated: 2026-10-31 by build (UI)
+Branch: feat/FEAT-008-my-account · PR: https://github.com/codeforests/kakiagent/pull/43 (draft) · Updated: 2026-10-31 by build (UI)
 Stage done: build (T1–T8 of 8), status developer-done
 Next: verify — kickoff: "Verify FEAT-008 on branch feat/FEAT-008-my-account. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
 
