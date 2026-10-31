@@ -267,7 +267,9 @@ describe('corrections (AC-6, AC-7, AC-9)', () => {
       [TENANT_A],
     );
     expect(audit.rows.map((r) => r.event_type)).toContain('correction.accepted');
-    for (const r of audit.rows) expect(r.p).not.toMatch(/fudge|58/i);
+    // IDs are random hex and can hold "58"; strip them so only content is checked.
+    const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+    for (const r of audit.rows) expect(r.p.replace(UUID, '')).not.toMatch(/fudge|58/i);
 
     const again = await call(
       'POST',

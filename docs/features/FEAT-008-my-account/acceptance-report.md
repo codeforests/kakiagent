@@ -26,7 +26,12 @@ Re-derived from SRS v0.4 AUTH-05 ("change their profile name and email"; "takes 
 
 ## Corrected tests
 
-None. Test diff reviewed (`git diff origin/main...HEAD` on `*.test.ts`, `*.int.test.ts`, `e2e/`): no skips, `.only`, `.todo` or deleted cases. The only changed existing assertions follow API changes: `revokeAllSessions` returns IDs (`.length` > 0, same meaning), and `TeamMember` fixtures gain `displayName: null`.
+- `auth.e2e.ts` "signing out of all devices ends the session on the other device" (FEAT-005, `0911c82`): it navigated the first device to `/knowledge` and expected `/session-expired`. With AC-6 the open socket closes at once and the shell already shows `/session-expired`; the first 401 clears the cookie, so the later navigation found no session and went to `/sign-in`. It now expects `/session-expired` without navigating, which asserts more than before (no request needed).
+- `account.e2e.ts` (AC-5, AC-6, `0911c82`): the signed-out device accepted `/sign-in` or `/session-expired` after a navigation (O3 below); it now expects `/session-expired` from the socket alone.
+
+- `coach.int.test.ts` (FEAT-027, the known flake above): strips UUIDs before the `/fudge|58/` content check, per Ken's decision.
+
+Otherwise none. Test diff reviewed (`git diff origin/main...HEAD` on `*.test.ts`, `*.int.test.ts`, `e2e/`): no skips, `.only`, `.todo` or deleted cases. The only changed existing assertions follow API changes: `revokeAllSessions` returns IDs (`.length` > 0, same meaning), and `TeamMember` fixtures gain `displayName: null`.
 
 ## Independent execution
 
@@ -44,7 +49,7 @@ Fresh `pnpm install`, `pnpm tokens`, then at `e0d0153`: `pnpm format:check` clea
 
 - O1 (observation, not blocking): `POST /me/email-change` counts the rate limit before `requireReauth`, so the 403 that opens the re-auth dialog and its retry use two of the five hourly requests. Harmless at 5/hour; swapping the two lines would make each user-visible request cost one.
 - O2 (observation, not blocking): My account's loading, error-with-Try-again, saving and queued states are asserted by the builder's stubbed-API runs, not a committed spec; the backend behind them is covered by the integration suites (as for FEAT-007).
-- O3 (observation, not blocking): the E2E accepts `/sign-in` or `/session-expired` after a device is signed out. With a revoked session's cookie the API answers 401 `session_expired`, so the shell goes to `/session-expired`; ui-design doesn't pin it, and AC-5 asks only for the 401.
+- O3 (resolved by a test correction): the E2E accepted `/sign-in` or `/session-expired` after a device was signed out; the socket close sends it to `/session-expired`, which the spec now pins.
 
 ## RTM
 
@@ -52,4 +57,8 @@ Test ref appended for AUTH-05, and AUTH-02 (partial: sign out one device or all,
 
 ## CI
 
-GitHub CI on `feat/FEAT-008-my-account` at `e0d0153`: result recorded below once the run completes.
+GitHub CI run 85 at `e0d0153` (cancelled after Chromium E2E failed) found one defect, fixed on the branch, and the two test corrections above:
+
+- F1 (`0911c82`): `/verify-email` "Your email address is now {email}" overflowed the page at 375 px (scrollWidth 449) with a long address, failing AC-8's no-horizontal-scroll check. `.auth__card` gets `min-width: 0` and its title `overflow-wrap: anywhere`. Reproduced locally against the built CSS (401 px before, 375 after).
+
+Run 86 at `0911c82`: integration and coverage failed on FEAT-027's known flake, `apps/api/test/coach.int.test.ts:270` (audit payloads must not match `/fudge|58/i`, and a random fact UUID held `58`). Ken's recorded decision (pending-actions, found verifying FEAT-018) is applied here: UUIDs are stripped from the payload before the match, which keeps the PII check. Not this feature's code.
