@@ -9,10 +9,10 @@ Next: build (backend, T1–T5) — kickoff: "Build FEAT-043 (backend) on branch 
 - `messages` `tenant_isolation` policy is FOR ALL; the dashboard's insert is narrowed by a restrictive policy (§4).
 - FEAT-042's db grant assertion on `last_message_at` flips by design (D5); say so in the commit.
 - Seed gains `agent@kaki-bakery.test` ("Mei Ling", agent) for the E2E (T1).
-- D1 (owners/admins take from a teammate) is assumed yes; if Ken says no, drop `from`, `inbox.reassign`, `Me.canReassign` and the dialog.
+- D1 decided by Ken (2026-10-31): owners and admins can take from a teammate.
 
 ## Left to CI or later
 - E2E `takeover.e2e.ts` and screen renders run in the verify stage's GitHub CI (no Docker here).
 
 ## Pending for Ken
-- D1 decision card in the design thread (blocks the build start only if he declines; then edit §3, §5.1, T2, T8 first).
+- None.

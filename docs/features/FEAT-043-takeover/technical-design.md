@@ -121,7 +121,7 @@ Two staff sessions on the dev tenant in two browser contexts: the owner and a ne
 
 ## 7. Decisions
 
-- **D1 — Owners and admins can take a conversation from its owner (pending Ken's card; recommended).** Without it a teammate who leaves mid-chat blocks the conversation until it auto-closes. A new capability `inbox.reassign` (owner, admin), a confirm dialog, an `owner_changed` audit entry and a `taken_from_you` event to the old owner. Agents can only request. If Ken declines, drop `from`, `inbox.reassign` and the dialog; the rest stands.
+- **D1 — Owners and admins can take a conversation from its owner (Ken, 2026-10-31: yes).** Without it a teammate who leaves mid-chat blocks the conversation until it auto-closes. A new capability `inbox.reassign` (owner, admin), a confirm dialog, an `owner_changed` audit entry and a `taken_from_you` event to the old owner. Agents can only request.
 - **D2 — The owner row decides the race; the status follows in the same transaction.** ADR-013 d2's `insert … on conflict do nothing` gives the winner and the loser's answer in one statement; `transition` then moves the status with the usual compare-and-set and audit. The gate checks both the row and the status.
 - **D3 — The visitor sees a snapshot of the display name only.** Taken at take-over through the identity zone (FEAT-008 §8), stored on the owner row and copied to each staff message and notice. Never the email local part (unlike staff-facing `memberNames`); no display name → "A team member". A later name change doesn't rewrite what the visitor was shown. Staff names are staff data, not visitor PII (ADR-015 covers contacts), and the audit log still holds IDs only.
 - **D4 — Notices are system messages rendered server-side in the conversation's language.** The same pattern as after-hours (FEAT-023): stored, replayed over SSE after a reconnect, shown in the inbox thread, and carrying `language` so the widget's locale holds. Hand-back gets its own notice so the visitor knows the assistant answers again (AGT-11's spirit).
@@ -133,7 +133,6 @@ Two staff sessions on the dev tenant in two browser contexts: the owner and a ne
 
 ## 8. Escalations and open items
 
-- **D1 is pending Ken** (decision card in the design thread); the design and tasks assume "yes".
 - Other channels: staff messages are delivered to the widget by the stored message and SSE. When FEAT-036+ add channels with `ChannelAdapter.send`, staff messages and notices go through the outbox to the adapter like AI replies; nothing here branches on channel kind.
 - FEAT-044 (escalation): take-over clears an escalation by moving `escalated → human`; FEAT-044's reminders must stop when the conversation has an owner. FEAT-045 adds "Suggest a reply" to the takeover bar and composer. FEAT-055: hand-back from a conversation whose approval is still pending returns it to `ai` (INB-08's edge); FEAT-055 decides whether it should return to `waiting_approval`.
 - Web push for the hand-over request when the owner isn't in the app is FEAT-048; email alerts FEAT-052.

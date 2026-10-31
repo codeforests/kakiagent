@@ -59,4 +59,3 @@ The dock (FEAT-042's bottom region) now switches by `dockMode(summary, me)`. It 
 
 ## Gaps and escalations
 - "Suggest a reply" in the takeover bar and the suggestion in the composer: FEAT-045. Attachments and saved replies in the composer: FEAT-041, FEAT-047. A staff typing indicator in the widget: not planned (D8).
-- The take-from action depends on Ken's answer to D1.
