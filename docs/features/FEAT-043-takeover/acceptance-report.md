@@ -5,7 +5,7 @@
 
 ## Verdict summary
 
-**Accepted.** INB-02 and INB-09 are met in full; INB-01 gains its "by assignee" filter (by current owner; FEAT-044 widens it to escalation assignees, D7), which completes INB-01. UC-23 steps 3 and 5 and exception 3a are realised. Every criterion has a test that asserts what it says; no test was weakened, and no correction was needed. Every local result below was produced in this session; E2E (`takeover.e2e.ts`, 2 tests, plus the `inbox.e2e.ts` regression after the socket moved to the shell) ran in GitHub CI (CI).
+**Accepted.** INB-02 and INB-09 are met in full; INB-01 gains its "by assignee" filter (by current owner; FEAT-044 widens it to escalation assignees, D7), which completes INB-01. UC-23 steps 3 and 5 and exception 3a are realised. Every criterion has a test that asserts what it says; no test was weakened. CI found two regressions this feature caused (fixed here, CI section) and one clock-dependent FEAT-023 test. Every local result below was produced in this session; E2E (`takeover.e2e.ts`, 2 tests, plus the `inbox.e2e.ts` regression after the socket moved to the shell) ran in GitHub CI (CI).
 
 ## Audit standard
 
@@ -28,7 +28,7 @@ Re-derived from SRS v0.4 INB-02 ("staff can pause the AI in a conversation and r
 
 ## Corrected tests
 
-None. The test diff against `origin/main` was reviewed: the only removed lines in existing tests are fixture shapes widened with the new fields (`assignee: null`, `authorUserId: null`), a reformatted `eventText` call and replaced imports. The one changed assertion (the `last_message_at` grant) is D5's design change and still refuses the other columns.
+`packages/agent/test/language-hours.int.test.ts` (FEAT-023 AC-7, not this feature's): the "closed now" fixture is built from the clock, and near 22:00 SGT the next opening is 00:00, which `hours-text.ts` words as "midnight"; the regex now accepts that wording (90a5eac). No FEAT-043 test was corrected. The test diff against `origin/main` was reviewed: the only removed lines in existing tests are fixture shapes widened with the new fields (`assignee: null`, `authorUserId: null`), a reformatted `eventText` call and replaced imports. The one changed assertion (the `last_message_at` grant) is D5's design change and still refuses the other columns.
 
 ## Independent execution
 
@@ -50,4 +50,6 @@ Test ref appended for INB-02 and INB-09 (this report) and INB-01 (assignee filte
 
 ## CI
 
-GitHub CI on `feat/FEAT-043-takeover`: see below.
+- Run 90 at `868a985`: E2E red in all three browsers. (1) The shell's member-toast live region was a second `role="status"`, so six older specs' `getByRole('status')` hit strict mode; it keeps `aria-live="polite"` without the role. (2) axe `scrollable-region-focusable` on the widget's `ol.log` once staff messages made it scroll; the list is now focusable (`tabIndex=0`). Both fixed in 39087be (production fixes by the verifier under STATE.md's "fix anything red"; dashboard and widget unit tests, lint, typecheck and `pnpm size` re-run green).
+- Run 91 at `39087be`: integration job red on the clock-dependent FEAT-023 test above; cancelled after the fix.
+- **Run 92 at `90a5eac`, 2026-10-31: green** (all jobs, including E2E Chromium, Firefox and WebKit with `takeover.e2e.ts` and the `inbox.e2e.ts` regression, and api coverage with LocalStack).

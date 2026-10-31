@@ -53,7 +53,7 @@ The repo is public, so GitHub Actions minutes are free. CI (`.github/workflows/c
 - **Every feature:** the verify stage runs the full local checks through `scripts/test-env.sh` (`pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `test:coverage` for each package the feature touches), then starts CI on the PR branch (`actions_run_trigger` `run_workflow`, `ci.yml`, ref = the branch), waits for the PR events (no polling), fixes anything red on the branch and re-runs until all jobs are green. The PR body lists both.
 - **E2E** runs in CI (Chromium, Firefox, WebKit). The acceptance report records the run number and commit.
 - Ken's local WSL run (`/mnt/project-files/guides/run-kakiagent-locally.md`) is only a fallback when GitHub CI is unavailable.
-- **Last CI run:** GitHub CI run 89 on FEAT-042 at `9c20589`, 2026-10-31, green.
+- **Last CI run:** GitHub CI run 92 on FEAT-043 at `90a5eac`, 2026-10-31, green.
 
 ## Token tracking (Ken, 2026-10-24; every feature)
 
