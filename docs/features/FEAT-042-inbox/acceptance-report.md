@@ -37,7 +37,7 @@ Test diff reviewed (`git diff origin/main...HEAD` on `*.test.ts`, `*.int.test.ts
 
 ## Independent execution
 
-Fresh `pnpm install`, `pnpm tokens`, at `fe48229`: `pnpm format:check` clean; `pnpm lint` (ESLint + dependency-cruiser, 637 modules, no violations); `pnpm typecheck` 26/26; `pnpm test` 24/24 tasks. `test:coverage` with thresholds through `scripts/test-env.sh`: inbox 36/36, db 170/170, identity 103/103, kb 369/369, COVERAGE_REST. After the added tests, `lifecycle.int` 14/14 at `1e81d9d`. contracts and dashboard have no coverage script; their suites (incl. `inbox-contract.test`, `lib/inbox.test`) pass in `pnpm test`.
+Fresh `pnpm install`, `pnpm tokens`, at `fe48229`: `pnpm format:check` clean; `pnpm lint` (ESLint + dependency-cruiser, 637 modules, no violations); `pnpm typecheck` 26/26; `pnpm test` 24/24 tasks. `test:coverage` with thresholds through `scripts/test-env.sh`: inbox 36/36, db 170/170, identity 103/103, kb 369/369, agent 462/462; api 340 passed + 1 skipped, the only failure `uploads.int` "the S3 presigner" (needs `KAKI_TEST_S3_ENDPOINT`; untouched by the feature, fails on main in cloud sessions, green in CI). After the added tests, `lifecycle.int` 14/14 at `1e81d9d`. contracts, dashboard, scheduler-worker and agent-worker have no coverage script; their suites (incl. `inbox-contract.test`, `lib/inbox.test`) pass in `pnpm test`.
 
 ## Direct verification
 

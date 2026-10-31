@@ -292,7 +292,7 @@ function ThreadLog({
 
   return (
     // Focusable so keyboard users can scroll the thread (axe scrollable-region-focusable;
-    // WebKit doesn't tab to the links inside).
+    // a thread with no fact chips has nothing else to focus).
     <div
       className="thread-scroll"
       ref={ref}
