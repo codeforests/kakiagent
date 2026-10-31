@@ -1,7 +1,7 @@
 # Tasks: FEAT-043 — Take over and hand back, single owner
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: developer-done · Last updated: 2026-10-31 (build, UI)
+> Status: accepted · Last updated: 2026-10-31 (verify)
 
 - [x] T1 — Schema: `0043_takeover.sql` (`conversation_owners` with PK, FK, `(tenant_id, user_id)` index, forced RLS and the tenant policy; `messages.author_user_id`, `author_name`, `messages_staff_author_ck`; notice kinds `staff_joined`, `staff_left` in `NOTICE_KINDS` and the rewritten notice check; grants: `app_dashboard` SELECT/INSERT/DELETE/UPDATE `(user_id, visitor_name, since)` on owners, INSERT on `messages`, UPDATE `(last_message_at)` on `conversations`; `app_agent_visitor` SELECT/DELETE on owners; the restrictive `messages_dashboard_authors` policy) + Drizzle table, columns, `TENANT_SCOPED_TABLES`; seed member `agent@kaki-bakery.test` ("Mei Ling", role agent) in `setup.ts` (design §4, §5.7; AC-9)
       Done when: `drizzle-kit generate` reports no drift after 0043; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes with the RLS case for `conversation_owners` (tenant B sees and deletes nothing of A's), `app_dashboard` inserting a staff row but refused a visitor or agent row, a notice kind outside the four refused, a staff author ID on a visitor row refused, and FEAT-042's grant assertion changed to "`app_dashboard` can update `last_message_at`, not `flag_reasons`" (D5).

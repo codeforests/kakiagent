@@ -86,15 +86,15 @@
 | CHN-12 | Channel health | Must | Active | Gap review v0.3; Appx A A19 | UC-25, UC-27 | ADR-011, ADR-012, ADR-021; SCR-APP-036 | FEAT-034 | features/FEAT-034-channels/acceptance-report.md (partial: email and Telegram alerts with FEAT-052, FEAT-037; failed-send retry per adapter from FEAT-036) |
 | CHN-13 | Visitor controls in the widget | Must | Active | Gap review v0.3 | UC-05, UC-20, UC-23 | ADR-016; SCR-APP-037, SCR-WGT-002, SCR-WGT-006; features/FEAT-033-widget-controls/technical-design.md; features/FEAT-033-widget-controls/ui-design.md | FEAT-033 | features/FEAT-033-widget-controls/acceptance-report.md (partial: privacy link, end chat; talk to a person with FEAT-044) |
 | CHN-14 | Theme matching | Must | Active | Owner request v0.4 | UC-05, UC-20 | ADR-016; SCR-APP-011, SCR-APP-037, SCR-WGT-001, SCR-WGT-002 | FEAT-032 | features/FEAT-032-widget-install-theme/acceptance-report.md |
-| INB-01 | Unified real-time inbox across all channels | Must | Active | Research P2, P3 | UC-23 | ADR-011, ADR-017; SCR-APP-014 | FEAT-042 | features/FEAT-042-inbox/acceptance-report.md (partial: assignee filter with FEAT-043) |
-| INB-02 | Takeover | Must | Active | Research P2, P3; IMDA Agentic AI v1.5 – human checkpoints for high-stakes or irreversible actions | UC-23, UC-31 | ADR-011, ADR-013, ADR-017; SCR-APP-015, SCR-WGT-002 | FEAT-043 | _TBD_ |
+| INB-01 | Unified real-time inbox across all channels | Must | Active | Research P2, P3 | UC-23 | ADR-011, ADR-017; SCR-APP-014 | FEAT-042 | features/FEAT-042-inbox/acceptance-report.md (partial: assignee filter with FEAT-043); features/FEAT-043-takeover/acceptance-report.md (assignee filter) |
+| INB-02 | Takeover | Must | Active | Research P2, P3; IMDA Agentic AI v1.5 – human checkpoints for high-stakes or irreversible actions | UC-23, UC-31 | ADR-011, ADR-013, ADR-017; SCR-APP-015, SCR-WGT-002 | FEAT-043 | features/FEAT-043-takeover/acceptance-report.md |
 | INB-03 | AI-suggested replies for staff (draft only) | Must | Active | Research P2, P3 | UC-16, UC-23 | ADR-008, ADR-010; SCR-APP-015, SCR-APP-021 | FEAT-045 | _TBD_ |
 | INB-04 | Conversation sidebar | Must | Active | Research P2, P3 | UC-23 | SCR-APP-015 | FEAT-042 | features/FEAT-042-inbox/acceptance-report.md |
 | INB-05 | Escalation routing | Must | Active | Research P2, P3; Appx A A12 | UC-23 | ADR-012, ADR-013, ADR-017 | FEAT-044 | _TBD_ |
 | INB-06 | Mobile-first responsive inbox (as a PWA) so owners can reply from their phone | Should | Active | Research P2, P3 | UC-23 | ADR-002 | FEAT-048 | _TBD_ |
 | INB-07 | Internal notes and conversation tags | Should | Active | Research P2, P3 | UC-23 | SCR-APP-015 | FEAT-047 | _TBD_ |
 | INB-08 | Conversation lifecycle | Must | Active | Gap review v0.3; Appx A A14 | UC-20, UC-22, UC-23 | ADR-011, ADR-012, ADR-013; SCR-APP-014 | FEAT-042 | features/FEAT-042-inbox/acceptance-report.md |
-| INB-09 | Concurrent staff | Must | Active | Gap review v0.3; Appx A A14 | UC-23 | ADR-013; SCR-APP-015 | FEAT-043 | _TBD_ |
+| INB-09 | Concurrent staff | Must | Active | Gap review v0.3; Appx A A14 | UC-23 | ADR-013; SCR-APP-015 | FEAT-043 | features/FEAT-043-takeover/acceptance-report.md |
 | INB-10 | Saved replies | Could | Active | Gap review v0.3 | UC-23 | SCR-APP-015 | FEAT-047 | _TBD_ |
 | INB-11 | Conversation search by contact name, email, phone or message text, within the… | Must | Active | Gap review v0.3; Appx A A21 | UC-23 | ADR-004; SCR-APP-014 | FEAT-046 | _TBD_ |
 | LED-01 | Lead capture | Must | Active | Research P3 | UC-21 | SCR-APP-033, SCR-APP-043, SCR-WGT-003 | FEAT-049 | _TBD_ |
