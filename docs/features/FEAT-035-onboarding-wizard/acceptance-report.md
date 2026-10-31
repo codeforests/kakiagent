@@ -51,4 +51,9 @@ Test ref appended for ONB-02, ONB-08 (partial: instrumented), ONB-09, ONB-10 (re
 
 ## CI
 
-Pending: recorded here once the GitHub CI run on the PR branch is green.
+GitHub CI run 81 at `d395fac`, 2026-10-31: all 11 jobs green (E2E Chromium, Firefox, WebKit; integration and coverage; unit; lint/typecheck; build and size; eval; Terraform; scanning). Two earlier runs (79, 80) found two real defects in the new E2E spec's path; the verify session fixed both on the branch (STATE.md, CI: verify fixes anything red), each with its cause in the commit:
+
+- F1 (`8d6c767`): the profile step stayed on `/setup` after "Save and continue". The save updated the profile cache first; the new version re-keys `ProfileForm`, and the remount dropped `record.mutate`'s per-call `onSettled`, which navigates. The cache is now updated in that callback. `business-profile.e2e` and the onboarding spec's step 1 then passed.
+- F2 (`d395fac`): the Channels page's not-ready alert didn't keep focus, because Radix returned focus to the Go live trigger after the page's `setTimeout`. `ConfirmDialog` (`@kaki/ui`) now passes `onCloseAutoFocus` through, and the channel card sends focus to the alert.
+
+Both are UI behaviour that only the real stack exposed; the builder's stubbed run used a different path (no profile re-key; the go-live check, not the Channels page).
