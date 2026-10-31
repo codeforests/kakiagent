@@ -50,6 +50,12 @@ export class AlreadyClosedError extends Error {
   }
 }
 export class ConversationNotFoundError extends Error {}
+/** Someone else owns the conversation (INB-09; FEAT-043): carries who. */
+export class OwnedError extends Error {
+  constructor(readonly owner: { userId: string; visitorName: string | null }) {
+    super('conversation owned by someone else');
+  }
+}
 
 export type LifecycleActor =
   | { type: 'user'; id: string }
@@ -68,6 +74,10 @@ export const LIFECYCLE_ACTIONS = [
   ...Object.values(CLOSE_ACTIONS),
   'conversation.reopened',
   'conversation.state_changed',
+  /** An owner or admin took it from its owner (FEAT-043 D1). */
+  'conversation.owner_changed',
+  /** Someone asked the owner for it (FEAT-043 §5.1); not a state change. */
+  'conversation.handover_requested',
 ] as const;
 
 async function lockRow(tx: Tx, tenantId: string, conversationId: string): Promise<Row> {
@@ -118,6 +128,13 @@ export async function transition(tx: Tx, input: TransitionInput): Promise<Row> {
     )
     .returning();
   if (!row) throw new StateChangedError(await lockRow(tx, input.tenantId, input.conversationId));
+  // A close or a hand-back leaves no owner (FEAT-043 §5.1): every close path runs through here.
+  if (closing || (from === 'human' && input.to === 'ai')) {
+    const o = schema.conversationOwners;
+    await tx
+      .delete(o)
+      .where(and(eq(o.tenantId, input.tenantId), eq(o.conversationId, input.conversationId)));
+  }
   const reopening = from === 'closed';
   const action = closing
     ? CLOSE_ACTIONS[input.reason!]
@@ -148,6 +165,13 @@ export async function closeByStaff(
   // A stale version wins over "already closed": the client hasn't seen the latest state.
   if (current.version !== input.version) throw new StateChangedError(current);
   if (current.status === 'closed') throw new AlreadyClosedError(current);
+  // Only the owner closes a taken-over conversation (FEAT-043 D6).
+  const o = schema.conversationOwners;
+  const [owner] = await tx
+    .select({ userId: o.userId, visitorName: o.visitorName })
+    .from(o)
+    .where(and(eq(o.tenantId, input.tenantId), eq(o.conversationId, input.conversationId)));
+  if (owner && owner.userId !== input.userId) throw new OwnedError(owner);
   return transition(tx, {
     tenantId: input.tenantId,
     conversationId: input.conversationId,

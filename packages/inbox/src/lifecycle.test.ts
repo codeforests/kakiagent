@@ -8,7 +8,8 @@ import {
   TRANSITIONS,
   type ConversationStatus,
 } from './lifecycle.js';
-import { BadCursorError, decodeCursor, encodeCursor } from './views.js';
+import { staffNoticeText } from './ownership.js';
+import { BadCursorError, decodeCursor, encodeCursor, toThreadEvent } from './views.js';
 
 const ALL: ConversationStatus[] = ['ai', 'escalated', 'human', 'waiting_approval', 'closed'];
 
@@ -82,5 +83,70 @@ describe('inbox cursor', () => {
       bad(["2026-10-31'; drop table x;--", '0f8fad5b-d9cb-469f-a165-70867728950e']),
     ])
       expect(() => decodeCursor(raw)).toThrow(BadCursorError);
+  });
+});
+
+describe('takeover notices and dividers (FEAT-043 D4, §5.1)', () => {
+  it('renders the joined and left notices per language, with the name or a fallback', () => {
+    expect(staffNoticeText('staff_joined', 'Mei Ling', 'en')).toBe('Mei Ling joined the chat.');
+    expect(staffNoticeText('staff_joined', null, 'en')).toBe('A team member joined the chat.');
+    expect(staffNoticeText('staff_left', 'Mei Ling', 'en')).toBe(
+      'Mei Ling left the chat. The assistant will keep helping you.',
+    );
+    expect(staffNoticeText('staff_joined', '美玲', 'zh')).toBe('美玲已加入对话。');
+    expect(staffNoticeText('staff_left', null, 'zh')).toBe(
+      '团队成员已离开对话，AI 助手会继续为您服务。',
+    );
+  });
+
+  const USER = '00000000-0000-4000-8000-0000000000a1';
+  const OTHER = '00000000-0000-4000-8000-0000000000b2';
+  const row = (eventType: string, payload: unknown, related: string[] = []) => ({
+    ts: new Date('2026-10-31T09:00:00Z'),
+    eventType,
+    actorType: 'user' as const,
+    actorRef: USER,
+    payload,
+    subjectRefs: ['conversation:c', ...related],
+  });
+
+  it('names take-over, hand-back, take-from and requests', () => {
+    const over = toThreadEvent(
+      row('conversation.state_changed', { from: 'escalated', to: 'human', reason: null }),
+    );
+    expect(over).toMatchObject({
+      from: 'escalated',
+      to: 'human',
+      reason: 'taken_over',
+      subject: null,
+    });
+    const back = toThreadEvent(
+      row('conversation.state_changed', { from: 'human', to: 'ai', reason: null }),
+    );
+    expect(back.reason).toBe('handed_back');
+    const other = toThreadEvent(
+      row('conversation.state_changed', { from: 'ai', to: 'escalated', reason: null }),
+    );
+    expect(other.reason).toBeNull();
+    const from = toThreadEvent(
+      row('conversation.owner_changed', { from: 'human', to: 'human', reason: 'taken_from' }, [
+        `user:${OTHER}`,
+      ]),
+    );
+    expect(from).toMatchObject({
+      reason: 'taken_from',
+      actor: { id: USER },
+      subject: { id: OTHER },
+    });
+    const asked = toThreadEvent(
+      row('conversation.handover_requested', { reason: 'handover_requested' }, [`user:${OTHER}`]),
+    );
+    expect(asked).toMatchObject({
+      kind: 'state',
+      from: null,
+      to: null,
+      reason: 'handover_requested',
+      subject: { id: OTHER },
+    });
   });
 });
