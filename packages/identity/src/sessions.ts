@@ -11,6 +11,8 @@ export interface AuthContext {
   /** The active membership's tenant and role; null without one (no workspace yet). */
   tenantId: string | null;
   role: Role | null;
+  /** The Owner's grant to an Agent to decide approvals (D3; FEAT-007); false without one. */
+  approvalRights: boolean;
   /**
    * Two-step state, computed on every request (FEAT-006 §5.2, D2): `challenge` until an
    * enrolled user passes the code on this session, `enrol` while the active workspace
@@ -37,6 +39,7 @@ interface Row extends Record<string, unknown> {
   tenant_id: string | null;
   role: Role | null;
   membership_status: string | null;
+  approval_rights: boolean | null;
   mfa_enrolled: boolean;
   mfa_passed: boolean;
   tenant_requires_mfa: boolean;
@@ -59,7 +62,7 @@ export async function authenticate(idDb: ZoneDb, token: string | undefined): Pro
           s.expires_at <= now() as expired,
           s.last_seen_at <= now() - interval '12 hours' as idle,
           s.last_seen_at < now() - interval '60 seconds' as stale,
-          m.tenant_id, m.role, m.status as membership_status,
+          m.tenant_id, m.role, m.status as membership_status, m.approval_rights,
           f.id is not null as mfa_enrolled,
           s.mfa_at is not null as mfa_passed,
           exists (select 1 from user_mfa_required_by(s.user_id) r
@@ -91,6 +94,7 @@ export async function authenticate(idDb: ZoneDb, token: string | undefined): Pro
       email: r.email,
       tenantId: member ? r.tenant_id : null,
       role: member ? r.role : null,
+      approvalRights: member && r.approval_rights === true,
       mfa: mfaState(r),
       mfaEnrolled: r.mfa_enrolled,
       reauthFresh: r.reauth_fresh,

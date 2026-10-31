@@ -1,4 +1,4 @@
-export { can, type Role, type Capability } from './capabilities.js';
+export { can, canApprove, type Role, type Capability } from './capabilities.js';
 export {
   CURRENT_TERMS,
   TERMS_DOCUMENTS,
@@ -8,6 +8,7 @@ export {
 } from './terms.js';
 export {
   GoogleSignInError,
+  InvitationError,
   LinkError,
   MfaChallengeError,
   MfaCodeError,
@@ -15,11 +16,36 @@ export {
   MfaLockedError,
   MfaRateLimitError,
   MfaStateError,
+  NotMemberError,
+  TeamError,
   TermsOutdatedError,
+  type InvitationErrorCode,
   type MfaStateCode,
+  type TeamErrorCode,
 } from './errors.js';
-export { normaliseEmail, magicLinkEmail } from './email.js';
-export { hashToken, isTokenShaped, magicLinkToken, newSessionToken } from './tokens.js';
+export { normaliseEmail, magicLinkEmail, inviteEmail } from './email.js';
+export {
+  hashToken,
+  inviteToken,
+  isTokenShaped,
+  magicLinkToken,
+  newSessionToken,
+} from './tokens.js';
+export {
+  acceptInvitation,
+  createInvitation,
+  inviteUrl,
+  listInvitations,
+  lookupInvitation,
+  resendInvitation,
+  revokeInvitation,
+  sendInvitation,
+  sendPendingInvitations,
+  type InvitableRole,
+  type InvitationLookupView,
+  type InvitationView,
+  type TeamActor,
+} from './invitations.js';
 export {
   backoffSeconds,
   consumeMagicLink,

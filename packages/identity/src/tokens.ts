@@ -18,3 +18,10 @@ export const hashToken = (token: string): Buffer => createHash('sha256').update(
  */
 export const magicLinkToken = (secret: string, linkId: string): string =>
   createHmac('sha256', secret).update(`magic-link:${linkId}`).digest('base64url');
+
+/**
+ * The invitation token for an invitation ID (FEAT-007 §5.1): the same secret under its own
+ * domain, so a magic-link token can never pass as an invitation or the reverse.
+ */
+export const inviteToken = (secret: string, invitationId: string): string =>
+  createHmac('sha256', secret).update(`invite:${invitationId}`).digest('base64url');

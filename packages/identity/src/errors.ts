@@ -64,3 +64,42 @@ export class MfaStateError extends Error {
     super(code);
   }
 }
+
+export type InvitationErrorCode =
+  | 'already_member'
+  | 'member_deactivated'
+  | 'invite_pending'
+  | 'invite_wrong_email'
+  | 'not_found'
+  | 'link_expired'
+  | 'link_used'
+  | 'link_invalid';
+
+/** An invitation that can't be made, sent or accepted (FEAT-007 §3); the API maps the code. */
+export class InvitationError extends Error {
+  override name = 'InvitationError';
+  constructor(readonly code: InvitationErrorCode) {
+    super(code);
+  }
+}
+
+export type TeamErrorCode =
+  | 'owner_protected'
+  | 'self_change'
+  | 'not_agent'
+  | 'member_deactivated'
+  | 'forbidden'
+  | 'not_found';
+
+/** A member change the guards refuse (FEAT-007 §3, D3). */
+export class TeamError extends Error {
+  override name = 'TeamError';
+  constructor(readonly code: TeamErrorCode) {
+    super(code);
+  }
+}
+
+/** No active membership in the workspace asked for (FEAT-007 §3): 404. */
+export class NotMemberError extends Error {
+  override name = 'NotMemberError';
+}

@@ -2,18 +2,15 @@ import { schema, sql, type ZoneDb } from '@kaki/db';
 import type { Mailer } from '@kaki/platform';
 import { randomUUID } from 'node:crypto';
 import { magicLinkEmail, normaliseEmail } from './email.js';
-import { LinkError } from './errors.js';
+import { backoffSeconds, type MagicLinkConfig } from './delivery.js';
+import { InvitationError, LinkError } from './errors.js';
+import { joinInvitation, liveInvitationFor } from './invitations.js';
 import { hashToken, isTokenShaped, magicLinkToken } from './tokens.js';
 import { findOrCreateUser, startSession, type SignedIn } from './users.js';
 
-type LinkPurpose = 'sign_in' | 'reauth';
+export { backoffSeconds, type MagicLinkConfig } from './delivery.js';
 
-export interface MagicLinkConfig {
-  /** `MAGIC_LINK_SECRET`: derives each link's token from its ID (D6). */
-  secret: string;
-  /** `PUBLIC_APP_URL`: the dashboard origin the link opens. */
-  appUrl: string;
-}
+type LinkPurpose = 'sign_in' | 'reauth';
 
 /** The link the email carries; the token rides in the fragment (D4). */
 export const magicLinkUrl = (cfg: MagicLinkConfig, linkId: string) =>
@@ -21,15 +18,22 @@ export const magicLinkUrl = (cfg: MagicLinkConfig, linkId: string) =>
 
 /**
  * Records a new link (AUTH-01): 15 minutes of validity, the token's SHA-256 only. The
- * sweep leaves it alone for 30 seconds, while the caller tries to send it at once.
+ * sweep leaves it alone for 30 seconds, while the caller tries to send it at once. A link
+ * asked for from an invitation (FEAT-007 D4) carries it, after checking it is live for
+ * this address (else `InvitationError('invite_wrong_email')`), and joins on verify.
  */
 export async function requestMagicLink(
   idDb: ZoneDb,
   cfg: MagicLinkConfig,
   rawEmail: string,
   reauthSessionId?: string,
+  invitationToken?: string,
 ): Promise<{ id: string }> {
   const id = randomUUID();
+  const invitationId =
+    invitationToken === undefined
+      ? undefined
+      : await liveInvitationFor(idDb, invitationToken, rawEmail);
   await idDb.db.insert(schema.magicLinks).values({
     id,
     email: normaliseEmail(rawEmail),
@@ -38,12 +42,10 @@ export async function requestMagicLink(
     nextAttemptAt: sql`now() + interval '30 seconds'`,
     // A re-auth link confirms one session (FEAT-006 §5.2), with the same limits and expiry.
     ...(reauthSessionId ? { purpose: 'reauth' as const, sessionId: reauthSessionId } : {}),
+    ...(invitationId ? { invitationId } : {}),
   });
   return { id };
 }
-
-/** Retry delay after `attempts` failed sends: 10 s, doubling, at most 2 minutes. */
-export const backoffSeconds = (attempts: number) => Math.min(10 * 2 ** (attempts - 1), 120);
 
 /**
  * Sends one unsent, unexpired link. On failure it schedules the next attempt and
@@ -158,9 +160,11 @@ export async function consumeMagicLink(
   if (!isTokenShaped(token)) throw new LinkError('link_invalid');
   const h = hashToken(token);
   return idDb.db.transaction(async (tx) => {
-    const found = await tx.execute<{ purpose: LinkPurpose; session_id: string | null }>(
-      sql`select purpose, session_id from magic_links where token_hash = ${h}`,
-    );
+    const found = await tx.execute<{
+      purpose: LinkPurpose;
+      session_id: string | null;
+      invitation_id: string | null;
+    }>(sql`select purpose, session_id, invitation_id from magic_links where token_hash = ${h}`);
     const link = found.rows[0];
     if (link?.purpose === 'reauth' && link.session_id !== currentSessionId)
       throw new LinkError('link_other_session');
@@ -190,6 +194,22 @@ export async function consumeMagicLink(
     const user = await findOrCreateUser(tx, email);
     // A disabled user starts no session (the claim rolls back with this error).
     if (user.status !== 'active') throw new LinkError('link_invalid');
-    return startSession(tx, user.id, 'magic_link');
+    // A link from an invitation joins it now (D4); one no longer live is skipped, the user
+    // signs in and SCR-APP-004 explains. A savepoint undoes a claim that didn't join.
+    let joined: string | undefined;
+    if (link?.invitation_id) {
+      const invitationId = link.invitation_id;
+      joined = await tx
+        .transaction(async (sp) => {
+          const r = await joinInvitation(sp, { id: invitationId }, { id: user.id, email });
+          if ('failed' in r) throw new InvitationError(r.failed);
+          return r.tenantId;
+        })
+        .catch((e: unknown) => {
+          if (e instanceof InvitationError) return undefined;
+          throw e;
+        });
+    }
+    return startSession(tx, user.id, 'magic_link', joined);
   });
 }

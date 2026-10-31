@@ -29,3 +29,25 @@ export function magicLinkEmail(
   const subject = reauth ? 'Confirm it’s you' : 'Your KakiAgent sign-in link';
   return { to, subject, text, html };
 }
+
+const ROLE_NAMES = { admin: 'an Admin', agent: 'an Agent' } as const;
+
+/** The invitation email (FEAT-007 §5.1, design.md §6 voice). The link opens SCR-APP-004. */
+export function inviteEmail(
+  to: string,
+  v: { tenantName: string; inviter: string; role: 'admin' | 'agent'; url: string; expiresAt: Date },
+): Email {
+  const until = v.expiresAt.toLocaleDateString('en-SG', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'Asia/Singapore',
+  });
+  const lead = `${v.inviter} invited you to join ${v.tenantName} on KakiAgent as ${ROLE_NAMES[v.role]}.`;
+  const tail = `The link works once, until ${until}. Sign in with ${to} to join. If you weren’t expecting this, you can ignore this email.`;
+  const text = [lead, '', v.url, '', tail].join('\n');
+  const html = `<p>${escapeHtml(lead)}</p>
+<p><a href="${escapeHtml(v.url)}">Join ${escapeHtml(v.tenantName)}</a></p>
+<p>${escapeHtml(tail)}</p>`;
+  return { to, subject: `Join ${v.tenantName} on KakiAgent`, text, html };
+}
