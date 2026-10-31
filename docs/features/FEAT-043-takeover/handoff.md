@@ -1,5 +1,5 @@
 # Handoff: FEAT-043 — Take over and hand back, single owner
-Branch: feat/FEAT-043-takeover · PR: (draft, see below) · Updated: 2026-10-31 by build (UI)
+Branch: feat/FEAT-043-takeover · PR: https://github.com/codeforests/kakiagent/pull/45 (draft) · Updated: 2026-10-31 by build (UI)
 Stage done: build (T1–T11 of 11), status developer-done
 Next: verify — kickoff: "Verify FEAT-043 on branch feat/FEAT-043-takeover. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
 
