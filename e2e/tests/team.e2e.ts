@@ -165,7 +165,14 @@ test('an Owner invites, the invitee joins two businesses, and loses access on a 
   await owner.getByRole('button', { name: `Revoke the invitation to ${gone}` }).click();
   await owner.getByRole('alertdialog').getByRole('button', { name: 'Revoke' }).click();
   await expect(owner.getByRole('status').filter({ hasText: 'Invitation revoked.' })).toBeVisible();
-  await expect(owner.getByRole('heading', { name: 'Invitations' })).toBeFocused();
+  // Focus moves to the Invitations heading, or to "Invite someone" when that was the
+  // last invitation and the section has gone with it.
+  const invitations = owner.getByRole('heading', { name: 'Invitations' });
+  await expect(
+    (await invitations.count()) > 0
+      ? invitations
+      : owner.getByRole('button', { name: 'Invite someone' }).first(),
+  ).toBeFocused();
   await page.goto(goneLink);
   await expect(page.getByRole('heading', { name: "This invitation isn't valid" })).toBeVisible();
   await axeEverywhere(page);
