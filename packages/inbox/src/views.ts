@@ -116,6 +116,25 @@ export async function listConversations(
   };
 }
 
+/** One conversation's summary with its last message body, as the list shows it; null if absent. */
+export async function conversationSummary(
+  tx: Tx,
+  tenantId: string,
+  conversationId: string,
+): Promise<ConversationSummary | null> {
+  const [row] = await tx
+    .select({
+      conversation: c,
+      lastMessage: sql<string | null>`(
+        select m.body from messages m
+        where m.tenant_id = "conversations"."tenant_id" and m.conversation_id = "conversations"."id"
+        order by m.seq desc limit 1)`,
+    })
+    .from(c)
+    .where(and(eq(c.tenantId, tenantId), eq(c.id, conversationId)));
+  return row ? toSummary(row.conversation, row.lastMessage) : null;
+}
+
 /** The tab counts, in one query (closed isn't counted). */
 export async function inboxCounts(tx: Tx, tenantId: string): Promise<InboxCounts> {
   const [row] = await tx

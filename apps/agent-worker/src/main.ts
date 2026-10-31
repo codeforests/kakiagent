@@ -1,8 +1,8 @@
 import { fakeAgentScript, runVisitorTurn } from '@kaki/agent';
 import { usageSink } from '@kaki/analytics';
-import { TurnJob, type RealtimeEvent } from '@kaki/contracts';
-import { createZoneDb, ping } from '@kaki/db';
-import { toMessage, toSummary } from '@kaki/inbox';
+import { TurnQueueJob, type RealtimeEvent } from '@kaki/contracts';
+import { createZoneDb, ping, withTenant } from '@kaki/db';
+import { autoCloseIdle, conversationSummary, toMessage, toSummary } from '@kaki/inbox';
 import { gatewayFromConfig, type UsageEvent } from '@kaki/llm-gateway';
 import {
   channels,
@@ -74,12 +74,31 @@ const consuming = queue.consume<unknown>(
       logger.error({ err, sqsMessageId: raw.MessageId }, 'turn failed; will be retried'),
   },
   async (msg) => {
-    const job = TurnJob.parse(msg.body);
+    const parsed = TurnQueueJob.parse(msg.body);
     const log = logger.child({
       outboxId: msg.id,
-      tenantId: job.tenantId,
-      conversationId: job.conversationId,
+      tenantId: parsed.tenantId,
+      conversationId: parsed.conversationId,
     });
+    // Auto-close (INB-08; FEAT-042 D3) rides this FIFO group, so it can't interleave with
+    // a turn of the same conversation. The re-check makes a stale or duplicate job a no-op.
+    if ('kind' in parsed) {
+      const t = parsed.tenantId;
+      const summary = await withTenant(visitorDb, t, async (tx) => {
+        const closed = await autoCloseIdle(tx, t, parsed.conversationId);
+        return closed ? conversationSummary(tx, t, parsed.conversationId) : null;
+      });
+      if (!summary) {
+        log.info('auto-close skipped: no longer idle or already closed');
+        return;
+      }
+      await publisher
+        .publish(channels.inbox(t), { type: 'conversation', conversation: summary })
+        .catch((err) => log.warn({ err }, 'publish failed; clients will resume from Postgres'));
+      log.info('conversation auto-closed');
+      return;
+    }
+    const job = parsed;
     // Each verified segment goes straight to Valkey (FEAT-022 D7); Postgres keeps the
     // stored message, which replaces the segments.
     const publishSegment = async (segment: { turnId: string; seq: number; text: string }) => {

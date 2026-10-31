@@ -365,6 +365,30 @@ describe('runVisitorTurn (UC-20)', () => {
     expect(calls.generate).toBe(0);
   });
 
+  it.each(['escalated', 'waiting_approval'] as const)(
+    'still answers a conversation that is %s (FEAT-042 D2)',
+    async (status) => {
+      const c = await conversationWith('how much is the fudge cake');
+      await owner.query(`update conversations set status = $2 where id = $1`, [
+        c.conversationId,
+        status,
+      ]);
+      const { result, calls } = await turn(c);
+      expect(calls.generate).toBeGreaterThan(0);
+      expect(result?.message.author).toBe('agent');
+    },
+  );
+
+  it("stores the turn's task kinds on the reply (FEAT-042 D4)", async () => {
+    const c = await conversationWith('how much is the fudge cake');
+    const { result } = await turn(c);
+    const { rows } = await owner.query(`select task_kinds from messages where id = $1`, [
+      result!.message.id,
+    ]);
+    expect(rows[0].task_kinds).toEqual(result!.plan!.tasks.map((t) => t.kind));
+    expect(rows[0].task_kinds).toContain('answer');
+  });
+
   it('stops between segments when the kill switch is pressed mid-reply (AC-14)', async () => {
     const c = await conversationWith('how much is the fudge cake');
     const { llm } = llmWith(() => 'First sentence. Second sentence. Third sentence.');

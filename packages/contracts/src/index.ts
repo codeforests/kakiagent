@@ -1763,6 +1763,16 @@ export const TurnJob = z.object({
   messageId: z.uuid(),
 });
 export type TurnJob = z.infer<typeof TurnJob>;
+/** Queued by `inbox_queue_auto_close()` on the turns topic (INB-08; FEAT-042 D3). */
+export const AutoCloseJob = z.object({
+  kind: z.literal('auto_close'),
+  tenantId: z.uuid(),
+  conversationId: z.uuid(),
+});
+export type AutoCloseJob = z.infer<typeof AutoCloseJob>;
+/** Everything on `conversation-turns`: an auto-close job or a visitor turn. */
+export const TurnQueueJob = z.union([AutoCloseJob, TurnJob]);
+export type TurnQueueJob = z.infer<typeof TurnQueueJob>;
 
 /**
  * One stage of a source's ingestion run (ADR-018 decision 1; FEAT-012 §5.1), or the purge
