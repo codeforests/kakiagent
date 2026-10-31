@@ -14,7 +14,7 @@
 
 ## Build session 2 (UI)
 
-- [ ] T5 — Dashboard data: `api.team`/`invite`/`resendInvite`/`revokeInvite`/`updateMember`/`lookupInvite`/`acceptInvite`/`workspaces`/`switchWorkspace`, the magic-link call's `invitation`; `lib/team.ts` (hooks, `roleLabel`, `inviteErrorText`, `memberActions`), `lib/workspaces.ts`; `lib/team.test.ts` (design §5.4)
+- [x] T5 — Dashboard data: `api.team`/`invite`/`resendInvite`/`revokeInvite`/`updateMember`/`lookupInvite`/`acceptInvite`/`workspaces`/`switchWorkspace`, the magic-link call's `invitation`; `lib/team.ts` (hooks, `roleLabel`, `inviteErrorText`, `memberActions`), `lib/workspaces.ts`; `lib/team.test.ts` (design §5.4)
       Done when: `pnpm --filter @kaki/dashboard test` passes with `memberActions` for each viewer role × member role × status (Owner row and self have none; rights only for the Owner on active Agents) and `inviteErrorText` per error code; dashboard typecheck clean.
 - [ ] T6 — SCR-APP-045 Team: members table (stacked list < 768), invitations section, invite dialog, role/deactivate/reactivate confirm dialogs, rights toggle, Agent read-only view; the FEAT-006 card kept below, the placeholder removed (ui-design SCR-APP-045; AC-4, AC-6, AC-9)
       Done when: dashboard typecheck and build pass; a stubbed-API Chromium run at 1280 and 375 shows each state in ui-design, logs the request bodies of invite, resend, revoke and each patch, focus returns to the row's menu after a dialog, axe clean.

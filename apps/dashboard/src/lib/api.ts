@@ -49,6 +49,12 @@ import {
   ReauthStatus,
   TeamMfa,
   type MfaCode,
+  InvitationLookup,
+  TeamInvitation,
+  TeamResponse,
+  WorkspaceList,
+  type InviteBody,
+  type MemberPatch,
   FactList,
   FactResponse,
   ImportPreview,
@@ -172,8 +178,12 @@ function query(params: Record<string, string | number | undefined>) {
 export const api = {
   me: () => getJson('/api/v1/me', Me),
   authOptions: () => getJson('/api/v1/auth/options', AuthOptions),
-  requestMagicLink: (email: string) =>
-    request('POST', '/api/v1/auth/magic-link', MagicLinkResponse, { email }),
+  /** `invitation`: the invite token, so the link also joins (FEAT-007 §3, SCR-APP-004). */
+  requestMagicLink: (email: string, invitation?: string) =>
+    request('POST', '/api/v1/auth/magic-link', MagicLinkResponse, {
+      email,
+      ...(invitation ? { invitation } : {}),
+    }),
   verifyMagicLink: (token: string) =>
     request('POST', '/api/v1/auth/magic-link/verify', MagicLinkVerifyResponse, { token }),
   signOut: async () => void (await send('POST', '/api/v1/auth/sign-out')),
@@ -192,6 +202,21 @@ export const api = {
   requestReauthLink: () => request('POST', '/api/v1/auth/reauth/email', MagicLinkResponse),
   teamMfa: () => getJson('/api/v1/team/mfa', TeamMfa),
   setTeamMfa: (required: boolean) => request('PUT', '/api/v1/team/mfa', TeamMfa, { required }),
+  // Team, invitations and workspaces (FEAT-007 §3). Tokens go in bodies, never URLs.
+  team: () => getJson('/api/v1/team', TeamResponse),
+  invite: (body: InviteBody) => request('POST', '/api/v1/team/invitations', TeamInvitation, body),
+  resendInvite: (id: string) =>
+    request('POST', `/api/v1/team/invitations/${encodeURIComponent(id)}/resend`, TeamInvitation),
+  revokeInvite: async (id: string) =>
+    void (await send('DELETE', `/api/v1/team/invitations/${encodeURIComponent(id)}`)),
+  updateMember: (userId: string, patch: MemberPatch) =>
+    request('PATCH', `/api/v1/team/members/${encodeURIComponent(userId)}`, TeamResponse, patch),
+  lookupInvite: (token: string) =>
+    request('POST', '/api/v1/invitations/lookup', InvitationLookup, { token }),
+  acceptInvite: (token: string) => request('POST', '/api/v1/invitations/accept', Me, { token }),
+  workspaces: () => getJson('/api/v1/workspaces', WorkspaceList),
+  switchWorkspace: (tenantId: string) =>
+    request('POST', `/api/v1/workspaces/${encodeURIComponent(tenantId)}/switch`, Me),
   createWorkspace: (body: CreateWorkspaceBody) =>
     request('POST', '/api/v1/workspaces', CreateWorkspaceResponse, body),
   conversations: () => getJson('/api/v1/conversations', ConversationList),
