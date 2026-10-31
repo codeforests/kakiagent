@@ -2924,3 +2924,50 @@ describe('team and invitations (FEAT-007)', () => {
     }
   });
 });
+
+describe('my account (FEAT-008)', () => {
+  async function user(email: string) {
+    return (await owner.query(`insert into users (email) values ($1) returning id`, [email]))
+      .rows[0].id as string;
+  }
+
+  it('a display name is 1 to 60 characters', async () => {
+    const id = await user('name-check@example.test');
+    await owner.query(`update users set display_name = $2 where id = $1`, [id, 'x'.repeat(60)]);
+    await expect(
+      owner.query(`update users set display_name = $2 where id = $1`, [id, 'x'.repeat(61)]),
+    ).rejects.toThrow(/users_display_name_ck/);
+    await expect(
+      owner.query(`update users set display_name = '' where id = $1`, [id]),
+    ).rejects.toThrow(/users_display_name_ck/);
+  });
+
+  it('a user has one live email change at a time', async () => {
+    const id = await user('one-live@example.test');
+    const insert = (n: number) =>
+      owner.query(
+        `insert into email_changes (user_id, old_email, new_email, token_hash, expires_at)
+         values ($1, 'one-live@example.test', $2, $3, now() + interval '1 day') returning id`,
+        [id, `new${n}@example.test`, Buffer.from(`hash-${n}-${id}`)],
+      );
+    const first = (await insert(1)).rows[0].id;
+    await expect(insert(2)).rejects.toThrow(/email_changes_live_user_uq/);
+    await owner.query(`update email_changes set cancelled_at = now() where id = $1`, [first]);
+    await insert(3);
+  });
+
+  it('only the identity zone can read users and email changes', async () => {
+    for (const role of ['app_dashboard', 'app_agent_visitor'] as const) {
+      for (const table of ['users', 'email_changes']) {
+        await expect(
+          asRole(role, TENANT_A, (c) => c.query(`select * from ${table}`)),
+        ).rejects.toThrow(/permission denied/);
+      }
+    }
+    const rows = await asRole('app_identity', null, async (c) => {
+      await c.query(`select id, display_name from users limit 1`);
+      return (await c.query(`select id from email_changes`)).rows;
+    });
+    expect(rows.length).toBeGreaterThan(0);
+  });
+});

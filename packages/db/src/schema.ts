@@ -863,8 +863,16 @@ export const users = pgTable(
       .default('active'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     lastSignInAt: timestamp('last_sign_in_at', { withTimezone: true }),
+    /** The profile name shown to the team and, from FEAT-042, visitors (AUTH-05; FEAT-008 D1). */
+    displayName: text('display_name'),
   },
-  (t) => [check('users_status_ck', sql`${t.status} in ('active', 'disabled')`)],
+  (t) => [
+    check('users_status_ck', sql`${t.status} in ('active', 'disabled')`),
+    check(
+      'users_display_name_ck',
+      sql`${t.displayName} is null or char_length(${t.displayName}) between 1 and 60`,
+    ),
+  ],
 );
 
 export const ROLES = ['owner', 'admin', 'agent'] as const;
@@ -943,6 +951,8 @@ export const sessions = pgTable(
     /** The second factor was passed on this session (ADR-020, FEAT-006 §5.2). */
     mfaAt: timestamp('mfa_at', { withTimezone: true }),
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    /** The request's User-Agent, cut to 256 characters, for the devices list (FEAT-008 D6). */
+    userAgent: text('user_agent'),
   },
   (t) => [
     index('sessions_user_live_idx')
@@ -984,6 +994,43 @@ export const magicLinks = pgTable(
     check('magic_links_purpose_ck', sql`${t.purpose} in ('sign_in', 'reauth')`),
     check('magic_links_session_ck', sql`(${t.purpose} = 'reauth') = (${t.sessionId} is not null)`),
     check('magic_links_invitation_ck', sql`${t.purpose} = 'sign_in' or ${t.invitationId} is null`),
+  ],
+);
+
+/**
+ * A pending sign-in email change (AUTH-05; FEAT-008 §4, D2): `users.email` changes only
+ * when the link sent to `new_email` is opened. The token is HMAC(MAGIC_LINK_SECRET,
+ * `email-change:{id}`); only its SHA-256 is stored. `taken` rows carry no link (D5).
+ * One row sends two emails: the link to `new_email` (`sent_at`) and the notice to
+ * `old_email` (`notice_sent_at`). Purged 7 days after it ends (D7).
+ */
+export const emailChanges = pgTable(
+  'email_changes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    oldEmail: text('old_email').notNull(),
+    newEmail: text('new_email').notNull(),
+    tokenHash: bytea('token_hash').notNull().unique(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    confirmedAt: timestamp('confirmed_at', { withTimezone: true }),
+    cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+    taken: boolean('taken').notNull().default(false),
+    sentAt: timestamp('sent_at', { withTimezone: true }),
+    noticeSentAt: timestamp('notice_sent_at', { withTimezone: true }),
+    sendAttempts: integer('send_attempts').notNull().default(0),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('email_changes_live_user_uq')
+      .on(t.userId)
+      .where(sql`${t.confirmedAt} is null and ${t.cancelledAt} is null`),
+    index('email_changes_unsent_idx')
+      .on(t.nextAttemptAt)
+      .where(sql`${t.sentAt} is null or ${t.noticeSentAt} is null`),
   ],
 );
 
