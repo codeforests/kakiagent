@@ -1,7 +1,7 @@
 # Tasks: FEAT-008 — My account: profile, email change, sessions list
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: developer-done · Last updated: 2026-10-31
+> Status: accepted · Last updated: 2026-10-31
 
 - [x] T1 — Schema: `0041_my_account.sql` (`users.display_name` + check; `sessions.user_agent`; `email_changes` with the partial unique and the due index; grants to `app_identity` only) + Drizzle tables; RLS suite assertion that `app_dashboard` and `app_visitor` can't read `email_changes` or `users` (design §4; AC-7)
       Done when: `drizzle-kit generate` reports no drift after 0041; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes with: a 61-character name refused by the check; a second live request for one user refused by the partial unique; the zone assertions.
