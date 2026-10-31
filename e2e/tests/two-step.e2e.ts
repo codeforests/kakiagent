@@ -256,7 +256,7 @@ test.describe('two-step for invited members (FEAT-006 leftovers, FEAT-007 §5.5)
     }
 
     // An Agent: the switch is there but read-only (FEAT-006 AC-9 leftover).
-    const agentPage = await browser.newPage();
+    const agentPage = await (await browser.newContext()).newPage();
     await joinFromInvite(agentPage, agent, links[0]!);
     await expect(agentPage).toHaveURL(/\/inbox$/);
     await agentPage.goto('/settings/team');
@@ -264,13 +264,13 @@ test.describe('two-step for invited members (FEAT-006 leftovers, FEAT-007 §5.5)
     await expect(toggle).toHaveAttribute('aria-disabled', 'true');
     await expect(agentPage.getByText(/^Only the Owner can change this\./)).toBeVisible();
     await expectNoSeriousA11yViolations(agentPage);
-    await agentPage.close();
+    await agentPage.context().close();
 
     // With the requirement on, a new member is sent to set up two-step (FEAT-006 AC-4 leftover).
     await setKakiRequired(true);
-    const laterPage = await browser.newPage();
+    const laterPage = await (await browser.newContext()).newPage();
     await joinFromInvite(laterPage, later, links[1]!);
     await expect(laterPage).toHaveURL(/\/two-step\/setup/);
-    await laterPage.close();
+    await laterPage.context().close();
   });
 });

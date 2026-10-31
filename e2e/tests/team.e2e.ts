@@ -101,11 +101,11 @@ test('an Owner invites, the invitee joins two businesses, and loses access on a 
   await expect(page.getByRole('button', { name: 'Invite someone' })).toHaveCount(0);
 
   // The second tenant's Owner invites the same person, who joins signed in (AC-2, AC-7).
-  const second = await browser.newPage();
+  const second = await (await browser.newContext()).newPage();
   await signIn(second, SECOND_OWNER);
   await second.goto('/settings/team');
   const secondLink = await invite(second, staff, 'Agent');
-  await second.close();
+  await second.context().close();
   await page.goto(secondLink);
   await expect(page.getByRole('heading', { name: `Join ${SECOND}` })).toBeVisible();
   await axeEverywhere(page);
@@ -131,7 +131,7 @@ test('an Owner invites, the invitee joins two businesses, and loses access on a 
   await expect(page.getByTestId('tenant-name')).toHaveText('Kaki Bakery');
 
   // The Owner grants approval rights, then promotes to Admin (AC-4, AC-6).
-  const owner = await browser.newPage();
+  const owner = await (await browser.newContext()).newPage();
   await signIn(owner, OWNER);
   await owner.goto('/settings/team');
   await memberAction(owner, staff, 'Give approval rights');
@@ -169,5 +169,5 @@ test('an Owner invites, the invitee joins two businesses, and loses access on a 
   await page.goto(goneLink);
   await expect(page.getByRole('heading', { name: "This invitation isn't valid" })).toBeVisible();
   await axeEverywhere(page);
-  await owner.close();
+  await owner.context().close();
 });
