@@ -28,7 +28,8 @@ export function MemberToasts() {
 
   const view = event ? memberToastText(event) : null;
   return (
-    <div role="status" aria-live="polite">
+    // aria-live without role="status": pages keep their own single status toast (FEAT-043 verify).
+    <div aria-live="polite">
       {event && view && (
         <div
           ref={ref}
