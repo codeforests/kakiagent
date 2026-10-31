@@ -1,7 +1,7 @@
 # Tasks: FEAT-007 — Team, invitations, roles, approval-rights grants, tenant switcher
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: developer-done · Last updated: 2026-10-31
+> Status: accepted · Last updated: 2026-10-31
 
 - [x] T1 — Schema: `0040_team.sql` (`invitations` with checks, partial unique and indexes, forced RLS, `tenant_isolation` and `identity_lookup` policies; `memberships.approval_rights` + check; `magic_links.invitation_id` + check; `kaki_workspaces` role and `user_workspaces()`; grants) + Drizzle tables; name in `TENANT_SCOPED_TABLES`; RLS suite case (design §4; AC-8)
       Done when: `drizzle-kit generate` reports no drift after 0040; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes with: B can't insert or update A's invitation; `app_dashboard` reads no invitations; `approval_rights = true` on an admin is refused; `user_workspaces(u)` returns only u's rows with names across two tenants; `app_dashboard` can't execute it.
