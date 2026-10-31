@@ -136,7 +136,7 @@ test('a user names themselves, changes their email and signs out another device'
   await page.goto('/account');
   await expect(page.locator('.account-card__address')).toHaveText(next);
 
-  // Devices: two listed, the other one signed out; its next load needs sign-in (AC-5).
+  // Devices: two listed, the other one signed out and its session ended (AC-5, AC-6).
   await expect(page.getByTestId('device')).toHaveCount(2);
   await expect(page.getByTestId('device').first()).toContainText('This device');
   await axeEverywhere(page);
@@ -148,8 +148,8 @@ test('a user names themselves, changes their email and signs out another device'
   await page.getByRole('alertdialog').getByRole('button', { name: 'Sign out' }).click();
   await expect(page.getByTestId('device')).toHaveCount(1);
   await expect(page.getByRole('heading', { name: 'Devices' })).toBeFocused();
-  await second.goto('/inbox');
-  await expect(second).toHaveURL(/\/(sign-in|session-expired)$/);
+  // Its open socket closes at once, so it shows the session ended (AC-6).
+  await expect(second).toHaveURL(/\/session-expired$/);
 
   // The new address signs in to the same workspace.
   await signIn(second, next);

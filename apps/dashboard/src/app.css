@@ -515,6 +515,7 @@ a {
   flex-direction: column;
   gap: var(--space-4);
   width: 100%;
+  min-width: 0;
   max-width: var(--size-reading-max);
   padding: var(--space-8);
   background: var(--color-bg-surface);
@@ -539,6 +540,8 @@ a {
 }
 .auth__card .page-title {
   margin: 0;
+  /* A long email address in the title (FEAT-008 /verify-email) wraps at 375 px. */
+  overflow-wrap: anywhere;
 }
 .auth__card .alert {
   margin-bottom: 0;
