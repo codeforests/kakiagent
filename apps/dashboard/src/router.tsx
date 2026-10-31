@@ -115,7 +115,7 @@ export const router = createBrowserRouter([
       { path: 'settings/channels', element: <ChannelsPage /> },
       // Website widget (FEAT-032, SCR-APP-037).
       { path: 'settings/widget', element: <WidgetSettingsPage /> },
-      // My account, its two-step part (FEAT-006, SCR-APP-055 p); FEAT-008 adds the rest.
+      // My account (SCR-APP-055): name, email and devices (FEAT-008), two-step (FEAT-006).
       { path: 'account', element: <AccountPage /> },
       { path: 'more', element: <MorePage /> },
       { path: 'no-permission', element: <NoPermission /> },

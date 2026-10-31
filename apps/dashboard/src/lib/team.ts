@@ -9,6 +9,13 @@ export const TEAM_KEY = ['team'];
 export const roleLabel = (role: Role) =>
   role === 'owner' ? 'Owner' : role === 'admin' ? 'Admin' : 'Agent';
 
+/** The name a member shows as: their display name when set, else their email (FEAT-008). */
+export const memberName = (m: Pick<TeamMember, 'displayName' | 'email'>) =>
+  m.displayName ?? m.email;
+
+/** An avatar's letter: the first character, whole even when it is CJK or an emoji. */
+export const initialOf = (s: string) => (Array.from(s)[0] ?? ' ').toUpperCase();
+
 /** "an Admin", "an Agent", "an Owner": every role starts with a vowel. */
 export const withArticle = (role: Role) => `an ${roleLabel(role)}`;
 

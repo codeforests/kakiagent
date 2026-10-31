@@ -641,6 +641,13 @@ a {
   font-size: var(--type-body-sm-size);
   color: var(--color-text-secondary);
 }
+.menu__name {
+  display: block;
+  font-size: var(--type-body-size);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
+}
 .menu__item {
   display: flex;
   align-items: center;
@@ -3856,6 +3863,11 @@ a.settings-row:hover {
 .team-row__email {
   overflow-wrap: anywhere;
 }
+.team-row__secondary {
+  overflow-wrap: anywhere;
+  font-size: var(--type-caption-size);
+  color: var(--color-text-secondary);
+}
 .team-row__meta {
   display: none;
   color: var(--color-text-secondary);
@@ -4029,4 +4041,92 @@ a.settings-row:hover {
 .tenant-switcher__role {
   color: var(--color-text-secondary);
   font-size: var(--type-caption-size);
+}
+
+/* ---- My account: profile, email change, devices (SCR-APP-055; FEAT-008) */
+.account-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: var(--size-reading-max);
+  margin-bottom: var(--space-6);
+}
+.account-card p {
+  margin: 0;
+}
+.account-card .kaki-state {
+  align-items: flex-start;
+}
+.account-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.account-form__row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+.account-form__row .input {
+  flex: 1;
+  min-width: 0;
+}
+@media (max-width: 639px) {
+  .account-form__row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+.account-card__address {
+  font-weight: var(--font-weight-medium);
+  overflow-wrap: anywhere;
+}
+.account-card__google {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.account-card__pending {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.account-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.device-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.device-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--space-11);
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--color-border-default);
+}
+.device-row:first-child {
+  border-top: 0;
+}
+.device-row__icon {
+  display: inline-flex;
+  color: var(--color-text-secondary);
+}
+.device-row__text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.device-row__meta {
+  font-size: var(--type-caption-size);
+  color: var(--color-text-secondary);
+}
+.auth__icon--danger {
+  color: var(--color-danger-default);
 }

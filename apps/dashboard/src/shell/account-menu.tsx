@@ -1,20 +1,32 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { Link } from 'react-router';
 import { useSignOut } from '../lib/sign-out.ts';
+import { initialOf } from '../lib/team.ts';
 
-/** The top bar's avatar menu (design.md §3, §4.5 `menu`). */
-export function AccountMenu({ email }: { email: string | undefined }) {
+/** The top bar's avatar menu (design.md §3, §4.5 `menu`); the name from FEAT-008. */
+export function AccountMenu({
+  email,
+  name,
+}: {
+  email: string | undefined;
+  name?: string | null | undefined;
+}) {
   const signOut = useSignOut();
   const signOutEverywhere = useSignOut(true);
   return (
     // Non-modal: a modal menu aria-hides the page while its links stay focusable.
     <DropdownMenu.Root modal={false}>
       <DropdownMenu.Trigger className="avatar avatar--button" aria-label="Account">
-        {email ? email[0]!.toUpperCase() : ' '}
+        {initialOf(name ?? email ?? ' ')}
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content className="menu" align="end" sideOffset={8}>
-          {email && <DropdownMenu.Label className="menu__label">{email}</DropdownMenu.Label>}
+          {email && (
+            <DropdownMenu.Label className="menu__label">
+              {name && <span className="menu__name">{name}</span>}
+              {email}
+            </DropdownMenu.Label>
+          )}
           <DropdownMenu.Item className="menu__item" asChild>
             <Link to="/account">My account</Link>
           </DropdownMenu.Item>

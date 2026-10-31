@@ -7,6 +7,8 @@ import {
   lastActiveText,
   ROLE_CHOICES,
   roleLabel,
+  initialOf,
+  memberName,
   shortDate,
   type InviteErrorText,
   type MemberAction,
@@ -78,7 +80,7 @@ function RowMenu({
       <DropdownMenu.Trigger
         ref={triggerRef}
         className="icon-button"
-        aria-label={`Actions for ${member.email}`}
+        aria-label={`Actions for ${memberName(member)}`}
         aria-busy={busy || undefined}
       >
         <span aria-hidden="true">⋯</span>
@@ -155,13 +157,14 @@ export function MembersSection({
               >
                 <th scope="row" className="team-row__person">
                   <span className="avatar" aria-hidden="true">
-                    {m.email[0]!.toUpperCase()}
+                    {initialOf(memberName(m))}
                   </span>
                   <span className="team-row__who">
                     <span className="team-row__email">
-                      {m.email}
+                      {memberName(m)}
                       {m.you && <span className="chip chip--neutral">You</span>}
                     </span>
+                    {m.displayName && <span className="team-row__secondary">{m.email}</span>}
                     <span className="team-row__meta">
                       {roleLabel(m.role)}
                       {off ? ' · Deactivated' : m.approvalRights ? ' · Can approve' : ''}
@@ -442,7 +445,7 @@ export function RoleDialog({
         if (!next) setPicked(null);
         onOpenChange(next);
       }}
-      title={member ? `Change ${member.email}'s role` : 'Change role'}
+      title={member ? `Change ${memberName(member)}'s role` : 'Change role'}
       busy={busy}
       onCloseAutoFocus={onCloseAutoFocus}
     >
