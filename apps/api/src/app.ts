@@ -7,7 +7,6 @@ import {
   visitorWidgetTheme,
 } from '@kaki/channels';
 import {
-  ConversationList,
   CreateConversationResponse,
   EndConversationResponse,
   SendMessageBody,
@@ -35,7 +34,6 @@ import {
   ConversationClosedError,
   createConversation,
   endVisitorConversation,
-  listConversations,
   NotFoundError,
   recentMessages,
   toMessage,
@@ -117,6 +115,7 @@ import { registerSettingsRoutes } from './settings.js';
 import { registerWidgetRoutes, widgetErrorReply } from './widget.js';
 import { channelErrorReply, registerChannelRoutes } from './channels.js';
 import { onboardingErrorReply, registerOnboardingRoutes } from './onboarding.js';
+import { registerInboxRoutes } from './inbox.js';
 import { registerAiRoutes } from './ai.js';
 import { registerTeamRoutes, teamErrorReply } from './team.js';
 import {
@@ -595,14 +594,7 @@ export async function buildApp(deps: Deps) {
   const { authFrom, sessionFrom, meOf } = registerAuth(app, deps);
   registerMfaRoutes(app, deps, { authFrom, sessionFrom });
 
-  app.get('/api/v1/conversations', async (req) => {
-    const s = await sessionFrom(req);
-    const conversations = await withTenant(dashboardDb, s.tenantId, (tx) =>
-      listConversations(tx, s.tenantId),
-    );
-    return ConversationList.parse({ conversations });
-  });
-
+  registerInboxRoutes(app, deps, sessionFrom, notify);
   registerFactRoutes(app, deps, sessionFrom);
   registerReviewRoutes(app, deps, sessionFrom);
   registerConflictRoutes(app, deps, sessionFrom);
