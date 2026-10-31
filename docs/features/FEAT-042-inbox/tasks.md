@@ -1,7 +1,7 @@
 # Tasks: FEAT-042 — Real-time inbox, conversation view, context sidebar, lifecycle and auto-close
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: designed · Last updated: 2026-10-31
+> Status: designed (backend built T1–T4) · Last updated: 2026-10-31
 
 - [x] T1 — Schema: `0042_inbox_lifecycle.sql` (status enum widened + check; `version`, `closed_at`, `close_reason`, `auto_close_queued_at` with the backfill and `conversations_closed_ck`; the two indexes; `messages.task_kinds` + check; grants to `app_dashboard` and `app_agent_visitor`; role `kaki_inbox_timer`, its policies and `inbox_queue_auto_close()` granted to `app_outbox`) + Drizzle columns and `CLOSE_REASONS` (design §4; AC-5, AC-6, AC-9)
       Done when: `drizzle-kit generate` reports no drift after 0042; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes with: a closed row without `close_reason` refused by the check; an unknown task kind refused; `app_dashboard` can update `status` but not `last_message_at`/`flag_reasons`; `app_dashboard` and `app_agent_visitor` can't execute `inbox_queue_auto_close()`.

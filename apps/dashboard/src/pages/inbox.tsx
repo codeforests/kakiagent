@@ -3,7 +3,14 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api.ts';
 import { useInboxSocket } from '../lib/realtime.ts';
 
-const STATUS_LABEL = { ai: 'AI handling', human: 'Human', closed: 'Closed' } as const;
+// FEAT-042's UI session replaces this skeleton list (SCR-APP-014).
+const STATUS_LABEL = {
+  ai: 'AI handling',
+  escalated: 'Escalated',
+  human: 'Human',
+  waiting_approval: 'Waiting for approval',
+  closed: 'Closed',
+} as const;
 const time = new Intl.DateTimeFormat('en-SG', {
   hour: 'numeric',
   minute: '2-digit',
