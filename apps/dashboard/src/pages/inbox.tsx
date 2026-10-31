@@ -16,7 +16,7 @@ import {
   viewFromSearch,
   type InboxFilter,
 } from '../lib/inbox.ts';
-import { inboxEvents, useInboxSocket, type LiveState } from '../lib/realtime.ts';
+import { inboxEvents, useLiveState, type LiveState } from '../lib/realtime.ts';
 import { ConversationPane } from './conversation.tsx';
 import { FlaggedChip, StateChip, VisitorAvatar } from './conversation-parts.tsx';
 
@@ -46,7 +46,7 @@ export function InboxPage() {
   const [search] = useSearchParams();
   const filter = viewFromSearch(search);
   const qs = searchFromView(filter);
-  const live = useInboxSocket();
+  const live = useLiveState();
 
   return (
     <div className={`inbox ${conversationId ? 'inbox--thread' : 'inbox--list'}`}>
