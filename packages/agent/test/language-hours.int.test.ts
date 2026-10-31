@@ -255,7 +255,7 @@ describe('after hours (FEAT-023 AC-7)', () => {
     expect(first.result).toMatchObject({ outcome: 'answered', afterHours: true });
     expect(first.result!.message.factIds).toEqual([fudge]);
     expect(first.result!.message.notice).toMatch(
-      /^We're closed right now\. The team will be back (today|tomorrow) at \d{1,2}:00 (am|pm)\. I can still answer your questions in the meantime\.$/,
+      /^We're closed right now\. The team will be back (today|tomorrow) at (\d{1,2}:00 (am|pm)|midnight)\. I can still answer your questions in the meantime\.$/,
     );
     expect(first.result!.message.noticeKind).toBe('after_hours');
     const d = (await decision(first.result!.message.id)).find(
