@@ -10,6 +10,8 @@ export interface SlideOverProps {
   /** The close button's accessible name. */
   closeLabel?: string;
   children: ReactNode;
+  /** Extra class on the panel, e.g. a bottom-sheet variant on phones. */
+  className?: string;
 }
 
 /**
@@ -24,12 +26,16 @@ export function SlideOver({
   actions,
   closeLabel = 'Close',
   children,
+  className,
 }: SlideOverProps) {
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className="kaki-dialog__scrim" />
-        <Dialog.Content className="kaki-slide-over" aria-describedby={undefined}>
+        <Dialog.Content
+          className={className ? `kaki-slide-over ${className}` : 'kaki-slide-over'}
+          aria-describedby={undefined}
+        >
           <div className="kaki-slide-over__head">
             <Dialog.Title className="kaki-dialog__title">{title}</Dialog.Title>
             {actions}

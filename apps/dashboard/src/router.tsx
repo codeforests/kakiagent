@@ -84,6 +84,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <HomePage /> },
       { path: 'inbox', element: <InboxPage /> },
+      { path: 'inbox/:conversationId', element: <InboxPage /> },
       { path: 'approvals', element: <Placeholder title="Approvals" feature="FEAT-055" /> },
       // Review → Facts (FEAT-013), Conflicts (FEAT-014), Corrections (FEAT-018).
       { path: 'review', element: <ReviewPage /> },
