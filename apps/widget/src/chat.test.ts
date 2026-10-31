@@ -12,6 +12,7 @@ import {
   pausedNotice,
   pendingText,
   rowsOf,
+  staffHandling,
   withMessage,
   withSegment,
 } from './chat.js';
@@ -32,6 +33,7 @@ const msg = (
   disclosure: null,
   notice: null,
   noticeKind: null,
+  authorName: null,
   language: null,
   createdAt: new Date().toISOString(),
 });
@@ -272,5 +274,46 @@ describe('paused notice (SCR-WGT-005 paused, FEAT-057 AC-4, D7)', () => {
       contact: { email: null, phone: null },
     };
     expect(pausedNotice({ availability: offline, aiPaused }, 'en')).toBeNull();
+  });
+});
+
+describe('staff take-over (FEAT-043; SCR-WGT-002 human)', () => {
+  const joined = {
+    ...msg('s1', 2, 'system'),
+    body: '',
+    notice: 'Mei Ling joined the chat.',
+    noticeKind: 'staff_joined' as const,
+    authorName: 'Mei Ling',
+  };
+  const left = {
+    ...msg('s3', 5, 'system'),
+    body: '',
+    notice: 'Mei Ling left the chat. The assistant will keep helping you.',
+    noticeKind: 'staff_left' as const,
+    authorName: 'Mei Ling',
+  };
+  const staff = { ...msg('m1', 3, 'staff'), body: 'Hi, Mei Ling here.', authorName: 'Mei Ling' };
+
+  it('shows a staff notice as a notice row only, with no empty bubble', () => {
+    expect(rowsOf(joined)).toEqual([
+      { kind: 'notice', key: 's1-notice', text: 'Mei Ling joined the chat.' },
+    ]);
+  });
+
+  it('names a staff bubble, falling back to the team-member label', () => {
+    expect(rowsOf(staff)[0]).toMatchObject({ kind: 'message', name: 'Mei Ling' });
+    expect(rowsOf({ ...staff, authorName: null }, '团队成员')[0]!.name).toBe('团队成员');
+    expect(rowsOf({ ...staff, authorName: null })[0]!.name).toBe('A team member');
+    expect(rowsOf(msg('a1', 1, 'agent', 'v1'))[0]!.name).toBeUndefined();
+  });
+
+  it('hides the assistant typing while staff handle, and shows it again after they leave', () => {
+    let c = withMessage(withMessage(emptyChat, msg('v1', 1, 'visitor')), joined);
+    c = withMessage(withMessage(c, staff), msg('v2', 4, 'visitor'));
+    expect(staffHandling(c)).toBe(true);
+    expect(awaitingTurn(c)).toBeNull();
+    c = withMessage(withMessage(c, left), msg('v3', 6, 'visitor'));
+    expect(staffHandling(c)).toBe(false);
+    expect(awaitingTurn(c)).toBe('v3');
   });
 });

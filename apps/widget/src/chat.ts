@@ -46,12 +46,26 @@ export function pendingText(c: Chat, turnId: string): string | null {
 
 /** The latest visitor message still waiting for a stored reply, if any. */
 export function awaitingTurn(c: Chat): string | null {
+  if (staffHandling(c)) return null;
   for (let i = c.messages.length - 1; i >= 0; i--) {
     const m = c.messages[i]!;
     if (m.author !== 'visitor') return null;
     if (!answered(c, m.id)) return m.id;
   }
   return null;
+}
+
+/**
+ * A person handles the chat (FEAT-043 D8): the latest staff notice is "joined". The
+ * assistant's typing indicator stays hidden until they leave.
+ */
+export function staffHandling(c: Chat): boolean {
+  for (let i = c.messages.length - 1; i >= 0; i--) {
+    const k = c.messages[i]!.noticeKind;
+    if (k === 'staff_joined') return true;
+    if (k === 'staff_left') return false;
+  }
+  return false;
 }
 
 const HAN = /\p{Script=Han}/u;
@@ -73,14 +87,17 @@ export interface Row {
   kind: 'disclosure' | 'notice' | 'message';
   key: string;
   text: string;
+  /** A staff bubble's name line (FEAT-043): the display name, else "A team member". */
+  name?: string;
 }
 
 /**
  * A stored message's rows in the log: the disclosure, the after-hours notice, then the
  * bubble (FEAT-023 ui-design.md); a chat-ended notice closes the chat, so it follows the
- * bubble (FEAT-025 ui-design.md).
+ * bubble (FEAT-025 ui-design.md). Staff joined/left notices have no body, so no bubble;
+ * a staff bubble carries the person's name (FEAT-043 ui-design SCR-WGT-002).
  */
-export function rowsOf(m: Message): Row[] {
+export function rowsOf(m: Message, teamMember = 'A team member'): Row[] {
   const rows: Row[] = [];
   if (m.disclosure)
     rows.push({ kind: 'disclosure', key: `${m.id}-disclosure`, text: m.disclosure });
@@ -88,7 +105,12 @@ export function rowsOf(m: Message): Row[] {
     ? { kind: 'notice', key: `${m.id}-notice`, text: m.notice }
     : null;
   if (notice && m.noticeKind !== 'chat_ended') rows.push(notice);
-  rows.push({ kind: 'message', key: m.id, text: m.body });
+  if (m.body !== '' || !notice)
+    rows.push(
+      m.author === 'staff'
+        ? { kind: 'message', key: m.id, text: m.body, name: m.authorName ?? teamMember }
+        : { kind: 'message', key: m.id, text: m.body },
+    );
   if (notice && m.noticeKind === 'chat_ended') rows.push(notice);
   return rows;
 }

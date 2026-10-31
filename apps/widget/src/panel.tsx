@@ -539,7 +539,7 @@ function Panel({
               </li>
             )}
             {chat.messages.map((m) => [
-              ...rowsOf(m).map((r) =>
+              ...rowsOf(m, t.teamMember).map((r) =>
                 r.kind === 'disclosure' ? (
                   <li key={r.key} class="disc" lang={langOf(r.text)}>
                     {INFO_ICON} {r.text}
@@ -556,6 +556,12 @@ function Panel({
                     lang={langOf(r.text)}
                   >
                     {m.author === 'visitor' && <span class="sr-only">{t.you}: </span>}
+                    {r.name !== undefined && (
+                      <span class="who" lang={langOf(r.name)}>
+                        {r.name}
+                        <span class="sr-only">: </span>
+                      </span>
+                    )}
                     {r.text}
                   </li>
                 ),

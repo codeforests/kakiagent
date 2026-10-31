@@ -22,6 +22,7 @@ const sample = (botName: string) => {
     disclosure: null,
     notice: null,
     noticeKind: null,
+    authorName: null,
     language: null,
     createdAt: T0,
   };

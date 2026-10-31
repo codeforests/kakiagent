@@ -16,7 +16,7 @@
 
 ## Build session 2 (UI)
 
-- [ ] T6 — Widget: `rowsOf` notice-only rows and staff name, `staffHandling`, `awaitingTurn` silent while staff handle, `strings.ts` `teamMember`, the staff name line in `panel.tsx` (design §5.6; ui-design SCR-WGT-002; AC-1, AC-3, AC-4)
+- [x] T6 — Widget: `rowsOf` notice-only rows and staff name, `staffHandling`, `awaitingTurn` silent while staff handle, `strings.ts` `teamMember`, the staff name line in `panel.tsx` (design §5.6; ui-design SCR-WGT-002; AC-1, AC-3, AC-4)
       Done when: `pnpm --filter @kaki/widget test` passes with `rowsOf` (empty body → notice only; staff label from `authorName`, else "A team member"/"团队成员"), `staffHandling` (joined → true, then left → false), no typing turn while staff handle; `pnpm --filter @kaki/widget build && pnpm size` within budget.
 - [ ] T7 — Dashboard data: `lib/api.ts` calls, `lib/inbox.ts` (`dockMode`, assignee ↔ URL, `matchesView` with assignee, `takeoverErrorText`, `ownerText`), `lib/realtime.ts` member-event toasts and thread refetch (design §5.5; AC-5–AC-7)
       Done when: `pnpm --filter @kaki/dashboard test` passes with `dockMode` for each state and owner, assignee ↔ URL (default leaves no param), `matchesView` dropping a row whose owner left the filter, each error code's text; dashboard typecheck clean.
