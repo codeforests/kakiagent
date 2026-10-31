@@ -1,7 +1,7 @@
 # Tasks: FEAT-042 — Real-time inbox, conversation view, context sidebar, lifecycle and auto-close
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: designed (backend built T1–T4) · Last updated: 2026-10-31
+> Status: developer-done · Last updated: 2026-10-31
 
 - [x] T1 — Schema: `0042_inbox_lifecycle.sql` (status enum widened + check; `version`, `closed_at`, `close_reason`, `auto_close_queued_at` with the backfill and `conversations_closed_ck`; the two indexes; `messages.task_kinds` + check; grants to `app_dashboard` and `app_agent_visitor`; role `kaki_inbox_timer`, its policies and `inbox_queue_auto_close()` granted to `app_outbox`) + Drizzle columns and `CLOSE_REASONS` (design §4; AC-5, AC-6, AC-9)
       Done when: `drizzle-kit generate` reports no drift after 0042; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes with: a closed row without `close_reason` refused by the check; an unknown task kind refused; `app_dashboard` can update `status` but not `last_message_at`/`flag_reasons`; `app_dashboard` and `app_agent_visitor` can't execute `inbox_queue_auto_close()`.
@@ -24,18 +24,19 @@
       Note (T6, T7, built together in one commit since the inbox page renders the thread pane): stubbed-API Chromium run (built dashboard, `page.route` + `routeWebSocket`) at 1440, 1100 and 375×1400 — view tabs set `?view=` (Open leaves `/inbox`), counts shown, a stubbed `conversation` event puts a reopened row on top and drops a closed one from Open, a `message` event appends to the open thread, Show earlier messages loads the older page, Close sends `{"version":3}` and shows the toast with focus on the `h2`, a 409 `state_changed` shows "It's now Human.", sidebar pane at 1440 / drawer at 1100 / bottom sheet at 375 with focus back on "Conversation details", list hidden on the thread at 375, no horizontal scroll, filtered-empty and not-found states; axe clean (serious/critical) in every state checked. The drawer focuses its close button on open (Radix default), not the title.
       Done when: the spec typechecks (`pnpm --filter @kaki/e2e typecheck`); it runs in the verify stage's GitHub CI.
       Note: no Docker in cloud sessions, so the E2E run and the screen renders are checked in GitHub CI. Three tests (desktop live list/thread/close/reopen with fact chip and sidebar; Flagged via a crisis message; phone width with the sheet and More actions). Also adjusted for the paginated Open view: `safety.e2e.ts` reads `?view=flagged` (a closed flagged conversation isn't in Open), and `skeleton.e2e.ts` checks the new row is first instead of `count + 1` (a 25-row page can be full in CI). View tabs keep the open conversation (`/inbox/:id?view=`).
-- [ ] T9 — Verify: full `pnpm lint`, `pnpm typecheck`, `pnpm test`, `test:coverage` for inbox, agent, api, dashboard; update `code-map.md` (lifecycle and views, `apps/api/src/inbox.ts`, the auto-close job, `pages/conversation*.tsx`, `lib/inbox.ts`; migration 0042); evidence below
+- [x] T9 — Verify: full `pnpm lint`, `pnpm typecheck`, `pnpm test`, `test:coverage` for inbox, agent, api, dashboard; update `code-map.md` (lifecycle and views, `apps/api/src/inbox.ts`, the auto-close job, `pages/conversation*.tsx`, `lib/inbox.ts`; migration 0042); evidence below
       Done when: all pass; evidence recorded.
+      Note: `pnpm format:check`, `pnpm lint` (ESLint + dependency-cruiser, no violations), `pnpm typecheck` (26/26), `pnpm test` (26/26) green. `scripts/test-env.sh … test:coverage`: inbox 36/36, agent 462/462 green; api 340 passed, only `uploads.int.test.ts` failed (needs an S3 endpoint; no Docker here, unrelated, as in the backend session). The dashboard has no coverage script; its unit suite (incl. 15 `lib/inbox.test.ts` cases) passes in `pnpm test`.
 
 ## Verification evidence
 
-- AC-1 —
-- AC-2 —
-- AC-3 —
-- AC-4 —
-- AC-5 —
-- AC-6 —
-- AC-7 —
-- AC-8 —
-- AC-9 —
-- AC-10 —
+- AC-1 — `lib/inbox.test.ts` (`applySummary`, `appendMessage`); stubbed Chromium: a `conversation` event moves a row to the top, a `message` event appends to the open thread, lists, counts and threads refetch on `ready` (`lib/realtime.ts`; the Reconnecting state on a dropped socket is not exercised by any run here); E2E `inbox.e2e.ts` test 1 asserts row and thread within 2 s (CI).
+- AC-2 — backend `views.int.test.ts`, `inbox.int.test.ts`; `lib/inbox.test.ts` (`matchesView`, view ↔ URL, Load more boundary); stubbed run: tab switch sets `?view=`, counts shown, filtered-empty with Clear filters.
+- AC-3 — `matchesView` keeps a closed flagged row in Flagged (unit); E2E test 2 (crisis message → Flagged view, Flagged chip, divider).
+- AC-4 — stubbed run: inline chip "Used: Chocolate fudge 1 kg", sidebar contact/channel/intents/lead/facts with uses; E2E test 1 (fact chip and sidebar link to the fact).
+- AC-5 — backend `lifecycle.int.test.ts`, `inbox.int.test.ts` (409 `state_changed`); UI: stubbed 409 shows "It's now Human." and refetches.
+- AC-6 — backend integration (auto-close job and scan); not E2E (30 minutes).
+- AC-7 — stubbed run: Close sends `{ version }`, toast, chip Closed; E2E test 1 (close, Closed view, a new visitor message reopens it into Open).
+- AC-8 — `eventText` unit cases; E2E test 1 ("Closed by …", "Reopened by a new visitor message" dividers); audit entries in backend suites.
+- AC-9 — backend `inbox.int.test.ts` (another tenant's ID 404 on every route), db RLS suite; UI not-found state checked in the stubbed run.
+- AC-10 — stubbed run at 1440/1100/375×1400: three panes / drawer / one pane with bottom sheet, loading, empty, filtered-empty, not-found, closed/flagged states, no horizontal scroll, axe clean (serious/critical) in every state; E2E test 3 at 375 (CI).
