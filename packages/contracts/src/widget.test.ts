@@ -116,6 +116,7 @@ describe('visitor controls contracts (FEAT-033 §3)', () => {
       disclosure: null,
       notice: null,
       noticeKind: null,
+      authorName: null,
       createdAt: '2026-10-26T01:00:00.000Z',
     };
     expect(Message.parse({ ...m, language: 'zh' }).language).toBe('zh');

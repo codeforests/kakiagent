@@ -274,7 +274,10 @@
       "feature": "FEAT-042",
       "strategy": "code-native",
       "source": {
-        "spec": "features/FEAT-042-inbox/ui-design.md#scr-app-014--inbox"
+        "spec": "features/FEAT-042-inbox/ui-design.md#scr-app-014--inbox",
+        "extended_by": [
+          "features/FEAT-043-takeover/ui-design.md#scr-app-014--inbox-partial"
+        ]
       },
       "states": {
         "covered": [
@@ -290,11 +293,12 @@
           "live update",
           "three-pane",
           "two-pane",
-          "one-pane"
+          "one-pane",
+          "assignee filter",
+          "owner on rows"
         ],
         "gaps": [
-          "search (FEAT-046)",
-          "assignee filter (FEAT-043)"
+          "search (FEAT-046)"
         ],
         "supplements": []
       },
@@ -303,7 +307,9 @@
         "GET /api/v1/conversations/:id",
         "GET /api/v1/conversations/:id/messages",
         "POST /api/v1/conversations/:id/close",
-        "WS /ws (message, conversation events)"
+        "WS /ws (message, conversation events)",
+        "GET /api/v1/conversations?assignee=",
+        "GET /api/v1/inbox/members"
       ],
       "conformance": {
         "result": "pass",
@@ -321,7 +327,10 @@
       "source": {
         "spec": "features/FEAT-042-inbox/ui-design.md#scr-app-015--conversation",
         "prototype": "02-design/anchors/scr-app-015-conversation.html",
-        "anchor": "02-design/anchor-screens.md#scr-app-015--conversation"
+        "anchor": "02-design/anchor-screens.md#scr-app-015--conversation",
+        "extended_by": [
+          "features/FEAT-043-takeover/ui-design.md#scr-app-015--conversation-partial"
+        ]
       },
       "states": {
         "covered": [
@@ -339,10 +348,19 @@
           "context drawer",
           "context pane",
           "close conflict",
-          "desktop two-pane and three-pane layouts"
+          "desktop two-pane and three-pane layouts",
+          "takeover bar",
+          "human-mine (composer)",
+          "human-other (owned bar)",
+          "take-over pending",
+          "send pending",
+          "send failed",
+          "not owner",
+          "request sent",
+          "take-from dialog",
+          "owner conflict"
         ],
         "gaps": [
-          "human-mine, human-other, takeover bar (FEAT-043)",
           "AI suggestion in the composer (FEAT-045)",
           "internal notes and tags (FEAT-047)"
         ],
@@ -352,7 +370,12 @@
         "GET /api/v1/conversations/:id",
         "GET /api/v1/conversations/:id/messages",
         "POST /api/v1/conversations/:id/close",
-        "WS /ws (message, conversation events)"
+        "WS /ws (message, conversation events)",
+        "POST /api/v1/conversations/:id/takeover",
+        "POST /api/v1/conversations/:id/handback",
+        "POST /api/v1/conversations/:id/messages",
+        "POST /api/v1/conversations/:id/handover-request",
+        "WS /ws (member events)"
       ],
       "conformance": {
         "result": "pass",
@@ -1126,7 +1149,8 @@
           "chat-ended",
           "menu-open",
           "locale-zh",
-          "chat-ended-visitor"
+          "chat-ended-visitor",
+          "staff-left"
         ],
         "gaps": [
           "rate-limited",
@@ -1189,6 +1213,11 @@
             "state": "chat-ended-visitor",
             "strategy": "code-native",
             "source": "features/FEAT-033-widget-controls/ui-design.md#scr-wgt-002--chat-panel-extended"
+          },
+          {
+            "state": "human",
+            "strategy": "code-native",
+            "source": "features/FEAT-043-takeover/ui-design.md#scr-wgt-002--chat-panel-partial-state-human"
           }
         ]
       },

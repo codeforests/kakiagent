@@ -9,10 +9,16 @@ import { describe, expect, it } from 'vitest';
 import {
   appendMessage,
   applySummary,
+  dockMode,
   dockText,
   eventText,
+  filterOfKey,
   flattenPages,
+  listKey,
   matchesView,
+  memberToastText,
+  ownerText,
+  takeoverErrorText,
   mergeMessages,
   rowTime,
   searchFromView,
@@ -30,6 +36,7 @@ const summary = (n: number, over: Partial<ConversationSummary> = {}): Conversati
   flagReasons: [],
   closeReason: null,
   closedAt: null,
+  owner: null,
   ...over,
 });
 const counts = { open: 0, escalated: 0, approval: 0, flagged: 0 };
@@ -46,7 +53,7 @@ const data = (
 });
 const ids = (d: InfiniteData<ConversationList, unknown> | undefined) =>
   flattenPages(d).map((c) => c.id);
-const open = { view: 'open', channel: null } as const;
+const open = { view: 'open', channel: null, assignee: null } as const;
 
 describe('view and URL', () => {
   it('leaves the default view as a bare /inbox', () => {
@@ -54,7 +61,7 @@ describe('view and URL', () => {
     expect(viewFromSearch(new URLSearchParams(''))).toEqual(open);
   });
   it('round-trips a view and channel, and ignores unknown values', () => {
-    const f = { view: 'flagged', channel: 'widget' } as const;
+    const f = { view: 'flagged', channel: 'widget', assignee: null } as const;
     expect(viewFromSearch(new URLSearchParams(searchFromView(f)))).toEqual(f);
     expect(viewFromSearch(new URLSearchParams('?view=nope&channel=sms'))).toEqual(open);
   });
@@ -98,6 +105,7 @@ describe('applySummary', () => {
       {
         view: 'flagged',
         channel: null,
+        assignee: null,
       },
     );
     expect(flattenPages(d)[0]?.status).toBe('closed');
@@ -123,13 +131,14 @@ const message = (seq: number, over: Partial<Message> = {}): Message => ({
   disclosure: null,
   notice: null,
   noticeKind: null,
+  authorName: null,
   language: null,
   createdAt: `2026-10-31T01:0${seq}:00.000Z`,
   ...over,
 });
 const thread = (messages: Message[]): ConversationThread => ({
   conversation: { ...summary(1), version: 1, createdAt: '2026-10-31T01:00:00.000Z' },
-  messages: messages.map((m) => ({ ...m, factIds: [] })),
+  messages: messages.map((m) => ({ ...m, factIds: [], authorUserId: null })),
   hasEarlier: false,
   events: [],
   sidebar: {
@@ -174,6 +183,7 @@ describe('labels', () => {
       to: 'closed' as const,
       reason: 'staff' as const,
       actor,
+      subject: null,
     };
     expect(eventText(close)).toBe('Closed by Mei Ling');
     expect(eventText({ ...close, actor: { type: 'user', name: null } })).toBe(
@@ -185,9 +195,17 @@ describe('labels', () => {
     expect(eventText({ ...close, from: 'closed', to: 'ai', reason: 'reopened' })).toBe(
       'Reopened by a new visitor message',
     );
-    expect(eventText({ at, kind: 'flagged', from: null, to: null, reason: 'crisis', actor })).toBe(
-      'Flagged: crisis message',
-    );
+    expect(
+      eventText({
+        at,
+        kind: 'flagged',
+        from: null,
+        to: null,
+        reason: 'crisis',
+        actor,
+        subject: null,
+      }),
+    ).toBe('Flagged: crisis message');
   });
   it('tells staff when a closed chat cannot reopen', () => {
     expect(dockText({ status: 'closed', closeReason: 'visitor', closedAt: at })).toMatch(
@@ -202,5 +220,126 @@ describe('labels', () => {
     expect(rowTime('2026-10-31T01:05:00.000Z', now)).toBe('9:05 am');
     expect(rowTime('2026-10-30T01:05:00.000Z', now)).toBe('Yesterday');
     expect(rowTime('2026-10-12T01:05:00.000Z', now)).toBe('12 Oct');
+  });
+});
+
+describe('takeover (FEAT-043)', () => {
+  const ME = id(900);
+  const MEI = id(901);
+  const me = { user: { id: ME, email: 'ken@x.test', displayName: 'Ken' } };
+  const mine = summary(1, { status: 'human', owner: { userId: ME, name: 'Ken' } });
+  const meis = summary(2, { status: 'human', owner: { userId: MEI, name: 'Mei Ling' } });
+
+  it('picks the dock by state and owner', () => {
+    expect(dockMode(summary(1), me)).toBe('ai');
+    expect(dockMode(summary(1, { status: 'escalated' }), me)).toBe('ai');
+    expect(dockMode(summary(1, { status: 'waiting_approval' }), me)).toBe('ai');
+    expect(dockMode(mine, me)).toBe('mine');
+    expect(dockMode(meis, me)).toBe('other');
+    expect(dockMode(summary(1, { status: 'human' }), me)).toBe('other');
+    expect(dockMode(summary(1, { status: 'closed' }), me)).toBe('closed');
+  });
+
+  it('round-trips the assignee in the URL and the list key, ignoring junk', () => {
+    for (const assignee of ['me', 'none', MEI]) {
+      const f = { view: 'open', channel: null, assignee } as const;
+      expect(searchFromView(f)).toContain(`assignee=${assignee}`);
+      expect(viewFromSearch(new URLSearchParams(searchFromView(f)))).toEqual(f);
+      expect(filterOfKey(listKey(f))).toEqual(f);
+    }
+    expect(viewFromSearch(new URLSearchParams('?assignee=bob')).assignee).toBeNull();
+    expect(filterOfKey(listKey(open))).toEqual(open);
+  });
+
+  it('filters by the current owner', () => {
+    expect(matchesView(mine, 'open', null, 'me', ME)).toBe(true);
+    expect(matchesView(meis, 'open', null, 'me', ME)).toBe(false);
+    expect(matchesView(summary(3), 'open', null, 'none', ME)).toBe(true);
+    expect(matchesView(mine, 'open', null, 'none', ME)).toBe(false);
+    expect(matchesView(meis, 'open', null, MEI, ME)).toBe(true);
+    expect(matchesView(summary(3), 'open', null, MEI, ME)).toBe(false);
+    // Handed back: the row leaves "Mine" live.
+    const d = applySummary(
+      data([[mine]]),
+      { ...mine, status: 'ai', owner: null },
+      {
+        ...open,
+        assignee: 'me',
+      },
+      ME,
+    );
+    expect(ids(d)).toEqual([]);
+  });
+
+  it('names the owner, "You" for me', () => {
+    expect(ownerText(mine.owner, ME)).toBe('You');
+    expect(ownerText(meis.owner, ME)).toBe('Mei Ling');
+    expect(ownerText(null, ME)).toBe('A team member');
+  });
+
+  it('explains a refused action', () => {
+    expect(takeoverErrorText('owned', { owner: meis.owner })).toBe(
+      'Mei Ling took this over just now.',
+    );
+    expect(takeoverErrorText('not_owner', { conversation: meis })).toBe(
+      "Mei Ling has taken over this conversation. Your reply wasn't sent.",
+    );
+    expect(takeoverErrorText('state_changed', { conversation: { ...meis, owner: null } })).toBe(
+      "This conversation changed while you were looking. It's now human.",
+    );
+    expect(takeoverErrorText('closed', {})).toBe('This conversation was closed.');
+    expect(takeoverErrorText('not_owned', {})).toMatch(/back with the assistant/);
+    expect(takeoverErrorText('boom', {})).toBeNull();
+  });
+
+  it('writes the takeover dividers, with fallbacks for missing names', () => {
+    const at = '2026-10-31T06:05:00.000Z';
+    const base = { at, kind: 'state' as const, from: 'ai' as const, to: 'human' as const };
+    const actor = { type: 'user' as const, name: 'Ken' };
+    expect(eventText({ ...base, reason: 'taken_over', actor, subject: null })).toBe(
+      'Ken took over',
+    );
+    expect(
+      eventText({ ...base, from: 'human', to: 'ai', reason: 'handed_back', actor, subject: null }),
+    ).toBe('Ken handed back to the assistant');
+    expect(
+      eventText({
+        ...base,
+        from: 'human',
+        reason: 'taken_from',
+        actor,
+        subject: { name: 'Mei Ling' },
+      }),
+    ).toBe('Ken took over from Mei Ling');
+    expect(
+      eventText({
+        ...base,
+        from: null,
+        to: null,
+        reason: 'handover_requested',
+        actor: { type: 'user', name: null },
+        subject: { name: null },
+      }),
+    ).toBe('A team member asked a team member to hand over');
+  });
+
+  it('words the toasts sent to the owner', () => {
+    const by = { userId: ME, name: 'Ken' };
+    expect(memberToastText({ type: 'handover_requested', conversationId: id(1), by })).toEqual({
+      text: 'Ken asks you to hand over a conversation.',
+      action: 'Open conversation',
+    });
+    expect(
+      memberToastText({ type: 'taken_from_you', conversationId: id(1), by: { ...by, name: '' } })
+        .text,
+    ).toBe('A team member took over a conversation you were handling.');
+  });
+
+  it('gives a live staff message no author ID until the thread refetches', () => {
+    const t = appendMessage(
+      thread([message(1)]),
+      message(2, { author: 'staff', authorName: 'Ken' }),
+    );
+    expect(t?.messages.at(-1)?.authorUserId).toBeNull();
   });
 });

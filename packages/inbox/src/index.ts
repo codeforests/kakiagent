@@ -6,6 +6,7 @@ import { reopenable, transition } from './lifecycle.js';
 
 export * from './lifecycle.js';
 export * from './views.js';
+export * from './ownership.js';
 
 /**
  * Conversation and message repository. Every function takes a transaction opened by

@@ -53,7 +53,7 @@ describe('my account contract (FEAT-008 §3)', () => {
       }).sessions,
     ).toHaveLength(1);
     expect(EmailChangeConfirmed.parse({ email: 'c@d.sg' }).email).toBe('c@d.sg');
-    const me = { role: null, tenant: null, canApprove: false };
+    const me = { role: null, tenant: null, canApprove: false, canReassign: false };
     expect(
       Me.safeParse({ ...me, user: { id: ID, email: 'a@b.sg', displayName: 'A' } }).success,
     ).toBe(true);

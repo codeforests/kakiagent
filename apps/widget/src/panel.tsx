@@ -531,7 +531,7 @@ function Panel({
         <NotLiveCard view={notLive} t={t} business={ctx.config.botName} cardRef={noticeRef} />
       ) : (
         <>
-          <ol class="log" ref={logRef} aria-live="polite" aria-relevant="additions">
+          <ol class="log" ref={logRef} tabIndex={0} aria-live="polite" aria-relevant="additions">
             {paused && <PausedNotice view={paused} t={t} business={ctx.config.botName} />}
             {!paused && chat.messages.length === 0 && (
               <li class="empty" lang={langOf(greeting)}>
@@ -539,7 +539,7 @@ function Panel({
               </li>
             )}
             {chat.messages.map((m) => [
-              ...rowsOf(m).map((r) =>
+              ...rowsOf(m, t.teamMember).map((r) =>
                 r.kind === 'disclosure' ? (
                   <li key={r.key} class="disc" lang={langOf(r.text)}>
                     {INFO_ICON} {r.text}
@@ -556,6 +556,12 @@ function Panel({
                     lang={langOf(r.text)}
                   >
                     {m.author === 'visitor' && <span class="sr-only">{t.you}: </span>}
+                    {r.name !== undefined && (
+                      <span class="who" lang={langOf(r.name)}>
+                        {r.name}
+                        <span class="sr-only">: </span>
+                      </span>
+                    )}
                     {r.text}
                   </li>
                 ),

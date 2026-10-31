@@ -4,10 +4,10 @@ The one file a fresh build session reads first. Keep it under 80 lines. The veri
 
 ## Where the build is
 
-- **Next feature:** FEAT-043 (M3), design, only after Ken says go. FEAT-042 accepted 2026-10-31 (PR #44).
-- **M3 order (remaining):** 043 → 052 → 044 → 045 → 046 → 049 → 055 → 056 → 050 → 051 (plan §5).
+- **Next feature:** FEAT-052 (M3), design, only after Ken says go. FEAT-043 accepted 2026-10-31 (PR #45).
+- **M3 order (remaining):** 052 → 044 → 045 → 046 → 049 → 055 → 056 → 050 → 051 (plan §5).
 - **Demos:** the interim demo after FEAT-027 (coaching) is due; it can now include replay (FEAT-028). M2 closes now with `pipeline-verify` and a live demo of J1, J8 and J11, signed off by Ken, before M3 starts.
-- **Merged:** 001 (skeleton), 002, 003, 004, 005, 009, 011, 012, 013, 014, 015, 016, 017, 022, 023, 024, 025, 027 (merged 2026-10-24 on Ken's local CI without a verify stage: its acceptance report and RTM Test ref are still to write), 028 (accepted 2026-10-24), 018 (accepted and merged 2026-10-24), 019 (accepted and merged 2026-10-25), 032 (accepted and merged 2026-10-25), 033 (accepted and merged 2026-10-26), 058 (accepted and merged 2026-10-27), 034 (accepted 2026-10-27, merged 2026-10-28 after GitHub CI went green), 057 (accepted 2026-10-28; GOV-08 partial until FEAT-049), 006 (accepted 2026-10-30; AUTH-03 partial: operators FEAT-070, each sensitive action's re-auth with its feature), 054 (accepted 2026-10-30; discount and quote enforcement at dispatch with FEAT-055), 035 (accepted 2026-10-30; ONB-08 instrumented only, pilot median pending), 007 (accepted 2026-10-31; AUTH-02 revocation clause only; Google join not E2E-tested), 008 (accepted 2026-10-31; AUTH-02 still partial: operators FEAT-070), 042 (accepted 2026-10-31; INB-01 assignee filter with FEAT-043). Each has `docs/features/FEAT-NNN-*/`.
+- **Merged:** 001 (skeleton), 002, 003, 004, 005, 009, 011, 012, 013, 014, 015, 016, 017, 022, 023, 024, 025, 027 (merged 2026-10-24 on Ken's local CI without a verify stage: its acceptance report and RTM Test ref are still to write), 028 (accepted 2026-10-24), 018 (accepted and merged 2026-10-24), 019 (accepted and merged 2026-10-25), 032 (accepted and merged 2026-10-25), 033 (accepted and merged 2026-10-26), 058 (accepted and merged 2026-10-27), 034 (accepted 2026-10-27, merged 2026-10-28 after GitHub CI went green), 057 (accepted 2026-10-28; GOV-08 partial until FEAT-049), 006 (accepted 2026-10-30; AUTH-03 partial: operators FEAT-070, each sensitive action's re-auth with its feature), 054 (accepted 2026-10-30; discount and quote enforcement at dispatch with FEAT-055), 035 (accepted 2026-10-30; ONB-08 instrumented only, pilot median pending), 007 (accepted 2026-10-31; AUTH-02 revocation clause only; Google join not E2E-tested), 008 (accepted 2026-10-31; AUTH-02 still partial: operators FEAT-070), 042 (accepted 2026-10-31), 043 (accepted 2026-10-31; INB-01 complete; assignee = current owner until FEAT-044). Each has `docs/features/FEAT-NNN-*/`.
 
 ## One feature = three fresh sessions
 
@@ -24,15 +24,15 @@ Each stage follows `.claude/skills/feature-stage/SKILL.md`. A stage never reads 
 ## Kickoff prompts (paste into a new thread)
 
 ```
-Design FEAT-043. Branch feat/FEAT-043-<slug> (create it from main).
+Design FEAT-052. Branch feat/FEAT-043-<slug> (create it from main).
 Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage design.
 ```
 ```
-Build FEAT-043 (backend) on branch feat/FEAT-043-<slug>.
+Build FEAT-052 (backend) on branch feat/FEAT-052-<slug>.
 Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage build.
 ```
 ```
-Verify FEAT-043 on branch feat/FEAT-043-<slug>.
+Verify FEAT-052 on branch feat/FEAT-052-<slug>.
 Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify.
 ```
 
@@ -53,7 +53,7 @@ The repo is public, so GitHub Actions minutes are free. CI (`.github/workflows/c
 - **Every feature:** the verify stage runs the full local checks through `scripts/test-env.sh` (`pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `test:coverage` for each package the feature touches), then starts CI on the PR branch (`actions_run_trigger` `run_workflow`, `ci.yml`, ref = the branch), waits for the PR events (no polling), fixes anything red on the branch and re-runs until all jobs are green. The PR body lists both.
 - **E2E** runs in CI (Chromium, Firefox, WebKit). The acceptance report records the run number and commit.
 - Ken's local WSL run (`/mnt/project-files/guides/run-kakiagent-locally.md`) is only a fallback when GitHub CI is unavailable.
-- **Last CI run:** GitHub CI run 89 on FEAT-042 at `9c20589`, 2026-10-31, green.
+- **Last CI run:** GitHub CI run 92 on FEAT-043 at `90a5eac`, 2026-10-31, green.
 
 ## Token tracking (Ken, 2026-10-24; every feature)
 

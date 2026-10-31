@@ -11,6 +11,8 @@ import { Banners } from './banners.tsx';
 import { Icon } from './icon.tsx';
 import { useNavCounts } from '../lib/nav-counts.ts';
 import { NavCount } from './nav-count.tsx';
+import { useInboxSocket } from '../lib/realtime.ts';
+import { MemberToasts } from './member-toasts.tsx';
 import { ReauthProvider } from './reauth-dialog.tsx';
 import { TenantSwitcher } from './tenant-switcher.tsx';
 import { SIDEBAR, TAB_BAR } from './nav.ts';
@@ -55,6 +57,8 @@ export function AppShell({ focused = false }: { focused?: boolean }) {
   const pillRef = useRef<HTMLButtonElement>(null);
   const [toast, setToast] = useShellToast();
   const [lostWorkspace, setLostWorkspace] = useState<string | null>(null);
+  // One dashboard socket per tab (FEAT-043: member toasts on any page; the inbox reads it).
+  useInboxSocket(Boolean(me.data?.tenant));
   const openKillSwitch = (mode: KillSwitchMode) => {
     change.reset();
     setKillSwitch(mode);
@@ -130,6 +134,7 @@ export function AppShell({ focused = false }: { focused?: boolean }) {
             {toast}
           </div>
         )}
+        <MemberToasts />
       </div>
     </ReauthProvider>
   );

@@ -2,7 +2,13 @@ import { randomUUID } from 'node:crypto';
 import { DEFAULT_GOVERNOR, runCostGovernor, usageSink } from '@kaki/analytics';
 import { withTenant } from '@kaki/db';
 import { startTestDatabase, TENANT_A, TENANT_B, type TestDatabase } from '@kaki/db/testing';
-import { appendVisitorMessage, createConversation, messagesSince } from '@kaki/inbox';
+import {
+  appendVisitorMessage,
+  createConversation,
+  handBack,
+  messagesSince,
+  takeOver,
+} from '@kaki/inbox';
 import {
   createFact,
   dashboardKb,
@@ -363,6 +369,63 @@ describe('runVisitorTurn (UC-20)', () => {
     const { result, calls } = await turn(c);
     expect(result).toBeNull();
     expect(calls.generate).toBe(0);
+  });
+
+  const STAFF = '00000000-0000-4000-8000-0000000000a1';
+  const takeOverAsStaff = (conversationId: string, version = 0) =>
+    withTenant(tdb.zone('dashboard'), TENANT_A, (tx) =>
+      takeOver(tx, {
+        tenantId: TENANT_A,
+        conversationId,
+        userId: STAFF,
+        visitorName: 'Mei Ling',
+        version,
+      }),
+    );
+
+  it('stays silent while staff own it, and answers again after hand-back (FEAT-043 AC-2, AC-4)', async () => {
+    const c = await conversationWith('how much is the fudge cake');
+    await takeOverAsStaff(c.conversationId);
+    const during = await turn(c);
+    expect(during.result).toBeNull();
+    expect(during.calls.generate).toBe(0);
+    const replies = await owner.query(
+      `select count(*)::int as n from messages where conversation_id = $1 and author = 'agent'`,
+      [c.conversationId],
+    );
+    expect(replies.rows[0].n).toBe(0);
+    await withTenant(tdb.zone('dashboard'), TENANT_A, (tx) =>
+      handBack(tx, {
+        tenantId: TENANT_A,
+        conversationId: c.conversationId,
+        userId: STAFF,
+        version: 1,
+      }),
+    );
+    const next = await say(c.conversationId, c.visitorId, 'how much is the fudge cake');
+    const after = await turn({ ...c, messageId: next });
+    expect(after.calls.generate).toBeGreaterThan(0);
+    expect(after.result?.message.author).toBe('agent');
+  });
+
+  it('a take-over mid-reply releases nothing further (FEAT-043 AC-2)', async () => {
+    const c = await conversationWith('how much is the fudge cake');
+    const { llm } = llmWith(() => 'First sentence. Second sentence. Third sentence.');
+    const segments: string[] = [];
+    const result = await runVisitorTurn(
+      {
+        zdb: tdb.zone('visitor'),
+        llm,
+        publishSegment: async (s) => {
+          segments.push(s.text);
+          if (segments.length === 1) await takeOverAsStaff(c.conversationId);
+        },
+      },
+      { tenantId: TENANT_A, conversationId: c.conversationId, messageId: c.messageId },
+    );
+    expect(segments).toEqual(['First sentence.']);
+    expect(result?.outcome).toBe('gate_closed');
+    expect(result?.message.body).toBe('First sentence.');
   });
 
   it.each(['escalated', 'waiting_approval'] as const)(

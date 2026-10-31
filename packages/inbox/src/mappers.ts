@@ -17,12 +17,20 @@ export function toMessage(row: MessageRow): Message {
     disclosure: row.disclosure,
     notice: row.notice,
     noticeKind: row.noticeKind,
+    authorName: row.authorName,
     language: row.language,
     createdAt: row.createdAt.toISOString(),
   };
 }
 
-export function toSummary(row: ConversationRow, lastMessage: string | null): ConversationSummary {
+/** A conversation's owner as staff see it (FEAT-043): the API names it with `memberNames`. */
+export type SummaryOwner = ConversationSummary['owner'];
+
+export function toSummary(
+  row: ConversationRow,
+  lastMessage: string | null,
+  owner: SummaryOwner = null,
+): ConversationSummary {
   return {
     id: row.id,
     channel: row.channel,
@@ -33,5 +41,6 @@ export function toSummary(row: ConversationRow, lastMessage: string | null): Con
     flagReasons: row.flagReasons,
     closeReason: row.closeReason,
     closedAt: row.closedAt?.toISOString() ?? null,
+    owner,
   };
 }

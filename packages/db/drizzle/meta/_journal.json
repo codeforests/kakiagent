@@ -302,6 +302,13 @@
       "when": 1793437912522,
       "tag": "0042_inbox_lifecycle",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1793446559143,
+      "tag": "0043_takeover",
+      "breakpoints": true
     }
   ]
 }

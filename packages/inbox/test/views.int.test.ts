@@ -208,6 +208,7 @@ describe('the thread and sidebar (AC-4, AC-8)', () => {
         to: null,
         reason: 'crisis',
         actor: { type: 'agent', id: null },
+        subject: null,
       },
       {
         kind: 'state',
@@ -215,6 +216,7 @@ describe('the thread and sidebar (AC-4, AC-8)', () => {
         to: 'closed',
         reason: 'staff',
         actor: { type: 'user', id: USER },
+        subject: null,
       },
     ]);
     expect(out.facts).toEqual([

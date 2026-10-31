@@ -16,8 +16,16 @@ export const Message = z.object({
   disclosure: z.string().nullable(),
   /** A system notice shown with this message, server-rendered (AGT-09 after hours, FEAT-023). */
   notice: z.string().nullable(),
-  /** What the notice is (FEAT-025): `chat_ended` closes the widget's composer. */
-  noticeKind: z.enum(['after_hours', 'chat_ended']).nullable(),
+  /**
+   * What the notice is (FEAT-025): `chat_ended` closes the widget's composer; `staff_joined`
+   * and `staff_left` mark a take-over and hand-back (FEAT-043).
+   */
+  noticeKind: z.enum(['after_hours', 'chat_ended', 'staff_joined', 'staff_left']).nullable(),
+  /**
+   * The visitor-facing name on staff messages and staff notices, snapshotted at take-over
+   * (FEAT-043 D3): the display name only, never an email; null otherwise or without one.
+   */
+  authorName: z.string().nullable(),
   /** The reply's language as the agent decided it (FEAT-033): sets the widget's chrome locale. Null on visitor and staff messages. */
   language: z.enum(['en', 'zh']).nullable(),
   createdAt: z.iso.datetime({ offset: true }),
@@ -48,6 +56,8 @@ export const ConversationSummary = z.object({
   flagReasons: z.array(z.enum(['abuse', 'crisis'])),
   closeReason: CloseReason.nullable(),
   closedAt: z.iso.datetime({ offset: true }).nullable(),
+  /** Who has taken it over (INB-09; FEAT-043): the staff-facing name. Null: nobody. */
+  owner: z.object({ userId: z.uuid(), name: z.string() }).nullable(),
 });
 export type ConversationSummary = z.infer<typeof ConversationSummary>;
 
@@ -176,6 +186,8 @@ export const Me = z.object({
     .nullable(),
   /** Owner, Admin, or an Agent with the Owner's grant (D3; FEAT-007 §3). FEAT-055 reads it. */
   canApprove: z.boolean(),
+  /** Owner or Admin: may take a conversation from its owner (FEAT-043 D1). */
+  canReassign: z.boolean(),
 });
 export type Me = z.infer<typeof Me>;
 
@@ -2359,6 +2371,8 @@ export const ConversationListQuery = z.object({
   /** Opaque keyset cursor from `nextCursor`; a malformed one is 400 `bad_cursor`. */
   cursor: z.string().min(1).max(200).optional(),
   limit: z.coerce.number().int().min(1).max(50).default(25),
+  /** INB-01 by assignee: the current owner (FEAT-043 D7): me, nobody, or a member's ID. */
+  assignee: z.union([z.literal('me'), z.literal('none'), z.uuid()]).optional(),
 });
 export type ConversationListQuery = z.infer<typeof ConversationListQuery>;
 
@@ -2370,20 +2384,42 @@ export const ConversationList = z.object({
 export type ConversationList = z.infer<typeof ConversationList>;
 
 /** A message as staff see it: with the facts an AI answer used (the widget's `Message` has none). */
-export const ThreadMessage = Message.extend({ factIds: z.array(z.uuid()) });
+export const ThreadMessage = Message.extend({
+  factIds: z.array(z.uuid()),
+  /** The team member behind a staff message or notice (FEAT-043): "You" on your own. */
+  authorUserId: z.uuid().nullable(),
+});
 export type ThreadMessage = z.infer<typeof ThreadMessage>;
 
-/** A lifecycle or flag change, read from the audit log (D7). */
+/**
+ * A lifecycle or flag change, read from the audit log (D7). FEAT-043 adds the take-over
+ * reasons; a hand-over request has no `to` (it isn't a state change) and names its `subject`.
+ */
 export const ThreadEvent = z.object({
   at: z.iso.datetime({ offset: true }),
   kind: z.enum(['state', 'flagged']),
   to: ConversationStatus.nullable(),
   from: ConversationStatus.nullable(),
-  reason: z.union([CloseReason, z.enum(['reopened', 'abuse', 'crisis'])]).nullable(),
+  reason: z
+    .union([
+      CloseReason,
+      z.enum([
+        'reopened',
+        'abuse',
+        'crisis',
+        'taken_over',
+        'handed_back',
+        'taken_from',
+        'handover_requested',
+      ]),
+    ])
+    .nullable(),
   actor: z.object({
     type: z.enum(['user', 'agent', 'visitor', 'system']),
     name: z.string().nullable(),
   }),
+  /** Whom a request or a take-from was about (FEAT-043); null otherwise. */
+  subject: z.object({ name: z.string().nullable() }).nullable(),
 });
 export type ThreadEvent = z.infer<typeof ThreadEvent>;
 
@@ -2449,3 +2485,47 @@ export type ThreadPage = z.infer<typeof ThreadPage>;
 
 export const CloseConversationBody = z.object({ version: z.number().int().min(0) }).strict();
 export const CloseConversationResponse = z.object({ conversation: ConversationSummary });
+
+// ---- Dashboard API: takeover (INB-02, INB-09; FEAT-043 §3) --------------------------------
+
+/** Take over at `version`; `from` takes it from that owner (owners and admins only, D1). */
+export const TakeOverBody = z
+  .object({ version: z.number().int().min(0), from: z.uuid().optional() })
+  .strict();
+export type TakeOverBody = z.infer<typeof TakeOverBody>;
+export const HandBackBody = z.object({ version: z.number().int().min(0) }).strict();
+export type HandBackBody = z.infer<typeof HandBackBody>;
+/** A staff reply; a retry with the same `clientMessageId` returns the stored message. */
+export const StaffMessageBody = z
+  .object({
+    body: z.string().trim().min(1).max(4000),
+    clientMessageId: z.string().min(8).max(64),
+  })
+  .strict();
+export type StaffMessageBody = z.infer<typeof StaffMessageBody>;
+export const StaffMessageResponse = z.object({ message: ThreadMessage });
+export type StaffMessageResponse = z.infer<typeof StaffMessageResponse>;
+/** The new state and the visitor-facing notice it stored ("Visitor sees: …"). */
+export const TakeoverResult = z.object({ conversation: ConversationSummary, notice: Message });
+export type TakeoverResult = z.infer<typeof TakeoverResult>;
+export const InboxMember = z.object({ userId: z.uuid(), name: z.string() });
+export type InboxMember = z.infer<typeof InboxMember>;
+/** 409 `owned`: someone else has it (or `from` no longer does); names who (INB-09). */
+export const OwnedError = ErrorBody.extend({ error: z.literal('owned'), owner: InboxMember });
+export type OwnedError = z.infer<typeof OwnedError>;
+/** The assignee filter's options: the tenant's active members, sorted by name. */
+export const InboxMembers = z.object({ members: z.array(InboxMember) });
+export type InboxMembers = z.infer<typeof InboxMembers>;
+/**
+ * To one member only, on `channels.member(tenant, user)`, forwarded by `/ws` to that member's
+ * sockets: someone asks for their conversation, or an owner or admin took it from them (D1).
+ */
+export const MemberEvent = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('handover_requested'),
+    conversationId: z.uuid(),
+    by: InboxMember,
+  }),
+  z.object({ type: z.literal('taken_from_you'), conversationId: z.uuid(), by: InboxMember }),
+]);
+export type MemberEvent = z.infer<typeof MemberEvent>;

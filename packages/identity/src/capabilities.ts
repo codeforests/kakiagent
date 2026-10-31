@@ -20,7 +20,9 @@ export type Capability =
   /** Grant or remove an Agent's approval rights (D3; FEAT-007). Owner only. */
   | 'team.grant_approval'
   /** Decide approvals by role (APR-02); Agents only through a grant, see `canApprove`. */
-  | 'approvals.decide';
+  | 'approvals.decide'
+  /** Take a conversation from the teammate who owns it (INB-09; FEAT-043 D1). Owner and Admin. */
+  | 'inbox.reassign';
 
 const POLICY: Record<Role, ReadonlySet<Capability>> = {
   owner: new Set([
@@ -34,6 +36,7 @@ const POLICY: Record<Role, ReadonlySet<Capability>> = {
     'team.manage',
     'team.grant_approval',
     'approvals.decide',
+    'inbox.reassign',
   ]),
   admin: new Set([
     'inbox.read',
@@ -44,6 +47,7 @@ const POLICY: Record<Role, ReadonlySet<Capability>> = {
     'coach.use',
     'team.manage',
     'approvals.decide',
+    'inbox.reassign',
   ]),
   agent: new Set(['inbox.read', 'inbox.reply']),
 };

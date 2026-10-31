@@ -164,6 +164,50 @@ describe('/ws', () => {
     a.ws.terminate();
   });
 
+  it("forwards a member event to that member's socket only (FEAT-043 §5.4)", async () => {
+    const owner = await signIn('owner@kaki-bakery.test');
+    const staff = await signIn('ws-member-event@example.test');
+    await tdb.zone('identity').db.transaction(async (tx) => {
+      await tx.execute(sql`select set_config('app.tenant_id', ${TENANT_A}, true)`);
+      await tx.execute(
+        sql`insert into memberships (tenant_id, user_id, role)
+            select ${TENANT_A}, user_id, 'agent' from sessions where id = ${staff.sessionId}`,
+      );
+      await tx.execute(
+        sql`update sessions set active_tenant_id = ${TENANT_A} where id = ${staff.sessionId}`,
+      );
+    });
+    const staffUser = (
+      await tdb
+        .zone('identity')
+        .db.execute<{ user_id: string }>(
+          sql`select user_id from sessions where id = ${staff.sessionId}`,
+        )
+    ).rows[0]!.user_id;
+    const open = async (cookie: string) => {
+      const ws = await app.injectWS('/ws', { headers: { cookie } });
+      const frames: unknown[] = [];
+      await new Promise((resolve) => ws.once('message', resolve));
+      ws.on('message', (raw) => frames.push(JSON.parse(String(raw))));
+      return { ws, frames };
+    };
+    const a = await open(owner.cookie);
+    const b = await open(staff.cookie);
+    const event = {
+      type: 'handover_requested',
+      conversationId: '0f8fad5b-d9cb-469f-a165-70867728950e',
+      by: { userId: '0f8fad5b-d9cb-469f-a165-70867728950f', name: 'Ken' },
+    };
+    emit(channels.member(TENANT_A, staffUser), event);
+    emit(channels.member(TENANT_A, staffUser), { type: 'handover_requested', bogus: true });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(b.frames).toEqual([event]);
+    expect(a.frames).toEqual([]);
+    expect(b.ws.readyState).toBe(b.ws.OPEN);
+    a.ws.terminate();
+    b.ws.terminate();
+  });
+
   it("signing one session out closes its socket; the user's other session stays open (FEAT-008 AC-6)", async () => {
     const first = await signIn('owner@kaki-bakery.test');
     const second = await signIn('owner@kaki-bakery.test');

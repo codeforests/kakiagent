@@ -8,7 +8,10 @@ import {
   CHANNEL_LABEL,
   COUNTS_KEY,
   flattenPages,
+  initials,
   listKey,
+  MEMBERS_KEY,
+  ownerText,
   rowTime,
   searchFromView,
   VIEW_LABEL,
@@ -16,7 +19,7 @@ import {
   viewFromSearch,
   type InboxFilter,
 } from '../lib/inbox.ts';
-import { inboxEvents, useInboxSocket, type LiveState } from '../lib/realtime.ts';
+import { inboxEvents, useLiveState, type LiveState } from '../lib/realtime.ts';
 import { ConversationPane } from './conversation.tsx';
 import { FlaggedChip, StateChip, VisitorAvatar } from './conversation-parts.tsx';
 
@@ -46,7 +49,7 @@ export function InboxPage() {
   const [search] = useSearchParams();
   const filter = viewFromSearch(search);
   const qs = searchFromView(filter);
-  const live = useInboxSocket();
+  const live = useLiveState();
 
   return (
     <div className={`inbox ${conversationId ? 'inbox--thread' : 'inbox--list'}`}>
@@ -122,6 +125,15 @@ function InboxList({
     getNextPageParam: (last) => last.nextCursor ?? undefined,
   });
   const rows = flattenPages(list.data);
+  const me = useQuery({ queryKey: ['me'], queryFn: api.me });
+  // The assignee filter's teammates (FEAT-043 D7), cached 5 minutes; Anyone, Mine and
+  // Unassigned still work when they fail to load.
+  const members = useQuery({
+    queryKey: MEMBERS_KEY,
+    queryFn: api.inboxMembers,
+    staleTime: 5 * 60_000,
+  });
+  const meId = me.data?.user.id ?? null;
   // Switching views keeps the open conversation on screen (the thread pane, ≥ 1024).
   const to = (f: InboxFilter) => `/inbox${selected ? `/${selected}` : ''}${searchFromView(f)}`;
 
@@ -177,6 +189,26 @@ function InboxList({
             <option value="widget">{CHANNEL_LABEL.widget}</option>
           </select>
         </label>
+        <label className="field field--inline">
+          <span className="field__label">Assigned to</span>
+          <select
+            className="input"
+            data-testid="assignee-filter"
+            value={filter.assignee ?? ''}
+            onChange={(e) => void navigate(to({ ...filter, assignee: e.target.value || null }))}
+          >
+            <option value="">Anyone</option>
+            <option value="me">Mine</option>
+            <option value="none">Unassigned</option>
+            {members.data?.members
+              .filter((m) => m.userId !== meId)
+              .map((m) => (
+                <option key={m.userId} value={m.userId}>
+                  {m.name}
+                </option>
+              ))}
+          </select>
+        </label>
       </div>
       <div className="inbox__rows">
         {list.isPending && (
@@ -201,7 +233,7 @@ function InboxList({
         {list.isSuccess && rows.length === 0 && (
           <ListEmpty
             filter={filter}
-            onClear={() => void navigate(to({ ...filter, channel: null }))}
+            onClear={() => void navigate(to({ ...filter, channel: null, assignee: null }))}
           />
         )}
         {rows.length > 0 && (
@@ -211,7 +243,7 @@ function InboxList({
             data-testid="conversation-list"
           >
             {rows.map((c) => (
-              <Row key={c.id} c={c} qs={qs} selected={c.id === selected} />
+              <Row key={c.id} c={c} qs={qs} selected={c.id === selected} meId={meId} />
             ))}
           </ul>
         )}
@@ -245,7 +277,7 @@ function InboxList({
 }
 
 function ListEmpty({ filter, onClear }: { filter: InboxFilter; onClear: () => void }) {
-  if (filter.channel)
+  if (filter.channel || filter.assignee)
     return (
       <EmptyState
         title="No conversations match these filters"
@@ -272,7 +304,18 @@ function ListEmpty({ filter, onClear }: { filter: InboxFilter; onClear: () => vo
   return <EmptyState title={EMPTY_TITLE[filter.view]}>{EMPTY_VIEW[filter.view]}</EmptyState>;
 }
 
-function Row({ c, qs, selected }: { c: ConversationSummary; qs: string; selected: boolean }) {
+function Row({
+  c,
+  qs,
+  selected,
+  meId,
+}: {
+  c: ConversationSummary;
+  qs: string;
+  selected: boolean;
+  meId: string | null;
+}) {
+  const owner = c.owner ? ownerText(c.owner, meId) : null;
   return (
     <li data-testid="conversation-row" data-id={c.id}>
       <Link
@@ -286,6 +329,15 @@ function Row({ c, qs, selected }: { c: ConversationSummary; qs: string; selected
           <span className="conversation-row__preview" data-testid="conversation-preview">
             {c.lastMessage ?? 'No messages yet'}
           </span>
+          {owner && (
+            <span className="conversation-row__owner" data-testid="conversation-owner">
+              <span className="avatar avatar--xs" aria-hidden="true">
+                {initials(owner).slice(0, 1)}
+              </span>
+              <span className="sr-only">Handled by </span>
+              {owner}
+            </span>
+          )}
         </span>
         <span className="conversation-row__meta">
           <time dateTime={c.lastMessageAt}>{rowTime(c.lastMessageAt)}</time>

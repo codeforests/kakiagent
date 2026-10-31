@@ -211,6 +211,7 @@ describe('the thread, close and reopen (AC-4, AC-5, AC-7, AC-8)', () => {
         to: null,
         reason: 'crisis',
         actor: { type: 'agent', name: null },
+        subject: null,
       },
       {
         kind: 'state',
@@ -218,6 +219,7 @@ describe('the thread, close and reopen (AC-4, AC-5, AC-7, AC-8)', () => {
         to: 'closed',
         reason: 'staff',
         actor: { type: 'user', name: 'Mei Lin' },
+        subject: null,
       },
     ]);
     expect(t.sidebar).toMatchObject({

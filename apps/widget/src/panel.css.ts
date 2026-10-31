@@ -18,6 +18,7 @@ export const PANEL_CSS = `
 .msg.visitor{align-self:flex-end;background:var(--kaki-accent);color:var(--kaki-on-accent)}
 .msg.agent,.msg.system{align-self:flex-start;background:var(--kaki-subtle);color:var(--kaki-text)}
 .msg.staff{align-self:flex-start;background:var(--kaki-info-bg);color:var(--kaki-text)}
+.who{display:block;font-size:12px;line-height:16px;color:var(--kaki-muted)}
 .disc{align-self:center;display:flex;align-items:center;gap:4px;font-size:12px;line-height:16px;color:var(--kaki-muted);text-align:center;padding:0 12px 4px}
 .disc svg{flex:none}
 .typing{align-self:flex-start;display:inline-flex;gap:4px;padding:14px 12px;background:var(--kaki-subtle);border-radius:12px}

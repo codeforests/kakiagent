@@ -9,8 +9,32 @@ import type {
 import { and, desc, eq, lt, schema, sql, type Tx } from '@kaki/db';
 
 type SQL = ReturnType<typeof eq>;
-import { toMessage, toSummary } from './mappers.js';
+import { toMessage, toSummary, type SummaryOwner } from './mappers.js';
 import { LIFECYCLE_ACTIONS } from './lifecycle.js';
+import { ownersOf } from './ownership.js';
+
+/**
+ * Staff-facing names for owners (FEAT-043 §5.3): the API passes identity's `memberNames`
+ * through the identity zone. A user it can't name shows as "A team member".
+ */
+export type OwnerNames = (userIds: string[]) => Promise<Map<string, string>>;
+const UNNAMED = 'A team member';
+
+async function namedOwners(
+  tx: Tx,
+  tenantId: string,
+  ids: readonly string[],
+  names: OwnerNames | undefined,
+): Promise<Map<string, SummaryOwner>> {
+  const owners = await ownersOf(tx, tenantId, ids);
+  if (owners.size === 0) return new Map();
+  const named = names
+    ? await names([...new Set([...owners.values()].map((x) => x.userId))])
+    : new Map<string, string>();
+  return new Map(
+    [...owners].map(([id, x]) => [id, { userId: x.userId, name: named.get(x.userId) ?? UNNAMED }]),
+  );
+}
 
 /**
  * The inbox's read models (INB-01, INB-04; FEAT-042 §5.2): the views with keyset
@@ -67,8 +91,12 @@ function viewFilter(view: InboxView): SQL {
   }
 }
 
+/** The INB-01 assignee filter on the current owner (D7); `me` is resolved by the API. */
+export type AssigneeFilter = { kind: 'user'; userId: string } | { kind: 'none' };
+
 export interface ListQuery {
   view: InboxView;
+  assignee?: AssigneeFilter | undefined;
   channel?: 'widget' | undefined;
   cursor?: string | undefined;
   limit: number;
@@ -79,6 +107,7 @@ export async function listConversations(
   tx: Tx,
   tenantId: string,
   q: ListQuery,
+  names?: OwnerNames,
 ): Promise<{ conversations: ConversationSummary[]; nextCursor: string | null }> {
   const after = q.cursor ? decodeCursor(q.cursor) : null;
   const rows = await tx
@@ -88,7 +117,7 @@ export async function listConversations(
       // Written out in full: Drizzle renders an interpolated column without its table
       // here, which would correlate the subquery with itself.
       lastMessage: sql<string | null>`(
-        select m.body from messages m
+        select coalesce(nullif(m.body, ''), m.notice) from messages m
         where m.tenant_id = "conversations"."tenant_id" and m.conversation_id = "conversations"."id"
         order by m.seq desc limit 1)`,
     })
@@ -98,6 +127,13 @@ export async function listConversations(
         eq(c.tenantId, tenantId),
         viewFilter(q.view),
         q.channel ? eq(c.channel, q.channel) : undefined,
+        q.assignee?.kind === 'user'
+          ? sql`exists (select 1 from conversation_owners o where o.tenant_id = "conversations"."tenant_id"
+                  and o.conversation_id = "conversations"."id" and o.user_id = ${q.assignee.userId})`
+          : q.assignee?.kind === 'none'
+            ? sql`not exists (select 1 from conversation_owners o where o.tenant_id = "conversations"."tenant_id"
+                    and o.conversation_id = "conversations"."id")`
+            : undefined,
         after
           ? sql`(${c.lastMessageAt}, ${c.id}) < (${after.at}::timestamptz, ${after.id}::uuid)`
           : undefined,
@@ -107,8 +143,16 @@ export async function listConversations(
     .limit(q.limit + 1);
   const page = rows.slice(0, q.limit);
   const last = page.at(-1);
+  const owners = await namedOwners(
+    tx,
+    tenantId,
+    page.map((r) => r.conversation.id),
+    names,
+  );
   return {
-    conversations: page.map((r) => toSummary(r.conversation, r.lastMessage)),
+    conversations: page.map((r) =>
+      toSummary(r.conversation, r.lastMessage, owners.get(r.conversation.id) ?? null),
+    ),
     nextCursor:
       rows.length > q.limit && last
         ? encodeCursor({ at: last.at, id: last.conversation.id })
@@ -121,18 +165,21 @@ export async function conversationSummary(
   tx: Tx,
   tenantId: string,
   conversationId: string,
+  names?: OwnerNames,
 ): Promise<ConversationSummary | null> {
   const [row] = await tx
     .select({
       conversation: c,
       lastMessage: sql<string | null>`(
-        select m.body from messages m
+        select coalesce(nullif(m.body, ''), m.notice) from messages m
         where m.tenant_id = "conversations"."tenant_id" and m.conversation_id = "conversations"."id"
         order by m.seq desc limit 1)`,
     })
     .from(c)
     .where(and(eq(c.tenantId, tenantId), eq(c.id, conversationId)));
-  return row ? toSummary(row.conversation, row.lastMessage) : null;
+  if (!row) return null;
+  const owners = await namedOwners(tx, tenantId, [conversationId], names);
+  return toSummary(row.conversation, row.lastMessage, owners.get(conversationId) ?? null);
 }
 
 /** The tab counts, in one query (closed isn't counted). */
@@ -178,18 +225,32 @@ export async function getThread(
     .limit(limit + 1);
   const page = rows.slice(0, limit).reverse();
   return {
-    messages: page.map((r) => ({ ...toMessage(r), factIds: r.factIds })),
+    messages: page.map((r) => ({
+      ...toMessage(r),
+      factIds: r.factIds,
+      authorUserId: r.authorUserId,
+    })),
     hasEarlier: rows.length > limit,
   };
 }
 
 /** A thread divider before the API adds the actor's name (D7). */
-export type ThreadEventRow = Omit<ThreadEvent, 'actor'> & {
+export type ThreadEventRow = Omit<ThreadEvent, 'actor' | 'subject'> & {
   actor: { type: ThreadEvent['actor']['type']; id: string | null };
+  /** Whom a hand-over request or take-from was about (FEAT-043); the API names it. */
+  subject: { id: string | null } | null;
 };
 
 const STATUSES = new Set<string>(schema.CONVERSATION_STATUSES);
-const REASONS = new Set<string>([...schema.CLOSE_REASONS, 'reopened']);
+const REASONS = new Set<string>([
+  ...schema.CLOSE_REASONS,
+  'reopened',
+  'taken_over',
+  'handed_back',
+  'taken_from',
+  'handover_requested',
+]);
+const USER_REF = 'user:';
 const asStatus = (v: unknown) =>
   typeof v === 'string' && STATUSES.has(v) ? (v as ThreadEvent['to'] & string) : null;
 
@@ -211,6 +272,7 @@ export async function threadEvents(
       actorType: a.actorType,
       actorRef: a.actorRef,
       payload: a.payload,
+      subjectRefs: a.subjectRefs,
     })
     .from(a)
     .where(
@@ -224,28 +286,56 @@ export async function threadEvents(
       ),
     )
     .orderBy(a.seq);
-  return rows.map((r) => {
-    const p = (r.payload ?? {}) as Record<string, unknown>;
-    const flagged = r.eventType === 'conversation.flagged';
-    const reason = typeof p.reason === 'string' ? p.reason : null;
-    return {
-      at: r.ts.toISOString(),
-      kind: flagged ? 'flagged' : 'state',
-      from: flagged ? null : asStatus(p.from),
-      to: flagged ? null : asStatus(p.to),
-      reason: flagged
-        ? reason === 'abuse' || reason === 'crisis'
-          ? reason
-          : null
-        : reason && REASONS.has(reason)
-          ? (reason as ThreadEvent['reason'])
-          : null,
-      actor: {
-        type: r.actorType === 'operator' ? 'system' : r.actorType,
-        id: r.actorType === 'user' ? r.actorRef : null,
-      },
-    } satisfies ThreadEventRow;
-  });
+  return rows.map(toThreadEvent);
+}
+
+/** An audit row of `threadEvents`. */
+export interface AuditEventRow {
+  ts: Date;
+  eventType: string;
+  actorType: (typeof schema.auditEntries.$inferSelect)['actorType'];
+  actorRef: string | null;
+  payload: unknown;
+  subjectRefs: string[];
+}
+
+/** Maps one lifecycle or flag audit entry to a thread divider (D7; FEAT-043 reasons). */
+export function toThreadEvent(r: AuditEventRow): ThreadEventRow {
+  const p = (r.payload ?? {}) as Record<string, unknown>;
+  const flagged = r.eventType === 'conversation.flagged';
+  const from = flagged ? null : asStatus(p.from);
+  const to = flagged ? null : asStatus(p.to);
+  // A take-over and a hand-back are plain state changes in the log (D2); name them here.
+  const reason =
+    r.eventType === 'conversation.state_changed' && to === 'human'
+      ? 'taken_over'
+      : r.eventType === 'conversation.state_changed' && from === 'human' && to === 'ai'
+        ? 'handed_back'
+        : typeof p.reason === 'string'
+          ? p.reason
+          : null;
+  const aboutUser =
+    r.eventType === 'conversation.owner_changed' ||
+    r.eventType === 'conversation.handover_requested';
+  const subjectRef = aboutUser ? r.subjectRefs.find((x) => x.startsWith(USER_REF)) : undefined;
+  return {
+    at: r.ts.toISOString(),
+    kind: flagged ? 'flagged' : 'state',
+    from,
+    to,
+    reason: flagged
+      ? reason === 'abuse' || reason === 'crisis'
+        ? reason
+        : null
+      : reason && REASONS.has(reason)
+        ? (reason as ThreadEvent['reason'])
+        : null,
+    actor: {
+      type: r.actorType === 'operator' ? 'system' : r.actorType,
+      id: r.actorType === 'user' ? r.actorRef : null,
+    },
+    subject: aboutUser ? { id: subjectRef ? subjectRef.slice(USER_REF.length) : null } : null,
+  } satisfies ThreadEventRow;
 }
 
 /** The facts the conversation's AI answers used, most used first. */

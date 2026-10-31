@@ -6,19 +6,27 @@ import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { api, ApiError } from '../lib/api.ts';
 import { useToast } from '../lib/form.ts';
-import { CHANNEL_LABEL, clockTime, mergeMessages, STATE_LABEL, threadKey } from '../lib/inbox.ts';
+import {
+  CHANNEL_LABEL,
+  clockTime,
+  mergeMessages,
+  STATE_LABEL,
+  takeoverErrorText,
+  threadKey,
+} from '../lib/inbox.ts';
 import { useMedia } from '../lib/media.ts';
 import { onConversation } from '../lib/realtime.ts';
 import {
   Bubble,
   ContextSidebar,
   Divider,
-  Dock,
   FlaggedChip,
   Glyph,
   StateChip,
   VisitorAvatar,
 } from './conversation-parts.tsx';
+import { useDockActions } from '../lib/takeover.ts';
+import { ThreadDock } from './takeover-dock.tsx';
 
 type Item =
   | { kind: 'message'; key: string; at: number; rank: number; message: ThreadMessage }
@@ -57,6 +65,8 @@ export function ConversationPane({ id, backTo }: { id: string; backTo: string })
   const [details, setDetails] = useState(false);
   const [toast, setToast] = useToast();
   const [changed, setChanged] = useState<ConversationStatus | null>(null);
+  const [closeOwned, setCloseOwned] = useState<string | null>(null);
+  const me = useQuery({ queryKey: ['me'], queryFn: api.me });
   const [earlier, setEarlier] = useState<{ messages: ThreadMessage[]; hasEarlier: boolean } | null>(
     null,
   );
@@ -67,11 +77,13 @@ export function ConversationPane({ id, backTo }: { id: string; backTo: string })
     queryFn: () => api.conversation(id),
     retry: (n, err) => !(err instanceof ApiError && err.status < 500) && n < 1,
   });
+  const dock = useDockActions(thread.data?.conversation, me.data, setToast);
 
   const close = useMutation({
     mutationFn: (version: number) => api.closeConversation(id, version),
     onSuccess: (res) => {
       setChanged(null);
+      setCloseOwned(null);
       setToast('Conversation closed');
       onConversation(queryClient, res.conversation);
       void queryClient.invalidateQueries({ queryKey: threadKey(id) });
@@ -79,6 +91,8 @@ export function ConversationPane({ id, backTo }: { id: string; backTo: string })
     },
     onError: (err) => {
       if (err instanceof ApiError && err.status === 409) {
+        // Someone else owns it (FEAT-043 D6): only the owner can close.
+        setCloseOwned(err.code === 'owned' ? takeoverErrorText('owned', err.details) : null);
         const latest = (err.details.conversation as { status?: ConversationStatus } | undefined)
           ?.status;
         setChanged(latest ?? (err.code === 'already_closed' ? 'closed' : null));
@@ -128,7 +142,8 @@ export function ConversationPane({ id, backTo }: { id: string; backTo: string })
   const c = t.conversation;
   const messages = mergeMessages(earlier?.messages ?? [], t.messages);
   const hasEarlier = earlier ? earlier.hasEarlier : t.hasEarlier;
-  const open = c.status !== 'closed';
+  // Only the owner closes a taken-over conversation (D6).
+  const open = c.status !== 'closed' && dock.mode !== 'other';
   const startClose = () => close.mutate(c.version);
   const sidebar = <ContextSidebar thread={t} />;
 
@@ -160,6 +175,15 @@ export function ConversationPane({ id, backTo }: { id: string; backTo: string })
                 </DropdownMenu.Trigger>
                 <DropdownMenu.Portal>
                   <DropdownMenu.Content className="menu" align="end" sideOffset={4}>
+                    {dock.mode === 'mine' && (
+                      <DropdownMenu.Item
+                        className="menu__item"
+                        disabled={dock.handBack.isPending}
+                        onSelect={() => dock.handBack.mutate()}
+                      >
+                        Hand back to assistant
+                      </DropdownMenu.Item>
+                    )}
                     <DropdownMenu.Item className="menu__item" onSelect={startClose}>
                       Close conversation
                     </DropdownMenu.Item>
@@ -194,6 +218,11 @@ export function ConversationPane({ id, backTo }: { id: string; backTo: string })
             This conversation changed while you were looking. It's now {STATE_LABEL[changed]}.
           </div>
         )}
+        {closeOwned && (
+          <div className="alert alert--warning" role="alert">
+            {closeOwned}
+          </div>
+        )}
         {close.isError && !(close.error instanceof ApiError && close.error.status === 409) && (
           <div className="alert alert--danger" role="alert">
             Couldn't close the conversation.{' '}
@@ -211,8 +240,9 @@ export function ConversationPane({ id, backTo }: { id: string; backTo: string })
           loadingEarlier={loadEarlier.isPending}
           earlierFailed={loadEarlier.isError}
           onEarlier={() => messages[0] && loadEarlier.mutate(messages[0].seq)}
+          meId={me.data?.user.id ?? null}
         />
-        <Dock conversation={c} />
+        <ThreadDock conversation={c} me={me.data} actions={dock} phone={phone} />
       </div>
       {wide ? (
         <aside className="conversation__sidebar" aria-label="Conversation details">
@@ -249,6 +279,7 @@ function ThreadLog({
   loadingEarlier,
   earlierFailed,
   onEarlier,
+  meId,
 }: {
   messages: ThreadMessage[];
   events: ThreadEvent[];
@@ -257,6 +288,7 @@ function ThreadLog({
   loadingEarlier: boolean;
   earlierFailed: boolean;
   onEarlier: () => void;
+  meId: string | null;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [pinned, setPinned] = useState(true);
@@ -318,7 +350,7 @@ function ThreadLog({
         <ol className="thread-log" data-testid="thread-log">
           {items.map((item) =>
             item.kind === 'message' ? (
-              <Bubble key={item.key} message={item.message} facts={factMap} />
+              <Bubble key={item.key} message={item.message} facts={factMap} meId={meId} />
             ) : (
               <Divider key={item.key} event={item.event} />
             ),

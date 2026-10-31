@@ -6,6 +6,8 @@ import type {
   ConversationThread,
   InboxView,
   IntentSignal,
+  Me,
+  MemberEvent,
   Message,
   ThreadEvent,
   ThreadMessage,
@@ -16,7 +18,13 @@ import type { InfiniteData } from '@tanstack/react-query';
 export interface InboxFilter {
   view: InboxView;
   channel: 'widget' | null;
+  /** FEAT-043 (D7): the current owner, `me`, `none` (unassigned) or a member's user ID; null = anyone. */
+  assignee: string | null;
 }
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const validAssignee = (a: string | null) =>
+  a === 'me' || a === 'none' || (a !== null && UUID.test(a)) ? a : null;
 
 export const VIEWS: InboxView[] = ['open', 'escalated', 'approval', 'flagged', 'closed'];
 export const VIEW_LABEL: Record<InboxView, string> = {
@@ -34,7 +42,7 @@ export function viewFromSearch(search: URLSearchParams): InboxFilter {
   const v = search.get('view');
   const view = (VIEWS as string[]).includes(v ?? '') ? (v as InboxView) : 'open';
   const channel = search.get('channel') === 'widget' ? 'widget' : null;
-  return { view, channel };
+  return { view, channel, assignee: validAssignee(search.get('assignee')) };
 }
 
 /** The query string for a filter; the default (Open, all channels) is empty, so the URL is `/inbox`. */
@@ -42,11 +50,23 @@ export function searchFromView(filter: InboxFilter): string {
   const params = new URLSearchParams();
   if (filter.view !== 'open') params.set('view', filter.view);
   if (filter.channel) params.set('channel', filter.channel);
+  if (filter.assignee) params.set('assignee', filter.assignee);
   const qs = params.toString();
   return qs ? `?${qs}` : '';
 }
 
-export const listKey = (f: InboxFilter) => ['conversations', f.view, f.channel ?? 'all'] as const;
+export const listKey = (f: InboxFilter) =>
+  ['conversations', f.view, f.channel ?? 'all', f.assignee ?? 'any'] as const;
+/** The filter a cached list key was made from (`listKey`'s inverse). */
+export function filterOfKey(key: readonly unknown[]): InboxFilter {
+  const [, view, channel, assignee] = key as [string, InboxView, string, string | undefined];
+  return {
+    view,
+    channel: channel === 'widget' ? 'widget' : null,
+    assignee: assignee && assignee !== 'any' ? assignee : null,
+  };
+}
+export const MEMBERS_KEY = ['inbox-members'] as const;
 export const COUNTS_KEY = ['inbox-counts'] as const;
 export const threadKey = (id: string) => ['conversation', id] as const;
 
@@ -54,8 +74,13 @@ export function matchesView(
   s: ConversationSummary,
   view: InboxView,
   channel: 'widget' | null,
+  assignee: string | null = null,
+  meId: string | null = null,
 ): boolean {
   if (channel && s.channel !== channel) return false;
+  if (assignee === 'none' && s.owner) return false;
+  if (assignee && assignee !== 'none' && s.owner?.userId !== (assignee === 'me' ? meId : assignee))
+    return false;
   switch (view) {
     case 'open':
       return s.status !== 'closed';
@@ -86,13 +111,14 @@ export function applySummary(
   data: InfiniteData<ConversationList, unknown> | undefined,
   summary: ConversationSummary,
   filter: InboxFilter,
+  meId: string | null = null,
 ): InfiniteData<ConversationList, unknown> | undefined {
   if (!data) return data;
   const pages = data.pages.map((p) => ({
     ...p,
     conversations: p.conversations.filter((c) => c.id !== summary.id),
   }));
-  if (matchesView(summary, filter.view, filter.channel)) {
+  if (matchesView(summary, filter.view, filter.channel, filter.assignee, meId)) {
     let placed = false;
     for (const page of pages) {
       const at = page.conversations.findIndex((c) => before(summary, c));
@@ -128,7 +154,7 @@ export function appendMessage(
 ): ConversationThread | undefined {
   if (!thread || message.conversationId !== thread.conversation.id) return thread;
   if (thread.messages.some((m) => m.id === message.id || m.seq === message.seq)) return thread;
-  const next: ThreadMessage = { factIds: [], ...message };
+  const next: ThreadMessage = { factIds: [], authorUserId: null, ...message };
   const messages = [...thread.messages, next].sort((a, b) => a.seq - b.seq);
   return {
     ...thread,
@@ -206,6 +232,17 @@ export function eventText(e: ThreadEvent): string {
   if (e.kind === 'flagged')
     return e.reason === 'crisis' ? 'Flagged: crisis message' : 'Flagged: abuse';
   const who = e.actor.name ?? 'A team member';
+  const whom = e.subject?.name ?? 'a team member';
+  switch (e.reason) {
+    case 'taken_over':
+      return `${who} took over`;
+    case 'handed_back':
+      return `${who} handed back to the assistant`;
+    case 'taken_from':
+      return `${who} took over from ${whom}`;
+    case 'handover_requested':
+      return `${who} asked ${whom} to hand over`;
+  }
   if (e.to === 'closed') {
     switch (e.reason) {
       case 'staff':
@@ -224,6 +261,61 @@ export function eventText(e: ThreadEvent): string {
   if (e.to === 'waiting_approval') return 'Waiting for approval';
   if (e.to === 'ai' && e.from !== null) return 'Handed back to the assistant';
   return `Status changed to ${e.to ? STATE_LABEL[e.to] : 'unknown'}`;
+}
+
+export type DockMode = 'ai' | 'mine' | 'other' | 'closed';
+
+/**
+ * What the dock shows (FEAT-043 §5.5): the takeover bar while the assistant has it, the
+ * composer for the owner, the owned bar for everyone else, the closed text.
+ */
+export function dockMode(
+  c: Pick<ConversationSummary, 'status' | 'owner'>,
+  me: Pick<Me, 'user'> | undefined,
+): DockMode {
+  if (c.status === 'closed') return 'closed';
+  if (c.owner) return c.owner.userId === me?.user.id ? 'mine' : 'other';
+  return c.status === 'human' ? 'other' : 'ai';
+}
+
+/** The owner's name as staff see it: "You" for yourself, "A team member" when unknown. */
+export function ownerText(
+  owner: ConversationSummary['owner'],
+  meId: string | null | undefined,
+): string {
+  if (!owner) return 'A team member';
+  return owner.userId === meId ? 'You' : owner.name || 'A team member';
+}
+
+/**
+ * The alert for a refused take-over, hand-back, reply or request (ui-design SCR-APP-015);
+ * null for an error that gets the action's generic text.
+ */
+export function takeoverErrorText(code: string, details: Record<string, unknown>): string | null {
+  const owner = (details.owner ??
+    (details.conversation as ConversationSummary | undefined)?.owner) as
+    ConversationSummary['owner'] | undefined;
+  const name = owner?.name || 'A team member';
+  const conv = details.conversation as ConversationSummary | undefined;
+  switch (code) {
+    case 'owned':
+      return `${name} took this over just now.`;
+    case 'state_changed':
+      return `This conversation changed while you were looking. It's now ${
+        conv ? STATE_LABEL[conv.status].toLowerCase() : 'different'
+      }.`;
+    case 'closed':
+    case 'already_closed':
+      return 'This conversation was closed.';
+    case 'not_owner':
+      return `${name} has taken over this conversation. Your reply wasn't sent.`;
+    case 'not_owned':
+      return "It's back with the assistant. You can take it over.";
+    case 'already_owner':
+      return "You're already handling this conversation.";
+    default:
+      return null;
+  }
 }
 
 /** The dock under the thread, per state (FEAT-043 replaces the AI states' text). */
@@ -275,4 +367,12 @@ export function initials(label: string): string {
     .slice(0, 2)
     .map((w) => w.charAt(0).toUpperCase())
     .join('');
+}
+
+/** The toast's text and link label for an event sent to me (ui-design SCR-APP-015, Owner's notifications). */
+export function memberToastText(e: MemberEvent): { text: string; action: string } {
+  const by = e.by.name || 'A team member';
+  return e.type === 'handover_requested'
+    ? { text: `${by} asks you to hand over a conversation.`, action: 'Open conversation' }
+    : { text: `${by} took over a conversation you were handling.`, action: 'Open' };
 }

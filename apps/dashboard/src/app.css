@@ -491,6 +491,8 @@ a {
 }
 .inbox__filters {
   display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
   margin-bottom: var(--space-4);
 }
 .inbox__list > .alert {
@@ -834,6 +836,101 @@ a {
 }
 .thread-dock p {
   margin: 0;
+}
+/* FEAT-043: the takeover bar, composer and owned bar (ui-design SCR-APP-015). */
+.thread-dock--bar {
+  flex-wrap: wrap;
+}
+.thread-dock--bar > p {
+  flex: 1 1 16rem;
+}
+.thread-dock--composer {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
+}
+.thread-dock__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.composer__caption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.composer {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+.composer__input {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  resize: none;
+  field-sizing: content;
+  max-height: calc(var(--type-body-line) * 6 + var(--space-2) * 2);
+  color: var(--color-text-primary);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+}
+.dock-alert {
+  margin: 0 var(--space-4) var(--space-2);
+}
+.lost-draft {
+  margin: 0 var(--space-4) var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-surface);
+}
+.lost-draft__label {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--type-caption-size);
+}
+.lost-draft blockquote {
+  margin: var(--space-2) 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.thread-notice {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-secondary);
+  font-size: var(--type-caption-size);
+  text-align: center;
+}
+.avatar--sm {
+  width: var(--size-control-sm);
+  height: var(--size-control-sm);
+  font-size: var(--type-caption-size);
+}
+.conversation-row__owner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-secondary);
+  font-size: var(--type-caption-size);
+}
+.avatar--xs {
+  width: var(--space-5);
+  height: var(--space-5);
+  font-size: var(--type-caption-size);
+}
+.toast--warning {
+  border-left: var(--space-1) solid var(--color-warning-default);
+}
+.toast--info {
+  border-left: var(--space-1) solid var(--color-info-default);
+}
+.toast p {
+  margin: 0 0 var(--space-2);
 }
 .thread-skeleton__header {
   height: var(--size-control-lg);

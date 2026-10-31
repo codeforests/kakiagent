@@ -141,4 +141,4 @@ export {
   updateProfile,
   type AccountView,
 } from './account.js';
-export { memberNames } from './names.js';
+export { displayNameOf, inboxMembers, memberNames } from './names.js';

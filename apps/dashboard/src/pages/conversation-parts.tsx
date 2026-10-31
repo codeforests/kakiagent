@@ -141,13 +141,30 @@ const AUTHOR_LABEL: Record<ThreadMessage['author'], string> = {
   system: 'Assistant',
 };
 
+/** A staff bubble's label: "You" for mine, else the name, else "Team member". */
+function authorLabel(m: ThreadMessage, meId: string | null): string {
+  if (m.author !== 'staff') return AUTHOR_LABEL[m.author];
+  if (m.authorUserId && m.authorUserId === meId) return 'You';
+  return m.authorName ?? AUTHOR_LABEL.staff;
+}
+
 export function Bubble({
   message,
   facts,
+  meId = null,
 }: {
   message: ThreadMessage;
   facts: Map<string, FactChip>;
+  meId?: string | null;
 }) {
+  // A staff joined/left notice has no body: a caption row of what the visitor saw (FEAT-043).
+  if (message.body === '' && message.notice)
+    return (
+      <li className="thread-notice" data-testid="thread-notice" data-kind={message.noticeKind}>
+        <Glyph name="chat" size={16} />
+        <span>Visitor saw: {message.notice}</span>
+      </li>
+    );
   const side = message.author === 'visitor' ? 'in' : 'out';
   return (
     <li
@@ -156,7 +173,7 @@ export function Bubble({
       data-testid="thread-message"
     >
       <div className="bubble-meta">
-        <span>{AUTHOR_LABEL[message.author]}</span>
+        <span>{authorLabel(message, meId)}</span>
         <time dateTime={message.createdAt}>{clockTime(message.createdAt)}</time>
       </div>
       <div className={`bubble bubble--${message.author}`}>{message.body}</div>

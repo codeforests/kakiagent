@@ -1,6 +1,6 @@
 import cookie from '@fastify/cookie';
 import websocket from '@fastify/websocket';
-import { RealtimeEvent, SessionEndedEvent } from '@kaki/contracts';
+import { MemberEvent, RealtimeEvent, SessionEndedEvent } from '@kaki/contracts';
 import { ping, withTenant, type ZoneDb } from '@kaki/db';
 import { authenticate, SESSION_COOKIE } from '@kaki/identity';
 import { messagesSince, NotFoundError, toMessage } from '@kaki/inbox';
@@ -177,9 +177,18 @@ export async function buildApp(deps: Deps) {
     };
     // A role change or deactivation ends this member's sessions here (FEAT-007 D5); signing
     // this session out, from any device, ends it too (FEAT-008 §5.3).
+    // The same channel carries events for this member only (FEAT-043 §5.4): a hand-over
+    // request, or an owner or admin taking their conversation.
     const unsubscribeMember = await subscriber.subscribe(
       channels.member(tenantId, result.auth.userId),
-      endSession,
+      (e) => {
+        const memberEvent = MemberEvent.safeParse(e);
+        if (memberEvent.success) {
+          if (socket.readyState === socket.OPEN) socket.send(JSON.stringify(memberEvent.data));
+          return;
+        }
+        endSession(e);
+      },
     );
     const unsubscribeSession = await subscriber.subscribe(
       channels.session(result.auth.sessionId),

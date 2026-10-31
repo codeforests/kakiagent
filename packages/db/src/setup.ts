@@ -25,6 +25,8 @@ export interface SeedTenant {
   gstRegistered: boolean;
   /** The seeded Owner, who signs in by magic link (FEAT-005). */
   ownerEmail: string;
+  /** Other seeded members (FEAT-043: an agent with a display name for the takeover E2E). */
+  members?: { email: string; displayName: string; role: 'admin' | 'agent' }[];
   /** Weekly opening hours in SGT (AGT-09, FEAT-023); null: not set. */
   hours: Record<string, { open: string; close: string }[]> | null;
   openOnPublicHolidays: boolean;
@@ -68,6 +70,7 @@ export function devTenants(allowedOrigins: string[]): SeedTenant[] {
       allowedOrigins,
       gstRegistered: true,
       ownerEmail: 'owner@kaki-bakery.test',
+      members: [{ email: 'agent@kaki-bakery.test', displayName: 'Mei Ling', role: 'agent' }],
       hours: BAKERY_HOURS,
       openOnPublicHolidays: false,
       profile: {
@@ -170,6 +173,19 @@ export async function seed(client: pg.ClientBase, tenants: SeedTenant[]): Promis
        on conflict (tenant_id, user_id) do nothing`,
       [t.id, userId],
     );
+    for (const m of t.members ?? []) {
+      const member = await client.query<{ id: string }>(
+        `insert into users (email, display_name) values ($1, $2)
+         on conflict (email) do update set display_name = coalesce(users.display_name, excluded.display_name)
+         returning id`,
+        [m.email, m.displayName],
+      );
+      await client.query(
+        `insert into memberships (tenant_id, user_id, role) values ($1, $2, $3)
+         on conflict (tenant_id, user_id) do nothing`,
+        [t.id, member.rows[0]!.id, m.role],
+      );
+    }
     await client.query(
       `insert into terms_acceptances (tenant_id, user_id, document, version)
        select $1, $2, d, $3 from unnest(array['tos', 'aup', 'dpa']) as d

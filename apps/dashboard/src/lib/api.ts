@@ -46,6 +46,9 @@ import {
   ConversationThread,
   ThreadPage,
   CloseConversationResponse,
+  InboxMembers,
+  StaffMessageResponse,
+  TakeoverResult,
   type InboxView,
   CreateWorkspaceResponse,
   MagicLinkResponse,
@@ -242,12 +245,14 @@ export const api = {
   conversations: (q: {
     view: InboxView;
     channel: 'widget' | null;
+    assignee?: string | null;
     cursor?: string | undefined;
     limit?: number;
   }) => {
     const params = new URLSearchParams();
     if (q.view !== 'open') params.set('view', q.view);
     if (q.channel) params.set('channel', q.channel);
+    if (q.assignee) params.set('assignee', q.assignee);
     if (q.cursor) params.set('cursor', q.cursor);
     if (q.limit) params.set('limit', String(q.limit));
     const qs = params.toString();
@@ -267,6 +272,28 @@ export const api = {
       CloseConversationResponse,
       { version },
     ),
+  // Take over and hand back (FEAT-043 §3).
+  takeOver: (id: string, version: number, from?: string) =>
+    request(
+      'POST',
+      `/api/v1/conversations/${encodeURIComponent(id)}/takeover`,
+      TakeoverResult,
+      from ? { version, from } : { version },
+    ),
+  handBack: (id: string, version: number) =>
+    request('POST', `/api/v1/conversations/${encodeURIComponent(id)}/handback`, TakeoverResult, {
+      version,
+    }),
+  sendStaffMessage: (id: string, body: string, clientMessageId: string) =>
+    request(
+      'POST',
+      `/api/v1/conversations/${encodeURIComponent(id)}/messages`,
+      StaffMessageResponse,
+      { body, clientMessageId },
+    ),
+  requestHandover: async (id: string) =>
+    void (await send('POST', `/api/v1/conversations/${encodeURIComponent(id)}/handover-request`)),
+  inboxMembers: () => getJson('/api/v1/inbox/members', InboxMembers),
   facts: (filter: FactListQuery) => {
     const params = new URLSearchParams();
     for (const [k, v] of Object.entries(filter))
