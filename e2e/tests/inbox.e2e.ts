@@ -202,3 +202,38 @@ test('at phone width the list, thread and details sheet work one at a time', asy
   await expect(owner).toHaveURL(/\/inbox$/);
   await expect(owner.getByTestId('conversation-list')).toBeVisible();
 });
+
+// Acceptance verification (AC-1, second clause): after a dropped socket the inbox shows
+// Reconnecting, and on reconnect it refetches, so a conversation started meanwhile appears.
+test('a dropped socket shows Reconnecting, and reconnecting loses nothing (AC-1)', async ({
+  page: owner,
+  browser,
+}) => {
+  let down = false;
+  let current: { close: (o?: { code?: number; reason?: string }) => Promise<void> } | undefined;
+  await owner.routeWebSocket(/\/ws$/, (ws) => {
+    if (down) {
+      void ws.close({ code: 4000, reason: 'test: still down' });
+      return;
+    }
+    ws.connectToServer();
+    current = ws;
+  });
+  await signIn(owner, 'owner@kaki-bakery.test');
+  await owner.goto('/inbox');
+  await expect(owner.getByTestId('live-state')).toHaveText('Live');
+
+  down = true;
+  await current!.close({ code: 4000, reason: 'test: dropped' });
+  await expect(owner.getByTestId('live-state')).toHaveText('Reconnecting…');
+  await expect(owner.getByText('Reconnecting. New messages will appear')).toBeVisible();
+
+  // A visitor chats while the inbox is offline: no event can reach it.
+  const visitor = await visitorChat(browser);
+  const id = await firstMessage(visitor.page, visitor.send, `opening hours? ${token()}`);
+  await visitor.context.close();
+
+  down = false;
+  await expect(owner.getByTestId('live-state')).toHaveText('Live', { timeout: 30_000 });
+  await expect(owner.locator(`[data-testid="conversation-row"][data-id="${id}"]`)).toBeVisible();
+});

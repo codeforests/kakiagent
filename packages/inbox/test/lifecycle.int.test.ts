@@ -15,6 +15,7 @@ import {
   ConversationClosedError,
   ConversationNotFoundError,
   createConversation,
+  endAiConversation,
   endVisitorConversation,
   IllegalTransitionError,
   queueAutoClose,
@@ -224,6 +225,26 @@ describe('reopen (AC-7)', () => {
     await expect(say(c, 'wait')).rejects.toBeInstanceOf(ConversationClosedError);
     expect(await row(c.id)).toMatchObject({ status: 'closed', close_reason: 'visitor' });
   });
+
+  // Acceptance verification: AC-7's inactivity-close and abuse-ended clauses.
+  it('a visitor message within 7 days of an inactivity close reopens the same conversation', async () => {
+    const c = await started();
+    await ageBy(c.id, 31);
+    await withTenant(visitor(), TENANT_A, (tx) => autoCloseIdle(tx, TENANT_A, c.id));
+    const res = await say(c, 'back again');
+    expect(res.conversation).toMatchObject({ id: c.id, status: 'ai', closeReason: null });
+    expect((await lifecycleAudits(c.id)).at(-1)).toMatchObject({
+      event_type: 'conversation.reopened',
+      payload: { from: 'closed', to: 'ai', reason: 'reopened' },
+    });
+  });
+
+  it('a chat the abuse rule ended stays ended', async () => {
+    const c = await started();
+    await withTenant(visitor(), TENANT_A, (tx) => endAiConversation(tx, TENANT_A, c.id, 'abuse'));
+    await expect(say(c, 'let me back in')).rejects.toBeInstanceOf(ConversationClosedError);
+    expect(await row(c.id)).toMatchObject({ status: 'closed', close_reason: 'abuse' });
+  });
 });
 
 describe('auto-close (AC-6)', () => {
@@ -246,6 +267,12 @@ describe('auto-close (AC-6)', () => {
         payload: { from: 'ai', to: 'closed', reason: 'inactive' },
       },
     ]);
+    // Acceptance verification (AC-6): auto-close posts no message to the visitor.
+    const msgs = await owner.query(
+      `select count(*)::int as n from messages where conversation_id = $1`,
+      [idle.id],
+    );
+    expect(msgs.rows[0].n).toBe(0);
     expect(await row(fresh.id)).toMatchObject({ status: 'ai' });
   });
 
