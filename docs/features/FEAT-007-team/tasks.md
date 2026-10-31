@@ -1,7 +1,7 @@
 # Tasks: FEAT-007 — Team, invitations, roles, approval-rights grants, tenant switcher
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: designed · Last updated: 2026-10-31
+> Status: developer-done · Last updated: 2026-10-31
 
 - [x] T1 — Schema: `0040_team.sql` (`invitations` with checks, partial unique and indexes, forced RLS, `tenant_isolation` and `identity_lookup` policies; `memberships.approval_rights` + check; `magic_links.invitation_id` + check; `kaki_workspaces` role and `user_workspaces()`; grants) + Drizzle tables; name in `TENANT_SCOPED_TABLES`; RLS suite case (design §4; AC-8)
       Done when: `drizzle-kit generate` reports no drift after 0040; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes with: B can't insert or update A's invitation; `app_dashboard` reads no invitations; `approval_rights = true` on an admin is refused; `user_workspaces(u)` returns only u's rows with names across two tenants; `app_dashboard` can't execute it.
@@ -29,17 +29,19 @@
 - [x] T9 — E2E: `e2e/tests/team.e2e.ts` and the two FEAT-006 leftovers in `two-step.e2e.ts` (design §5.5; AC-1–AC-9)
       Done when: the specs typecheck and lint; they run in the verify stage's GitHub CI on Chromium, Firefox and WebKit.
       Note: no local stack in cloud sessions (STATE.md); the invite and sign-in steps read Mailpit as `auth.e2e.ts` does.
-- [ ] T10 — Verify: full `pnpm lint`, `pnpm typecheck`, `pnpm test`, `test:coverage` for identity, api, dashboard; update `code-map.md` (identity `invitations.ts`, `team.ts`, `workspaces.ts`; `team.ts` route file; `shell/tenant-switcher.tsx`; `channels.member`); evidence below
+- [x] T10 — Verify: full `pnpm lint`, `pnpm typecheck`, `pnpm test`, `test:coverage` for identity, api, dashboard; update `code-map.md` (identity `invitations.ts`, `team.ts`, `workspaces.ts`; `team.ts` route file; `shell/tenant-switcher.tsx`; `channels.member`); evidence below
       Done when: all pass locally through `scripts/test-env.sh`; evidence filled.
 
 ## Verification evidence
 
-- AC-1:
-- AC-2:
-- AC-3:
-- AC-4:
-- AC-5:
-- AC-6:
-- AC-7:
-- AC-8:
-- AC-9:
+Local, 2026-10-31 (UI build session): `pnpm format:check`, `pnpm lint` (ESLint + dependency-cruiser), `pnpm typecheck`, `pnpm test` (24 tasks; dashboard 13 files incl. `lib/team.test.ts`) all pass. `scripts/test-env.sh pnpm --filter @kaki/identity test:coverage` passes (report-only). `@kaki/api test:coverage` passes except `uploads.int.test.ts` "the S3 presigner" (needs `KAKI_TEST_S3_ENDPOINT`/a container runtime, unrelated, as in the backend handoff); with that file excluded the run and its thresholds pass. The dashboard has no coverage script (pages are covered by E2E). E2E (`team.e2e.ts`, `two-step.e2e.ts`) typecheck and lint; they run in the verify stage's GitHub CI.
+
+- AC-1: identity/api integration (T2, T4); UI invite dialog and pending/queued rows (T6 stub run); `team.e2e.ts` invites and reads the email from Mailpit.
+- AC-2: identity/api integration (T2, T4); SCR-APP-004 wrong, used, revoked/invalid, expired states (T7 stub run); `team.e2e.ts` wrong email, used link, revoked link.
+- AC-3: magic link with `invitation` (T2, T4; body checked in T7 stub run); `team.e2e.ts` signs in from SCR-APP-004 and lands in the joined tenant. Google return and auto-join are not exercised anywhere (no Google in E2E or the stub run).
+- AC-4: identity/api integration (T3, T4); `memberActions` unit test; T6 stub run patch bodies; `team.e2e.ts` role change and deactivate.
+- AC-5: identity/api/realtime integration (T3, T4); `team.e2e.ts` reload after the role change goes to sign-in.
+- AC-6: identity unit `canApprove`, api integration (T2–T4); `memberActions` (rights only for the Owner on active Agents); `team.e2e.ts` grant then "Approval rights come with the Admin role".
+- AC-7: identity/api integration (T3, T4); T8 stub run; `team.e2e.ts` switcher lists both, switch changes the name.
+- AC-8: db RLS suite (T1), api cross-tenant cases (T4); Agent read-only Team (T6 stub run, `team.e2e.ts`).
+- AC-9: axe clean in the T6–T8 stub runs (1280, 375, light, dark for SCR-APP-004); `team.e2e.ts` axe on Team and each SCR-APP-004 state it reaches.

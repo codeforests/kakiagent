@@ -1,22 +1,20 @@
 # Handoff: FEAT-007 — Team, invitations, roles, approval-rights grants, tenant switcher
-Branch: feat/FEAT-007-team · PR: none · Updated: 2026-10-31 by build (backend)
-Stage done: build (T1–T4 of 10)
-Next: build (UI, T5–T10) — kickoff: "Build FEAT-007 (UI) on branch feat/FEAT-007-team. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage build."
+Branch: feat/FEAT-007-team · PR: PRLINK · Updated: 2026-10-31 by build (UI)
+Stage done: build (T1–T10 of 10), status developer-done
+Next: verify — kickoff: "Verify FEAT-007 on branch feat/FEAT-007-team. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
 
 ## What the next stage needs
-- Contracts (end of `packages/contracts/src/index.ts`, section "team, invitations and workspaces"): `TeamResponse`, `TeamMember`, `TeamInvitation`, `InviteBody`, `MemberPatch`, `InvitationTokenBody`, `InvitationLookup`, `Workspace`, `WorkspaceList`, `InvitableRole`. `Me` now has `canApprove` (required: any dashboard fixture building a `Me` needs it); `MagicLinkRequest` has optional `invitation` (the invite token).
-- Routes are all in `apps/api/src/team.ts`, exactly as design §3. Error codes and messages: `INVITATION_ERRORS`/`TEAM_ERRORS` there (`inviteErrorText` in the dashboard should key on the same codes). Accept/switch answer `Me`; PATCH answers the whole `TeamResponse`; POST invite and resend answer one `TeamInvitation` with `delivery` `sent` or `queued`.
-- `POST /api/v1/invitations/accept` and `/workspaces/:id/switch` allow a session owing enrolment (`enrol`), not one owing the code challenge.
-- Google: `GET /api/v1/auth/google/start?next=invite` sets a short cookie; the callback then goes to `/invite` when the result would have been `/` or `/welcome` (two-step still comes first when owed, so `/invite` must read the token back from `sessionStorage`).
-- Magic link from SCR-APP-004: POST `{ email, invitation: token }`; a mismatch answers 400 `invite_wrong_email`.
-- Socket: on a role change or deactivation the member's `/ws` closes with 4401 `session_ended` (the hook already treats 4401 as signed out).
-- Invitation emails link to `{PUBLIC_APP_URL}/invite#token=…`.
-- Lookup states: `valid | expired | used | revoked` (a resent invitation's old link reads `revoked`).
+- UI: `pages/team.tsx` + `team-parts.tsx` (SCR-APP-045), `pages/invite.tsx` (SCR-APP-004, `/invite` outside the shell), `shell/tenant-switcher.tsx`; data in `lib/team.ts`, `lib/workspaces.ts`; unit test `lib/team.test.ts`.
+- `FormDialog` (`@kaki/ui`) gained an optional `onCloseAutoFocus`, as `ConfirmDialog` has, so focus returns to the row's menu button after a dialog opened from a menu item.
+- Small choices inside the ui-design: the rights menu item reads "Give approval rights" / "✓ Remove approval rights" (plain items, the check only when on); "Resend it" in the invite dialog resends straight away; a member who vanished meanwhile (404 on PATCH) closes the dialog and refetches; the switcher's 404 alert sits above the banners in `AppShell`.
+- The invite token is read from `#token=`, dropped from the address bar, and kept in `sessionStorage` for the tab (Google return and a two-step detour), cleared on join or an ended state; it only ever goes in request bodies.
+- The inbox socket "reconnects" on a switch because the switch goes to `/`, unmounting the inbox; its hook opens a new socket on mount.
+- Stub-run evidence for T6–T8 is in `tasks.md` (173 checks, axe clean); the script was a scratch file, not committed.
 
 ## Left to CI or later
-- `apps/api/test/uploads.int.test.ts` "the S3 presigner" needs a container runtime and fails in cloud sessions without `KAKI_TEST_S3_ENDPOINT`; unrelated to this feature, runs in GitHub CI.
-- E2E (`team.e2e.ts`, two FEAT-006 leftovers in `two-step.e2e.ts`) and real-stack renders run in the verify stage's GitHub CI.
-- `code-map.md` update is T10.
+- E2E: `e2e/tests/team.e2e.ts` (new) and the FEAT-006 leftovers as a new `describe` at the end of `two-step.e2e.ts` (it sets Kaki Bakery's `mfa_required` through the owner DB connection and resets it in `afterEach`). Neither has run yet: no local stack in cloud sessions. `support.ts` `magicLinkFor` gained a `path` argument (`'invite'`).
+- `apps/api/test/uploads.int.test.ts` "the S3 presigner" fails without `KAKI_TEST_S3_ENDPOINT`; unrelated, runs in GitHub CI.
+- Google sign-in to join (D4) isn't exercised by any test.
 
 ## Pending for Ken
 - None.
