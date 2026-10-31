@@ -10,6 +10,8 @@ export interface FormDialogProps {
   /** While saving: Esc and the scrim don't close it. */
   busy?: boolean;
   className?: string;
+  /** Where focus goes on close; `preventDefault()` keeps Radix from returning it to the trigger. */
+  onCloseAutoFocus?: (e: Event) => void;
 }
 
 /**
@@ -24,6 +26,7 @@ export function FormDialog({
   children,
   busy = false,
   className,
+  onCloseAutoFocus,
 }: FormDialogProps) {
   const block = (e: Event) => {
     if (busy) e.preventDefault();
@@ -35,6 +38,7 @@ export function FormDialog({
         <Dialog.Content
           className={`kaki-dialog kaki-dialog--form${className ? ` ${className}` : ''}`}
           aria-describedby={undefined}
+          onCloseAutoFocus={onCloseAutoFocus}
           onEscapeKeyDown={block}
           onPointerDownOutside={block}
           onInteractOutside={block}
