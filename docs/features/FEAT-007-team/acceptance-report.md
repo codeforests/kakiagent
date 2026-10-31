@@ -5,7 +5,7 @@
 
 ## Verdict summary
 
-**Accepted** (subject to the GitHub CI run in section CI). DSH-03 and AUTH-04 are met; AUTH-02 gains its "after a role change or deactivation" clause. D3's approval-rights grant and `canApprove` are in place for the approvals features (APR-02 stays with them). Every criterion below has a test that asserts what it says, and every local result was produced in this session. E2E (`team.e2e.ts`, new, and the FEAT-006 leftovers added to `two-step.e2e.ts`) run only in GitHub CI.
+**Accepted.** DSH-03 and AUTH-04 are met; AUTH-02 gains its "after a role change or deactivation" clause. D3's approval-rights grant and `canApprove` are in place for the approvals features (APR-02 stays with them). Every criterion below has a test that asserts what it says, and every local result was produced in this session. E2E (`team.e2e.ts`, new, and the FEAT-006 leftovers added to `two-step.e2e.ts`) run only in GitHub CI.
 
 ## Audit standard
 
@@ -27,7 +27,10 @@ Re-derived from SRS v0.4 DSH-03 ("invite by email, assign role, deactivate"; "de
 
 ## Corrected tests
 
-None. Test diff reviewed (`git diff origin/main...HEAD` on `*.test.ts`, `*.int.test.ts`, `e2e/`): no skips, `.only`, `.todo` or deleted cases. The only removed test-support lines are `magicLinkFor`, rewritten with a `path` argument (`'invite'`) and the same matching; `ws.int`'s fake `subscribe` gained channel recording.
+- `team.e2e.ts` (AC-2, `27e6a63`): after revoking an invitation it expected focus on the Invitations heading, but the revoked one was the only invitation, so the section and its heading are gone and focus goes to "Invite someone" (`team.tsx`'s fallback). It now expects the heading when the section remains and the button when it doesn't.
+- `team.e2e.ts`, `two-step.e2e.ts` (AC-9, `9a3501e`): axe refuses pages opened with `browser.newPage()`; the extra pages now come from `browser.newContext()`.
+
+Otherwise none. Test diff reviewed (`git diff origin/main...HEAD` on `*.test.ts`, `*.int.test.ts`, `e2e/`): no skips, `.only`, `.todo` or deleted cases. The only removed test-support lines are `magicLinkFor`, rewritten with a `path` argument (`'invite'`) and the same matching; `ws.int`'s fake `subscribe` gained channel recording.
 
 ## Independent execution
 
@@ -43,6 +46,7 @@ Fresh `pnpm install`, `pnpm tokens`, then: `pnpm format:check` clean; `pnpm lint
 ## Findings
 
 - O1 (observation, not blocking): Google sign-in to join (D4) is covered at the route level (`next=invite` allow-list) and by the shared consume path, not end to end; it needs a real Google account.
+- O3 (observation, not blocking): ui-design says focus moves to the Invitations heading after a revoke; when the last invitation goes, the code focuses "Invite someone". Sensible, but worth a line in ui-design when the screen is next touched.
 - O2 (observation, not blocking): Team's loading, error-with-Try-again, expired and queued states, and the switcher's 404 alert, are asserted by the builder's stubbed-API runs, not by a committed spec; the backend behind them is covered by the integration suites.
 
 ## RTM
@@ -51,4 +55,6 @@ Test ref appended for AUTH-04, DSH-03, and AUTH-02 (partial: sessions end on a r
 
 ## CI
 
-Pending: GitHub CI started on `feat/FEAT-007-team` at `6054007`, 2026-10-31. Result recorded here when it completes.
+GitHub CI run 84 at `27e6a63`, 2026-10-31: all jobs green (E2E Chromium, Firefox, WebKit; integration and coverage; unit; lint/typecheck; build and size; eval; Terraform; scanning). Two earlier runs (on `6054007`, `9a3501e`) found, besides the two test corrections above, one real defect, fixed on the branch:
+
+- F1 (`9a3501e`): switching business from `/` showed no "Switched to …" toast. The switcher navigates to `/` with the toast in router state, but `useToast` (`lib/form.ts`) read that state only when the page mounted, and Home was already mounted. `useToast` now also takes a toast that arrives with a new location. Only the real stack exposed it: the builder's stubbed run switched from another page.

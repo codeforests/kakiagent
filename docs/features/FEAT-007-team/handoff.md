@@ -1,6 +1,6 @@
 # Handoff: FEAT-007 — Team, invitations, roles, approval-rights grants, tenant switcher
 Branch: feat/FEAT-007-team · PR: https://github.com/codeforests/kakiagent/pull/42 · Updated: 2026-10-31 by verify
-Stage done: verify (accepted, pending GitHub CI green)
+Stage done: verify (accepted; GitHub CI run 84 green at 27e6a63)
 Next: merge on Ken's go-ahead, then FEAT-008 design — kickoff: "Design FEAT-008. Branch feat/FEAT-008-<slug> (create it from main). Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage design."
 
 ## What the next stage needs
@@ -13,4 +13,4 @@ Next: merge on Ken's go-ahead, then FEAT-008 design — kickoff: "Design FEAT-00
 - Google sign-in to join (D4): no end-to-end test (needs a real Google account).
 
 ## Pending for Ken
-- Merge approval for PR #42 once CI is green.
+- Merge approval for PR #42 (CI green).
