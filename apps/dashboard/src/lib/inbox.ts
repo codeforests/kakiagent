@@ -7,6 +7,7 @@ import type {
   InboxView,
   IntentSignal,
   Me,
+  MemberEvent,
   Message,
   ThreadEvent,
   ThreadMessage,
@@ -366,4 +367,12 @@ export function initials(label: string): string {
     .slice(0, 2)
     .map((w) => w.charAt(0).toUpperCase())
     .join('');
+}
+
+/** The toast's text and link label for an event sent to me (ui-design SCR-APP-015, Owner's notifications). */
+export function memberToastText(e: MemberEvent): { text: string; action: string } {
+  const by = e.by.name || 'A team member';
+  return e.type === 'handover_requested'
+    ? { text: `${by} asks you to hand over a conversation.`, action: 'Open conversation' }
+    : { text: `${by} took over a conversation you were handling.`, action: 'Open' };
 }

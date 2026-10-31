@@ -16,6 +16,7 @@ import {
   flattenPages,
   listKey,
   matchesView,
+  memberToastText,
   ownerText,
   takeoverErrorText,
   mergeMessages,
@@ -320,6 +321,18 @@ describe('takeover (FEAT-043)', () => {
         subject: { name: null },
       }),
     ).toBe('A team member asked a team member to hand over');
+  });
+
+  it('words the toasts sent to the owner', () => {
+    const by = { userId: ME, name: 'Ken' };
+    expect(memberToastText({ type: 'handover_requested', conversationId: id(1), by })).toEqual({
+      text: 'Ken asks you to hand over a conversation.',
+      action: 'Open conversation',
+    });
+    expect(
+      memberToastText({ type: 'taken_from_you', conversationId: id(1), by: { ...by, name: '' } })
+        .text,
+    ).toBe('A team member took over a conversation you were handling.');
   });
 
   it('gives a live staff message no author ID until the thread refetches', () => {

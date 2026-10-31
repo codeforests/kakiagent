@@ -1,15 +1,8 @@
 import type { MemberEvent } from '@kaki/contracts';
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
+import { memberToastText } from '../lib/inbox.ts';
 import { memberEvents, MemberEventNotice } from '../lib/realtime.ts';
-
-/** The toast's text and link label for an event sent to me (ui-design SCR-APP-015, Owner's notifications). */
-export function memberToastText(e: MemberEvent): { text: string; action: string } {
-  const by = e.by.name || 'A team member';
-  return e.type === 'handover_requested'
-    ? { text: `${by} asks you to hand over a conversation.`, action: 'Open conversation' }
-    : { text: `${by} took over a conversation you were handling.`, action: 'Open' };
-}
 
 /**
  * Hand-over requests and take-overs from me, on any page (FEAT-043). Stays 10 s, and not
