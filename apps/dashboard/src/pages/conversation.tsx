@@ -291,7 +291,16 @@ function ThreadLog({
   };
 
   return (
-    <div className="thread-scroll" ref={ref} onScroll={onScroll}>
+    // Focusable so keyboard users can scroll the thread (axe scrollable-region-focusable;
+    // WebKit doesn't tab to the links inside).
+    <div
+      className="thread-scroll"
+      ref={ref}
+      onScroll={onScroll}
+      tabIndex={0}
+      role="region"
+      aria-label="Conversation messages"
+    >
       {hasEarlier && (
         <div className="load-more">
           <Button variant="secondary" onClick={onEarlier} disabled={loadingEarlier}>
