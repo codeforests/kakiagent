@@ -1,5 +1,11 @@
 export { can, type Role, type Capability } from './capabilities.js';
-export { CURRENT_TERMS, TERMS_DOCUMENTS, termsAreCurrent, type TermsDocument } from './terms.js';
+export {
+  CURRENT_TERMS,
+  TERMS_DOCUMENTS,
+  termsAccepted,
+  termsAreCurrent,
+  type TermsDocument,
+} from './terms.js';
 export {
   GoogleSignInError,
   LinkError,

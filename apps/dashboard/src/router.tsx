@@ -33,6 +33,8 @@ import { WelcomePage } from './pages/welcome.tsx';
 import { SetupWebsitePage, WidgetSettingsPage } from './pages/widget.tsx';
 import { AppShell } from './shell/app-shell.tsx';
 import { MorePage } from './shell/more.tsx';
+import { SetupLayout } from './shell/wizard-header.tsx';
+import { GoLivePage } from './pages/go-live.tsx';
 
 /**
  * Routes. Sections not yet built render a placeholder naming the feature that
@@ -48,25 +50,35 @@ export const router = createBrowserRouter([
   // Two-step verification (FEAT-006, SCR-APP-005): the challenge and enrolment.
   { path: '/two-step', element: <TwoStepPage /> },
   { path: '/two-step/setup', element: <TwoStepSetupPage /> },
+  // The setup wizard (UC-03; FEAT-035): the focused shell, the step header and footer.
+  {
+    path: '/setup',
+    element: <AppShell focused />,
+    children: [
+      {
+        element: <SetupLayout />,
+        children: [
+          // SCR-APP-006 profile (FEAT-009), -007 sources (FEAT-012), -008 review (FEAT-013),
+          // -009 rules and privacy (FEAT-058, -054), -010 test (FEAT-027), -011 website
+          // (FEAT-032), -012 go live (FEAT-035).
+          { index: true, element: <SetupProfilePage /> },
+          { path: 'sources', element: <SetupSourcesPage /> },
+          { path: 'review', element: <SetupReviewPage /> },
+          { path: 'rules', element: <SetupRulesPage /> },
+          { path: 'test', element: <SetupTestPage /> },
+          { path: 'website', element: <SetupWebsitePage /> },
+          { path: 'go-live', element: <GoLivePage /> },
+        ],
+      },
+    ],
+  },
   {
     path: '/',
     element: <AppShell />,
     children: [
       { index: true, element: <HomePage /> },
-      // The setup wizard's first step (UC-03 1–3; FEAT-009); FEAT-035 adds the wizard frame.
-      { path: 'setup', element: <SetupProfilePage /> },
-      // Its sources step, the website part (FEAT-012); FEAT-015..017 add files.
-      { path: 'setup/sources', element: <SetupSourcesPage /> },
       { path: 'inbox', element: <InboxPage /> },
       { path: 'approvals', element: <Placeholder title="Approvals" feature="FEAT-055" /> },
-      // Its review step (FEAT-013, SCR-APP-008 partial).
-      { path: 'setup/review', element: <SetupReviewPage /> },
-      // Its "rules and privacy" step (FEAT-058, SCR-APP-009 partial); FEAT-054 adds rules.
-      { path: 'setup/rules', element: <SetupRulesPage /> },
-      // Its "test your assistant" step (FEAT-027, SCR-APP-010 partial).
-      { path: 'setup/test', element: <SetupTestPage /> },
-      // Its "add to your website" step (FEAT-032, SCR-APP-011 partial).
-      { path: 'setup/website', element: <SetupWebsitePage /> },
       // Review → Facts (FEAT-013), Conflicts (FEAT-014), Corrections (FEAT-018).
       { path: 'review', element: <ReviewPage /> },
       { path: 'review/conflicts', element: <ConflictsPage /> },

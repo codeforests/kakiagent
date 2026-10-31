@@ -171,3 +171,24 @@ export {
   setTopicSkipped,
   UnknownTopicError,
 } from './coverage.js';
+export {
+  getProgress,
+  nextStep,
+  NotSkippableError,
+  ONBOARDING_STEPS,
+  recordStep,
+  type OnboardingProgress,
+  type OnboardingStep,
+  type StepOutcome,
+} from './onboarding.js';
+export {
+  goLive,
+  goLiveOne,
+  goLiveReadiness,
+  NotReadyError,
+  profileComplete,
+  READINESS_KEYS,
+  WarningsUnacknowledgedError,
+  type Readiness,
+  type ReadinessKey,
+} from './readiness.js';

@@ -6,14 +6,16 @@ import {
 } from '@kaki/contracts';
 import { Button, EmptyState, ErrorState } from '@kaki/ui';
 import * as Tabs from '@radix-ui/react-tabs';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link } from 'react-router';
 import { api, ApiError } from '../lib/api.ts';
 import { Field } from '../lib/field.tsx';
+import { useAssistantSettings } from '../lib/assistant.ts';
 import { describedBy, useToast } from '../lib/form.ts';
 
 type Lang = 'en' | 'zh';
+type Variant = 'settings' | 'setup';
 type TextKey = 'greeting' | 'disclosureNote' | 'afterHoursMessage' | 'fallbackMessage';
 
 interface Draft {
@@ -80,14 +82,8 @@ function validate(d: Draft): Partial<Record<FieldId, string>> {
 export function AssistantPage() {
   // Held here, not in the form: a save bumps the version, which remounts the form.
   const [toast, setToast] = useToast();
-  const loaded = useQuery({
-    queryKey: ['assistant-settings'],
-    queryFn: () => api.assistantSettings(),
-    retry: (n, err) => !(err instanceof ApiError) && n < 1,
-  });
-
-  const head = (
-    <>
+  return (
+    <div className="assistant-page">
       <Link className="back-link" to="/settings">
         Settings
       </Link>
@@ -95,60 +91,7 @@ export function AssistantPage() {
       <p className="page-lede">
         How your assistant introduces itself and talks to visitors. Changes apply to the next reply.
       </p>
-    </>
-  );
-
-  if (loaded.error instanceof ApiError && loaded.error.status === 403)
-    return (
-      <div className="assistant-page">
-        {head}
-        <EmptyState title="You can't change these settings">
-          Only the Owner or an Admin can change the assistant's settings.
-        </EmptyState>
-      </div>
-    );
-  if (loaded.isError)
-    return (
-      <div className="assistant-page">
-        {head}
-        <ErrorState
-          title="We couldn't load your assistant settings"
-          action={
-            <Button variant="secondary" onClick={() => void loaded.refetch()}>
-              Try again
-            </Button>
-          }
-        >
-          Nothing you saved is lost.
-        </ErrorState>
-      </div>
-    );
-  if (!loaded.data)
-    return (
-      <div className="assistant-page">
-        {head}
-        <div className="assistant-layout" aria-busy="true" aria-label="Loading assistant settings">
-          <div className="card">
-            <div className="skeleton-field" />
-            <div className="skeleton-field" />
-            <div className="skeleton-field" />
-          </div>
-          <div className="card assistant-preview">
-            <div className="skeleton-field" />
-          </div>
-        </div>
-      </div>
-    );
-  const { settings, defaults } = loaded.data;
-  return (
-    <div className="assistant-page">
-      {head}
-      <AssistantForm
-        key={settings.version}
-        settings={settings}
-        defaults={defaults}
-        onSaved={setToast}
-      />
+      <AssistantBlock variant="settings" onToast={setToast} />
       {toast && (
         <div className="toast" role="status">
           {toast}
@@ -158,16 +101,76 @@ export function AssistantPage() {
   );
 }
 
+/**
+ * The assistant form with its loading, error and permission states: Settings → Assistant and the
+ * setup's "Rules and privacy" step (SCR-APP-009, FEAT-035). The same save either way.
+ */
+export function AssistantBlock({
+  variant,
+  onToast,
+}: {
+  variant: Variant;
+  onToast: (message: string) => void;
+}) {
+  const loaded = useAssistantSettings();
+  if (loaded.error instanceof ApiError && loaded.error.status === 403)
+    return (
+      <EmptyState title="You can't change these settings">
+        Only the Owner or an Admin can change the assistant's settings.
+      </EmptyState>
+    );
+  if (loaded.isError)
+    return (
+      <ErrorState
+        title="We couldn't load your assistant settings"
+        action={
+          <Button variant="secondary" onClick={() => void loaded.refetch()}>
+            Try again
+          </Button>
+        }
+      >
+        Nothing you saved is lost.
+      </ErrorState>
+    );
+  if (!loaded.data)
+    return (
+      <div className="assistant-layout" aria-busy="true" aria-label="Loading assistant settings">
+        <div className="card">
+          <div className="skeleton-field" />
+          <div className="skeleton-field" />
+          <div className="skeleton-field" />
+        </div>
+        <div className="card assistant-preview">
+          <div className="skeleton-field" />
+        </div>
+      </div>
+    );
+  const { settings, defaults } = loaded.data;
+  return (
+    <AssistantForm
+      key={settings.version}
+      variant={variant}
+      settings={settings}
+      defaults={defaults}
+      onSaved={onToast}
+    />
+  );
+}
+
 function AssistantForm({
+  variant,
   settings,
   defaults,
   onSaved,
 }: {
+  variant: Variant;
   settings: AssistantSettings;
   defaults: AssistantDefaults;
   onSaved: (message: string) => void;
 }) {
   const queryClient = useQueryClient();
+  const setup = variant === 'setup';
+  const Heading = setup ? 'h3' : 'h2';
   const initial = fromSettings(settings);
   const [draft, setDraft] = useState<Draft>(initial);
   const [lang, setLang] = useState<Lang>('en');
@@ -353,9 +356,9 @@ function AssistantForm({
 
       <form className="assistant-layout" onSubmit={submit} noValidate>
         <section className="card stack assistant-persona" aria-labelledby="assistant-persona">
-          <h2 className="section-title" id="assistant-persona">
+          <Heading className="section-title" id="assistant-persona">
             Persona
-          </h2>
+          </Heading>
           <Field
             id="assistant-botName"
             label="Assistant name"
@@ -415,9 +418,9 @@ function AssistantForm({
         </section>
 
         <aside className="card assistant-preview" aria-labelledby="assistant-preview-title">
-          <h2 className="section-title" id="assistant-preview-title">
+          <Heading className="section-title" id="assistant-preview-title">
             Preview
-          </h2>
+          </Heading>
           <div className="preview-panel" lang={lang === 'zh' ? 'zh-Hans' : undefined}>
             <div className="preview-panel__header">
               <span className="preview-panel__name">{name || defaults.botName}</span>
@@ -434,9 +437,9 @@ function AssistantForm({
         </aside>
 
         <section className="card stack assistant-messages" aria-labelledby="assistant-messages">
-          <h2 className="section-title" id="assistant-messages">
+          <Heading className="section-title" id="assistant-messages">
             Messages
-          </h2>
+          </Heading>
           <Tabs.Root className="stack" value={lang} onValueChange={(v) => setLang(v as Lang)}>
             <Tabs.List className="tabs" aria-label="Message language">
               {(['en', 'zh'] as const).map((l) => (
@@ -466,10 +469,11 @@ function AssistantForm({
         <div className="action-bar">
           <Button
             type="submit"
-            disabled={readOnly || !changed}
+            // In setup, saving the defaults as they are counts too (the go-live check, D3).
+            disabled={readOnly || (!changed && !(setup && settings.version === 0))}
             aria-busy={save.isPending || undefined}
           >
-            {save.isPending ? 'Saving…' : 'Save changes'}
+            {save.isPending ? 'Saving…' : setup ? 'Save assistant' : 'Save changes'}
           </Button>
           <Button
             variant="ghost"
@@ -483,6 +487,9 @@ function AssistantForm({
           >
             Cancel
           </Button>
+          {setup && settings.version === 0 && (
+            <p className="review-setup__caption">Not saved yet</p>
+          )}
         </div>
       </form>
     </>

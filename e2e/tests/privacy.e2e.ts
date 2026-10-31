@@ -187,17 +187,17 @@ test('an Agent sees that only Owners and Admins can change privacy settings', as
 test('the setup goes review → rules and privacy → test', async ({ page }) => {
   await signIn(page, 'owner@kaki-bakery.test');
   await page.goto('/setup/review');
-  await page.getByRole('link', { name: 'Continue' }).click();
+  await page.getByRole('button', { name: 'Continue' }).click();
   await expect(page).toHaveURL(/\/setup\/rules$/);
-  await expect(page.getByText('Step 4 of the setup')).toBeVisible();
+  await expect(page.getByText('Step 4 of 7 · Rules and privacy')).toBeVisible();
   await expect(page.getByRole('heading', { level: 1, name: 'Rules and privacy' })).toBeVisible();
   await expect(
     page.getByText(
-      "You'll need saved rules, a privacy notice and a purpose statement before you go live.",
+      "You'll need saved rules, saved assistant settings, a privacy notice and a purpose statement before you go live.",
     ),
   ).toBeVisible();
   await expectNoSeriousA11yViolations(page);
-  await page.getByRole('link', { name: 'Continue' }).click();
+  await page.getByRole('button', { name: 'Continue' }).click();
   await expect(page).toHaveURL(/\/setup\/test$/);
-  await expect(page.getByText('Step 5 of the setup')).toBeVisible();
+  await expect(page.getByText('Step 5 of 7 · Test your assistant')).toBeVisible();
 });

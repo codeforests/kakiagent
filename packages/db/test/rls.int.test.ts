@@ -3,6 +3,7 @@
  * table must have forced RLS, a policy, and an entry in TENANT_SCOPED_TABLES; tenant
  * B's context can never read or write tenant A's rows, even with hand-written SQL.
  */
+import { readFileSync } from 'node:fs';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { TENANT_SCOPED_TABLES } from '../src/schema.js';
@@ -2730,6 +2731,75 @@ describe('boundary rules (FEAT-054)', () => {
       );
     } finally {
       await owner.query(`delete from boundary_rules`);
+    }
+  });
+});
+
+describe('onboarding progress (FEAT-035)', () => {
+  it("tenant B can't read, update or insert tenant A's progress", async () => {
+    await asRole('app_dashboard', TENANT_B, async (c) => {
+      expect(
+        (await c.query(`select tenant_id from onboarding_progress`)).rows.map((r) => r.tenant_id),
+      ).toEqual([TENANT_B]);
+      const upd = await c.query(
+        `update onboarding_progress set current_step = 'review' where tenant_id = $1`,
+        [TENANT_A],
+      );
+      expect(upd.rowCount).toBe(0);
+      await expect(
+        c.query(`insert into onboarding_progress (tenant_id) values ($1)`, [TENANT_A]),
+      ).rejects.toThrow(/row-level security/);
+    });
+    const a = await owner.query(
+      `select current_step from onboarding_progress where tenant_id = $1`,
+      [TENANT_A],
+    );
+    expect(a.rows).toEqual([{ current_step: 'go_live' }]);
+  });
+
+  it('the dashboard updates its own row but never deletes; the visitor has no access', async () => {
+    await asRole('app_dashboard', TENANT_A, async (c) => {
+      const upd = await c.query(`update onboarding_progress set steps = '{"sources":"skipped"}'`);
+      expect(upd.rowCount).toBe(1);
+      await c.query('savepoint s');
+      await expect(c.query(`delete from onboarding_progress`)).rejects.toThrow(/permission denied/);
+      await c.query('rollback to savepoint s');
+      await expect(c.query(`update onboarding_progress set current_step = 'nope'`)).rejects.toThrow(
+        /onboarding_progress_step_ck/,
+      );
+    });
+    await expect(
+      asRole('app_agent_visitor', TENANT_A, (c) => c.query(`select * from onboarding_progress`)),
+    ).rejects.toThrow(/permission denied/);
+  });
+
+  it('the 0039 backfill marks a tenant that was already live as live', async () => {
+    const migration = readFileSync(
+      new URL('../drizzle/0039_onboarding_progress.sql', import.meta.url),
+      'utf8',
+    );
+    const backfill = migration.slice(migration.indexOf('INSERT INTO onboarding_progress'));
+    const before = await owner.query(`select * from onboarding_progress where tenant_id = $1`, [
+      TENANT_A,
+    ]);
+    await owner.query(`delete from onboarding_progress where tenant_id = $1`, [TENANT_A]);
+    try {
+      await owner.query(backfill);
+      const { rows } = await owner.query(
+        `select p.current_step, p.first_live_at = c.state_changed_at as same
+         from onboarding_progress p join channel_connections c
+           on c.tenant_id = p.tenant_id and c.kind = 'widget'
+         where p.tenant_id = $1`,
+        [TENANT_A],
+      );
+      expect(rows).toEqual([{ current_step: 'go_live', same: true }]);
+    } finally {
+      const b = before.rows[0];
+      await owner.query(
+        `update onboarding_progress set current_step = $2, steps = $3, first_live_at = $4
+         where tenant_id = $1`,
+        [TENANT_A, b.current_step, b.steps, b.first_live_at],
+      );
     }
   });
 });

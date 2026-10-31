@@ -125,14 +125,16 @@
           "validation",
           "saved"
         ],
-        "gaps": [
-          "wizard frame (FEAT-035)"
-        ],
-        "supplements": []
+        "gaps": [],
+        "supplements": [
+          "Wizard frame (FEAT-035): features/FEAT-035-onboarding-wizard/ui-design.md#wizard-frame-scr-app-006011-and--012"
+        ]
       },
       "contract_bindings": [
         "GET /api/v1/settings/business-profile",
-        "PUT /api/v1/settings/business-profile"
+        "PUT /api/v1/settings/business-profile",
+        "GET /api/v1/onboarding/progress",
+        "PUT /api/v1/onboarding/progress/:step"
       ]
     },
     "SCR-APP-007": {
@@ -162,15 +164,17 @@
           "map",
           "chat"
         ],
-        "gaps": [
-          "wizard frame (FEAT-035)"
-        ],
-        "supplements": []
+        "gaps": [],
+        "supplements": [
+          "Wizard frame (FEAT-035): features/FEAT-035-onboarding-wizard/ui-design.md#wizard-frame-scr-app-006011-and--012"
+        ]
       },
       "contract_bindings": [
         "POST /api/v1/kb/sources",
         "GET /api/v1/kb/sources",
-        "POST /api/v1/kb/uploads"
+        "POST /api/v1/kb/uploads",
+        "GET /api/v1/onboarding/progress",
+        "PUT /api/v1/onboarding/progress/:step"
       ],
       "conformance": {
         "result": "pass",
@@ -201,17 +205,19 @@
           "error",
           "conflict alert"
         ],
-        "gaps": [
-          "wizard frame (FEAT-035)"
-        ],
-        "supplements": []
+        "gaps": [],
+        "supplements": [
+          "Wizard frame (FEAT-035): features/FEAT-035-onboarding-wizard/ui-design.md#wizard-frame-scr-app-006011-and--012"
+        ]
       },
       "contract_bindings": [
         "GET /api/v1/kb/review/facts",
         "GET /api/v1/kb/review/summary",
         "GET /api/v1/kb/review/preview",
         "POST /api/v1/kb/review/approve-all",
-        "GET /api/v1/kb/coverage"
+        "GET /api/v1/kb/coverage",
+        "GET /api/v1/onboarding/progress",
+        "PUT /api/v1/onboarding/progress/:step"
       ],
       "conformance": {
         "result": "pass",
@@ -240,17 +246,19 @@
           "confirmed",
           "error"
         ],
-        "gaps": [
-          "wizard frame (FEAT-035)"
-        ],
-        "supplements": []
+        "gaps": [],
+        "supplements": [
+          "Wizard frame (FEAT-035): features/FEAT-035-onboarding-wizard/ui-design.md#wizard-frame-scr-app-006011-and--012"
+        ]
       },
       "contract_bindings": [
         "POST /api/v1/coach/sessions",
         "POST /api/v1/coach/sessions/:id/messages",
         "POST /api/v1/coach/corrections/:id/confirm",
         "POST /api/v1/coach/corrections/:id/dismiss",
-        "GET /api/v1/coach/suggestions"
+        "GET /api/v1/coach/suggestions",
+        "GET /api/v1/onboarding/progress",
+        "PUT /api/v1/onboarding/progress/:step"
       ],
       "conformance": {
         "result": "pass",
@@ -1210,10 +1218,11 @@
         ],
         "gaps": [
           "Pre-live form locked (FEAT-034, UX-R4)",
-          "Other channels (FEAT-034+)",
-          "Wizard frame (FEAT-035)"
+          "Other channels (FEAT-034+)"
         ],
-        "supplements": []
+        "supplements": [
+          "Wizard frame (FEAT-035): features/FEAT-035-onboarding-wizard/ui-design.md#wizard-frame-scr-app-006011-and--012"
+        ]
       },
       "contract_bindings": [
         "GET /api/v1/widget",
@@ -1222,7 +1231,9 @@
         "PUT /api/v1/widget/logo",
         "DELETE /api/v1/widget/logo",
         "POST /api/v1/widget/origins",
-        "DELETE /api/v1/widget/origins/:origin"
+        "DELETE /api/v1/widget/origins/:origin",
+        "GET /api/v1/onboarding/progress",
+        "PUT /api/v1/onboarding/progress/:step"
       ],
       "conformance": {
         "result": "pass",
@@ -1358,12 +1369,11 @@
           "conflict",
           "permission"
         ],
-        "gaps": [
-          "Persona and disclosure on the step (FEAT-035; editable now in Settings → Assistant)",
-          "Wizard frame and skip (FEAT-035)"
-        ],
+        "gaps": [],
         "supplements": [
-          "Boundary rules block (FEAT-054): features/FEAT-054-boundary-rules/ui-design.md#scr-app-009--wizard--rules-and-privacy-adds-the-rules-block"
+          "Boundary rules block (FEAT-054): features/FEAT-054-boundary-rules/ui-design.md#scr-app-009--wizard--rules-and-privacy-adds-the-rules-block",
+          "Wizard frame (FEAT-035): features/FEAT-035-onboarding-wizard/ui-design.md#wizard-frame-scr-app-006011-and--012",
+          "Assistant block (FEAT-035): features/FEAT-035-onboarding-wizard/ui-design.md#scr-app-009--wizard--rules-and-privacy-adds-the-assistant-block"
         ]
       },
       "contract_bindings": [
@@ -1371,7 +1381,11 @@
         "PUT /api/v1/settings/privacy/notice",
         "PUT /api/v1/settings/privacy/purpose",
         "GET /api/v1/settings/rules",
-        "PUT /api/v1/settings/rules"
+        "PUT /api/v1/settings/rules",
+        "GET /api/v1/settings/assistant",
+        "PUT /api/v1/settings/assistant",
+        "GET /api/v1/onboarding/progress",
+        "PUT /api/v1/onboarding/progress/:step"
       ],
       "conformance": {
         "result": "pass",
@@ -1618,6 +1632,44 @@
       },
       "status": "designed",
       "designed_at": "2026-10-28"
+    },
+    "SCR-APP-012": {
+      "name": "Go-live check",
+      "surface": "APP",
+      "feature": "FEAT-035",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-035-onboarding-wizard/ui-design.md#scr-app-012--go-live-check"
+      },
+      "states": {
+        "covered": [
+          "loading",
+          "error",
+          "blocked",
+          "warnings",
+          "ready",
+          "going live",
+          "not ready (409)",
+          "conflict",
+          "live",
+          "permission"
+        ],
+        "gaps": [
+          "Pre-live contact form (FEAT-049)",
+          "Other channels (FEAT-036+)"
+        ]
+      },
+      "contract_bindings": [
+        "GET /api/v1/onboarding/readiness",
+        "POST /api/v1/onboarding/go-live"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-10-30"
     }
   }
 }

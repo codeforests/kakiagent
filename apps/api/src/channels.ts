@@ -20,6 +20,7 @@ import {
 } from '@kaki/contracts';
 import { withTenant, type Tx, type ZoneDb } from '@kaki/db';
 import { can } from '@kaki/identity';
+import { goLiveOne, sgDay } from '@kaki/tenancy';
 import type { FastifyRequest } from 'fastify';
 import type { ZodError } from 'zod';
 import type { TenantSession } from './auth.js';
@@ -129,8 +130,12 @@ export function registerChannelRoutes(
       const s = await manager(req);
       const id = idOf(req.params);
       const { version } = bodyOf(ChannelStateBody, req.body);
+      // Going live passes the go-live gate until the first go-live (FEAT-035 D4, D5).
+      const change = { tenantId: s.tenantId, userId: s.userId, id, version };
       const item = await inTenant(s, (tx) =>
-        setChannelState(tx, { tenantId: s.tenantId, userId: s.userId, id, version, state }),
+        state === 'live'
+          ? goLiveOne(tx, { ...change, today: sgDay(new Date()) })
+          : setChannelState(tx, { ...change, state }),
       );
       return ChannelItem.parse(item);
     });

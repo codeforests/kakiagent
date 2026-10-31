@@ -115,6 +115,7 @@ import { registerCoverageRoutes } from './coverage.js';
 import { registerSettingsRoutes } from './settings.js';
 import { registerWidgetRoutes, widgetErrorReply } from './widget.js';
 import { channelErrorReply, registerChannelRoutes } from './channels.js';
+import { onboardingErrorReply, registerOnboardingRoutes } from './onboarding.js';
 import { registerAiRoutes } from './ai.js';
 import {
   AttestationRequiredError,
@@ -373,6 +374,8 @@ export async function buildApp(deps: Deps) {
         .send({ error: 'unavailable', message: 'Saving is unavailable; try again shortly' });
     const rules = rulesErrorReply(err);
     if (rules) return reply.code(rules.status).send(rules.body);
+    const onboarding = onboardingErrorReply(err);
+    if (onboarding) return reply.code(onboarding.status).send(onboarding.body);
     const channel = channelErrorReply(err);
     if (channel) return reply.code(channel.status).send(channel.body);
     const widget = widgetErrorReply(err, req.url);
@@ -608,6 +611,7 @@ export async function buildApp(deps: Deps) {
   registerChannelRoutes(app, deps, sessionFrom);
   registerAiRoutes(app, deps, sessionFrom, notify);
   registerRuleRoutes(app, deps, sessionFrom);
+  registerOnboardingRoutes(app, deps, sessionFrom);
 
   return app;
 }

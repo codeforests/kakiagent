@@ -1534,6 +1534,37 @@ export const boundaryRules = pgTable(
   ],
 );
 
+/**
+ * Wizard progress and the first go-live, one row per tenant (ONB-02, ONB-08, ONB-09; FEAT-035 §4).
+ * No row means never started: step `profile`, nothing done, never live. `steps` maps a step to
+ * `done` or `skipped` (D6, last write wins). `first_live_at` set means the go-live gate no longer
+ * applies (D4). `first_live_by` has no FK into the identity zone (as the audit's actor IDs).
+ * `app_dashboard` may select, insert and update; nobody deletes.
+ */
+export const onboardingProgress = pgTable(
+  'onboarding_progress',
+  {
+    tenantId: uuid('tenant_id')
+      .primaryKey()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    currentStep: text('current_step').notNull().default('profile'),
+    steps: jsonb('steps')
+      .$type<Record<string, 'done' | 'skipped'>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    firstLiveAt: timestamp('first_live_at', { withTimezone: true }),
+    firstLiveBy: uuid('first_live_by'),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    check(
+      'onboarding_progress_step_ck',
+      sql`${t.currentStep} in ('profile', 'sources', 'review', 'rules', 'test', 'website', 'go_live')`,
+    ),
+    check('onboarding_progress_steps_ck', sql`jsonb_typeof(${t.steps}) = 'object'`),
+  ],
+);
+
 /** Tables with `tenant_id` + forced RLS. The cross-tenant suite asserts this list is complete. */
 export const TENANT_SCOPED_TABLES = [
   'tenants',
@@ -1563,4 +1594,5 @@ export const TENANT_SCOPED_TABLES = [
   'privacy_settings',
   'channel_connections',
   'boundary_rules',
+  'onboarding_progress',
 ] as const;

@@ -1,3 +1,4 @@
+import { WizardFooter } from '../shell/wizard-header.tsx';
 import { Button } from '@kaki/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState, type FormEvent } from 'react';
@@ -276,15 +277,9 @@ export function SetupSourcesPage() {
   if (access.error instanceof ApiError && access.error.status === 403) return <NoPermission />;
   return (
     <div className="add-website-page">
-      <p className="page-lede">Step 2 of the setup</p>
       <h1 className="page-title">Add your sources</h1>
       <SourceSections />
-      <Button asChild variant="ghost">
-        <Link to="/setup/review">Next: review your facts</Link>
-      </Button>
-      <Button asChild variant="ghost">
-        <Link to="/">Skip for now</Link>
-      </Button>
+      <WizardFooter />
     </div>
   );
 }

@@ -31,6 +31,11 @@ import {
   BusinessProfileResponse,
   ChannelItem,
   ChannelsResponse,
+  OnboardingProgress,
+  ReadinessResponse,
+  type GoLiveBody,
+  type OnboardingStep,
+  type StepOutcomeBody,
   PrivacySettingsResponse,
   type PrivacyNoticeBody,
   type PurposeStatementBody,
@@ -221,6 +226,13 @@ export const api = {
   saveChannelOffline: (id: string, body: ChannelOfflineBody) =>
     request('PUT', `/api/v1/channels/${id}/offline-settings`, ChannelItem, body),
   checkChannel: (id: string) => request('POST', `/api/v1/channels/${id}/check`, ChannelItem),
+  /** FEAT-035 §3: the wizard's progress and the go-live check (SCR-APP-012). */
+  getProgress: () => getJson('/api/v1/onboarding/progress', OnboardingProgress),
+  recordStep: (step: OnboardingStep, outcome: StepOutcomeBody['outcome']) =>
+    request('PUT', `/api/v1/onboarding/progress/${step}`, OnboardingProgress, { outcome }),
+  getReadiness: () => getJson('/api/v1/onboarding/readiness', ReadinessResponse),
+  goLive: (body: GoLiveBody) =>
+    request('POST', '/api/v1/onboarding/go-live', ReadinessResponse, body),
   privacySettings: () => getJson('/api/v1/settings/privacy', PrivacySettingsResponse),
   savePrivacyNotice: (body: PrivacyNoticeBody) =>
     request('PUT', '/api/v1/settings/privacy/notice', PrivacySettingsResponse, body),

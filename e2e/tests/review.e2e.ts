@@ -206,8 +206,8 @@ test('the owner reviews crawled facts one by one and with Approve all', async ({
   // SCR-APP-008: the setup step shows the same queue.
   await page.goto('/setup/review');
   await expect(page.getByRole('heading', { name: 'Review your facts' })).toBeVisible();
-  await expect(page.getByText('Step 3 of the setup')).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Continue' })).toBeVisible();
+  await expect(page.getByText('Step 3 of 7 · Review your facts')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Continue' })).toBeVisible();
   await expect(card(page, /Red velvet cake/)).toBeVisible();
   await expectNoSeriousA11yViolations(page);
 

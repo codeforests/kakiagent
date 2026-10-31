@@ -1,3 +1,4 @@
+import { WizardFooter } from '../shell/wizard-header.tsx';
 import { Button, EmptyState, ErrorState } from '@kaki/ui';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -153,7 +154,6 @@ export function SetupTestPage() {
   if (forbidden) return <CoachForbidden />;
   return (
     <div className="coach-page coach-setup">
-      <p className="page-lede">Step 5 of the setup</p>
       <h1 className="page-title">Test your assistant</h1>
       <p className="page-lede">
         Ask the questions your customers ask. If an answer is wrong, tell your assistant what's
@@ -175,12 +175,7 @@ export function SetupTestPage() {
         botName={botName}
         suggestions="always"
       />
-      <div className="review-setup__footer">
-        <Button asChild>
-          <Link to="/setup/website">Continue</Link>
-        </Button>
-        <p className="review-setup__caption">You can keep practising any time in Coach.</p>
-      </div>
+      <WizardFooter caption="You can keep practising any time in Coach." />
     </div>
   );
 }
