@@ -909,6 +909,18 @@ a {
   height: var(--size-control-sm);
   font-size: var(--type-caption-size);
 }
+.conversation-row__owner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-secondary);
+  font-size: var(--type-caption-size);
+}
+.avatar--xs {
+  width: var(--space-5);
+  height: var(--space-5);
+  font-size: var(--type-caption-size);
+}
 .toast--warning {
   border-left: var(--space-1) solid var(--color-warning-default);
 }
