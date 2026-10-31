@@ -281,6 +281,13 @@
       "when": 1793401471932,
       "tag": "0039_onboarding_progress",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1793407929966,
+      "tag": "0040_team",
+      "breakpoints": true
     }
   ]
 }
