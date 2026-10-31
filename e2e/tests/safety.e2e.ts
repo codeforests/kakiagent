@@ -83,7 +83,8 @@ test('abuse twice ends the chat, closes the composer and flags the conversation'
   try {
     const dashboard = await context.newPage();
     await signIn(dashboard, 'owner@kaki-bakery.test');
-    const res = await dashboard.request.get(`${DASHBOARD}/api/v1/conversations`);
+    // Closed and flagged: listed under the Flagged view (FEAT-042 D9; Open leaves closed out).
+    const res = await dashboard.request.get(`${DASHBOARD}/api/v1/conversations?view=flagged`);
     expect(res.ok()).toBe(true);
     const { conversations } = (await res.json()) as {
       conversations: { id: string; status: string; flagReasons: string[]; flaggedAt: string }[];

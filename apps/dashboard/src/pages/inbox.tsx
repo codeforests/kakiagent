@@ -122,7 +122,8 @@ function InboxList({
     getNextPageParam: (last) => last.nextCursor ?? undefined,
   });
   const rows = flattenPages(list.data);
-  const to = (f: InboxFilter) => `/inbox${searchFromView(f)}`;
+  // Switching views keeps the open conversation on screen (the thread pane, ≥ 1024).
+  const to = (f: InboxFilter) => `/inbox${selected ? `/${selected}` : ''}${searchFromView(f)}`;
 
   return (
     <>

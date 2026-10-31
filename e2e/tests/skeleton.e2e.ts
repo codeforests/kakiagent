@@ -22,7 +22,6 @@ test('a widget message gets a reply and shows up live in the inbox', async ({
   await expect(owner.getByTestId('live-state')).toHaveText('Live');
   await expectNoSeriousA11yViolations(owner);
   const rows = owner.getByTestId('conversation-row');
-  const before = await rows.count();
 
   // A visitor opens the host page and chats.
   // A separate browser context: the visitor shares no cookies or storage with the owner.
@@ -43,8 +42,8 @@ test('a widget message gets a reply and shows up live in the inbox', async ({
   await expectNoSeriousA11yViolations(visitor, 'kaki-agent');
 
   // The inbox updated over the WebSocket: no reload happened on this page.
-  await expect(rows).toHaveCount(before + 1);
-  await expect(rows.filter({ hasText: replyText }).first()).toBeVisible();
+  // The list is paginated (FEAT-042), so the new conversation is checked at the top, not by count.
+  await expect(rows.first()).toContainText(replyText);
   await visitorContext.close();
 });
 
