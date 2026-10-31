@@ -1,19 +1,17 @@
 # Handoff: FEAT-043 — Take over and hand back, single owner
-Branch: feat/FEAT-043-takeover · PR: none · Updated: 2026-10-31 by build (backend)
-Stage done: build (T1–T5 of 11)
-Next: build (UI, T6–T11) — kickoff: "Build FEAT-043 (UI) on branch feat/FEAT-043-takeover. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage build."
+Branch: feat/FEAT-043-takeover · PR: (draft, see below) · Updated: 2026-10-31 by build (UI)
+Stage done: build (T1–T11 of 11), status developer-done
+Next: verify — kickoff: "Verify FEAT-043 on branch feat/FEAT-043-takeover. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
 
 ## What the next stage needs
-- **Dashboard and widget don't typecheck yet**: the contracts gained required fields. Fix first: `Message.authorName`, `ThreadMessage.authorUserId`, `ConversationSummary.owner`, `ThreadEvent.subject`, `Me.canReassign`. Known spots: dashboard `src/lib/inbox.ts:131` (`appendMessage` builds a `ThreadMessage` from a `Message`: add `authorUserId: null`), `src/lib/inbox.test.ts` fixtures; widget `src/preview.ts`, `src/chat.test.ts`, `src/api.test.ts` fixtures.
-- Routes (all `apps/api/src/inbox.ts`; bodies in contracts' takeover section): `POST /api/v1/conversations/:id/takeover` `{ version, from? }` → `TakeoverResult`; `/handback` `{ version }` → `TakeoverResult`; `POST /api/v1/conversations/:id/messages` `{ body, clientMessageId }` → 201/200 `StaffMessageResponse` (422 `validation` on an empty body); `/handover-request` → 202 `{}`; `GET /api/v1/inbox/members` → `InboxMembers`; list takes `assignee=me|none|<uuid>`.
-- Error codes: 409 `owned` (`OwnedError`, with `owner`), `already_owner`, `closed`, `state_changed` (with `conversation`), `not_owner` (with `conversation`), `not_owned`; 403 for `from` without `inbox.reassign`. Close by a non-owner of an owned conversation is 409 `owned`.
-- Realtime: take-over, hand-back and staff messages publish `message` on `channels.conversation` and `channels.inbox`, then `conversation`. `/ws` now also sends `MemberEvent`s (`handover_requested`, `taken_from_you`) to that member only; parse them with `MemberEvent` alongside `RealtimeEvent`. The inbox `message` event carries a `Message` (no `authorUserId`): "You" comes from comparing `authorName`/thread refetch, or refetch the thread on staff messages.
-- Notices: `author 'system'`, `body ''`, text in `notice`, `noticeKind` `staff_joined`/`staff_left`, `authorName` the snapshot (null → widget says "A team member"/"团队成员"; server text already has it). The list row preview of a notice is its notice text.
-- Owner names: staff-facing `owner.name` = display name, else email local part (`memberNames`); visitor-facing `authorName` = display name only (D3).
-- The test database seeds owners only (`packages/db/src/testing.ts` strips `members`); the dev seed adds `agent@kaki-bakery.test` "Mei Ling" (agent) for the E2E.
+- **The dashboard socket moved to the shell** (`AppShell` calls `useInboxSocket(hasTenant)`): one socket per tab so member toasts (`shell/member-toasts.tsx`) show on any page. The inbox reads its state with `useLiveState()` (`lib/realtime.ts`). Check `inbox.e2e.ts` still passes (Live badge) in CI.
+- Dock logic: `lib/takeover.ts` `useDockActions` (mutations, alerts, focus moves, lost draft, 60 s "Request sent"); views in `pages/takeover-dock.tsx`; `dockMode`, `ownerText`, `takeoverErrorText`, `memberToastText`, assignee URL/key helpers in `lib/inbox.ts`. List cache keys now carry the assignee (`listKey`/`filterOfKey`).
+- Deviations from ui-design: the "You took over · visitor sees …" divider is shown as two rows (the event divider from the server, plus the "Visitor saw: …" caption from the notice message); dividers use names, not "You". The phone menu holds Hand back (Close stays next to it). Socket `message` events for staff/system messages refetch the open thread (for `authorUserId`).
+- Stubbed Chromium run (1440 and 375) passed for: take over → composer focus, Ctrl+Enter send, "You" label, notice caption, owner caption, hand back (button and phone menu) → focus on Take over, owned bar, take-from dialog cancel → focus back, request sent.
+- Coverage runs need `--workspace-concurrency=1` with `scripts/test-env.sh` (parallel packages race on `CREATE ROLE`).
 
 ## Left to CI or later
-- E2E `takeover.e2e.ts` and screen renders run in the verify stage's GitHub CI (no Docker here).
+- E2E `e2e/tests/takeover.e2e.ts` (2 tests) and `inbox.e2e.ts` regression; api coverage threshold (local api run fails only on the S3 presigner, environment).
 
 ## Pending for Ken
 - None.
