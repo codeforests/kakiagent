@@ -1,7 +1,7 @@
 # Tasks: FEAT-043 — Take over and hand back, single owner
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: designed · Last updated: 2026-10-31 (design)
+> Status: in progress (backend T1–T5 done) · Last updated: 2026-10-31 (build, backend)
 
 - [x] T1 — Schema: `0043_takeover.sql` (`conversation_owners` with PK, FK, `(tenant_id, user_id)` index, forced RLS and the tenant policy; `messages.author_user_id`, `author_name`, `messages_staff_author_ck`; notice kinds `staff_joined`, `staff_left` in `NOTICE_KINDS` and the rewritten notice check; grants: `app_dashboard` SELECT/INSERT/DELETE/UPDATE `(user_id, visitor_name, since)` on owners, INSERT on `messages`, UPDATE `(last_message_at)` on `conversations`; `app_agent_visitor` SELECT/DELETE on owners; the restrictive `messages_dashboard_authors` policy) + Drizzle table, columns, `TENANT_SCOPED_TABLES`; seed member `agent@kaki-bakery.test` ("Mei Ling", role agent) in `setup.ts` (design §4, §5.7; AC-9)
       Done when: `drizzle-kit generate` reports no drift after 0043; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes with the RLS case for `conversation_owners` (tenant B sees and deletes nothing of A's), `app_dashboard` inserting a staff row but refused a visitor or agent row, a notice kind outside the four refused, a staff author ID on a visitor row refused, and FEAT-042's grant assertion changed to "`app_dashboard` can update `last_message_at`, not `flag_reasons`" (D5).
@@ -11,7 +11,7 @@
       Done when: `pnpm --filter @kaki/inbox test` (notice texts per language, event mapping) and `scripts/test-env.sh pnpm --filter @kaki/inbox test:integration` pass with the §5.1 cases in a new `ownership.int.test.ts` (including two concurrent take-overs on two clients → one owner, the other `OwnedError` naming the winner) and the FEAT-042 lifecycle suite green.
 - [x] T4 — Gate: `aiAllowed` closed when an owner row exists (design §5.2; AC-2)
       Done when: `pnpm --filter @kaki/agent test` (an owner row with status `ai` closes the gate) and `scripts/test-env.sh pnpm --filter @kaki/agent test:integration` pass with: a visitor message to a taken-over conversation stores no reply and makes no model call; after hand-back the next one is answered; a turn whose gate closes between segments releases nothing further.
-- [ ] T5 — API and realtime: the four POST routes and `GET /api/v1/inbox/members` in `apps/api/src/inbox.ts`, error mapping, close → 409 `owned` for non-owners, `assignee` on the list route, owner names via `memberNames`, publishes (inbox, conversation, member channels); `/ws` forwards `MemberEvent`s from `channels.member` (design §3, §5.4; AC-1–AC-9)
+- [x] T5 — API and realtime: the four POST routes and `GET /api/v1/inbox/members` in `apps/api/src/inbox.ts`, error mapping, close → 409 `owned` for non-owners, `assignee` on the list route, owner names via `memberNames`, publishes (inbox, conversation, member channels); `/ws` forwards `MemberEvent`s from `channels.member` (design §3, §5.4; AC-1–AC-9)
       Done when: `pnpm --filter @kaki/api test`, `scripts/test-env.sh pnpm --filter @kaki/api test:integration` (new `takeover.int.test.ts` with the §5.4 cases, including the parallel take-over pair and cross-tenant 404s; `inbox.int.test.ts` green) and `pnpm --filter @kaki/realtime test` (a member event reaches only that member's socket; `session_ended` still closes it) pass; api and realtime typecheck clean.
 
 ## Build session 2 (UI)
@@ -32,6 +32,7 @@
 
 ## Verification evidence
 
+- Backend notes (build session 1): `packages/inbox/test/ownership.int.test.ts` (16), `apps/api/test/takeover.int.test.ts` (10), `packages/db/test/rls.int.test.ts` FEAT-043 block (4), `packages/agent/test/turn.int.test.ts` (2 new), `apps/realtime/test/ws.int.test.ts` (1 new), contracts `takeover.test.ts` (4), identity unit + `names.int.test.ts` (3 new). Local api integration also hits `uploads.int.test.ts` "S3 presigner", which needs a container or `KAKI_TEST_S3_ENDPOINT` (environment, not this feature).
 - AC-1 —
 - AC-2 —
 - AC-3 —

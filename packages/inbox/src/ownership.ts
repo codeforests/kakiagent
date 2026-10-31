@@ -174,6 +174,12 @@ export interface TakeOverResult {
  */
 export async function takeOver(tx: Tx, input: TakeOverInput): Promise<TakeOverResult> {
   const { tenantId, conversationId, userId } = input;
+  // Not found (or another tenant's) before the insert, which would otherwise fail its FK.
+  const [exists] = await tx
+    .select({ id: c.id })
+    .from(c)
+    .where(and(eq(c.tenantId, tenantId), eq(c.id, conversationId)));
+  if (!exists) throw new ConversationNotFoundError('conversation not found');
   if (input.from !== undefined) {
     if (input.from === userId) throw new AlreadyOwnerError('already the owner');
     const current = await lockConversation(tx, tenantId, conversationId);

@@ -26,6 +26,7 @@ import {
   MfaStateError,
   ReauthRequiredError,
   SESSION_COOKIE,
+  memberNames,
   TermsOutdatedError,
   type MfaStateCode,
 } from '@kaki/identity';
@@ -35,6 +36,7 @@ import {
   createConversation,
   endVisitorConversation,
   NotFoundError,
+  ownerOf,
   recentMessages,
   toMessage,
   toSummary,
@@ -557,9 +559,20 @@ export async function buildApp(deps: Deps) {
           type: 'message',
           message,
         });
+        // A taken-over conversation keeps its owner on the inbox row (FEAT-043 §5.3).
+        const owner = await withTenant(visitorDb, v.t, (tx) => ownerOf(tx, v.t, conversationId));
+        const ownerName = owner
+          ? ((await withTenant(deps.identityDb, v.t, (tx) => memberNames(tx, [owner.userId]))).get(
+              owner.userId,
+            ) ?? 'A team member')
+          : null;
         await notify([channels.inbox(v.t)], {
           type: 'conversation',
-          conversation: toSummary(result.conversation, message.body),
+          conversation: toSummary(
+            result.conversation,
+            message.body,
+            owner ? { userId: owner.userId, name: ownerName! } : null,
+          ),
         });
       }
       return reply.code(result.created ? 201 : 200).send(SendMessageResponse.parse({ message }));
