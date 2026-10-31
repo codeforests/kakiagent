@@ -1,5 +1,5 @@
 # Handoff: FEAT-042 — Real-time inbox, conversation view, context sidebar, lifecycle and auto-close
-Branch: feat/FEAT-042-inbox · PR: (draft, see the thread) · Updated: 2026-10-31 by build (UI)
+Branch: feat/FEAT-042-inbox · PR: https://github.com/codeforests/kakiagent/pull/44 (draft) · Updated: 2026-10-31 by build (UI)
 Stage done: build (T1–T9 of 9), status developer-done
 Next: verify — kickoff: "Verify FEAT-042 on branch feat/FEAT-042-inbox. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
 
