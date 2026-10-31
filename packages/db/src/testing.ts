@@ -67,7 +67,13 @@ export async function startTestDatabase(): Promise<TestDatabase> {
     LoginRole,
     string
   >;
-  await setupDatabase({ ownerUrl, passwords, seedTenants: devTenants(['http://localhost:5175']) });
+  // Suites count members per tenant: the test database seeds only the owners; the dev seed's
+  // extra members (FEAT-043's agent for the takeover E2E) are for the local stack.
+  await setupDatabase({
+    ownerUrl,
+    passwords,
+    seedTenants: devTenants(['http://localhost:5175']).map(({ members: _members, ...t }) => t),
+  });
 
   const urlFor = (role: LoginRole) => {
     const u = new URL(ownerUrl);

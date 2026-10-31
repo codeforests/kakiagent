@@ -3036,7 +3036,9 @@ describe('inbox lifecycle (FEAT-042)', () => {
     );
   });
 
-  it('the dashboard zone can update the lifecycle columns only', async () => {
+  // FEAT-043 D5 changed this by design: the dashboard writes staff messages, so it may now move
+  // last_message_at (staff replies count as activity for auto-close); the rest stays refused.
+  it('the dashboard zone can update the lifecycle columns and last_message_at only', async () => {
     const id = await conversation(TENANT_A);
     const rows = await asRole('app_dashboard', TENANT_A, async (c) => {
       await c.query(
@@ -3046,11 +3048,11 @@ describe('inbox lifecycle (FEAT-042)', () => {
       return (await c.query(`select status, version from conversations where id = $1`, [id])).rows;
     });
     expect(rows).toEqual([{ status: 'closed', version: 1 }]);
-    for (const set of [
-      `last_message_at = now()`,
-      `flag_reasons = '{abuse}'`,
-      `auto_close_queued_at = now()`,
-    ])
+    const moved = await asRole('app_dashboard', TENANT_A, (c) =>
+      c.query(`update conversations set last_message_at = now() where id = $1`, [id]),
+    );
+    expect(moved.rowCount).toBe(1);
+    for (const set of [`flag_reasons = '{abuse}'`, `auto_close_queued_at = now()`])
       await expect(
         asRole('app_dashboard', TENANT_A, (c) =>
           c.query(`update conversations set ${set} where id = $1`, [id]),
@@ -3139,5 +3141,127 @@ describe('inbox lifecycle (FEAT-042)', () => {
       `select rolcanlogin from pg_roles where rolname = 'kaki_inbox_timer'`,
     );
     expect(login.rows).toEqual([{ rolcanlogin: false }]);
+  });
+});
+
+// ---- FEAT-043: takeover (FEAT-043 §4; AC-9) ---------------------------------------------
+
+describe('conversation owners and staff messages (FEAT-043)', () => {
+  const conversation = async (t: string) =>
+    (
+      await owner.query<{ id: string }>(
+        `insert into conversations (tenant_id, channel, visitor_id) values ($1, 'widget', gen_random_uuid()) returning id`,
+        [t],
+      )
+    ).rows[0]!.id;
+  const user = '33333333-3333-4333-8333-333333333333';
+
+  it("tenant B sees, takes and deletes nothing of tenant A's owners", async () => {
+    const id = await conversation(TENANT_A);
+    await owner.query(
+      `insert into conversation_owners (tenant_id, conversation_id, user_id, visitor_name) values ($1, $2, $3, 'Mei Ling')`,
+      [TENANT_A, id, user],
+    );
+    try {
+      for (const role of ['app_dashboard', 'app_agent_visitor'] as const) {
+        const seen = await asRole(role, TENANT_B, async (c) => ({
+          rows: (
+            await c.query(`select * from conversation_owners where conversation_id = $1`, [id])
+          ).rows,
+          deleted: (
+            await c.query(`delete from conversation_owners where conversation_id = $1`, [id])
+          ).rowCount,
+        }));
+        expect(seen).toEqual({ rows: [], deleted: 0 });
+        const own = await asRole(
+          role,
+          TENANT_A,
+          async (c) =>
+            (
+              await c.query(`select user_id from conversation_owners where conversation_id = $1`, [
+                id,
+              ])
+            ).rows,
+        );
+        expect(own).toEqual([{ user_id: user }]);
+      }
+      await expect(
+        asRole('app_dashboard', TENANT_B, (c) =>
+          c.query(
+            `insert into conversation_owners (tenant_id, conversation_id, user_id) values ($1, $2, $3)`,
+            [TENANT_A, id, user],
+          ),
+        ),
+      ).rejects.toThrow(/row-level security/);
+      // The visitor zone reads and deletes owners but never writes one.
+      await expect(
+        asRole('app_agent_visitor', TENANT_A, (c) =>
+          c.query(`update conversation_owners set user_id = $2 where conversation_id = $1`, [
+            id,
+            user,
+          ]),
+        ),
+      ).rejects.toThrow(/permission denied/);
+    } finally {
+      await owner.query(`delete from conversation_owners where conversation_id = $1`, [id]);
+    }
+  });
+
+  it('one owner per conversation: a second insert does nothing', async () => {
+    const id = await conversation(TENANT_A);
+    const counts = await asRole('app_dashboard', TENANT_A, async (c) => {
+      const ins = (u: string) =>
+        c.query(
+          `insert into conversation_owners (tenant_id, conversation_id, user_id) values ($1, $2, $3)
+           on conflict do nothing`,
+          [TENANT_A, id, u],
+        );
+      return [(await ins(user)).rowCount, (await ins(TENANT_B)).rowCount];
+    });
+    expect(counts).toEqual([1, 0]);
+  });
+
+  it('the dashboard zone inserts staff and system messages only', async () => {
+    const id = await conversation(TENANT_A);
+    const insert = (author: string) =>
+      asRole('app_dashboard', TENANT_A, (c) =>
+        c.query(
+          `insert into messages (tenant_id, conversation_id, author, body, author_user_id, author_name)
+           values ($1, $2, $3, 'On it', $4, 'Mei Ling')`,
+          [TENANT_A, id, author, author === 'staff' || author === 'system' ? user : null],
+        ),
+      );
+    await expect(insert('staff')).resolves.toMatchObject({ rowCount: 1 });
+    await expect(insert('system')).resolves.toMatchObject({ rowCount: 1 });
+    await expect(insert('visitor')).rejects.toThrow(/row-level security/);
+    await expect(insert('agent')).rejects.toThrow(/row-level security/);
+    // Never into another tenant's conversation.
+    await expect(
+      asRole('app_dashboard', TENANT_B, (c) =>
+        c.query(
+          `insert into messages (tenant_id, conversation_id, author, body) values ($1, $2, 'staff', 'x')`,
+          [TENANT_A, id],
+        ),
+      ),
+    ).rejects.toThrow(/row-level security/);
+  });
+
+  it('a staff author ID only on staff and system rows; notices take the four kinds', async () => {
+    const id = await conversation(TENANT_A);
+    await expect(
+      owner.query(
+        `insert into messages (tenant_id, conversation_id, author, body, author_user_id) values ($1, $2, 'visitor', 'x', $3)`,
+        [TENANT_A, id, user],
+      ),
+    ).rejects.toThrow(/messages_staff_author_ck/);
+    const notice = (kind: string) =>
+      owner.query(
+        `insert into messages (tenant_id, conversation_id, author, body, notice, notice_kind, author_user_id)
+         values ($1, $2, 'system', '', 'Mei Ling joined the chat.', $3, $4)`,
+        [TENANT_A, id, kind, user],
+      );
+    await expect(notice('staff_joined')).resolves.toBeTruthy();
+    await expect(notice('staff_left')).resolves.toBeTruthy();
+    await expect(notice('staff_typing')).rejects.toThrow(/messages_notice_ck/);
   });
 });

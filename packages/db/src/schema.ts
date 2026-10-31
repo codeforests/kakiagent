@@ -235,7 +235,7 @@ export const assistantSettings = pgTable(
 const inList = (values: readonly string[]) => sql.raw(values.map((v) => `'${v}'`).join(', '));
 
 /** System notice kinds on a message (FEAT-023 §4); later kinds extend `messages_notice_ck`. */
-export const NOTICE_KINDS = ['after_hours', 'chat_ended'] as const;
+export const NOTICE_KINDS = ['after_hours', 'chat_ended', 'staff_joined', 'staff_left'] as const;
 /** Embedding dimensions: Cohere Embed Multilingual v3 (ADR-019). */
 export const EMBEDDING_DIMENSIONS = 1024;
 /** Turn outcomes that make a visitor question a coverage gap (FEAT-019 D2). */
@@ -356,6 +356,10 @@ export const messages = pgTable(
     /** A system notice shown with the message, server-rendered (AGT-09 after hours, FEAT-023 D6). */
     notice: text('notice'),
     noticeKind: text('notice_kind', { enum: NOTICE_KINDS }),
+    /** The team member who wrote a staff message or caused a staff notice (FEAT-043 §4). */
+    authorUserId: uuid('author_user_id'),
+    /** The visitor-facing name snapshot on staff messages and notices; null → "A team member" (D3). */
+    authorName: text('author_name'),
     /** The reply language the agent decided (FEAT-033 D3); null on visitor and staff rows. */
     language: text('language', { enum: ['en', 'zh'] }),
     /**
@@ -389,7 +393,11 @@ export const messages = pgTable(
     index('messages_fact_ids_gin').using('gin', t.factIds),
     check(
       'messages_notice_ck',
-      sql`(${t.notice} is null) = (${t.noticeKind} is null) and (${t.noticeKind} is null or ${t.noticeKind} in ('after_hours', 'chat_ended'))`,
+      sql`(${t.notice} is null) = (${t.noticeKind} is null) and (${t.noticeKind} is null or ${t.noticeKind} in (${inList(NOTICE_KINDS)}))`,
+    ),
+    check(
+      'messages_staff_author_ck',
+      sql`${t.authorUserId} is null or ${t.author} in ('staff', 'system')`,
     ),
     check('messages_language_ck', sql`${t.language} in ('en', 'zh')`),
     foreignKey({
@@ -412,6 +420,31 @@ export const messages = pgTable(
       'messages_task_kinds_ck',
       sql`${t.taskKinds} <@ array[${inList(MESSAGE_TASK_KINDS)}]::text[]`,
     ),
+  ],
+);
+
+/**
+ * The one owner of a taken-over conversation (INB-09, ADR-013 d2; FEAT-043 §4). The primary key
+ * decides a simultaneous take-over: `insert … on conflict do nothing`. Deleted by every close and
+ * by hand-back (`transition`, @kaki/inbox).
+ */
+export const conversationOwners = pgTable(
+  'conversation_owners',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    conversationId: uuid('conversation_id').notNull(),
+    userId: uuid('user_id').notNull(),
+    /** The display-name snapshot the visitor sees; null → "A team member" (D3). */
+    visitorName: text('visitor_name'),
+    since: timestamp('since', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.conversationId] }),
+    foreignKey({
+      columns: [t.tenantId, t.conversationId],
+      foreignColumns: [conversations.tenantId, conversations.id],
+    }),
+    index('conversation_owners_tenant_user_idx').on(t.tenantId, t.userId),
   ],
 );
 
@@ -1749,4 +1782,5 @@ export const TENANT_SCOPED_TABLES = [
   'boundary_rules',
   'onboarding_progress',
   'invitations',
+  'conversation_owners',
 ] as const;
