@@ -1600,10 +1600,10 @@
     "SCR-APP-045": {
       "name": "Team",
       "surface": "APP",
-      "feature": "FEAT-006",
+      "feature": "FEAT-007",
       "strategy": "code-native",
       "source": {
-        "spec": "features/FEAT-006-mfa-reauth/ui-design.md#scr-app-045--team-part-require-two-step-verification"
+        "spec": "features/FEAT-007-team/ui-design.md#scr-app-045--team-members-invitations-roles-rights"
       },
       "states": {
         "covered": [
@@ -1614,16 +1614,33 @@
           "owner not enrolled",
           "read-only (Admin, Agent)",
           "saving",
-          "save failed"
+          "save failed",
+          "members",
+          "only the Owner",
+          "invitations pending",
+          "invitation expired",
+          "invitation queued",
+          "deactivated member",
+          "invite dialog",
+          "change role",
+          "deactivate",
+          "reactivate",
+          "approval rights",
+          "read-only (Agent, team)"
         ],
-        "gaps": [
-          "members, roles, invitations (FEAT-007)"
-        ],
-        "supplements": []
+        "gaps": [],
+        "supplements": [
+          "features/FEAT-006-mfa-reauth/ui-design.md#scr-app-045--team-part-require-two-step-verification"
+        ]
       },
       "contract_bindings": [
         "GET /api/v1/team/mfa",
-        "PUT /api/v1/team/mfa"
+        "PUT /api/v1/team/mfa",
+        "GET /api/v1/team",
+        "POST /api/v1/team/invitations",
+        "POST /api/v1/team/invitations/:id/resend",
+        "DELETE /api/v1/team/invitations/:id",
+        "PATCH /api/v1/team/members/:userId"
       ],
       "conformance": {
         "result": "pass",
@@ -1631,7 +1648,7 @@
         "escalations": []
       },
       "status": "designed",
-      "designed_at": "2026-10-28"
+      "designed_at": "2026-10-31"
     },
     "SCR-APP-012": {
       "name": "Go-live check",
@@ -1670,6 +1687,45 @@
       },
       "status": "designed",
       "designed_at": "2026-10-30"
+    },
+    "SCR-APP-004": {
+      "name": "Accept invitation",
+      "surface": "APP",
+      "feature": "FEAT-007",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-007-team/ui-design.md#scr-app-004--accept-invitation"
+      },
+      "states": {
+        "covered": [
+          "loading",
+          "valid (signed in)",
+          "valid (not signed in)",
+          "link sent",
+          "joining",
+          "wrong email",
+          "expired",
+          "used",
+          "revoked or invalid",
+          "error"
+        ],
+        "gaps": [],
+        "supplements": []
+      },
+      "contract_bindings": [
+        "POST /api/v1/invitations/lookup",
+        "POST /api/v1/invitations/accept",
+        "POST /api/v1/auth/magic-link",
+        "GET /api/v1/auth/google/start",
+        "POST /api/v1/auth/sign-out"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-10-31"
     }
   }
 }
