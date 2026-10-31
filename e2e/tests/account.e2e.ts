@@ -61,7 +61,12 @@ test('a user names themselves, changes their email and signs out another device'
 
   // Name: refused, set, shown in the menu, then cleared (AC-1).
   const name = page.getByLabel('Your name');
-  await name.fill('Mei\u0007Ling');
+  // Firefox drops a control character that `fill` types, so set the value as a script
+  // or a paste would, through React's input event.
+  await name.evaluate((el: HTMLInputElement, v) => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(el, v);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  }, 'Mei\u0007Ling');
   await page.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByText('Use up to 60 letters, numbers and spaces.')).toBeVisible();
   await name.fill('Mei Ling');

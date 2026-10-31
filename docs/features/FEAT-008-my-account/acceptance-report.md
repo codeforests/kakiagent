@@ -29,6 +29,7 @@ Re-derived from SRS v0.4 AUTH-05 ("change their profile name and email"; "takes 
 - `auth.e2e.ts` "signing out of all devices ends the session on the other device" (FEAT-005, `0911c82`): it navigated the first device to `/knowledge` and expected `/session-expired`. With AC-6 the open socket closes at once and the shell already shows `/session-expired`; the first 401 clears the cookie, so the later navigation found no session and went to `/sign-in`. It now expects `/session-expired` without navigating, which asserts more than before (no request needed).
 - `account.e2e.ts` (AC-5, AC-6, `0911c82`): the signed-out device accepted `/sign-in` or `/session-expired` after a navigation (O3 below); it now expects `/session-expired` from the socket alone.
 
+- `account.e2e.ts` (AC-1): Firefox drops the control character that `fill` types, so the refused-name step saved "MeiLing" instead of showing the field error. The spec now sets the value through the input's native setter and an `input` event, as a paste or script would, in every browser.
 - `coach.int.test.ts` (FEAT-027, the known flake above): strips UUIDs before the `/fudge|58/` content check, per Ken's decision.
 
 Otherwise none. Test diff reviewed (`git diff origin/main...HEAD` on `*.test.ts`, `*.int.test.ts`, `e2e/`): no skips, `.only`, `.todo` or deleted cases. The only changed existing assertions follow API changes: `revokeAllSessions` returns IDs (`.length` > 0, same meaning), and `TeamMember` fixtures gain `displayName: null`.
