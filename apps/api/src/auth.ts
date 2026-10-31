@@ -11,6 +11,7 @@ import {
 import { eq, schema, withTenant } from '@kaki/db';
 import {
   authenticate,
+  canApprove,
   consumeMagicLink,
   createWorkspace,
   CURRENT_TERMS,
@@ -22,6 +23,7 @@ import {
   sendMagicLink,
   SESSION_COOKIE,
   signInWithGoogle,
+  InvitationError,
   TERMS_DOCUMENTS,
   MfaChallengeError,
   MfaEnrolmentError,
@@ -52,6 +54,8 @@ export interface TenantSession {
   userId: string;
   tenantId: string;
   role: Role;
+  /** The Owner's grant to decide approvals (D3; FEAT-007). */
+  approvalRights: boolean;
   /** For `requireReauth` (AUTH-03; FEAT-006 §5.3). */
   reauthFresh: boolean;
   mfaEnrolled: boolean;
@@ -63,6 +67,7 @@ export interface AuthOpts {
 }
 export type AuthFrom = (req: FastifyRequest, opts?: AuthOpts) => Promise<AuthContext>;
 export type SessionFrom = (req: FastifyRequest) => Promise<TenantSession>;
+export type MeOf = (a: AuthContext) => Promise<Me>;
 
 export const LINK_WINDOW_MS = 15 * 60_000;
 export const LINKS_PER_EMAIL = 5;
@@ -78,6 +83,9 @@ const GOOGLE_NEXT = {
   app: '/',
   'create-workspace': '/welcome',
 } as const;
+
+/** The only `next` the Google start accepts (FEAT-007 §3): back to the invitation page. */
+const OAUTH_NEXT_COOKIE = 'kaki_oauth_next';
 
 /**
  * Sign-in, sessions and workspaces (FEAT-005 design §3), plus the session readers every
@@ -134,6 +142,7 @@ export function registerAuth(app: App, deps: Deps) {
       userId: a.userId,
       tenantId: a.tenantId,
       role: a.role,
+      approvalRights: a.approvalRights,
       reauthFresh: a.reauthFresh,
       mfaEnrolled: a.mfaEnrolled,
     };
@@ -147,7 +156,7 @@ export function registerAuth(app: App, deps: Deps) {
   );
 
   app.post('/api/v1/auth/magic-link', async (req, reply) => {
-    const { email } = MagicLinkRequest.parse(req.body);
+    const { email, invitation } = MagicLinkRequest.parse(req.body);
     // Counted per request, so the answer is the same for registered and unknown addresses.
     let allowed: boolean;
     try {
@@ -161,7 +170,17 @@ export function registerAuth(app: App, deps: Deps) {
       throw new UnavailableError('rate limiter');
     }
     if (!allowed) throw new RateLimitedError();
-    const link = await requestMagicLink(identityDb, links, email);
+    let link: { id: string };
+    try {
+      link = await requestMagicLink(identityDb, links, email, undefined, invitation);
+    } catch (err) {
+      // The page sends only the invited address, so this is a bug or tampering: 400 (§3).
+      if (err instanceof InvitationError)
+        return reply
+          .code(400)
+          .send({ error: err.code, message: 'Use the address this invitation was sent to.' });
+      throw err;
+    }
     const sent = await sendMagicLink(identityDb, mailer, links, link.id);
     if (!sent) req.log.warn({ linkId: link.id }, 'magic link send failed; queued for retry');
     return reply.code(202).send(MagicLinkResponse.parse({ delayed: !sent }));
@@ -180,28 +199,35 @@ export function registerAuth(app: App, deps: Deps) {
     return MagicLinkVerifyResponse.parse({ next: result.next });
   });
 
-  app.get('/api/v1/auth/google/start', async (_req, reply) => {
+  app.get('/api/v1/auth/google/start', async (req, reply) => {
     if (!google) return reply.code(404).send({ error: 'not_found', message: 'Not found' });
     const { url, cookie } = await google.start();
-    return reply
-      .setCookie(OAUTH_COOKIE, cookie, {
-        path: '/api/v1/auth/google',
-        httpOnly: true,
-        sameSite: 'lax',
-        secure,
-        maxAge: OAUTH_COOKIE_TTL_S,
-      })
-      .redirect(url, 302);
+    const oauthCookie = {
+      path: '/api/v1/auth/google',
+      httpOnly: true,
+      sameSite: 'lax',
+      secure,
+      maxAge: OAUTH_COOKIE_TTL_S,
+    } as const;
+    // `next` is allow-listed: only `invite` (FEAT-007 D4); anything else is ignored.
+    const next = (req.query as { next?: unknown }).next;
+    if (next === 'invite') reply.setCookie(OAUTH_NEXT_COOKIE, 'invite', oauthCookie);
+    else reply.clearCookie(OAUTH_NEXT_COOKIE, { path: '/api/v1/auth/google' });
+    return reply.setCookie(OAUTH_COOKIE, cookie, oauthCookie).redirect(url, 302);
   });
 
   app.get('/api/v1/auth/google/callback', async (req, reply) => {
     if (!google) return reply.code(404).send({ error: 'not_found', message: 'Not found' });
     reply.clearCookie(OAUTH_COOKIE, { path: '/api/v1/auth/google' });
+    const toInvite = req.cookies[OAUTH_NEXT_COOKIE] === 'invite';
+    if (toInvite) reply.clearCookie(OAUTH_NEXT_COOKIE, { path: '/api/v1/auth/google' });
     try {
       const who = await google.finish(new URL(req.url, appOrigin), req.cookies[OAUTH_COOKIE]);
       const signedIn = await signInWithGoogle(identityDb, who);
       setSession(reply, signedIn.token);
-      return reply.redirect(GOOGLE_NEXT[signedIn.next], 302);
+      // Back to the invitation, which joins (FEAT-007 D4); two-step comes first if owed.
+      const invite = toInvite && (signedIn.next === 'app' || signedIn.next === 'create-workspace');
+      return reply.redirect(invite ? '/invite' : GOOGLE_NEXT[signedIn.next], 302);
     } catch (err) {
       req.log.warn({ err }, 'google sign-in refused');
       return reply.redirect('/sign-in?error=google', 302);
@@ -220,8 +246,8 @@ export function registerAuth(app: App, deps: Deps) {
     return reply.clearCookie(SESSION_COOKIE, { path: '/' }).code(204).send();
   });
 
-  app.get('/api/v1/me', async (req) => {
-    const a = await authFrom(req);
+  /** `Me` for an authenticated session; also the answer to accept and switch (FEAT-007 §3). */
+  async function meOf(a: AuthContext): Promise<Me> {
     let tenant = null;
     if (a.tenantId) {
       const tenantId = a.tenantId;
@@ -234,8 +260,12 @@ export function registerAuth(app: App, deps: Deps) {
       user: { id: a.userId, email: a.email },
       role: tenant ? a.role : null,
       tenant,
+      canApprove:
+        tenant && a.role ? canApprove({ role: a.role, approvalRights: a.approvalRights }) : false,
     });
-  });
+  }
+
+  app.get('/api/v1/me', async (req) => meOf(await authFrom(req)));
 
   app.post('/api/v1/workspaces', async (req, reply) => {
     const a = await authFrom(req);
@@ -244,5 +274,5 @@ export function registerAuth(app: App, deps: Deps) {
     return reply.code(201).send(CreateWorkspaceResponse.parse({ tenant }));
   });
 
-  return { authFrom, sessionFrom };
+  return { authFrom, sessionFrom, meOf };
 }

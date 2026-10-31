@@ -1,6 +1,6 @@
 import cookie from '@fastify/cookie';
 import websocket from '@fastify/websocket';
-import { RealtimeEvent } from '@kaki/contracts';
+import { RealtimeEvent, SessionEndedEvent } from '@kaki/contracts';
 import { ping, withTenant, type ZoneDb } from '@kaki/db';
 import { authenticate, SESSION_COOKIE } from '@kaki/identity';
 import { messagesSince, NotFoundError, toMessage } from '@kaki/inbox';
@@ -171,8 +171,19 @@ export async function buildApp(deps: Deps) {
       if (parsedEvent.success && socket.readyState === socket.OPEN)
         socket.send(JSON.stringify(parsedEvent.data));
     });
+    // A role change or deactivation ends this member's sessions here (FEAT-007 D5).
+    const unsubscribeMember = await subscriber.subscribe(
+      channels.member(tenantId, result.auth.userId),
+      (e) => {
+        if (SessionEndedEvent.safeParse(e).success && socket.readyState === socket.OPEN)
+          socket.close(4401, 'session_ended');
+      },
+    );
     socket.send(JSON.stringify({ type: 'ready' }));
-    socket.on('close', () => void unsubscribe());
+    socket.on('close', () => {
+      void unsubscribe();
+      void unsubscribeMember();
+    });
   });
 
   return app;
