@@ -151,11 +151,13 @@ export async function consumeMagicLink(
   idDb: ZoneDb,
   token: unknown,
   currentSessionId: string | null,
+  userAgent?: string,
 ): Promise<SignedIn | Reauthed>;
 export async function consumeMagicLink(
   idDb: ZoneDb,
   token: unknown,
   currentSessionId: string | null = null,
+  userAgent?: string,
 ): Promise<SignedIn | Reauthed> {
   if (!isTokenShaped(token)) throw new LinkError('link_invalid');
   const h = hashToken(token);
@@ -210,6 +212,6 @@ export async function consumeMagicLink(
           throw e;
         });
     }
-    return startSession(tx, user.id, 'magic_link', joined);
+    return startSession(tx, user.id, 'magic_link', joined, userAgent);
   });
 }

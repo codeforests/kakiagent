@@ -115,6 +115,7 @@ export function createGoogleSignIn(cfg: GoogleConfig): GoogleSignIn {
 export async function signInWithGoogle(
   idDb: ZoneDb,
   who: { sub: string; email: string },
+  userAgent?: string,
 ): Promise<SignedIn> {
   return idDb.db.transaction(async (tx) => {
     const user = await findOrCreateUser(tx, who.email);
@@ -126,6 +127,6 @@ export async function signInWithGoogle(
       if (taken.rows.length > 0) throw new GoogleSignInError('google account bound elsewhere');
       await tx.execute(sql`update users set google_sub = ${who.sub} where id = ${user.id}`);
     }
-    return startSession(tx, user.id, 'google');
+    return startSession(tx, user.id, 'google', undefined, userAgent);
   });
 }

@@ -35,13 +35,14 @@ export interface SignedIn {
  * sign-in mints a new token, so a session can't be fixed in advance. The session opens
  * `preferTenant` (a workspace just joined), else the workspace of the user's most recently
  * used session that is still an active membership, else the earliest active membership
- * (FEAT-007 D6, replacing FEAT-005 D11).
+ * (FEAT-007 D6, replacing FEAT-005 D11). `userAgent` labels the device (FEAT-008 D6).
  */
 export async function startSession(
   tx: Tx,
   userId: string,
   method: 'magic_link' | 'google',
   preferTenant?: string,
+  userAgent?: string,
 ): Promise<SignedIn> {
   await tx.execute(sql`update users set last_sign_in_at = now() where id = ${userId}`);
   const { rows } = await tx.execute<{ tenant_id: string }>(
@@ -66,6 +67,8 @@ export async function startSession(
     tokenHash: hashToken(token),
     activeTenantId: tenantId,
     authMethod: method,
+    // Cut to 256 characters, for the devices list only (FEAT-008 D6).
+    userAgent: userAgent ? userAgent.slice(0, 256) : null,
     expiresAt: sql`now() + interval '30 days'`,
   });
   const mfa = await tx.execute<{ enrolled: boolean; required: boolean }>(

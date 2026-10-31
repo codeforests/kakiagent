@@ -8,6 +8,8 @@ import { listInvitations, type InvitableRole, type InvitationView } from './invi
 export interface TeamMemberView {
   userId: string;
   email: string;
+  /** The member's profile name (FEAT-008); null until they set one. */
+  displayName: string | null;
   role: Role;
   status: 'active' | 'deactivated';
   approvalRights: boolean;
@@ -34,6 +36,7 @@ export async function listTeam(tx: Tx, viewerUserId: string): Promise<TeamView> 
   const { rows } = await tx.execute<{
     user_id: string;
     email: string;
+    display_name: string | null;
     role: Role;
     status: 'active' | 'deactivated';
     approval_rights: boolean;
@@ -41,7 +44,7 @@ export async function listTeam(tx: Tx, viewerUserId: string): Promise<TeamView> 
     created_at: Date;
     last_active_at: Date | null;
   }>(
-    sql`select m.user_id, u.email, m.role, m.status, m.approval_rights, m.created_at,
+    sql`select m.user_id, u.email, u.display_name, m.role, m.status, m.approval_rights, m.created_at,
           exists (select 1 from mfa_factors f
                   where f.user_id = m.user_id and f.confirmed_at is not null) as mfa_enrolled,
           (select max(s.last_seen_at) from sessions s
@@ -54,6 +57,7 @@ export async function listTeam(tx: Tx, viewerUserId: string): Promise<TeamView> 
     members: rows.map((r) => ({
       userId: r.user_id,
       email: r.email,
+      displayName: r.display_name,
       role: r.role,
       status: r.status,
       approvalRights: r.approval_rights,

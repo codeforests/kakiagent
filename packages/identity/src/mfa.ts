@@ -1,8 +1,8 @@
 import { schema, sql, type Tx, type ZoneDb } from '@kaki/db';
-import { audit } from '@kaki/governance';
 import type { RateLimiter } from '@kaki/platform';
 import type { SecretSealer } from '@kaki/platform/secrets';
 import { randomUUID } from 'node:crypto';
+import { auditUserEvent } from './audit-user.js';
 import { MfaCodeError, MfaLockedError, MfaRateLimitError, MfaStateError } from './errors.js';
 import { requestMagicLink, type MagicLinkConfig } from './magic-link.js';
 import { hashRecoveryCode, newRecoveryCodes } from './recovery.js';
@@ -58,29 +58,6 @@ export interface ReauthStatusView {
 type Who = Pick<AuthContext, 'sessionId' | 'userId'>;
 
 const aad = (factorId: string) => `mfa:${factorId}`;
-
-/**
- * Appends a user-level event to the chain of every workspace where the user is an active
- * member (§5.5): IDs only, payload `{}`. Leaves the transaction without a tenant context.
- */
-async function auditUserEvent(tx: Tx, userId: string, action: string): Promise<void> {
-  const { rows } = await tx.execute<{ tenant_id: string }>(
-    sql`select tenant_id from memberships where user_id = ${userId} and status = 'active'
-        order by tenant_id`,
-  );
-  for (const { tenant_id } of rows) {
-    await tx.execute(sql`select set_config('app.tenant_id', ${tenant_id}, true)`);
-    await audit.append(tx, tenant_id, {
-      action,
-      actorType: 'user',
-      actorId: userId,
-      subjectType: 'user',
-      subjectId: userId,
-      payload: {},
-    });
-  }
-  if (rows.length) await tx.execute(sql`select set_config('app.tenant_id', '', true)`);
-}
 
 async function requiredBy(tx: Tx | ZoneDb['db'], userId: string) {
   const { rows } = await tx.execute<{ tenant_id: string; name: string }>(

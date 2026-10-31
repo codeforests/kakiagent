@@ -25,3 +25,10 @@ export const magicLinkToken = (secret: string, linkId: string): string =>
  */
 export const inviteToken = (secret: string, invitationId: string): string =>
   createHmac('sha256', secret).update(`invite:${invitationId}`).digest('base64url');
+
+/**
+ * The email-change token for a request ID (FEAT-008 §5.1): the same secret under its own
+ * domain, so it can never pass as a magic link or an invitation, or the reverse.
+ */
+export const emailChangeToken = (secret: string, changeId: string): string =>
+  createHmac('sha256', secret).update(`email-change:${changeId}`).digest('base64url');

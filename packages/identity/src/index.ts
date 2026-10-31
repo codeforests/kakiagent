@@ -19,12 +19,23 @@ export {
   NotMemberError,
   TeamError,
   TermsOutdatedError,
+  AccountError,
+  type AccountErrorCode,
   type InvitationErrorCode,
   type MfaStateCode,
   type TeamErrorCode,
 } from './errors.js';
-export { normaliseEmail, magicLinkEmail, inviteEmail } from './email.js';
 export {
+  normaliseEmail,
+  magicLinkEmail,
+  inviteEmail,
+  maskEmail,
+  emailChangeConfirmEmail,
+  emailChangeNoticeEmail,
+  emailInUseEmail,
+} from './email.js';
+export {
+  emailChangeToken,
   hashToken,
   inviteToken,
   isTokenShaped,
@@ -59,8 +70,11 @@ export {
 export { findOrCreateUser, startSession, type SignedIn } from './users.js';
 export {
   authenticate,
+  listSessions,
   revokeAllSessions,
+  revokeOwnSession,
   revokeSession,
+  type DeviceSessionView,
   type AuthContext,
   type AuthFailure,
   type AuthResult,
@@ -115,3 +129,15 @@ export {
   type ReauthMethod,
 } from './reauth.js';
 export { base32Decode, otpauthUri, totpAt, totpStep } from './totp.js';
+export { deviceLabel } from './device.js';
+export {
+  cancelEmailChange,
+  confirmEmailChange,
+  emailChangeUrl,
+  getAccount,
+  requestEmailChange,
+  sendEmailChange,
+  sendPendingEmailChanges,
+  updateProfile,
+  type AccountView,
+} from './account.js';
