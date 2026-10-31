@@ -141,3 +141,4 @@ export {
   updateProfile,
   type AccountView,
 } from './account.js';
+export { memberNames } from './names.js';

@@ -24,15 +24,30 @@ export const Message = z.object({
 });
 export type Message = z.infer<typeof Message>;
 
+/** The INB-08 lifecycle states; `ai` is "AI handling" (FEAT-042 D1). */
+export const ConversationStatus = z.enum([
+  'ai',
+  'escalated',
+  'human',
+  'waiting_approval',
+  'closed',
+]);
+export type ConversationStatus = z.infer<typeof ConversationStatus>;
+/** Why a conversation closed (FEAT-042 §3). */
+export const CloseReason = z.enum(['staff', 'inactive', 'visitor', 'abuse']);
+export type CloseReason = z.infer<typeof CloseReason>;
+
 export const ConversationSummary = z.object({
   id: z.uuid(),
   channel: z.enum(['widget']),
-  status: z.enum(['ai', 'human', 'closed']),
+  status: ConversationStatus,
   lastMessageAt: z.iso.datetime({ offset: true }),
   lastMessage: z.string().nullable(),
   /** When the conversation was first flagged for staff, and why (AGT-13, FEAT-025). */
   flaggedAt: z.iso.datetime({ offset: true }).nullable(),
   flagReasons: z.array(z.enum(['abuse', 'crisis'])),
+  closeReason: CloseReason.nullable(),
+  closedAt: z.iso.datetime({ offset: true }).nullable(),
 });
 export type ConversationSummary = z.infer<typeof ConversationSummary>;
 
@@ -163,8 +178,6 @@ export const Me = z.object({
   canApprove: z.boolean(),
 });
 export type Me = z.infer<typeof Me>;
-
-export const ConversationList = z.object({ conversations: z.array(ConversationSummary) });
 
 // ---- Dashboard API: sign-in and workspaces (FEAT-005 design §3) ---------------------
 
@@ -2315,3 +2328,114 @@ export type DeviceSession = z.infer<typeof DeviceSession>;
 /** Live sessions only, this device first, then by last activity. */
 export const DeviceSessionList = z.object({ sessions: z.array(DeviceSession) });
 export type DeviceSessionList = z.infer<typeof DeviceSessionList>;
+
+// ---- Dashboard API: inbox (INB-01, INB-04, INB-08; FEAT-042 §3) --------------------------
+
+/** `open` = every state but closed; `flagged` = flagged in any state (D9). */
+export const InboxView = z.enum(['open', 'escalated', 'approval', 'flagged', 'closed']);
+export type InboxView = z.infer<typeof InboxView>;
+
+export const InboxCounts = z.object({
+  open: z.number().int().min(0),
+  escalated: z.number().int().min(0),
+  approval: z.number().int().min(0),
+  flagged: z.number().int().min(0),
+});
+export type InboxCounts = z.infer<typeof InboxCounts>;
+
+export const ConversationListQuery = z.object({
+  view: InboxView.default('open'),
+  channel: z.enum(['widget']).optional(),
+  /** Opaque keyset cursor from `nextCursor`; a malformed one is 400 `bad_cursor`. */
+  cursor: z.string().min(1).max(200).optional(),
+  limit: z.coerce.number().int().min(1).max(50).default(25),
+});
+export type ConversationListQuery = z.infer<typeof ConversationListQuery>;
+
+export const ConversationList = z.object({
+  conversations: z.array(ConversationSummary),
+  nextCursor: z.string().nullable(),
+  counts: InboxCounts,
+});
+export type ConversationList = z.infer<typeof ConversationList>;
+
+/** A message as staff see it: with the facts an AI answer used (the widget's `Message` has none). */
+export const ThreadMessage = Message.extend({ factIds: z.array(z.uuid()) });
+export type ThreadMessage = z.infer<typeof ThreadMessage>;
+
+/** A lifecycle or flag change, read from the audit log (D7). */
+export const ThreadEvent = z.object({
+  at: z.iso.datetime({ offset: true }),
+  kind: z.enum(['state', 'flagged']),
+  to: ConversationStatus.nullable(),
+  from: ConversationStatus.nullable(),
+  reason: z.union([CloseReason, z.enum(['reopened', 'abuse', 'crisis'])]).nullable(),
+  actor: z.object({
+    type: z.enum(['user', 'agent', 'visitor', 'system']),
+    name: z.string().nullable(),
+  }),
+});
+export type ThreadEvent = z.infer<typeof ThreadEvent>;
+
+export const FactChip = z.object({
+  id: z.uuid(),
+  type: FactType,
+  label: z.string(),
+  status: FactStatus,
+});
+export type FactChip = z.infer<typeof FactChip>;
+
+/** Intent signals, mapped from triage's task kinds (D4). */
+export const IntentSignal = z.enum([
+  'asked_questions',
+  'wants_to_order',
+  'left_details',
+  'asked_for_person',
+  'switch_channel',
+  'privacy_request',
+  'out_of_scope',
+  'abuse',
+  'crisis',
+]);
+export type IntentSignal = z.infer<typeof IntentSignal>;
+
+/** Placeholder until FEAT-049's leads replace it. */
+export const LeadSummary = z.object({ status: z.string() });
+
+export const ContextSidebar = z.object({
+  contact: z.object({
+    label: z.string(),
+    firstSeenAt: z.iso.datetime({ offset: true }),
+    previousConversations: z.number().int().min(0),
+  }),
+  channel: z.enum(['widget']),
+  intents: z.array(z.object({ signal: IntentSignal, count: z.number().int().min(1) })),
+  lead: LeadSummary.nullable(),
+  facts: z.array(FactChip.extend({ uses: z.number().int().min(1) })),
+});
+export type ContextSidebar = z.infer<typeof ContextSidebar>;
+
+export const ConversationThread = z.object({
+  conversation: ConversationSummary.extend({
+    version: z.number().int().min(0),
+    createdAt: z.iso.datetime({ offset: true }),
+  }),
+  messages: z.array(ThreadMessage),
+  hasEarlier: z.boolean(),
+  events: z.array(ThreadEvent),
+  /** `sidebar.facts` also labels the inline chips: it covers every agent message. */
+  sidebar: ContextSidebar,
+});
+export type ConversationThread = z.infer<typeof ConversationThread>;
+
+export const ThreadPageQuery = z.object({
+  before: z.coerce.number().int().positive().optional(),
+});
+export const ThreadPage = z.object({
+  messages: z.array(ThreadMessage),
+  hasEarlier: z.boolean(),
+});
+export type ThreadPage = z.infer<typeof ThreadPage>;
+
+export const CloseConversationBody = z.object({ version: z.number().int().min(0) }).strict();
+export const CloseConversationResponse = z.object({ conversation: ConversationSummary });

@@ -1,52 +1,25 @@
-import type { ConversationSummary, Message } from '@kaki/contracts';
 import { and, asc, desc, eq, gt, gte, lt, lte, or, schema, sql, type Tx } from '@kaki/db';
 import { audit, auditCode } from '@kaki/governance';
 import { piiMask } from '@kaki/platform';
 import { enqueue } from '@kaki/platform/outbox';
+import { reopenable, transition } from './lifecycle.js';
+
+export * from './lifecycle.js';
+export * from './views.js';
 
 /**
  * Conversation and message repository. Every function takes a transaction opened by
  * `withTenant`, so RLS applies; the explicit `tenant_id` predicates are a second
- * guard, not the only one (ADR-005). The state machine, takeover and the send gate
- * arrive with FEAT-040+ (ADR-013).
+ * guard, not the only one (ADR-005). Status changes go only through `lifecycle.ts`
+ * (FEAT-042, ADR-013 d1); the inbox's read models are in `views.ts`.
  */
 
 export class NotFoundError extends Error {}
 /** A new visitor message to a closed conversation (FEAT-033 D5): the API answers 409. */
 export class ConversationClosedError extends Error {}
 
-export type MessageRow = typeof schema.messages.$inferSelect;
-export type NoticeKind = (typeof schema.NOTICE_KINDS)[number];
-export type FlagReason = (typeof schema.FLAG_REASONS)[number];
-export type ConversationRow = typeof schema.conversations.$inferSelect;
-
-export function toMessage(row: MessageRow): Message {
-  return {
-    id: row.id,
-    conversationId: row.conversationId,
-    seq: row.seq,
-    author: row.author,
-    body: row.body,
-    inReplyTo: row.inReplyTo,
-    disclosure: row.disclosure,
-    notice: row.notice,
-    noticeKind: row.noticeKind,
-    language: row.language,
-    createdAt: row.createdAt.toISOString(),
-  };
-}
-
-export function toSummary(row: ConversationRow, lastMessage: string | null): ConversationSummary {
-  return {
-    id: row.id,
-    channel: row.channel,
-    status: row.status,
-    lastMessageAt: row.lastMessageAt.toISOString(),
-    lastMessage,
-    flaggedAt: row.flaggedAt?.toISOString() ?? null,
-    flagReasons: row.flagReasons,
-  };
-}
+export * from './mappers.js';
+import type { ConversationRow, FlagReason, MessageRow, NoticeKind } from './mappers.js';
 
 export async function createConversation(
   tx: Tx,
@@ -122,10 +95,18 @@ export async function appendVisitorMessage(
     return row;
   };
   // A retry of a stored message stays idempotent even after the chat ended (FEAT-033 D5).
+  let current = conversation;
   if (conversation.status === 'closed') {
     const stored = await existing();
     if (stored) return { message: stored, created: false, conversation };
-    throw new ConversationClosedError('conversation is closed');
+    // A staff or inactivity close within 7 days reopens the same conversation (INB-08, D5).
+    if (!reopenable(conversation)) throw new ConversationClosedError('conversation is closed');
+    current = await transition(tx, {
+      tenantId: input.tenantId,
+      conversationId: input.conversationId,
+      to: 'ai',
+      actor: { type: 'visitor', id: input.visitorId },
+    });
   }
   const [inserted] = await tx
     .insert(schema.messages)
@@ -171,7 +152,7 @@ export async function appendVisitorMessage(
     subjectId: inserted.id,
     related: [{ type: 'conversation', id: input.conversationId }],
   });
-  return { message: inserted, created: true, conversation: updated ?? conversation };
+  return { message: inserted, created: true, conversation: updated ?? current };
 }
 
 export async function getMessage(
@@ -208,6 +189,8 @@ export async function appendAgentReply(
     notice?: { kind: NoticeKind; text: string } | null;
     /** The reply language the agent decided (FEAT-033 D3): the widget's chrome follows it. */
     language?: 'en' | 'zh' | null;
+    /** Triage's task kinds for the turn (FEAT-042 D4): the sidebar's intent signals. */
+    taskKinds?: readonly (typeof schema.MESSAGE_TASK_KINDS)[number][];
   },
 ): Promise<{ message: MessageRow; conversation: ConversationRow } | null> {
   const [inserted] = await tx
@@ -223,6 +206,7 @@ export async function appendAgentReply(
       notice: input.notice?.text ?? null,
       noticeKind: input.notice?.kind ?? null,
       language: input.language ?? null,
+      taskKinds: [...new Set(input.taskKinds ?? [])],
     })
     .onConflictDoNothing()
     .returning();
@@ -332,28 +316,6 @@ export async function messagesSince(
 }
 
 /** The bare dashboard conversation list (SCR-APP-014 arrives with FEAT-040). */
-export async function listConversations(
-  tx: Tx,
-  tenantId: string,
-  limit = 50,
-): Promise<ConversationSummary[]> {
-  const rows = await tx
-    .select({
-      conversation: schema.conversations,
-      // Written out in full: Drizzle renders an interpolated column without its table
-      // here, which would correlate the subquery with itself.
-      lastMessage: sql<string | null>`(
-        select m.body from messages m
-        where m.tenant_id = "conversations"."tenant_id" and m.conversation_id = "conversations"."id"
-        order by m.seq desc limit 1)`,
-    })
-    .from(schema.conversations)
-    .where(eq(schema.conversations.tenantId, tenantId))
-    .orderBy(desc(schema.conversations.lastMessageAt))
-    .limit(limit);
-  return rows.map((r) => toSummary(r.conversation, r.lastMessage));
-}
-
 /**
  * Whether an agent or system message in the conversation carried a notice of `kind` at
  * or after `since` (any time, when `since` is null): the after-hours notice is shown once
@@ -445,36 +407,31 @@ export async function recordAbuse(
 
 /**
  * Ends the AI's part in the conversation (AGT-13 repeated abuse; FEAT-025 D2): an AI
- * conversation becomes `closed`, so the send gate keeps the AI silent (ADR-013 d3).
- * FEAT-042's INB-08 transitions replace this with the state machine.
+ * conversation closes with reason `abuse` through the lifecycle (FEAT-042 D6), so the send
+ * gate keeps the AI silent (ADR-013 d3). Only from `ai`; false otherwise.
  */
 export async function endAiConversation(
   tx: Tx,
   tenantId: string,
   conversationId: string,
-  reason: FlagReason,
+  _reason: FlagReason,
 ): Promise<boolean> {
-  const c = schema.conversations;
-  const [row] = await tx
-    .update(c)
-    .set({ status: 'closed' })
-    .where(and(eq(c.tenantId, tenantId), eq(c.id, conversationId), eq(c.status, 'ai')))
-    .returning({ id: c.id });
-  if (!row) return false;
-  await audit.append(tx, tenantId, {
-    action: 'conversation.ai_ended',
-    actorType: 'agent',
-    subjectType: 'conversation',
-    subjectId: conversationId,
-    payload: { reason: auditCode(reason) },
+  const conversation = await getConversation(tx, tenantId, conversationId);
+  if (conversation?.status !== 'ai') return false;
+  await transition(tx, {
+    tenantId,
+    conversationId,
+    to: 'closed',
+    reason: 'abuse',
+    actor: { type: 'agent' },
   });
   return true;
 }
 
 /**
- * The visitor ends their chat (CHN-13, FEAT-033 §5.1): closes it from `ai` or `human`
- * (D4) so the send gate keeps the AI silent. Idempotent: `ended` is false, and nothing
- * is audited, when the conversation was already closed.
+ * The visitor ends their chat (CHN-13, FEAT-033 §5.1): closes it from any open state
+ * with reason `visitor` so the send gate keeps the AI silent. Idempotent: `ended` is
+ * false, and nothing is audited, when the conversation was already closed.
  */
 export async function endVisitorConversation(
   tx: Tx,
@@ -486,25 +443,13 @@ export async function endVisitorConversation(
     input.conversationId,
     input.visitorId,
   );
-  const c = schema.conversations;
-  const [closed] = await tx
-    .update(c)
-    .set({ status: 'closed' })
-    .where(
-      and(
-        eq(c.tenantId, input.tenantId),
-        eq(c.id, input.conversationId),
-        sql`${c.status} <> 'closed'`,
-      ),
-    )
-    .returning();
-  if (!closed) return { conversation, ended: false };
-  await audit.append(tx, input.tenantId, {
-    action: 'conversation.visitor_ended',
-    actorType: 'visitor',
-    actorId: input.visitorId,
-    subjectType: 'conversation',
-    subjectId: input.conversationId,
+  if (conversation.status === 'closed') return { conversation, ended: false };
+  const closed = await transition(tx, {
+    tenantId: input.tenantId,
+    conversationId: input.conversationId,
+    to: 'closed',
+    reason: 'visitor',
+    actor: { type: 'visitor', id: input.visitorId },
   });
   return { conversation: closed, ended: true };
 }

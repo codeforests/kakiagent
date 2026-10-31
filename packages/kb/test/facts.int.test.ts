@@ -7,6 +7,7 @@ import {
   createFact,
   dashboardKb,
   FactNotFoundError,
+  factChips,
   getFact,
   InvalidStateError,
   listFacts,
@@ -230,5 +231,25 @@ describe('visitor search (AGT-16, ADR-005)', () => {
 
   it('returns nothing for an unrelated question', async () => {
     expect(await search(TENANT_A, 'zzzz qqqq')).toEqual([]);
+  });
+});
+
+describe('fact chips for the inbox (FEAT-042 §5.2)', () => {
+  it('labels each fact with its type and current status, drops missing IDs, per tenant', async () => {
+    const cake = await create(TENANT_A, FUDGE);
+    const faq = await create(TENANT_A, EGGLESS);
+    await edit(TENANT_A, faq.id, { version: 1, status: 'disabled' });
+    const missing = '00000000-0000-4000-8000-00000000dead';
+    const chips = await withTenant(tdb.zone('dashboard'), TENANT_A, (tx) =>
+      factChips(tx, TENANT_A, [faq.id, missing, cake.id, faq.id]),
+    );
+    expect(chips).toEqual([
+      { id: faq.id, type: 'faq', label: 'Do you have eggless cakes?', status: 'disabled' },
+      { id: cake.id, type: 'product', label: 'Chocolate fudge cake', status: 'approved' },
+    ]);
+    const fromB = await withTenant(tdb.zone('dashboard'), TENANT_B, (tx) =>
+      factChips(tx, TENANT_B, [cake.id]),
+    );
+    expect(fromB).toEqual([]);
   });
 });
