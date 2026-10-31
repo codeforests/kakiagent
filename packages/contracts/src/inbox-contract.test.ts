@@ -20,6 +20,7 @@ const summary = {
   flagReasons: [],
   closeReason: null,
   closedAt: null,
+  owner: null,
 } as const;
 
 describe('inbox contracts (FEAT-042 §3)', () => {
@@ -53,8 +54,10 @@ describe('inbox contracts (FEAT-042 §3)', () => {
           notice: null,
           noticeKind: null,
           language: 'en',
+          authorName: null,
           createdAt: AT,
           factIds: [ID],
+          authorUserId: null,
         },
       ],
       hasEarlier: false,
@@ -66,6 +69,7 @@ describe('inbox contracts (FEAT-042 §3)', () => {
           to: 'closed',
           reason: 'staff',
           actor: { type: 'user', name: 'Mei' },
+          subject: null,
         },
         {
           at: AT,
@@ -74,6 +78,7 @@ describe('inbox contracts (FEAT-042 §3)', () => {
           to: null,
           reason: 'crisis',
           actor: { type: 'agent', name: null },
+          subject: null,
         },
       ],
       sidebar: {

@@ -109,6 +109,15 @@ describe('team capabilities and approval rights (FEAT-007 D3, AC-6)', () => {
   });
 });
 
+describe('inbox reassign (FEAT-043 D1)', () => {
+  it('Owner and Admin may take a conversation from its owner; an Agent may only request', () => {
+    expect(can('owner', 'inbox.reassign')).toBe(true);
+    expect(can('admin', 'inbox.reassign')).toBe(true);
+    expect(can('agent', 'inbox.reassign')).toBe(false);
+    expect(can('agent', 'inbox.reply')).toBe(true);
+  });
+});
+
 describe('invitation tokens (FEAT-007 §5.1)', () => {
   it('are token-shaped and never equal the magic-link token for the same ID and secret', () => {
     const secret = 's'.repeat(32);

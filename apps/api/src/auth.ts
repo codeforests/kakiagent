@@ -12,6 +12,7 @@ import {
 import { eq, schema, withTenant } from '@kaki/db';
 import {
   authenticate,
+  can,
   canApprove,
   consumeMagicLink,
   createWorkspace,
@@ -285,6 +286,7 @@ export function registerAuth(app: App, deps: Deps) {
       tenant,
       canApprove:
         tenant && a.role ? canApprove({ role: a.role, approvalRights: a.approvalRights }) : false,
+      canReassign: tenant && a.role ? can(a.role, 'inbox.reassign') : false,
     });
   }
 
