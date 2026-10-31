@@ -3798,3 +3798,235 @@ a.settings-row:hover {
     flex-direction: column;
   }
 }
+
+/* Team: members, invitations, roles and rights (SCR-APP-045, FEAT-007 ui-design). */
+.team-header {
+  align-items: flex-start;
+}
+@media (max-width: 639px) {
+  .team-header {
+    flex-direction: column;
+    gap: 0;
+    margin-bottom: var(--space-5);
+  }
+}
+.team-section {
+  margin-bottom: var(--space-6);
+}
+.team-section .section-title {
+  margin-bottom: var(--space-3);
+}
+.team-section__count {
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-regular);
+}
+.team-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--type-body-sm-size);
+}
+.team-table th,
+.team-table td {
+  padding: var(--space-3);
+  text-align: left;
+  vertical-align: middle;
+  border-top: 1px solid var(--color-border-default);
+}
+.team-table thead th {
+  border-top: 0;
+  background: var(--color-bg-subtle);
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-medium);
+}
+.team-row__person {
+  font-weight: var(--font-weight-regular);
+}
+.team-row__person,
+.team-row__who {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.team-row__who {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.team-row__email {
+  overflow-wrap: anywhere;
+}
+.team-row__meta {
+  display: none;
+  color: var(--color-text-secondary);
+}
+.team-row--off {
+  color: var(--color-text-secondary);
+}
+.team-row__actions {
+  width: var(--size-control-lg);
+  text-align: right;
+}
+.team-table__badge {
+  margin-left: var(--space-2);
+}
+.team-rights {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-success-default);
+  font-size: var(--type-caption-size);
+}
+.team-menu__check {
+  margin-right: var(--space-2);
+  color: var(--color-success-default);
+}
+@media (max-width: 767px) {
+  .team-table thead {
+    display: none;
+  }
+  .team-table,
+  .team-table tbody {
+    display: block;
+  }
+  .team-row {
+    display: flex;
+    align-items: center;
+    border-top: 1px solid var(--color-border-default);
+  }
+  .team-table th,
+  .team-table td {
+    border-top: 0;
+  }
+  .team-row__person {
+    flex: 1;
+    min-width: 0;
+    padding-left: 0;
+  }
+  .team-row__wide {
+    display: none;
+  }
+  .team-row__meta {
+    display: block;
+  }
+}
+.team-invites {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.team-invite {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--color-border-default);
+}
+.team-invite__main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.team-invite__email {
+  overflow-wrap: anywhere;
+}
+.team-invite__meta {
+  color: var(--color-text-secondary);
+  font-size: var(--type-body-sm-size);
+}
+.team-invite__badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.team-invite__badges:empty {
+  display: none;
+}
+.team-invite__actions {
+  display: flex;
+  gap: var(--space-2);
+}
+.status-badge--warning {
+  background: var(--color-warning-soft);
+  color: var(--color-warning-default);
+}
+.team-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.team-form .alert {
+  margin-bottom: 0;
+}
+.team-form__link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-text-link);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.team-roles__choice {
+  align-items: flex-start;
+}
+.team-roles__choice input {
+  margin-top: var(--space-1);
+}
+.team-roles__choice > span {
+  display: flex;
+  flex-direction: column;
+}
+.team-roles__name {
+  font-weight: var(--font-weight-medium);
+}
+
+/* Tenant switcher (design.md `tenant-switcher`, FEAT-007 ui-design). */
+.tenant-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 100%;
+  min-height: var(--size-control-md);
+  padding: 0 var(--space-2);
+  margin-left: calc(var(--space-2) * -1);
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.tenant-switcher:hover {
+  background: var(--color-bg-subtle);
+}
+.tenant-switcher:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+.tenant-switcher__name {
+  max-width: 24ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tenant-switcher__item {
+  gap: var(--space-3);
+  min-height: var(--size-control-lg);
+}
+.tenant-switcher__check {
+  width: var(--space-4);
+  color: var(--color-accent-default);
+}
+.tenant-switcher__text {
+  display: flex;
+  flex-direction: column;
+}
+.tenant-switcher__role {
+  color: var(--color-text-secondary);
+  font-size: var(--type-caption-size);
+}

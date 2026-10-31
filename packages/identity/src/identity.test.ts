@@ -3,8 +3,10 @@ import { describe, expect, it } from 'vitest';
 import {
   backoffSeconds,
   can,
+  canApprove,
   CURRENT_TERMS,
   hashToken,
+  inviteToken,
   isTokenShaped,
   magicLinkEmail,
   magicLinkToken,
@@ -87,5 +89,33 @@ describe('workspaceSlug', () => {
     expect(workspaceSlug('Café Ümlaut', 'abc123')).toBe('cafe-umlaut-abc123');
     expect(workspaceSlug('x'.repeat(60), 'abc123')).toBe(`${'x'.repeat(40)}-abc123`);
     expect(workspaceSlug('Kaki').length).toBe('kaki-'.length + 6);
+  });
+});
+
+describe('team capabilities and approval rights (FEAT-007 D3, AC-6)', () => {
+  it('team management for Owner and Admin, grants for the Owner only', () => {
+    expect(can('owner', 'team.manage')).toBe(true);
+    expect(can('admin', 'team.manage')).toBe(true);
+    expect(can('agent', 'team.manage')).toBe(false);
+    expect(can('owner', 'team.grant_approval')).toBe(true);
+    expect(can('admin', 'team.grant_approval')).toBe(false);
+  });
+
+  it('canApprove: Owner and Admin by role, an Agent only with the grant', () => {
+    expect(canApprove({ role: 'owner', approvalRights: false })).toBe(true);
+    expect(canApprove({ role: 'admin', approvalRights: false })).toBe(true);
+    expect(canApprove({ role: 'agent', approvalRights: false })).toBe(false);
+    expect(canApprove({ role: 'agent', approvalRights: true })).toBe(true);
+  });
+});
+
+describe('invitation tokens (FEAT-007 §5.1)', () => {
+  it('are token-shaped and never equal the magic-link token for the same ID and secret', () => {
+    const secret = 's'.repeat(32);
+    const id = '7b1e4c1e-9a52-4d0e-8c2a-2f7c2b9f0d11';
+    const t = inviteToken(secret, id);
+    expect(isTokenShaped(t)).toBe(true);
+    expect(t).toBe(inviteToken(secret, id));
+    expect(t).not.toBe(magicLinkToken(secret, id));
   });
 });

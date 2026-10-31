@@ -9,6 +9,8 @@ export const channels = {
   conversation: (tenantId: string, conversationId: string) =>
     `t:${tenantId}:conv:${conversationId}`,
   inbox: (tenantId: string) => `t:${tenantId}:inbox`,
+  /** One member of a tenant: `session_ended` closes their sockets there (FEAT-007 D5). */
+  member: (tenantId: string, userId: string) => `t:${tenantId}:user:${userId}`,
 };
 
 export interface Publisher {

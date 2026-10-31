@@ -117,6 +117,7 @@ import { registerWidgetRoutes, widgetErrorReply } from './widget.js';
 import { channelErrorReply, registerChannelRoutes } from './channels.js';
 import { onboardingErrorReply, registerOnboardingRoutes } from './onboarding.js';
 import { registerAiRoutes } from './ai.js';
+import { registerTeamRoutes, teamErrorReply } from './team.js';
 import {
   AttestationRequiredError,
   FileTooLargeError,
@@ -374,6 +375,8 @@ export async function buildApp(deps: Deps) {
         .send({ error: 'unavailable', message: 'Saving is unavailable; try again shortly' });
     const rules = rulesErrorReply(err);
     if (rules) return reply.code(rules.status).send(rules.body);
+    const team = teamErrorReply(err);
+    if (team) return reply.code(team.status).send(team.body);
     const onboarding = onboardingErrorReply(err);
     if (onboarding) return reply.code(onboarding.status).send(onboarding.body);
     const channel = channelErrorReply(err);
@@ -586,7 +589,7 @@ export async function buildApp(deps: Deps) {
   });
 
   // ---- Dashboard API (dashboard trust zone) -------------------------------------------
-  const { authFrom, sessionFrom } = registerAuth(app, deps);
+  const { authFrom, sessionFrom, meOf } = registerAuth(app, deps);
   registerMfaRoutes(app, deps, { authFrom, sessionFrom });
 
   app.get('/api/v1/conversations', async (req) => {
@@ -612,6 +615,7 @@ export async function buildApp(deps: Deps) {
   registerAiRoutes(app, deps, sessionFrom, notify);
   registerRuleRoutes(app, deps, sessionFrom);
   registerOnboardingRoutes(app, deps, sessionFrom);
+  registerTeamRoutes(app, deps, { authFrom, sessionFrom, meOf });
 
   return app;
 }

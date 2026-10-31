@@ -3,6 +3,7 @@ import { AccountPage } from './pages/account.tsx';
 import { AssistantPage } from './pages/assistant.tsx';
 import { BusinessProfilePage, SetupProfilePage } from './pages/business-profile.tsx';
 import { AddWebsitePage, SetupSourcesPage } from './pages/add-website.tsx';
+import { InvitePage } from './pages/invite.tsx';
 import { Placeholder } from './pages/placeholder.tsx';
 import { CoachPage, SetupTestPage } from './pages/coach.tsx';
 import { ConflictsPage } from './pages/conflicts.tsx';
@@ -47,6 +48,8 @@ export const router = createBrowserRouter([
   { path: '/welcome', element: <WelcomePage /> },
   { path: '/legal/:document', element: <LegalPage /> },
   { path: '/session-expired', element: <SessionExpired /> },
+  // Accept an invitation (FEAT-007, SCR-APP-004): signed in or not.
+  { path: '/invite', element: <InvitePage /> },
   // Two-step verification (FEAT-006, SCR-APP-005): the challenge and enrolment.
   { path: '/two-step', element: <TwoStepPage /> },
   { path: '/two-step/setup', element: <TwoStepSetupPage /> },
@@ -106,7 +109,7 @@ export const router = createBrowserRouter([
       { path: 'settings/business-profile', element: <BusinessProfilePage /> },
       { path: 'settings/privacy', element: <PrivacyPage /> },
       { path: 'settings/rules', element: <RulesPage /> },
-      // Team, its two-step part (FEAT-006, SCR-APP-045 p); FEAT-007 adds members.
+      // Team (FEAT-006 two-step part, FEAT-007 members and invitations; SCR-APP-045).
       { path: 'settings/team', element: <TeamPage /> },
       // Channels (FEAT-034, SCR-APP-036).
       { path: 'settings/channels', element: <ChannelsPage /> },

@@ -10,9 +10,13 @@ import { schema } from '../src/config.js';
 let tdb: TestDatabase;
 let app: Awaited<ReturnType<typeof buildApp>>;
 const subscribed: string[] = [];
+const listeners = new Map<string, ((event: unknown) => void)[]>();
+const emit = (channel: string, event: unknown) =>
+  (listeners.get(channel) ?? []).forEach((fn) => fn(event));
 const subscriber: Subscriber = {
-  async subscribe(channel) {
+  async subscribe(channel, onEvent) {
     subscribed.push(channel);
+    listeners.set(channel, [...(listeners.get(channel) ?? []), onEvent]);
     return async () => {};
   },
   ping: async () => true,
@@ -122,5 +126,41 @@ describe('/ws', () => {
     } finally {
       await setRequired(false);
     }
+  });
+
+  // FEAT-007 D5, AC-5: a role change or deactivation closes that member's sockets only.
+  it("closes a member's socket with 4401 on session_ended; another member's stays open", async () => {
+    const owner = await signIn('owner@kaki-bakery.test');
+    const staff = await signIn('ws-staff@example.test');
+    await tdb.zone('identity').db.transaction(async (tx) => {
+      await tx.execute(sql`select set_config('app.tenant_id', ${TENANT_A}, true)`);
+      await tx.execute(
+        sql`insert into memberships (tenant_id, user_id, role)
+            select ${TENANT_A}, user_id, 'agent' from sessions where id = ${staff.sessionId}`,
+      );
+      await tx.execute(
+        sql`update sessions set active_tenant_id = ${TENANT_A} where id = ${staff.sessionId}`,
+      );
+    });
+    const staffUser = (
+      await tdb
+        .zone('identity')
+        .db.execute<{ user_id: string }>(
+          sql`select user_id from sessions where id = ${staff.sessionId}`,
+        )
+    ).rows[0]!.user_id;
+    const open = async (cookie: string) => {
+      const ws = await app.injectWS('/ws', { headers: { cookie } });
+      const closed = new Promise<number>((resolve) => ws.on('close', (code) => resolve(code)));
+      await new Promise((resolve) => ws.once('message', resolve));
+      return { ws, closed };
+    };
+    const a = await open(owner.cookie);
+    const b = await open(staff.cookie);
+    expect(subscribed).toContain(channels.member(TENANT_A, staffUser));
+    emit(channels.member(TENANT_A, staffUser), { type: 'session_ended' });
+    expect(await b.closed).toBe(4401);
+    expect(a.ws.readyState).toBe(a.ws.OPEN);
+    a.ws.terminate();
   });
 });

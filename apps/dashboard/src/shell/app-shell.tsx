@@ -12,6 +12,7 @@ import { Icon } from './icon.tsx';
 import { useNavCounts } from '../lib/nav-counts.ts';
 import { NavCount } from './nav-count.tsx';
 import { ReauthProvider } from './reauth-dialog.tsx';
+import { TenantSwitcher } from './tenant-switcher.tsx';
 import { SIDEBAR, TAB_BAR } from './nav.ts';
 
 function useOnline() {
@@ -53,6 +54,7 @@ export function AppShell({ focused = false }: { focused?: boolean }) {
   const change = useSetAiPaused();
   const pillRef = useRef<HTMLButtonElement>(null);
   const [toast, setToast] = useShellToast();
+  const [lostWorkspace, setLostWorkspace] = useState<string | null>(null);
   const openKillSwitch = (mode: KillSwitchMode) => {
     change.reset();
     setKillSwitch(mode);
@@ -83,9 +85,7 @@ export function AppShell({ focused = false }: { focused?: boolean }) {
           </nav>
         )}
         <header className="topbar">
-          <span className="topbar__tenant" data-testid="tenant-name">
-            {me.data?.tenant?.name ?? ' '}
-          </span>
+          <TenantSwitcher name={me.data?.tenant?.name} onLost={setLostWorkspace} />
           <AiStatusPill
             ref={pillRef}
             role={me.data ? me.data.role : undefined}
@@ -95,6 +95,11 @@ export function AppShell({ focused = false }: { focused?: boolean }) {
           <AccountMenu email={me.data?.user.email} />
         </header>
         <main id="main" className="content" tabIndex={-1}>
+          {lostWorkspace && (
+            <div className="alert alert--danger" role="alert">
+              <p>You're no longer a member of {lostWorkspace}.</p>
+            </div>
+          )}
           <Banners role={me.data?.role} onResumeAi={() => openKillSwitch('resume')} />
           {online ? <Outlet /> : <Offline />}
         </main>

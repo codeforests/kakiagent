@@ -2803,3 +2803,124 @@ describe('onboarding progress (FEAT-035)', () => {
     }
   });
 });
+
+// ---- FEAT-007: invitations, approval rights and the workspaces function (§4; AC-8) ------
+
+describe('team and invitations (FEAT-007)', () => {
+  let ownerA: string;
+  let ownerB: string;
+  let inviteA: string;
+
+  const insertInvite = (c: pg.Client, tenantId: string, invitedBy: string, email: string) =>
+    c.query<{ id: string }>(
+      `insert into invitations (tenant_id, email, role, invited_by, token_hash, expires_at)
+       values ($1, $2, 'agent', $3, decode(md5(random()::text), 'hex'), now() + interval '7 days') returning id`,
+      [tenantId, email, invitedBy],
+    );
+
+  beforeAll(async () => {
+    const ids = await owner.query<{ email: string; id: string }>(
+      `select email, id from users where email in ('owner@kaki-bakery.test', 'owner@second-tenant.test')`,
+    );
+    ownerA = ids.rows.find((r) => r.email === 'owner@kaki-bakery.test')!.id;
+    ownerB = ids.rows.find((r) => r.email === 'owner@second-tenant.test')!.id;
+    inviteA = (await insertInvite(owner, TENANT_A, ownerA, 'staff@a.test')).rows[0]!.id;
+  });
+
+  afterAll(async () => {
+    await owner.query(`delete from invitations`);
+    await owner.query(`delete from memberships where user_id = $1 and tenant_id = $2`, [
+      ownerB,
+      TENANT_A,
+    ]);
+  });
+
+  it("tenant B's identity context can't insert or update A's invitations", async () => {
+    await asRole('app_identity', TENANT_B, (c) => insertInvite(c, TENANT_B, ownerB, 'x@b.test'));
+    await expect(
+      asRole('app_identity', TENANT_B, (c) => insertInvite(c, TENANT_A, ownerB, 'x@a.test')),
+    ).rejects.toThrow(/row-level security/);
+    const updated = await asRole('app_identity', TENANT_B, (c) =>
+      c.query(`update invitations set revoked_at = now() where id = $1`, [inviteA]),
+    );
+    expect(updated.rowCount).toBe(0);
+    const deleted = await asRole('app_identity', TENANT_B, (c) =>
+      c.query(`delete from invitations where id = $1`, [inviteA]),
+    );
+    expect(deleted.rowCount).toBe(0);
+  });
+
+  it('the identity zone finds an invitation before tenant context; other zones read nothing', async () => {
+    const found = await asRole(
+      'app_identity',
+      null,
+      async (c) => (await c.query(`select id from invitations where id = $1`, [inviteA])).rows,
+    );
+    expect(found).toEqual([{ id: inviteA }]);
+    for (const role of ['app_dashboard', 'app_agent_visitor', 'app_outbox'] as const) {
+      await expect(
+        asRole(role, TENANT_A, (c) => c.query(`select * from invitations`)),
+      ).rejects.toThrow(/permission denied/);
+    }
+  });
+
+  it('one live invitation per address and tenant', async () => {
+    await expect(
+      asRole('app_identity', TENANT_A, (c) => insertInvite(c, TENANT_A, ownerA, 'staff@a.test')),
+    ).rejects.toThrow(/invitations_live_email_uq/);
+  });
+
+  it('approval rights only on an agent, updated in the current tenant only', async () => {
+    await expect(
+      owner.query(`update memberships set approval_rights = true where user_id = $1`, [ownerA]),
+    ).rejects.toThrow(/memberships_rights_ck/);
+    const crossTenant = await asRole('app_identity', TENANT_B, (c) =>
+      c.query(`update memberships set status = 'deactivated' where user_id = $1`, [ownerA]),
+    );
+    expect(crossTenant.rowCount).toBe(0);
+    await expect(
+      asRole('app_dashboard', TENANT_A, (c) =>
+        c.query(`update memberships set status = 'deactivated' where user_id = $1`, [ownerA]),
+      ),
+    ).rejects.toThrow(/permission denied/);
+  });
+
+  it("user_workspaces returns only the user's active memberships, with names across tenants", async () => {
+    await owner.query(
+      `insert into memberships (tenant_id, user_id, role) values ($1, $2, 'agent')`,
+      [TENANT_A, ownerB],
+    );
+    const rows = await asRole(
+      'app_identity',
+      TENANT_B,
+      async (c) =>
+        (await c.query(`select tenant_id, role from user_workspaces($1) order by role`, [ownerB]))
+          .rows,
+    );
+    expect(rows).toEqual([
+      { tenant_id: TENANT_A, role: 'agent' },
+      { tenant_id: TENANT_B, role: 'owner' },
+    ]);
+    const names = await asRole(
+      'app_identity',
+      null,
+      async (c) => (await c.query(`select name from user_workspaces($1)`, [ownerB])).rows,
+    );
+    expect(names.every((r) => typeof r.name === 'string' && r.name.length > 0)).toBe(true);
+    await owner.query(
+      `update memberships set status = 'deactivated' where tenant_id = $1 and user_id = $2`,
+      [TENANT_A, ownerB],
+    );
+    const after = await asRole(
+      'app_identity',
+      null,
+      async (c) => (await c.query(`select tenant_id from user_workspaces($1)`, [ownerB])).rows,
+    );
+    expect(after).toEqual([{ tenant_id: TENANT_B }]);
+    for (const role of ['app_dashboard', 'app_agent_visitor'] as const) {
+      await expect(
+        asRole(role, TENANT_A, (c) => c.query(`select * from user_workspaces($1)`, [ownerA])),
+      ).rejects.toThrow(/permission denied/);
+    }
+  });
+});

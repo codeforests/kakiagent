@@ -1,7 +1,13 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import pg from 'pg';
-import { expectNoSeriousA11yViolations, magicLinkFor, requestSignInLink, totp } from './support.ts';
+import {
+  expectNoSeriousA11yViolations,
+  magicLinkFor,
+  requestSignInLink,
+  signIn,
+  totp,
+} from './support.ts';
 
 /**
  * FEAT-006 §5.6 (AC-2–AC-5, AC-9–AC-12): a fresh Owner enrols from My account after an
@@ -205,4 +211,66 @@ test('an Owner enrols, signs in with a code, requires two-step and recovers from
   await page.getByLabel('Recovery code').fill(codes[0]!);
   await page.getByRole('button', { name: 'Continue' }).click();
   await expect(page).toHaveURL(/\/inbox$/);
+});
+
+/** Joins Kaki Bakery from an emailed invitation, signing in by the page's own link. */
+async function joinFromInvite(page: Page, email: string, link: string) {
+  await page.goto(link);
+  await expect(page.getByText(`Sign in as ${email} to join.`)).toBeVisible();
+  const since = new Date(Date.now() - 1000);
+  await page.getByRole('button', { name: 'Email me a sign-in link' }).click();
+  await expect(page.getByText(/Check your inbox\./)).toBeVisible();
+  await page.goto(await magicLinkFor(email, since));
+}
+
+const setKakiRequired = (required: boolean) =>
+  owner.query(`update tenants set mfa_required = $1 where slug = 'kaki-bakery'`, [required]);
+
+test.describe('two-step for invited members (FEAT-006 leftovers, FEAT-007 §5.5)', () => {
+  // Kaki Bakery is shared dev state: never leave it requiring two-step.
+  test.afterEach(async () => {
+    await setKakiRequired(false);
+  });
+
+  test('an Agent sees the requirement read-only; a member joining while it is on enrols first', async ({
+    page,
+    browser,
+  }) => {
+    test.setTimeout(180_000);
+    const run = Date.now();
+    const agent = `agent+${run}@kaki-bakery.test`;
+    const later = `later+${run}@kaki-bakery.test`;
+
+    // The Owner invites both addresses (FEAT-007 SCR-APP-045).
+    await signIn(page, 'owner@kaki-bakery.test');
+    await page.goto('/settings/team');
+    const links: string[] = [];
+    for (const email of [agent, later]) {
+      const since = new Date(Date.now() - 1000);
+      await page.getByRole('button', { name: 'Invite someone' }).first().click();
+      const dialog = page.getByRole('dialog', { name: 'Invite someone' });
+      await dialog.getByLabel('Email address').fill(email);
+      await dialog.getByRole('button', { name: 'Send invitation' }).click();
+      await expect(dialog).toBeHidden();
+      links.push(await magicLinkFor(email, since, 'invite'));
+    }
+
+    // An Agent: the switch is there but read-only (FEAT-006 AC-9 leftover).
+    const agentPage = await (await browser.newContext()).newPage();
+    await joinFromInvite(agentPage, agent, links[0]!);
+    await expect(agentPage).toHaveURL(/\/inbox$/);
+    await agentPage.goto('/settings/team');
+    const toggle = agentPage.getByRole('switch', { name: /Require two-step verification/ });
+    await expect(toggle).toHaveAttribute('aria-disabled', 'true');
+    await expect(agentPage.getByText(/^Only the Owner can change this\./)).toBeVisible();
+    await expectNoSeriousA11yViolations(agentPage);
+    await agentPage.context().close();
+
+    // With the requirement on, a new member is sent to set up two-step (FEAT-006 AC-4 leftover).
+    await setKakiRequired(true);
+    const laterPage = await (await browser.newContext()).newPage();
+    await joinFromInvite(laterPage, later, links[1]!);
+    await expect(laterPage).toHaveURL(/\/two-step\/setup/);
+    await laterPage.context().close();
+  });
 });

@@ -884,12 +884,15 @@ export const memberships = pgTable(
       .notNull()
       .default('active'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    /** The Owner's grant to an Agent to decide approvals (D3; FEAT-007). Never on other roles. */
+    approvalRights: boolean('approval_rights').notNull().default(false),
   },
   (t) => [
     primaryKey({ columns: [t.tenantId, t.userId] }),
     index('memberships_user_idx').on(t.userId),
     check('memberships_role_ck', sql`${t.role} in ('owner', 'admin', 'agent')`),
     check('memberships_status_ck', sql`${t.status} in ('active', 'deactivated')`),
+    check('memberships_rights_ck', sql`${t.approvalRights} = false or ${t.role} = 'agent'`),
   ],
 );
 
@@ -970,6 +973,8 @@ export const magicLinks = pgTable(
       .notNull()
       .default('sign_in'),
     sessionId: uuid('session_id').references(() => sessions.id),
+    /** A sign-in link that also joins this invitation on verify (FEAT-007 D4). No FK: tenant-scoped. */
+    invitationId: uuid('invitation_id'),
   },
   (t) => [
     index('magic_links_unsent_idx')
@@ -978,6 +983,50 @@ export const magicLinks = pgTable(
     index('magic_links_created_idx').on(t.createdAt),
     check('magic_links_purpose_ck', sql`${t.purpose} in ('sign_in', 'reauth')`),
     check('magic_links_session_ck', sql`(${t.purpose} = 'reauth') = (${t.sessionId} is not null)`),
+    check('magic_links_invitation_ck', sql`${t.purpose} = 'sign_in' or ${t.invitationId} is null`),
+  ],
+);
+
+export const INVITABLE_ROLES = ['admin', 'agent'] as const;
+
+/**
+ * A team invitation (AUTH-04, DSH-03; FEAT-007 §4): single-use, 7 days, bound to `email`.
+ * The token is HMAC(MAGIC_LINK_SECRET, `invite:{id}`); only its SHA-256 is stored. A resend
+ * revokes the row and inserts a new one. Purged 30 days after it ends (D9).
+ */
+export const invitations = pgTable(
+  'invitations',
+  {
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id),
+    id: uuid('id').notNull().defaultRandom().unique(),
+    /** Trimmed and lower-cased. */
+    email: text('email').notNull(),
+    role: text('role', { enum: INVITABLE_ROLES }).notNull(),
+    invitedBy: uuid('invited_by')
+      .notNull()
+      .references(() => users.id),
+    tokenHash: bytea('token_hash').notNull().unique(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    acceptedAt: timestamp('accepted_at', { withTimezone: true }),
+    acceptedBy: uuid('accepted_by').references(() => users.id),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    sentAt: timestamp('sent_at', { withTimezone: true }),
+    sendAttempts: integer('send_attempts').notNull().default(0),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.id] }),
+    uniqueIndex('invitations_live_email_uq')
+      .on(t.tenantId, t.email)
+      .where(sql`${t.acceptedAt} is null and ${t.revokedAt} is null`),
+    index('invitations_unsent_idx')
+      .on(t.nextAttemptAt)
+      .where(sql`${t.sentAt} is null`),
+    check('invitations_role_ck', sql`${t.role} in ('admin', 'agent')`),
+    check('invitations_accepted_ck', sql`(${t.acceptedAt} is null) = (${t.acceptedBy} is null)`),
   ],
 );
 
@@ -1595,4 +1644,5 @@ export const TENANT_SCOPED_TABLES = [
   'channel_connections',
   'boundary_rules',
   'onboarding_progress',
+  'invitations',
 ] as const;

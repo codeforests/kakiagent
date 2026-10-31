@@ -1,7 +1,7 @@
 import { DEFAULT_GOVERNOR, runCostGovernor } from '@kaki/analytics';
 import { createZoneDb, ping } from '@kaki/db';
 import { anchorHeads, createS3AnchorStore } from '@kaki/governance';
-import { sendPendingMagicLinks } from '@kaki/identity';
+import { sendPendingInvitations, sendPendingMagicLinks } from '@kaki/identity';
 import {
   createLogger,
   createQueueClient,
@@ -117,7 +117,7 @@ const anchorTimer = setInterval(() => void anchorOnce(), config.AUDIT_ANCHOR_INT
 
 // Sign-in links (FEAT-005 D6): the api sends each link at once; any that failed are
 // retried here with backoff while the link has more than a minute left, and rows older
-// than 24 hours are purged.
+// than 24 hours are purged. Team invitations (FEAT-007 §5.3) ride the same tick.
 const mailer = createSmtpMailer(config.SMTP_URL, config.EMAIL_FROM);
 const linkConfig = { secret: config.MAGIC_LINK_SECRET, appUrl: config.PUBLIC_APP_URL };
 let sweeping = Promise.resolve();
@@ -127,6 +127,12 @@ async function sweepLinks() {
     if (r.sent || r.failed || r.purged) logger.info(r, 'magic-link sweep');
   } catch (err) {
     logger.error({ err }, 'magic-link sweep failed; retrying on the next tick');
+  }
+  try {
+    const r = await sendPendingInvitations(identityDb, mailer, linkConfig);
+    if (r.sent || r.failed || r.purged) logger.info(r, 'invitation sweep');
+  } catch (err) {
+    logger.error({ err }, 'invitation sweep failed; retrying on the next tick');
   }
 }
 const linkTimer = setInterval(() => {

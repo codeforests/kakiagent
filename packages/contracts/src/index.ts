@@ -158,6 +158,8 @@ export const Me = z.object({
   tenant: z
     .object({ id: z.uuid(), name: z.string(), status: z.enum(['active', 'suspended']) })
     .nullable(),
+  /** Owner, Admin, or an Agent with the Owner's grant (D3; FEAT-007 §3). FEAT-055 reads it. */
+  canApprove: z.boolean(),
 });
 export type Me = z.infer<typeof Me>;
 
@@ -178,6 +180,8 @@ export type AuthOptions = z.infer<typeof AuthOptions>;
 
 export const MagicLinkRequest = z.object({
   email: z.string().trim().toLowerCase().max(254).pipe(z.email()),
+  /** An invitation token from SCR-APP-004: the link then joins it on verify (FEAT-007 D4). */
+  invitation: z.string().max(100).optional(),
 });
 /** The same for every well-formed address (AUTH-01); `delayed` when email is slow (UC-01 2c). */
 export const MagicLinkResponse = z.object({ delayed: z.boolean() });
@@ -1729,6 +1733,12 @@ export const RealtimeEvent = z.discriminatedUnion('type', [
   AiStatusEvent,
 ]);
 export type RealtimeEvent = z.infer<typeof RealtimeEvent>;
+/**
+ * A member's role changed or they were deactivated (FEAT-007 D5), on `channels.member`:
+ * the realtime role closes their sockets on that tenant with 4401. Never sent to clients.
+ */
+export const SessionEndedEvent = z.object({ type: z.literal('session_ended') });
+export type SessionEndedEvent = z.infer<typeof SessionEndedEvent>;
 
 // ---- Queue payloads (outbox → SQS; ADR-012) --------------------------------------
 
@@ -2171,3 +2181,77 @@ export const NotReady = z.object({
   missing: z.array(ReadinessKey).min(1),
 });
 export type NotReady = z.infer<typeof NotReady>;
+
+// ---- Dashboard API: team, invitations and workspaces (DSH-03, AUTH-04; FEAT-007 §3) ---------
+
+/** Never `owner`: ownership moves only by transfer (FEAT-010). */
+export const InvitableRole = z.enum(['admin', 'agent']);
+export type InvitableRole = z.infer<typeof InvitableRole>;
+
+export const TeamMember = z.object({
+  userId: z.uuid(),
+  email: z.string(),
+  role: Role,
+  status: z.enum(['active', 'deactivated']),
+  /** Only ever true for an agent. */
+  approvalRights: z.boolean(),
+  mfaEnrolled: z.boolean(),
+  joinedAt: z.iso.datetime(),
+  lastActiveAt: z.iso.datetime().nullable(),
+  you: z.boolean(),
+});
+export type TeamMember = z.infer<typeof TeamMember>;
+
+export const TeamInvitation = z.object({
+  id: z.uuid(),
+  email: z.string(),
+  role: InvitableRole,
+  /** The inviter's email. */
+  invitedBy: z.string(),
+  createdAt: z.iso.datetime(),
+  expiresAt: z.iso.datetime(),
+  state: z.enum(['pending', 'expired']),
+  delivery: z.enum(['sent', 'queued']),
+});
+export type TeamInvitation = z.infer<typeof TeamInvitation>;
+
+export const TeamResponse = z.object({
+  members: z.array(TeamMember),
+  invitations: z.array(TeamInvitation),
+});
+export type TeamResponse = z.infer<typeof TeamResponse>;
+
+export const InviteBody = z.object({ email: MagicLinkRequest.shape.email, role: InvitableRole });
+export type InviteBody = z.infer<typeof InviteBody>;
+
+/** Exactly one change per request. */
+export const MemberPatch = z.union([
+  z.object({ role: InvitableRole }).strict(),
+  z.object({ status: z.enum(['active', 'deactivated']) }).strict(),
+  z.object({ approvalRights: z.boolean() }).strict(),
+]);
+export type MemberPatch = z.infer<typeof MemberPatch>;
+
+export const InvitationTokenBody = MagicLinkVerifyBody;
+export type InvitationTokenBody = z.infer<typeof InvitationTokenBody>;
+
+export const InvitationLookup = z.object({
+  state: z.enum(['valid', 'expired', 'used', 'revoked']),
+  tenantName: z.string(),
+  role: InvitableRole,
+  email: z.string(),
+  invitedBy: z.string(),
+  /** The signed-in user's email, if the request carried a session. */
+  signedInAs: z.string().nullable(),
+});
+export type InvitationLookup = z.infer<typeof InvitationLookup>;
+
+export const Workspace = z.object({
+  id: z.uuid(),
+  name: z.string(),
+  role: Role,
+  current: z.boolean(),
+});
+export type Workspace = z.infer<typeof Workspace>;
+export const WorkspaceList = z.object({ workspaces: z.array(Workspace) });
+export type WorkspaceList = z.infer<typeof WorkspaceList>;

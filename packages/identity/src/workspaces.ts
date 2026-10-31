@@ -1,7 +1,8 @@
 import { schema, sql, withTenant, type ZoneDb } from '@kaki/db';
 import { audit, auditCode } from '@kaki/governance';
 import { randomBytes, randomUUID } from 'node:crypto';
-import { TermsOutdatedError } from './errors.js';
+import { NotMemberError, TermsOutdatedError } from './errors.js';
+import type { Role } from './capabilities.js';
 import { CURRENT_TERMS, TERMS_DOCUMENTS, termsAreCurrent, type TermsDocument } from './terms.js';
 
 export interface CreatedWorkspace {
@@ -82,4 +83,54 @@ export async function createWorkspace(
     );
   });
   return { id: tenantId, name, status: 'active' };
+}
+
+/** A workspace in the tenant switcher (contract `Workspace`, FEAT-007 §3). */
+export interface WorkspaceView {
+  id: string;
+  name: string;
+  role: Role;
+  current: boolean;
+}
+
+/**
+ * The user's active memberships with their tenants' names (AUTH-04, UC-02 4), by name.
+ * Names across tenants come only through `user_workspaces()` (0040).
+ */
+export async function listWorkspaces(
+  idDb: ZoneDb,
+  userId: string,
+  currentTenantId: string | null,
+): Promise<WorkspaceView[]> {
+  const { rows } = await idDb.db.execute<{ tenant_id: string; name: string; role: Role }>(
+    sql`select tenant_id, name, role from user_workspaces(${userId})`,
+  );
+  return rows.map((r) => ({
+    id: r.tenant_id,
+    name: r.name,
+    role: r.role,
+    current: r.tenant_id === currentTenantId,
+  }));
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Moves the session to another workspace (UC-02 4), only where the user has an active
+ * membership; otherwise `NotMemberError` (404), the session unchanged.
+ */
+export async function switchWorkspace(
+  idDb: ZoneDb,
+  who: { sessionId: string; userId: string },
+  tenantId: string,
+): Promise<void> {
+  if (!UUID_RE.test(tenantId)) throw new NotMemberError();
+  const res = await idDb.db.execute(
+    sql`update sessions set active_tenant_id = ${tenantId}
+        where id = ${who.sessionId} and user_id = ${who.userId}
+          and exists (select 1 from memberships m
+                      where m.tenant_id = ${tenantId} and m.user_id = ${who.userId}
+                        and m.status = 'active')`,
+  );
+  if (!res.rowCount) throw new NotMemberError();
 }

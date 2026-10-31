@@ -33,17 +33,31 @@ export interface SignedIn {
 /**
  * Starts a session for a user who just proved who they are (§5.4 steps 3–5). Every
  * sign-in mints a new token, so a session can't be fixed in advance. The session opens
- * the user's earliest active membership until the switcher exists (D11).
+ * `preferTenant` (a workspace just joined), else the workspace of the user's most recently
+ * used session that is still an active membership, else the earliest active membership
+ * (FEAT-007 D6, replacing FEAT-005 D11).
  */
 export async function startSession(
   tx: Tx,
   userId: string,
   method: 'magic_link' | 'google',
+  preferTenant?: string,
 ): Promise<SignedIn> {
   await tx.execute(sql`update users set last_sign_in_at = now() where id = ${userId}`);
   const { rows } = await tx.execute<{ tenant_id: string }>(
-    sql`select tenant_id from memberships where user_id = ${userId} and status = 'active'
-        order by created_at, tenant_id limit 1`,
+    sql`select tenant_id from (
+          select m.tenant_id, 0 as rank, now() as at from memberships m
+          where m.user_id = ${userId} and m.status = 'active' and m.tenant_id = ${preferTenant ?? null}::uuid
+          union all
+          select m.tenant_id, 1, max(s.last_seen_at) from sessions s
+          join memberships m on m.tenant_id = s.active_tenant_id and m.user_id = s.user_id
+          where s.user_id = ${userId} and m.status = 'active'
+          group by m.tenant_id
+          union all
+          select m.tenant_id, 2, m.created_at from memberships m
+          where m.user_id = ${userId} and m.status = 'active'
+        ) c
+        order by rank, case when rank = 1 then at end desc, at, tenant_id limit 1`,
   );
   const tenantId = rows[0]?.tenant_id ?? null;
   const token = newSessionToken();
