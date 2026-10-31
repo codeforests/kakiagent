@@ -5,7 +5,7 @@
 
 ## Verdict summary
 
-**Accepted.** INB-04 and INB-08 are met in full; INB-01 is met except its assignee filter (FEAT-043, no owners exist yet) and AGT-13 gains its "listed under Flagged" clause. UC-23 steps 4–5 are realised for reading the sidebar and closing. Every criterion has a test that asserts what it says; four tests were added here where a clause had none (below). Every local result was produced in this session; E2E (`inbox.e2e.ts`, now 4 tests) and the screen renders run in GitHub CI.
+**Accepted.** INB-04 and INB-08 are met in full; INB-01 is met except its assignee filter (FEAT-043, no owners exist yet) and AGT-13 gains its "listed under Flagged" clause. UC-23 steps 4–5 are realised for reading the sidebar and closing. Every criterion has a test that asserts what it says; four tests were added here where a clause had none (below). Every local result was produced in this session; E2E (`inbox.e2e.ts`, now 4 tests) and the screen renders ran in GitHub CI run 89, green after two fixes (CI).
 
 ## Audit standard
 
@@ -58,4 +58,9 @@ Test ref appended for INB-01 (partial: assignee filter with FEAT-043), INB-04, I
 
 ## CI
 
-Pending: GitHub CI on the PR branch.
+GitHub CI run 88 at `c814ec9` found two defects in all three browsers, fixed on the branch:
+
+- F1 (`ed197fc`, `9c20589`): axe `scrollable-region-focusable` on `.thread-scroll` when a thread has no fact chips (the crisis thread), failing AC-10's axe check. The scroll container is now a focusable, labelled region ("Conversation messages"), so keyboard users can scroll it.
+- F2 (`ed197fc`, test correction): `widget-controls.e2e.ts` (FEAT-033) read the default list for a chat the visitor ended; the Open view leaves closed conversations out (D9), so it now reads `?view=closed`, as `safety.e2e.ts` reads `?view=flagged`.
+
+Run 89 at `9c20589`, 2026-10-31: all jobs green (E2E Chromium, Firefox, WebKit; integration and coverage; unit; lint/typecheck; build and size; eval; Terraform; scanning). Firefox's first attempt failed only `two-step.e2e.ts` (FEAT-006, untouched here; the "Check your email" heading didn't appear after a sign-in request) and passed on its one re-run; it passed in run 88 too.
