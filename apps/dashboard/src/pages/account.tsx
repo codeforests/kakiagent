@@ -72,14 +72,14 @@ export function AccountPage() {
       ) : status.data ? (
         <TwoStepCard status={status.data} onToast={setToast} />
       ) : (
-        <div
+        <section
           className="card two-step-card"
           aria-busy="true"
           aria-label="Loading two-step verification"
         >
           <div className="skeleton-field" />
           <div className="skeleton-field" />
-        </div>
+        </section>
       )}
       {toast && (
         <div className="toast" role="status">

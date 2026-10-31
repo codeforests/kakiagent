@@ -102,6 +102,8 @@ export function ProfileCard({ account, onToast }: { account: Account; onToast: O
             onSuccess: (a) => {
               setValue(a.displayName ?? '');
               onToast('Name saved.');
+              // Save is disabled again now, which would drop focus to the page.
+              document.getElementById('profile-name')?.focus();
             },
           });
         }}

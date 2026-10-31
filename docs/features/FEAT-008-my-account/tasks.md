@@ -16,7 +16,7 @@
       Done when: `pnpm --filter @kaki/dashboard test` passes with `nameError` (empty, 61 chars, control characters, trimmed) and `accountErrorText` per code; dashboard typecheck clean.
 - [x] T5 — SCR-APP-055 My account: Profile, Email (default, pending, queued; change dialog; cancel) and Devices cards (list, this device, sign out one with confirm, sign out of all devices) above the FEAT-006 two-step card; placeholder removed; the account menu shows the name; the Team row shows the name (ui-design SCR-APP-055; AC-1, AC-4, AC-5, AC-8)
       Done when: dashboard typecheck and build pass; a stubbed-API Chromium run at 1280 and 375 shows each state in ui-design, logs the bodies of the profile patch and the email request, the re-auth dialog opens on a stubbed 403 `reauth_required` and the request re-runs, focus returns to the trigger after each dialog, axe clean.
-- [ ] T6 — `/verify-email` (SCR-APP-055, confirm state): `AuthLayout` route outside `AppShell`, token from the fragment then `history.replaceState`, auto-confirm once, the seven states (ui-design SCR-APP-055 "Confirm new email"; AC-2, AC-4, AC-8)
+- [x] T6 — `/verify-email` (SCR-APP-055, confirm state): `AuthLayout` route outside `AppShell`, token from the fragment then `history.replaceState`, auto-confirm once, the seven states (ui-design SCR-APP-055 "Confirm new email"; AC-2, AC-4, AC-8)
       Done when: dashboard typecheck and build pass; a stubbed-API Chromium run shows each state and confirms only once on reload (the token is gone from the URL).
 - [ ] T7 — E2E: `e2e/tests/account.e2e.ts` (design §5.5; AC-1–AC-8)
       Done when: the spec typechecks (`pnpm --filter @kaki/e2e typecheck`); it runs in the verify stage's GitHub CI.
