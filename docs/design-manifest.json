@@ -1685,11 +1685,13 @@
           "used",
           "invalid",
           "taken",
-          "error"
+          "error",
+          "notifications card"
         ],
         "gaps": [],
         "supplements": [
-          "features/FEAT-006-mfa-reauth/ui-design.md#scr-app-055--my-account-part-two-step-verification"
+          "features/FEAT-006-mfa-reauth/ui-design.md#scr-app-055--my-account-part-two-step-verification",
+          "features/FEAT-052-owner-alerts/ui-design.md#account-menu-and-my-account-scr-app-055-partial"
         ]
       },
       "contract_bindings": [
@@ -1712,6 +1714,49 @@
       },
       "status": "designed",
       "designed_at": "2026-10-31"
+    },
+    "SCR-APP-056": {
+      "name": "My notifications",
+      "surface": "APP",
+      "feature": "FEAT-052",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-052-owner-alerts/ui-design.md#scr-app-056--my-notifications"
+      },
+      "states": {
+        "covered": [
+          "default",
+          "approval row hidden",
+          "one event off",
+          "all events off",
+          "saving",
+          "save failed",
+          "quiet hours off",
+          "overnight window",
+          "daytime window",
+          "same-time error",
+          "quiet hours saved",
+          "test sent",
+          "test rate-limited",
+          "test failed",
+          "loading",
+          "error"
+        ],
+        "gaps": [],
+        "supplements": []
+      },
+      "contract_bindings": [
+        "GET /api/v1/me/notifications",
+        "PUT /api/v1/me/notifications",
+        "POST /api/v1/me/notifications/test"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-11-01"
     },
     "SCR-APP-045": {
       "name": "Team",
