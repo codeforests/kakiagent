@@ -1,17 +1,16 @@
 # Handoff: FEAT-044 — Escalation routing, "talk to a person", reminders
-Branch: feat/FEAT-044-escalation-routing · PR: https://github.com/codeforests/kakiagent/pull/48 (draft) · Updated: 2026-11-01 by build (rework R1)
-Stage done: build (rework R1)
-Next: verify — kickoff: "Verify FEAT-044 on branch feat/FEAT-044-escalation-routing.
-Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify; re-check R1 (acceptance-report.md) against the rework CI run."
+Branch: feat/FEAT-044-escalation-routing · PR: https://github.com/codeforests/kakiagent/pull/48 · Updated: 2026-11-01 by verify (re-verification)
+Stage done: verify (accepted, after rework R1)
+Next: Ken reviews and squash-merges PR #48. Then FEAT-045 design, only after Ken says go — kickoff: "Design FEAT-045. Branch feat/FEAT-045-<slug> (create it from main).
+Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage design."
 
 ## What the next stage needs
-- R1 cause: not the SSE. Escape pressed right after clicking the menu button reached the panel's Escape-to-close, because the first menu item takes focus only after paint (Preact `useEffect`) and the menu's Escape handler sat on the `ul`. On Chromium the dialog closed, so the joined notice was "not found". Fix: `panel.tsx` HeaderMenu handles Escape on its wrapper whenever open. tasks.md has the rework note.
-- Also: the mount's `lang` now updates in `useLayoutEffect` (the `widget-controls.e2e.ts:124` Chromium flake, same frame lag).
-- New regression step in `widget-controls.e2e.ts` (Escape with the menu open and focus on the button keeps the panel open).
-- GitHub CI run 96 (`037a1d5`), 2026-11-01: all jobs green, including E2E on Chromium, Firefox and WebKit.
+- FEAT-045 runs the context-mode trial (STATE.md); Ken adds the setup-script lines first.
+- R1 was a widget Escape-handling bug (menu open, focus still on its button), fixed in `panel.tsx` HeaderMenu; see acceptance-report.md, Re-verification.
 
 ## Left to CI or later
-- Nothing: run 96 green. Verify re-checks R1 and writes the RTM, STATE and tasks status.
+- Nothing for FEAT-044: GitHub CI run 96 (`037a1d5`) green in all jobs.
 
 ## Pending for Ken
-- None new. Earlier notes (D5 vs INB-08, abuse rule in escalated chats) stay in pending-actions.
+- Approve and squash-merge PR #48.
+- Earlier notes stay in pending-actions (D5 vs INB-08; abuse rule in escalated chats).

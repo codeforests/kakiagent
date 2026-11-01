@@ -5,7 +5,9 @@
 
 ## Verdict summary
 
-**Rework.** In GitHub CI, on Chromium, the visitor never sees "Mei Ling joined the chat." after Mei Ling takes over an escalated conversation. This failed twice in a row on `23975a8` (run 95, attempt 1 and its re-run), while Firefox and WebKit pass the same test. This breaks AC-1 ("hides the item until staff join": the visitor must learn that staff joined) and AC-10, on the most common visitor browser. Everything else holds: every criterion has a test that asserts what it says, no test was weakened, and every local check and the CI integration suite (including the Docker-only suites) is green. No RTM write until the rework is accepted.
+**Accepted** (2026-11-01, re-verified after rework R1). R1 is fixed at `037a1d5` and GitHub CI run 96 on that commit is green in all 11 jobs, including E2E on Chromium, Firefox and WebKit. Every criterion AC-1..AC-10 has a test that asserts what it says, no test was weakened, and the invariants hold (Direct verification).
+
+The first verify pass (below, Findings) returned rework for R1; the re-verification section records how it was closed.
 
 ## Audit standard
 
@@ -63,9 +65,19 @@ Re-derived from SRS v0.4: INB-05 ("round-robin or a specific person; notifies by
 
 ## RTM
 
-Not written (rework). On acceptance, append Test ref: INB-05 (partial: email; Telegram FEAT-037, web push FEAT-048); CHN-13 (talk to a person; after-hours lead capture FEAT-049); AGT-06 (partial: `escalate_to_human`); AGT-04 and AGT-09 (partial; lead capture FEAT-049); INB-01 (assignee = owner, else escalation assignee).
+Test ref appended 2026-11-01: INB-05 (partial: email; Telegram FEAT-037, web push FEAT-048); CHN-13 (talk to a person; after-hours lead capture FEAT-049); AGT-06 (partial: `escalate_to_human`); AGT-04 and AGT-09 (partial; lead capture FEAT-049); INB-01 (assignee = owner, else escalation assignee).
 
 ## CI
 
 - Run 94 (`03effa5`): Chromium E2E failed at the spec's setup (an Agent's preferences PUT with approval alerts, 403). Corrected in `23975a8` (Corrected tests). The rest of run 94 was cancelled.
 - Run 95 (`23975a8`): green on unit, lint and typecheck, build and size, eval, integration with coverage (including `rate-limit.int` and `uploads.int`), Terraform, scanning, workflow lint, and E2E on Firefox and WebKit. E2E on Chromium failed twice: R1.
+- Run 96 (`037a1d5`, rework R1), 2026-11-01: **green**, all 11 jobs: format/lint/boundaries/typecheck, unit and token contrast, integration with coverage, build and size, eval, Terraform, scanning, workflow lint, and E2E on Chromium, Firefox and WebKit.
+
+## Re-verification after rework R1 (2026-11-01)
+
+- **Cause, checked against the code and the spec.** Not the SSE. `escalation.e2e.ts:119-122` opens the header menu and presses Escape at once. The first menu item takes focus only after paint (`useEffect`), and the menu's Escape handler sat on the `ul`, so on Chromium the key reached the panel's Escape-to-close and the dialog closed; the joined notice later had no panel to appear in. That matches the run 95 symptom (take-over succeeded on the dashboard side, notice not found).
+- **Fix** (`apps/widget/src/panel.tsx`, `HeaderMenu`): Escape is handled on the menu wrapper whenever the menu is open, so it closes only the menu wherever focus is inside it. The mount's `lang` now updates in a `useLayoutEffect`, which addresses the `widget-controls.e2e.ts:124` frame-lag flake. Production code only; `escalation.e2e.ts` is unchanged since the first pass's setup correction.
+- **New regression step** (`widget-controls.e2e.ts`): with the menu open and focus on its button, Escape closes the menu, the panel stays visible and focus stays on the button. It strengthens the suite; nothing was removed.
+- **Local, at `21b4a9a`:** `pnpm format:check`, `pnpm lint`, widget and e2e typecheck, widget unit tests (4 files, 40 tests), widget build and `pnpm size` all pass. The rest of the suite is unchanged since the first pass and is covered by run 96.
+- **R1: closed.**
+
