@@ -50,7 +50,7 @@ The design session names the branch in its `handoff.md` and final reply; later k
 
 The repo is public, so GitHub Actions minutes are free. CI (`.github/workflows/ci.yml`) is started by hand (`workflow_dispatch`), not on push; commits keep `[skip ci]`.
 
-- **Every feature:** the verify stage runs the full local checks through `scripts/test-env.sh` (`pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, and `test:coverage` for each package the feature touches), then starts CI on the PR branch (`actions_run_trigger` `run_workflow`, `ci.yml`, ref = the branch), waits for the PR events (no polling), fixes anything red on the branch and re-runs until all jobs are green. The PR body lists both.
+- **Every feature:** the verify stage runs the full local checks through `scripts/test-env.sh scripts/check-summary.sh` (with no arguments it runs `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`; add `'pnpm --filter <pkg> test:coverage'` for each package the feature touches), then starts CI on the PR branch (`actions_run_trigger` `run_workflow`, `ci.yml`, ref = the branch), waits for the PR events (no polling), fixes anything red on the branch and re-runs until all jobs are green. The PR body lists both.
 - **E2E** runs in CI (Chromium, Firefox, WebKit). The acceptance report records the run number and commit.
 - Ken's local WSL run (`/mnt/project-files/guides/run-kakiagent-locally.md`) is only a fallback when GitHub CI is unavailable.
 - **Last CI run:** GitHub CI run 93 on FEAT-052 at `e49bb31`, 2026-11-01, green.
@@ -59,9 +59,12 @@ The repo is public, so GitHub Actions minutes are free. CI (`.github/workflows/c
 
 Every stage session appends its token numbers to `/mnt/project-files/reviews/feat-NNN-token-use.md`, with a short comparison to earlier features (the feature-stage skill, "Ending every stage").
 
+**context-mode trial (Ken, 2026-11-01): FEAT-045 only.** Its stage threads run with the context-mode plugin (v1.0.169), which the cloud environment's setup script installs. In those threads, prefer `ctx_batch_execute`/`ctx_execute` for commands with long output and `ctx_search` over re-reading it; Read a file before you Edit it as usual. Each token log adds the `ctx_stats` output and compares with FEAT-052. After FEAT-045, Ken decides whether to keep it; until then other features run without it.
+
 ## Environment
 
 - No Docker in cloud sessions: run integration tests through `scripts/test-env.sh`, for example `scripts/test-env.sh pnpm --filter @kaki/kb test:integration`. It starts the local Postgres with pgvector and sets `KAKI_TEST_DATABASE_URL`. Shell variables don't persist between calls, so always go through the script.
 - Without Docker there's no local stack, so E2E specs and screen renders are checked in the verify stage's GitHub CI run; record that in `tasks.md` notes.
+- Run checks through `scripts/check-summary.sh '<cmd>' …` (inside `scripts/test-env.sh` for integration): one PASS/FAIL line per check with test totals, and only the failure lines; the full logs stay on disk for a `grep -n`.
 - Typecheck one package while building (`pnpm --filter <pkg> typecheck`); the full `pnpm typecheck` and `pnpm lint` run once, in the last task.
 - A fresh cloud session has no `node_modules`: run `pnpm install` once, batched with the first typecheck or test call, before any `pnpm` check.

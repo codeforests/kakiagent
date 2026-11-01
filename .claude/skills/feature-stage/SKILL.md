@@ -17,7 +17,7 @@ A fresh session runs exactly one stage, writes everything the next stage needs t
 
 Every call re-reads the whole context, and the session's starting prompt alone is about 85k, so the number of calls and the size of the context both cost.
 
-- Read by section: `grep -n` then `sed -n 'A,Bp'`. Never read a file over ~300 lines whole. `docs/build/code-map.md` says where things live, and its "Agent pipeline" section stands in for reading `turn.ts`, `dispatch.ts` and `coach.ts`.
+- Read by section: `grep -n` then `sed -n 'A,Bp'`. Never read a file over ~300 lines whole. `docs/build/code-map.md` says where things live: read its Layers index and only the `### <Layer>` sections the task touches (`grep -n '^##' docs/build/code-map.md`), and its "Agent pipeline" section stands in for reading `turn.ts`, `dispatch.ts` and `coach.ts`.
 - Batch: several reads in one shell call; and per task, edit → typecheck → test → commit in one shell call where it can be.
 - Copy the format from the pattern in `code-map.md` and the newest feature's documents read by heading only (`grep -n '^## '`) plus at most one short section each, not by loading the sdlc-kit design skills or reading whole documents.
 - Never read a previous feature's `tasks.md` evidence or its whole `ui-design.md` or `acceptance-report.md` as a format: the headings and one entry show the shape (FEAT-019: ~18k spent this way in design, ~6k in verify).
@@ -28,6 +28,7 @@ Every call re-reads the whole context, and the session's starting prompt alone i
 - `docs/02-design/design.md` is long: index it (`grep -n '^#\|^\*\*`' docs/02-design/design.md`) and read only the components the screen uses.
 - Typecheck and test one package at a time while working; full `pnpm lint` and `pnpm typecheck` once, in the final task.
 - Integration tests always through `scripts/test-env.sh` (no Docker in cloud sessions).
+- Run tests and checks through `scripts/check-summary.sh` (STATE.md, Environment), never with their full output in context; open a failed check's log by `grep -n`, not whole.
 - A stubbed-API Playwright script is worth running for new screens (FEAT-054 caught a focus bug with one), but log only the fields it asserts, never a whole page's text.
 - Keep replies to Ken short; details go in the files.
 
