@@ -40,3 +40,13 @@ variable "origin_certificate_arn" {
   description = "ACM certificate in ap-southeast-1 covering origin_domain_name."
   type        = string
 }
+
+variable "mail_domain" {
+  description = "Domain the emails are sent from, for example <domain>. Add the mail_dns_records output at its DNS host (NFR-18)."
+  type        = string
+}
+
+variable "dmarc_report_address" {
+  description = "Mailbox for DMARC aggregate reports, for example dmarc@<domain>."
+  type        = string
+}

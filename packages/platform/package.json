@@ -8,7 +8,8 @@
     ".": "./src/index.ts",
     "./outbox": "./src/outbox.ts",
     "./pii-mask": "./src/pii-mask.ts",
-    "./secrets": "./src/secrets.ts"
+    "./secrets": "./src/secrets.ts",
+    "./notifications": "./src/notifications/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

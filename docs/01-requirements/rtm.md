@@ -100,7 +100,7 @@
 | LED-01 | Lead capture | Must | Active | Research P3 | UC-21 | SCR-APP-033, SCR-APP-043, SCR-WGT-003 | FEAT-049 | _TBD_ |
 | LED-02 | PDPA consent | Must | Active | Research P3; PDPA – consent and purpose limitation | UC-03, UC-21 | ADR-015; SCR-APP-009, SCR-APP-033, SCR-APP-043, SCR-WGT-003 | FEAT-049, FEAT-058 | features/FEAT-058-privacy-documents/acceptance-report.md (partial: purpose statement and wording versions; consent record with FEAT-049) |
 | LED-03 | Lead qualification | Must | Active | Research P3 | UC-21 | SCR-APP-032, SCR-APP-033, SCR-APP-043 | FEAT-050 | _TBD_ |
-| LED-04 | Owner alerts for new hot leads, escalations and pending approvals, by email and… | Must | Active | Research P3; Appx A A12 | UC-21, UC-22, UC-25 | ADR-011, ADR-012, ADR-017, ADR-019; SCR-APP-056 | FEAT-048, FEAT-052, FEAT-037 | _TBD_ |
+| LED-04 | Owner alerts for new hot leads, escalations and pending approvals, by email and… | Must | Active | Research P3; Appx A A12 | UC-21, UC-22, UC-25 | ADR-011, ADR-012, ADR-017, ADR-019; SCR-APP-056 | FEAT-048, FEAT-052, FEAT-037 | features/FEAT-052-owner-alerts/acceptance-report.md (partial: email; Telegram FEAT-037, web push FEAT-048) |
 | LED-05 | Leads list with status pipeline (New → Contacted → Won / Lost) and CSV export | Must | Active | Research P3 | UC-24, UC-28 | ADR-015; SCR-APP-032 | FEAT-050 | _TBD_ |
 | LED-06 | Outbound webhook on lead created/updated (for Zapier/Make/CRMs) | Should | Active | Research P3; D2 | UC-28 | ADR-012, ADR-015; SCR-APP-043 | FEAT-053 | _TBD_ |
 | LED-07 | Consent withdrawal | Must | Active | Gap review v0.3; Appx A A8; PDPA – withdrawal of consent | UC-28, UC-30 | ADR-012, ADR-015, ADR-022; SCR-APP-016, SCR-APP-033, SCR-APP-049, SCR-WGT-003, ADR-025 | FEAT-051 | _TBD_ |
@@ -134,7 +134,7 @@
 | DSH-06 | Platform operator console | Must | Active | Research P5, P6; IMDA Agentic AI v1.5 – agent identity and access limits | UC-33, UC-34 | ADR-005, ADR-014, ADR-020, ADR-021; SCR-APP-052, SCR-APP-059, SCR-OPS-001, SCR-OPS-002, SCR-OPS-003, SCR-OPS-004, SCR-OPS-008 | FEAT-063, FEAT-070 | _TBD_ |
 | DSH-07 | Plan lifecycle | Must | Active | Gap review v0.3; Appx A A18; D10 | UC-01, UC-34 | SCR-APP-046, SCR-OPS-003 | FEAT-067 | _TBD_ |
 | DSH-08 | Usage meter | Must | Active | Gap review v0.3; Appx A A18 | UC-34, UC-37 | ADR-007, ADR-021; SCR-APP-013, SCR-APP-046, SCR-OPS-002 | FEAT-067 | _TBD_ |
-| DSH-09 | Notification preferences | Must | Active | Gap review v0.3; Appx A A12, A18 | UC-21, UC-37 | SCR-APP-056 | FEAT-052 | _TBD_ |
+| DSH-09 | Notification preferences | Must | Active | Gap review v0.3; Appx A A12, A18 | UC-21, UC-37 | SCR-APP-056 | FEAT-052 | features/FEAT-052-owner-alerts/acceptance-report.md (partial: email channel; Telegram FEAT-037, web push FEAT-048) |
 | DSH-10 | Help and support | Should | Active | Gap review v0.3; Appx A A21 | UC-33 | SCR-APP-057, SCR-OPS-005 | FEAT-069 | _TBD_ |
 | NFR-01 | Performance — Agent first token p95 ≤ 3 s | Must | Active | SRS v0.1 (C1, A1); Appx A A20 | UC-20 | ADR-002, ADR-003, ADR-006, ADR-007, ADR-008, ADR-017, ADR-021 | Foundations (§7), M6 verification, FEAT-004, FEAT-022, MD | features/FEAT-022-grounded-verified-answer/acceptance-report.md (partial); features/FEAT-004-routing-cost/acceptance-report.md (partial) |
 | NFR-02 | Performance — Widget ≤ 30 KB gzipped initial load | Must | Active | SRS v0.1 (C1, A1) | — (system-level) | ADR-002, ADR-016 | Foundations (§7), M6 verification, FEAT-001 | _TBD_ |
@@ -153,7 +153,7 @@
 | NFR-15 | Security — Dependency and container scanning in CI; critical vulnerabilities… | Must | Active | Gap review v0.3; Appx A A20; PDPA – protection obligation | — (system-level) | ADR-003 | Foundations (§7), M6 verification, FEAT-001 | _TBD_ |
 | NFR-16 | Performance — Ingestion throughput | Must | Active | Gap review v0.3; Appx A A20 | UC-10 | ADR-012, ADR-018 | Foundations (§7), M6 verification, FEAT-012, FEAT-015, FEAT-016 | _TBD_ |
 | NFR-17 | Reliability — No inbound or outbound message is lost | Must | Active | Gap review v0.3; Appx A A19, A20 | UC-27 | ADR-006, ADR-011, ADR-012, ADR-017, ADR-018 | Foundations (§7), M6 verification, FEAT-001, every channel and ingestion feature (§3 gate) | _TBD_ |
-| NFR-18 | Interoperability — Platform-sent email (alerts, email channel) uses SPF, DKIM… | Must | Active | Gap review v0.3; Appx A A10, A20 | UC-27 | ADR-011, ADR-019, ADR-021 | Foundations (§7), M6 verification, FEAT-036, FEAT-052 | _TBD_ |
+| NFR-18 | Interoperability — Platform-sent email (alerts, email channel) uses SPF, DKIM… | Must | Active | Gap review v0.3; Appx A A10, A20 | UC-27 | ADR-011, ADR-019, ADR-021 | Foundations (§7), M6 verification, FEAT-036, FEAT-052 | features/FEAT-052-owner-alerts/acceptance-report.md (partial: Terraform mail module tested; live at MD, email channel FEAT-036) |
 | NFR-19 | Usability — Every list, form and long-running job shows explicit empty, loading… | Must | Active | Gap review v0.3; Appx A A20 | — (system-level) | ADR-002, ADR-018 | Foundations (§7), M6 verification, every UI feature (§3 gate) | _TBD_ |
 | NFR-20 | Operability — During the pilot, operator alerts are acknowledged within 1 hour… | Must | Active | Gap review v0.3; Appx A A20 | UC-38 | ADR-021 | Foundations (§7), M6 verification, FEAT-069, FEAT-071 | _TBD_ |
 

@@ -69,6 +69,9 @@ import {
   FactResponse,
   ImportPreview,
   Me,
+  NotificationPrefs,
+  type NotificationPrefsBody,
+  TestAlertResult,
   ApproveAllResponse,
   ApprovePreview,
   ApproveSelectionResponse,
@@ -241,6 +244,11 @@ export const api = {
   sessions: () => getJson('/api/v1/me/sessions', DeviceSessionList),
   revokeSession: async (id: string) =>
     void (await send('DELETE', `/api/v1/me/sessions/${encodeURIComponent(id)}`)),
+  // My notifications (FEAT-052 §3): per business, from the session.
+  getNotificationPrefs: () => getJson('/api/v1/me/notifications', NotificationPrefs),
+  putNotificationPrefs: (body: NotificationPrefsBody) =>
+    request('PUT', '/api/v1/me/notifications', NotificationPrefs, body),
+  sendTestAlert: () => request('POST', '/api/v1/me/notifications/test', TestAlertResult),
   // Inbox (FEAT-042 §3): views, the thread with older pages, and close.
   conversations: (q: {
     view: InboxView;

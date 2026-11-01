@@ -120,6 +120,7 @@ import { onboardingErrorReply, registerOnboardingRoutes } from './onboarding.js'
 import { registerInboxRoutes } from './inbox.js';
 import { registerAiRoutes } from './ai.js';
 import { registerTeamRoutes, teamErrorReply } from './team.js';
+import { notificationsErrorReply, registerNotificationRoutes } from './notifications.js';
 import {
   AttestationRequiredError,
   FileTooLargeError,
@@ -381,6 +382,8 @@ export async function buildApp(deps: Deps) {
     if (team) return reply.code(team.status).send(team.body);
     const account = accountErrorReply(err);
     if (account) return reply.code(account.status).send(account.body);
+    const notifications = notificationsErrorReply(err);
+    if (notifications) return reply.code(notifications.status).send(notifications.body);
     const onboarding = onboardingErrorReply(err);
     if (onboarding) return reply.code(onboarding.status).send(onboarding.body);
     const channel = channelErrorReply(err);
@@ -625,6 +628,7 @@ export async function buildApp(deps: Deps) {
   registerOnboardingRoutes(app, deps, sessionFrom);
   registerTeamRoutes(app, deps, { authFrom, sessionFrom, meOf });
   registerAccountRoutes(app, deps, { authFrom });
+  registerNotificationRoutes(app, deps, sessionFrom);
 
   return app;
 }

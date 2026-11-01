@@ -26,6 +26,8 @@ variables {
   allowed_account_ids    = ["000000000000"]
   origin_domain_name     = "origin.example.sg"
   origin_certificate_arn = "arn:aws:acm:ap-southeast-1:000000000000:certificate/00000000-0000-0000-0000-000000000000"
+  mail_domain            = "example.sg"
+  dmarc_report_address   = "dmarc@example.sg"
 }
 
 run "launch_profile" {
@@ -111,5 +113,31 @@ run "full_profile" {
   assert {
     condition     = module.service["api"].task_count_range.min == 2
     error_message = "The full profile keeps at least 2 api tasks (ADR-003)."
+  }
+}
+
+# Email authentication (NFR-18; FEAT-052 §5.6, AC-10).
+run "mail" {
+  command = plan
+
+  assert {
+    condition     = module.mail.dkim_signing_key_length == "RSA_2048_BIT"
+    error_message = "SES signs with Easy DKIM, RSA 2048 (NFR-18)."
+  }
+  assert {
+    condition     = module.mail.mail_from_domain == "mail.example.sg"
+    error_message = "A custom MAIL FROM domain aligns SPF (NFR-18)."
+  }
+  assert {
+    condition     = module.mail.dmarc_record.name == "_dmarc.example.sg" && module.mail.dmarc_record.value == "v=DMARC1; p=quarantine; adkim=s; aspf=s; rua=mailto:dmarc@example.sg"
+    error_message = "The DMARC record quarantines with strict alignment and reports to dmarc_report_address (NFR-18)."
+  }
+  assert {
+    condition     = module.mail.bounce_alarm.metric == "Reputation.BounceRate" && module.mail.bounce_alarm.threshold == 0.05 && module.mail.bounce_alarm.operator == "GreaterThanThreshold"
+    error_message = "An alarm fires on a bounce rate above 5% (NFR-18)."
+  }
+  assert {
+    condition     = module.mail.from_address == "no-reply@example.sg"
+    error_message = "Email is sent from no-reply@<mail_domain>."
   }
 }

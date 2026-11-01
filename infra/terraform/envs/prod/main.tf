@@ -239,6 +239,7 @@ module "service" {
         PUBLIC_APP_URL            = local.public_url
         AWS_REGION                = local.region
         QUARANTINE_BUCKET         = module.storage.bucket_names["quarantine"]
+        EMAIL_FROM                = "KakiAgent <${module.mail.from_address}>"
       }
       realtime = { PORT = "3001", VALKEY_URL = local.valkey }
       agent-worker = {
@@ -265,6 +266,7 @@ module "service" {
         SQS_INGEST_QUEUE_URL = module.queues.queue_urls["ingest"]
         AUDIT_ANCHOR_BUCKET  = module.storage.bucket_names["audit-anchors"]
         PUBLIC_APP_URL       = local.public_url
+        EMAIL_FROM           = "KakiAgent <${module.mail.from_address}>"
       }
     }[each.key] : k => v },
   )
@@ -295,6 +297,16 @@ module "service" {
       SMTP_URL              = local.secret["smtp-url"]
     }
   }[each.key]
+}
+
+# Email authentication (NFR-18; FEAT-052 §5.6): DKIM, MAIL FROM (SPF), DMARC and the
+# bounce-rate alarm. The api and scheduler send as no-reply@<mail_domain>.
+module "mail" {
+  source               = "../../modules/mail"
+  name                 = var.name
+  mail_domain          = var.mail_domain
+  dmarc_report_address = var.dmarc_report_address
+  region               = local.region
 }
 
 module "ci" {

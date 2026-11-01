@@ -7,9 +7,12 @@ import { initialOf } from '../lib/team.ts';
 export function AccountMenu({
   email,
   name,
+  workspace = false,
 }: {
   email: string | undefined;
   name?: string | null | undefined;
+  /** Notifications are per business, so the item shows only with a workspace (FEAT-052). */
+  workspace?: boolean;
 }) {
   const signOut = useSignOut();
   const signOutEverywhere = useSignOut(true);
@@ -30,6 +33,11 @@ export function AccountMenu({
           <DropdownMenu.Item className="menu__item" asChild>
             <Link to="/account">My account</Link>
           </DropdownMenu.Item>
+          {workspace && (
+            <DropdownMenu.Item className="menu__item" asChild>
+              <Link to="/account/notifications">Notifications</Link>
+            </DropdownMenu.Item>
+          )}
           <DropdownMenu.Separator className="menu__divider" />
           <DropdownMenu.Item className="menu__item" onSelect={() => signOut.mutate()}>
             Sign out

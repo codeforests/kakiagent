@@ -22,3 +22,8 @@ output "alb_dns_name" {
   description = "Target for the origin_domain_name DNS record."
   value       = module.edge.alb_dns_name
 }
+
+output "mail_dns_records" {
+  description = "DKIM, MAIL FROM (MX and SPF) and DMARC records to add at the DNS host (NFR-18)."
+  value       = module.mail.dns_records
+}

@@ -15,6 +15,7 @@ import {
   startHealthServer,
   startTelemetry,
 } from '@kaki/platform';
+import { sendDueNotifications } from '@kaki/platform/notifications';
 import { createDispatcher } from '@kaki/platform/outbox';
 import { z } from 'zod';
 import { channelHealthOnce } from './channel-health.js';
@@ -44,6 +45,8 @@ const config = loadConfig(
       SMTP_URL: z.string().regex(/^smtps?:\/\//),
       EMAIL_FROM: z.string().min(3).default('KakiAgent <no-reply@kakiagent.local>'),
       MAGIC_LINK_SWEEP_MS: z.coerce.number().int().positive().default(5000),
+      /** Owner alerts (FEAT-052 §5.3, ADR-012): the 5-second poll of due and held alerts. */
+      NOTIFY_SWEEP_MS: z.coerce.number().int().positive().default(5000),
       /** The cost governor (ADR-007 decision 3, FEAT-004 D9): hourly, on the 7-day average. */
       COST_GOVERNOR_INTERVAL_MS: z.coerce
         .number()
@@ -153,6 +156,24 @@ const linkTimer = setInterval(() => {
   sweeping = sweeping.then(sweepLinks);
 }, config.MAGIC_LINK_SWEEP_MS);
 
+// Owner alerts (FEAT-052 §5.2, D2, D10): sends due alerts, holds those in a member's quiet
+// hours and sends what was held as one digest when they end; chained so ticks never overlap.
+let notifying = Promise.resolve();
+async function sweepAlerts() {
+  try {
+    const r = await sendDueNotifications(identityDb, mailer, {
+      appUrl: config.PUBLIC_APP_URL,
+      log: logger,
+    });
+    if (Object.values(r).some((n) => n > 0)) logger.info(r, 'alert sweep');
+  } catch (err) {
+    logger.error({ err }, 'alert sweep failed; retrying on the next tick');
+  }
+}
+const notifyTimer = setInterval(() => {
+  notifying = notifying.then(sweepAlerts);
+}, config.NOTIFY_SWEEP_MS);
+
 // The cost governor (FEAT-004 §5.6): moves a tenant's routing threshold one step when
 // its 7-day cost per conversation leaves the band. Each change is a `warn` line, the
 // operator's alert until MD's metric filter and FEAT-070's console.
@@ -213,6 +234,7 @@ async function shutdown() {
   abort.abort();
   clearInterval(anchorTimer);
   clearInterval(linkTimer);
+  clearInterval(notifyTimer);
   clearInterval(governorTimer);
   clearInterval(staleTimer);
   clearInterval(gapTimer);
@@ -222,6 +244,7 @@ async function shutdown() {
     running.catch(() => {}),
     anchorRun,
     sweeping,
+    notifying,
     governorRun,
     staleRun,
     gapRun,

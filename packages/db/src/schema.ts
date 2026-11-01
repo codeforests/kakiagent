@@ -1751,6 +1751,110 @@ export const onboardingProgress = pgTable(
   ],
 );
 
+export const ALERT_EVENTS = ['escalation', 'approval_pending', 'hot_lead'] as const;
+export const NOTIFICATION_KINDS = [...ALERT_EVENTS, 'test'] as const;
+export const NOTIFICATION_STATUSES = [
+  'pending',
+  'held',
+  'sent',
+  'skipped',
+  'cancelled',
+  'failed',
+] as const;
+export const NOTIFICATION_SUBJECTS = ['conversation', 'approval', 'lead', 'user'] as const;
+
+/**
+ * A member's alert preferences in one business (DSH-09; FEAT-052 §4, D4). Stores opt-outs:
+ * `email_muted` lists the events turned off for email, so an event added later is on. No row
+ * means the defaults (every event on, quiet hours 22:00–08:00 Singapore time). Quiet-hour
+ * bounds are minutes after midnight SGT; the window may wrap midnight.
+ */
+export const notificationPrefs = pgTable(
+  'notification_prefs',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    userId: uuid('user_id').notNull(),
+    emailMuted: text('email_muted')
+      .array()
+      .notNull()
+      .default(sql`'{}'`),
+    quietEnabled: boolean('quiet_enabled').notNull().default(true),
+    quietStart: smallint('quiet_start').notNull().default(1320),
+    quietEnd: smallint('quiet_end').notNull().default(480),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.userId] }),
+    foreignKey({
+      columns: [t.tenantId, t.userId],
+      foreignColumns: [memberships.tenantId, memberships.userId],
+    }).onDelete('cascade'),
+    check(
+      'notification_prefs_muted_ck',
+      sql`${t.emailMuted} <@ array['escalation','approval_pending','hot_lead']::text[]`,
+    ),
+    check(
+      'notification_prefs_quiet_ck',
+      sql`${t.quietStart} between 0 and 1439 and ${t.quietEnd} between 0 and 1439 and ${t.quietStart} <> ${t.quietEnd}`,
+    ),
+  ],
+);
+
+/**
+ * One alert to one member (LED-04; FEAT-052 §4, D2): the durable timer the scheduler polls.
+ * Written by a producer's `notify` in its own transaction; preferences and quiet hours apply at
+ * send time (D3). IDs and codes only, never visitor data (D12). Purged 30 days after it ends.
+ */
+export const notifications = pgTable(
+  'notifications',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    id: uuid('id').notNull().defaultRandom(),
+    userId: uuid('user_id').notNull(),
+    kind: text('kind', { enum: NOTIFICATION_KINDS }).notNull(),
+    urgent: boolean('urgent').notNull().default(false),
+    subjectType: text('subject_type', { enum: NOTIFICATION_SUBJECTS }).notNull(),
+    subjectId: uuid('subject_id').notNull(),
+    dedupeKey: text('dedupe_key').notNull(),
+    status: text('status', { enum: NOTIFICATION_STATUSES }).notNull().default('pending'),
+    skipReason: text('skip_reason', { enum: ['muted', 'inactive'] }),
+    /** Sent inside a digest. */
+    digest: boolean('digest').notNull().default(false),
+    attempts: integer('attempts').notNull().default(0),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).notNull().defaultNow(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    heldAt: timestamp('held_at', { withTimezone: true }),
+    sentAt: timestamp('sent_at', { withTimezone: true }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.id] }),
+    uniqueIndex('notifications_dedupe_uq').on(t.tenantId, t.userId, t.dedupeKey),
+    index('notifications_due_idx')
+      .on(t.nextAttemptAt)
+      .where(sql`${t.status} in ('pending', 'held')`),
+    foreignKey({
+      columns: [t.tenantId, t.userId],
+      foreignColumns: [memberships.tenantId, memberships.userId],
+    }).onDelete('cascade'),
+    check(
+      'notifications_kind_ck',
+      sql`${t.kind} in ('escalation', 'approval_pending', 'hot_lead', 'test')`,
+    ),
+    check(
+      'notifications_subject_ck',
+      sql`${t.subjectType} in ('conversation', 'approval', 'lead', 'user')`,
+    ),
+    check(
+      'notifications_status_ck',
+      sql`${t.status} in ('pending', 'held', 'sent', 'skipped', 'cancelled', 'failed')`,
+    ),
+    check(
+      'notifications_skip_ck',
+      sql`(${t.skipReason} is null or ${t.skipReason} in ('muted', 'inactive')) and (${t.skipReason} is not null) = (${t.status} = 'skipped')`,
+    ),
+  ],
+);
+
 /** Tables with `tenant_id` + forced RLS. The cross-tenant suite asserts this list is complete. */
 export const TENANT_SCOPED_TABLES = [
   'tenants',
@@ -1783,4 +1887,6 @@ export const TENANT_SCOPED_TABLES = [
   'onboarding_progress',
   'invitations',
   'conversation_owners',
+  'notification_prefs',
+  'notifications',
 ] as const;
