@@ -37,7 +37,7 @@ Re-derived from SRS v0.4: INB-05 ("round-robin or a specific person; notifies by
 
 ## Corrected tests
 
-None.
+- `escalation.e2e.ts` setup (`23975a8`): CI run 94 failed at the first step because the spec PUT Mei Ling's (an Agent's) alert preferences with `approval_pending`, and FEAT-052 D9 refuses that with a 403. The setup now leaves that event out (events not listed keep their stored setting). No assertion changed.
 
 ## Independent execution
 
