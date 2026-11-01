@@ -33,6 +33,7 @@ export {
 export {
   ABUSE_LIMIT,
   abuseHandler,
+  escalateHandler,
   createRegistry,
   crisisHandler,
   dispatchPlan,
@@ -76,6 +77,7 @@ export {
   CRISIS_CONTACTS,
   DEFAULT_BOT_NAME,
   DEFAULT_GREETING,
+  escalationNotice,
   safetyText,
   texts,
   textsFor,

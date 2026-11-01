@@ -50,7 +50,7 @@ test('the owner names the assistant and the widget introduces itself that way', 
   await expectNoSeriousA11yViolations(page);
 
   const preview = page.getByRole('complementary', { name: 'Preview' });
-  await expect(preview).toContainText("You're chatting with an AI assistant for Kaki Bakery.");
+  await expect(preview).toContainText("You're chatting with an AI assistant for Kaki Bakery. A person can take over at any time.");
   await page.getByLabel('Assistant name').fill('Kaki');
   await page.getByRole('switch', { name: 'Use emoji in replies' }).click();
   const english = page.getByRole('tabpanel');
@@ -58,7 +58,7 @@ test('the owner names the assistant and the widget introduces itself that way', 
   await english.getByLabel('Add to the disclosure').fill('Our team reads every chat.');
   // The preview follows the draft, before anything is saved.
   await expect(preview).toContainText(
-    "You're chatting with Kaki, an AI assistant for Kaki Bakery. Our team reads every chat.",
+    "You're chatting with Kaki, an AI assistant for Kaki Bakery. A person can take over at any time. Our team reads every chat.",
   );
   await expect(preview).toContainText('Hi! Ask me about our cakes and pastries.');
   await page.getByRole('button', { name: 'Save changes' }).click();
@@ -80,7 +80,7 @@ test('the owner names the assistant and the widget introduces itself that way', 
   const reply = panel.locator('[data-author="agent"]:not([data-pending])').first();
   await expect(reply).toHaveText("I'm Kaki, the AI assistant here. How can I help? 🙂");
   await expect(panel.locator('.disc')).toHaveText(
-    "You're chatting with Kaki, an AI assistant for Kaki Bakery. Our team reads every chat.",
+    "You're chatting with Kaki, an AI assistant for Kaki Bakery. A person can take over at any time. Our team reads every chat.",
   );
 });
 

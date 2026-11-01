@@ -12,7 +12,10 @@ import {
   recentMessages,
   recordAbuse,
   replyExists,
+  requestEscalation,
   type GapReason,
+  type MessageRow,
+  type RequestEscalationResult,
 } from '@kaki/inbox';
 import { searchVisitorFacts, visitorKb, type VisitorFact } from '@kaki/kb';
 import { routeReply, type LlmGateway, type LogicalModel } from '@kaki/llm-gateway';
@@ -32,7 +35,7 @@ import { replyLanguage, type ReplyLanguage } from './language.js';
 import { routeSignals, triage, type TurnPlan } from './plan.js';
 import { HISTORY_LIMIT } from './prompt.js';
 import type { Violation } from './verify.js';
-import { safetyText, textsFor, type SafetyKey } from './texts.js';
+import { escalationNotice, safetyText, textsFor, type SafetyKey } from './texts.js';
 
 export interface TurnDeps {
   /** The visitor trust zone (ADR-009): it can read only what a visitor conversation may see. */
@@ -70,6 +73,11 @@ export type TurnResult = Stored & {
   dispatched: DispatchReport[];
   /** The model of the first reply attempt (ADR-007 routing). */
   route: LogicalModel | null;
+  /**
+   * The escalation notice stored beside an answered reply (FEAT-044): published before the
+   * reply. Null otherwise (an escalate-only turn's notice is the reply itself).
+   */
+  escalationNotice: MessageRow | null;
 };
 
 /**
@@ -154,6 +162,12 @@ export async function runVisitorTurn(
   let blockedTopic = false;
   // The retrieval vector, kept to mark an unanswered question as a coverage gap (FEAT-019 D2).
   let queryVector: number[] | null = null;
+  // FEAT-044 §5.4: what the escalation port did this turn, and whether the plan's only
+  // non-safety task is `escalate` (then the notice is the reply).
+  let escalation: RequestEscalationResult | null = null;
+  let escalateOnly = false;
+  // Set inside the port's closure, so read through this (TS narrows the `let` to null).
+  const escalated = () => escalation as RequestEscalationResult | null;
 
   async function store(
     outcome: TurnOutcome,
@@ -161,21 +175,26 @@ export async function runVisitorTurn(
     text: string,
     composed: AnswerResult | null,
     safety: SafetyKey | null = null,
+    escalatedNotice: string | null = null,
   ): Promise<TurnResult | null> {
     const t = textsFor(language, persona);
     const disclosure = prep!.disclosed ? null : t.disclosure(businessName);
     // FEAT-025 §5.4: an abuse-ended chat says so; a crisis or warning reply carries no
     // notice, so the after-hours notice waits for the next reply of the closed period.
     // FEAT-023 D6: the return time is rendered, never written by the model.
+    // FEAT-044: an escalate-only turn's reply is the escalation notice, which already says
+    // when the team is back, so the after-hours notice waits.
     const notice =
-      safety === 'abuse_ended'
-        ? { kind: 'chat_ended' as const, text: t.chatEnded }
-        : prep!.noticeDue && safety === null
-          ? {
-              kind: 'after_hours' as const,
-              text: t.afterHours(slotValues.get('next_open') ?? null),
-            }
-          : null;
+      escalatedNotice !== null
+        ? { kind: 'escalated' as const, text: escalatedNotice }
+        : safety === 'abuse_ended'
+          ? { kind: 'chat_ended' as const, text: t.chatEnded }
+          : prep!.noticeDue && safety === null
+            ? {
+                kind: 'after_hours' as const,
+                text: t.afterHours(slotValues.get('next_open') ?? null),
+              }
+            : null;
     const stored = await withTenant(zdb, tenantId, async (tx) => {
       const reply = await appendAgentReply(tx, {
         tenantId,
@@ -214,7 +233,8 @@ export async function runVisitorTurn(
         await entry(GUARDRAIL_ACTION[v.kind] ?? 'guardrail.segment_blocked', {
           kind: auditCode(v.kind),
         });
-      if (outcome === 'escalated') await entry('guardrail.escalated');
+      // A reply that failed verification twice (an escalate-only turn has no composed reply).
+      if (outcome === 'escalated' && composed) await entry('guardrail.escalated');
       if (outcome === 'unavailable' || outcome === 'paused') await entry('agent.fallback_sent');
       // UC-20 3a and 3d (ADR-009): the attempt is audit-logged, as codes only (FEAT-025).
       if (plan?.flags.injection) await entry('guardrail.injection_detected');
@@ -259,6 +279,7 @@ export async function runVisitorTurn(
           route,
           language,
           afterHours: notice?.kind === 'after_hours',
+          escalationNotice: escalated()?.notice ?? null,
         }
       : null;
   }
@@ -323,6 +344,17 @@ export async function runVisitorTurn(
   language = replyLanguage(plan, message.body);
   slotValues = systemSlots(hours, language);
   const t = textsFor(language, persona);
+  // The plan's only non-safety task is `escalate`: no answer and no other reply text.
+  escalateOnly =
+    plan.tasks.some((task) => task.kind === 'escalate') &&
+    plan.tasks.every((task) => ['escalate', 'crisis', 'abuse'].includes(task.kind));
+  const tenantHours = gate.tenant
+    ? {
+        hours: gate.tenant.hours,
+        openOnPublicHolidays: gate.tenant.openOnPublicHolidays,
+        holidays: gate.tenant.holidays,
+      }
+    : null;
 
   // ADR-025: the dispatcher turns the plan's tasks into side effects, or reports why not.
   const ctx: DispatchContext = {
@@ -366,6 +398,27 @@ export async function runVisitorTurn(
           endAiConversation(tx, tenantId, conversationId, reason),
         );
       },
+      // INB-05 (FEAT-044 §5.4): routes, alerts and (beside an answer) stores the notice.
+      escalate: async (source) => {
+        const withNotice = source !== 'unverified' && !escalateOnly;
+        const r = await withTenant(zdb, tenantId, (tx) =>
+          requestEscalation(tx, {
+            tenantId,
+            conversationId,
+            source,
+            now: wall,
+            hours: tenantHours,
+            language,
+            ...(withNotice
+              ? {
+                  noticeText: (n) => escalationNotice(n.language, n.afterHours, n.nextOpen, n.now),
+                }
+              : {}),
+          }),
+        );
+        escalation = r;
+        return { status: r.status };
+      },
     },
   };
   const dispatch = await dispatchPlan(deps.registry ?? visitorRegistry, plan, ctx);
@@ -373,6 +426,29 @@ export async function runVisitorTurn(
   if (dispatch.endTurn) {
     const key = dispatch.endTurn.key;
     return store('ended', 'agent', safetyText(t, key, businessName), null, key);
+  }
+  // An escalate-only turn (FEAT-044 §5.4): the notice is the reply, with no reply model. A
+  // repeat says the same; if the request failed, the turn answers as usual.
+  const asked = escalated();
+  if (escalateOnly && asked && asked.status !== 'with_person') {
+    const afterHours = asked.escalation?.afterHours ?? false;
+    const nextOpen =
+      afterHours && tenantHours?.hours
+        ? openStatus(
+            tenantHours.hours,
+            tenantHours.openOnPublicHolidays,
+            wall,
+            tenantHours.holidays,
+          ).nextOpen
+        : null;
+    return store(
+      'escalated',
+      'system',
+      '',
+      null,
+      null,
+      escalationNotice(language, afterHours, nextOpen, wall),
+    );
   }
 
   route = routeReply(routeSignals(plan, false), gate.tenant.routePolicy);
@@ -406,8 +482,21 @@ export async function runVisitorTurn(
   // A fixed AGT-04 text used no reply model (FEAT-023 D1).
   if (!composed.composed) route = null;
   switch (composed.outcome) {
+    case 'escalated': {
+      // Two failed verifications (FEAT-022 D2): the reply says the team will confirm; the
+      // conversation is escalated, quietly and with no notice (FEAT-044 §5.4, D1).
+      const stored = await store(composed.outcome, 'agent', composed.text, composed);
+      try {
+        await ctx.conversation.escalate('unverified');
+      } catch {
+        // The reply stands; staff still see the guardrail entry and the coverage gap.
+      }
+      const e = escalated();
+      return stored && e?.status === 'escalated'
+        ? { ...stored, conversation: e.conversation }
+        : stored;
+    }
     case 'answered':
-    case 'escalated':
     case 'out_of_scope':
     case 'unsure':
     case 'refused':

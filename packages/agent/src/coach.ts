@@ -382,6 +382,9 @@ function dispatchContext(
       endAi: async () => {
         throw new Error('coaching has no conversation');
       },
+      escalate: async () => {
+        throw new Error('coaching has no conversation');
+      },
     },
     coaching: {
       propose: (proposal) =>

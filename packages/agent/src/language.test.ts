@@ -32,7 +32,9 @@ describe('system texts (FEAT-023 D5)', () => {
     const en = textsFor('en');
     const zh = textsFor('zh');
     expect(Object.keys(zh).sort()).toEqual(Object.keys(en).sort());
-    expect(zh.disclosure('Kaki Bakery')).toBe('您正在与 Kaki Bakery 的 AI 助手聊天。');
+    expect(zh.disclosure('Kaki Bakery')).toBe(
+      '您正在与 Kaki Bakery 的 AI 助手聊天。您可以随时要求真人客服接手。',
+    );
     expect(zh.outOfScope('Kaki Bakery')).toContain('Kaki Bakery');
     expect(en.afterHours('tomorrow at 8:00 am')).toBe(
       "We're closed right now. The team will be back tomorrow at 8:00 am. I can still answer your questions in the meantime.",

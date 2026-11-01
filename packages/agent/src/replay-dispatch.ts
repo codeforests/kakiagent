@@ -49,6 +49,10 @@ export class ReplayPorts implements ConversationPort {
     return this.priorAbuse + 1;
   }
   async endAi(): Promise<void> {}
+  /** A replay escalates nobody (FEAT-044); in coaching scope the handler is refused anyway. */
+  async escalate(): Promise<{ status: 'escalated' }> {
+    return { status: 'escalated' };
+  }
 }
 
 /** Earlier replayed turns whose effects include a done `abuse`. */

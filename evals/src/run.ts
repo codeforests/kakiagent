@@ -16,6 +16,7 @@ import {
   applyBoundary,
   buildVisitorPrompt,
   dispatchPlan,
+  escalationNotice,
   fakeAgentScript,
   fakeTriage,
   fakeVisitorResponder,
@@ -265,6 +266,8 @@ function memoryConversation(priorAbuse: number) {
     flags: [] as string[],
     abuseTurns: new Set(Array.from({ length: priorAbuse }, (_, i) => `earlier-${i}`)),
     aiEnded: false,
+    /** FEAT-044: the escalation requests the `escalate` handler made. */
+    escalations: [] as string[],
   };
   const port: ConversationPort = {
     async flag(reason) {
@@ -276,6 +279,11 @@ function memoryConversation(priorAbuse: number) {
     },
     async endAi() {
       state.aiEnded = true;
+    },
+    async escalate(source) {
+      const status = state.escalations.length ? 'already_escalated' : 'escalated';
+      state.escalations.push(source);
+      return { status };
     },
   };
   return { state, port };
@@ -325,6 +333,23 @@ async function runCase(c: Case) {
       factIds: [],
       outcome: 'ended',
       notice: dispatch.endTurn === 'abuse_ended' ? texts.chatEnded : null,
+      disclosure: texts.disclosure(fixture.businessName),
+      retrieved: facts.map((f) => f.id),
+      ...turnState,
+    };
+    return { reply, plan, route: null, dispatchError: dispatch.error, facts, hours, llm, persona };
+  }
+  // An escalate-only turn (FEAT-044 §5.4): the escalation notice is the reply, as turn.ts stores it.
+  const escalateOnly =
+    conversation.state.escalations.length > 0 &&
+    plan.tasks.every((t) => ['escalate', 'crisis', 'abuse'].includes(t.kind));
+  if (escalateOnly) {
+    const closed = hours !== null && !hours.status.open;
+    const reply: Reply = {
+      text: escalationNotice(language, closed, closed ? hours.status.nextOpen : null, at),
+      factIds: [],
+      outcome: 'escalated',
+      notice: null,
       disclosure: texts.disclosure(fixture.businessName),
       retrieved: facts.map((f) => f.id),
       ...turnState,

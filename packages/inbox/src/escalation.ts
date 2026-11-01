@@ -126,8 +126,13 @@ export interface RequestEscalationInput {
   source: EscalationSource;
   now?: Date;
   hours: TenantHours | null;
-  /** The visitor's notice; omitted for `unverified`, whose reply already says so. */
+  /**
+   * The visitor's notice; omitted for `unverified`, whose reply already says so, and when the
+   * agent's turn stores the notice as its reply (an escalate-only turn).
+   */
   noticeText?: EscalationNoticeText;
+  /** The notice's language; by default the conversation's (that of its latest reply). */
+  language?: 'en' | 'zh';
   log?: Log;
 }
 
@@ -245,7 +250,8 @@ export async function requestEscalation(
 
   let notice: MessageRow | null = null;
   if (input.noticeText) {
-    const language = await conversationLanguage(tx, tenantId, conversationId);
+    const language =
+      input.language ?? (await conversationLanguage(tx, tenantId, conversationId));
     const text = input.noticeText({ language, afterHours, nextOpen, now });
     const [stored] = await tx
       .insert(m)
