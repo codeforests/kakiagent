@@ -1,6 +1,6 @@
 import { sql, withTenant, type Tx, type ZoneDb } from '@kaki/db';
 import type { Mailer } from '../mailer.js';
-import type { AlertEvent, NotificationKind, SubjectType } from './kinds.js';
+import { muteEvent, type NotificationKind, type SubjectType } from './kinds.js';
 import { linkFor, settingsLink } from './links.js';
 import { prefsOf, type Prefs } from './prefs.js';
 import { inQuietHours } from './quiet.js';
@@ -111,8 +111,10 @@ const itemOf = (r: Row, appUrl: string): AlertItem => ({
   at: createdAt(r),
   link: linkFor(r.kind, { type: r.subject_type, id: r.subject_id }, appUrl),
 });
-const mutedFor = (prefs: Prefs, r: Row) =>
-  r.kind !== 'test' && prefs.emailMuted.includes(r.kind as AlertEvent);
+const mutedFor = (prefs: Prefs, r: Row) => {
+  const event = muteEvent(r.kind);
+  return event !== null && prefs.emailMuted.includes(event);
+};
 
 async function sendPending(
   tx: Tx,

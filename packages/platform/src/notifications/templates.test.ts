@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { linkFor, settingsLink } from './links.js';
+import { muteEvent } from './kinds.js';
 import { alertEmail, digestEmail, type AlertItem } from './templates.js';
 
 const ctx = {
@@ -26,6 +27,9 @@ describe('alert emails', () => {
     );
     expect(alertEmail(item({ kind: 'hot_lead' }), ctx).subject).toBe(
       '[Kaki <Bakery> & Co] New hot lead',
+    );
+    expect(alertEmail(item({ kind: 'escalation_reminder' }), ctx).subject).toBe(
+      '[Kaki <Bakery> & Co] Reminder: a customer is still waiting for a person',
     );
     expect(alertEmail(item({ kind: 'test' }), ctx).subject).toBe(
       '[Kaki <Bakery> & Co] Test alert from KakiAgent',
@@ -65,10 +69,20 @@ describe('alert emails', () => {
   });
 });
 
+describe('mute mapping (FEAT-044 D6)', () => {
+  it('a reminder is muted with escalations; the test alert never', () => {
+    expect(muteEvent('escalation_reminder')).toBe('escalation');
+    expect(muteEvent('escalation')).toBe('escalation');
+    expect(muteEvent('hot_lead')).toBe('hot_lead');
+    expect(muteEvent('test')).toBeNull();
+  });
+});
+
 describe('links', () => {
   it('each kind opens its dashboard page', () => {
     const s = { type: 'conversation' as const, id: 'x1' };
     expect(linkFor('escalation', s, 'https://app.test')).toBe('https://app.test/inbox/x1');
+    expect(linkFor('escalation_reminder', s, 'https://app.test')).toBe('https://app.test/inbox/x1');
     expect(linkFor('approval_pending', s, 'https://app.test')).toBe(
       'https://app.test/approvals/x1',
     );

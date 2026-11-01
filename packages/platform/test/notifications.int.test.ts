@@ -268,14 +268,21 @@ describe('sender (FEAT-052 §5.2)', () => {
     const { mailer, sent } = fakeMailer();
     await setPrefs(ownerA, { muted: ['escalation'] });
     await alert('escalation', [ownerA]);
+    await alert('escalation_reminder', [ownerA]);
     await alert('hot_lead', [ownerA]);
     await alert('test', [ownerA], { id: ownerA, key: 'test:1' });
     await backdate(sg('23:00'));
     const r = await send(mailer, sg('23:00'));
-    expect(r).toMatchObject({ skipped: 1, held: 1, sent: 1 });
+    // A muted escalation mutes its reminders too (FEAT-044 D6).
+    expect(r).toMatchObject({ skipped: 2, held: 1, sent: 1 });
     expect(await statuses()).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ kind: 'escalation', status: 'skipped', skip_reason: 'muted' }),
+        expect.objectContaining({
+          kind: 'escalation_reminder',
+          status: 'skipped',
+          skip_reason: 'muted',
+        }),
         expect.objectContaining({ kind: 'hot_lead', status: 'held' }),
         expect.objectContaining({ kind: 'test', status: 'sent' }),
       ]),
