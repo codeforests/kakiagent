@@ -15,9 +15,10 @@
   Done when: `pnpm --filter @kaki/scheduler-worker typecheck` and its unit tests pass.
 - [x] T5 — Contracts and API: the notifications section in `packages/contracts/src/index.ts` (§3) with unit tests; `apps/api/src/notifications.ts` `registerNotificationRoutes` wired in `app.ts`; `apps/api/test/notifications.int.test.ts` (design §3, §5.4; AC-5, AC-6, AC-9, AC-11)
   Done when: cases pass for: GET defaults; PUT persists and GET reflects it; unlisted events kept; `same_time` 422; an Agent without approval rights doesn't see `approval_pending` and gets 403 setting it; an Agent with rights does; test alert 202 writes one `test` row and a second within 60 s is 429; tenant B's member can't read or change tenant A's row; the same user's prefs differ per business.
-- [ ] T6 — Terraform `infra/terraform/modules/mail` (SES identity, DKIM, MAIL FROM, configuration set, bounce-rate alarm, `dns_records` output), wired in `envs/prod` with `mail_domain` and `dmarc_report_address`, `EMAIL_FROM` from it; a `mail` run in `tests/profiles.tftest.hcl` (design §5.6; AC-10)
+- [x] T6 — Terraform `infra/terraform/modules/mail` (SES identity, DKIM, MAIL FROM, configuration set, bounce-rate alarm, `dns_records` output), wired in `envs/prod` with `mail_domain` and `dmarc_report_address`, `EMAIL_FROM` from it; a `mail` run in `tests/profiles.tftest.hcl` (design §5.6; AC-10)
   Done when: `terraform fmt -check`, `validate` and `terraform test` pass where Terraform is installed.
   Note: if the cloud session has no Terraform, CI's `terraform` job runs these in the verify stage; record that here.
+  Done (build, 2026-11-01): Terraform 1.16.6 with the providers from releases.hashicorp.com as a filesystem mirror (the registry is blocked in cloud sessions): `fmt -check`, `validate` and `terraform test` (launch_profile, full_profile, mail) pass. tflint left to CI.
 
 ## Build session 2 (UI)
 
