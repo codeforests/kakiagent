@@ -1,7 +1,7 @@
 # Tasks: FEAT-052 — Owner alerts by email, quiet hours, digest, notification preferences
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: designed · Last updated: 2026-11-01 (design)
+> Status: developer-done · Last updated: 2026-11-01 (build, UI)
 
 ## Build session 1 (backend)
 
@@ -26,9 +26,11 @@
   Done when: `pnpm --filter @kaki/dashboard test` and typecheck pass.
 - [x] T8 — SCR-APP-056 `pages/notifications.tsx` at `/account/notifications`; route in `router.tsx`; "Notifications" in the account menu; the Notifications card on My account (ui-design SCR-APP-056; AC-11)
   Done when: a stubbed-API Chromium run shows the default, saving, rolled-back switch, quiet-hours error, test sent and rate-limited states, with focus as specified.
+  Evidence (2026-11-01, Chromium at 375 and 1280 against `vite` with `/api` stubbed): defaults (4 switches on, 22:00–08:00, "Overnight, …" help); saving = `aria-busy` + optimistic off, then toast "Saved.", focus on the switch; a 500 rolls the switch back with the card's danger alert, focus kept; the next save clears the alert; all off shows the info alert; same time → "Pick a different end time." on To with focus there; empty → "Enter a time."; daytime help starts "Singapore time."; "Quiet hours saved." and the button disables; quiet hours off hides the fields; test → toast "Test alert sent to …", focus on the button; 429 → "You just sent one. Try again in 60 seconds."; no horizontal scroll at 375; account menu lists "Notifications"; My account card links to `/account/notifications`.
 - [x] T9 — E2E `e2e/tests/notifications.e2e.ts` (design §5.7; AC-1, AC-5, AC-6, AC-11)
-  Note: runs in the verify stage's GitHub CI (no local stack in cloud sessions).
-- [ ] T10 — Verify: full `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `test:coverage` for platform, db, api, contracts, scheduler-worker, dashboard through `scripts/test-env.sh`; tick tasks; status `developer-done`.
+  Note: runs in the verify stage's GitHub CI (no local stack in cloud sessions). Typecheck and ESLint pass on the spec.
+- [x] T10 — Verify: full `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `test:coverage` for platform, db, api, contracts, scheduler-worker, dashboard through `scripts/test-env.sh`; tick tasks; status `developer-done`.
+  Evidence (2026-11-01): `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test` (24/24 tasks) green through `scripts/test-env.sh`. `test:coverage` green for db, contracts, scheduler-worker, dashboard; platform and api pass their thresholds with only `test/rate-limit.int.test.ts` (Valkey) and `test/uploads.int.test.ts` (S3 presigner) excluded, both needing Docker containers this session doesn't have (unchanged by FEAT-052; they run in GitHub CI).
 
 ## Verification evidence
 
