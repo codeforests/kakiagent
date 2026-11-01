@@ -3265,3 +3265,132 @@ describe('conversation owners and staff messages (FEAT-043)', () => {
     await expect(notice('staff_typing')).rejects.toThrow(/messages_notice_ck/);
   });
 });
+
+// ---- FEAT-052: notification preferences and alerts (FEAT-052 §4; AC-9) ---------------------
+
+describe('notification prefs and notifications (FEAT-052)', () => {
+  let ownerA: string;
+  let ownerB: string;
+
+  const insertAlert = (c: pg.Client, tenantId: string, userId: string, key: string) =>
+    c.query<{ id: string }>(
+      `insert into notifications (tenant_id, user_id, kind, subject_type, subject_id, dedupe_key)
+       values ($1, $2, 'escalation', 'conversation', gen_random_uuid(), $3) returning id`,
+      [tenantId, userId, key],
+    );
+
+  beforeAll(async () => {
+    const ids = await owner.query<{ email: string; id: string }>(
+      `select email, id from users where email in ('owner@kaki-bakery.test', 'owner@second-tenant.test')`,
+    );
+    ownerA = ids.rows.find((r) => r.email === 'owner@kaki-bakery.test')!.id;
+    ownerB = ids.rows.find((r) => r.email === 'owner@second-tenant.test')!.id;
+    await owner.query(`insert into notification_prefs (tenant_id, user_id) values ($1, $2)`, [
+      TENANT_A,
+      ownerA,
+    ]);
+    await insertAlert(owner, TENANT_A, ownerA, 'a-1');
+  });
+
+  afterAll(async () => {
+    await owner.query(`delete from notifications`);
+    await owner.query(`delete from notification_prefs`);
+  });
+
+  it("tenant B reads, writes and cancels nothing of tenant A's", async () => {
+    for (const role of ['app_dashboard', 'app_agent_visitor'] as const) {
+      const seen = await asRole(role, TENANT_B, async (c) => ({
+        alerts: (await c.query(`select id from notifications`)).rows,
+        cancelled: (await c.query(`update notifications set status = 'cancelled'`)).rowCount,
+      }));
+      expect(seen).toEqual({ alerts: [], cancelled: 0 });
+      await expect(
+        asRole(role, TENANT_B, (c) => insertAlert(c, TENANT_A, ownerA, 'x')),
+      ).rejects.toThrow(/row-level security/);
+    }
+    const prefs = await asRole('app_dashboard', TENANT_B, async (c) => ({
+      rows: (await c.query(`select * from notification_prefs`)).rows,
+      updated: (await c.query(`update notification_prefs set quiet_enabled = false`)).rowCount,
+    }));
+    expect(prefs).toEqual({ rows: [], updated: 0 });
+    await expect(
+      asRole('app_dashboard', TENANT_B, (c) =>
+        c.query(`insert into notification_prefs (tenant_id, user_id) values ($1, $2)`, [
+          TENANT_A,
+          ownerB,
+        ]),
+      ),
+    ).rejects.toThrow(/row-level security/);
+    const own = await asRole(
+      'app_dashboard',
+      TENANT_A,
+      async (c) => (await c.query(`select user_id from notification_prefs`)).rows,
+    );
+    expect(own).toEqual([{ user_id: ownerA }]);
+  });
+
+  it('producers change only the status; the dashboard never rewrites kind or recipient', async () => {
+    await expect(
+      asRole('app_dashboard', TENANT_A, (c) => c.query(`update notifications set kind = 'test'`)),
+    ).rejects.toThrow(/permission denied/);
+    await expect(
+      asRole('app_agent_visitor', TENANT_A, (c) =>
+        c.query(`update notifications set user_id = $1`, [ownerB]),
+      ),
+    ).rejects.toThrow(/permission denied/);
+    await expect(
+      asRole('app_dashboard', TENANT_A, (c) => c.query(`delete from notifications`)),
+    ).rejects.toThrow(/permission denied/);
+    const cancelled = await asRole('app_dashboard', TENANT_A, async (c) => {
+      return (await c.query(`update notifications set status = 'cancelled'`)).rowCount;
+    });
+    expect(cancelled).toBe(1);
+  });
+
+  it('the identity zone scans due alerts across tenants but writes only in its tenant', async () => {
+    await insertAlert(owner, TENANT_B, ownerB, 'b-1');
+    const due = await asRole('app_identity', null, async (c) =>
+      (
+        await c.query<{ tenant_id: string }>(
+          `select distinct tenant_id from notifications where status in ('pending', 'held') order by 1`,
+        )
+      ).rows.map((r) => r.tenant_id),
+    );
+    expect(due).toEqual([TENANT_A, TENANT_B].sort());
+    const crossTenant = await asRole('app_identity', TENANT_B, (c) =>
+      c.query(`update notifications set status = 'sent' where tenant_id = $1`, [TENANT_A]),
+    );
+    expect(crossTenant.rowCount).toBe(0);
+    const purged = await asRole('app_identity', TENANT_B, (c) =>
+      c.query(`delete from notifications where tenant_id = $1`, [TENANT_A]),
+    );
+    expect(purged.rowCount).toBe(0);
+    // The outbox zone has no access at all.
+    await expect(
+      asRole('app_outbox', TENANT_A, (c) => c.query(`select * from notifications`)),
+    ).rejects.toThrow(/permission denied/);
+  });
+
+  it('checks: one alert per recipient and dedupe key, no muted unknowns, distinct quiet bounds', async () => {
+    await expect(insertAlert(owner, TENANT_A, ownerA, 'a-1')).rejects.toThrow(
+      /notifications_dedupe_uq/,
+    );
+    await expect(
+      owner.query(
+        `update notification_prefs set email_muted = '{marketing}' where tenant_id = $1`,
+        [TENANT_A],
+      ),
+    ).rejects.toThrow(/notification_prefs_muted_ck/);
+    await expect(
+      owner.query(
+        `update notification_prefs set quiet_start = 480, quiet_end = 480 where tenant_id = $1`,
+        [TENANT_A],
+      ),
+    ).rejects.toThrow(/notification_prefs_quiet_ck/);
+    await expect(
+      owner.query(`update notifications set status = 'skipped' where tenant_id = $1`, [TENANT_A]),
+    ).rejects.toThrow(/notifications_skip_ck/);
+    // An alert only for a member of that business.
+    await expect(insertAlert(owner, TENANT_A, ownerB, 'a-2')).rejects.toThrow(/foreign key/);
+  });
+});
