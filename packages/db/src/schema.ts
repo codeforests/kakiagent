@@ -235,7 +235,13 @@ export const assistantSettings = pgTable(
 const inList = (values: readonly string[]) => sql.raw(values.map((v) => `'${v}'`).join(', '));
 
 /** System notice kinds on a message (FEAT-023 §4); later kinds extend `messages_notice_ck`. */
-export const NOTICE_KINDS = ['after_hours', 'chat_ended', 'staff_joined', 'staff_left'] as const;
+export const NOTICE_KINDS = [
+  'after_hours',
+  'chat_ended',
+  'staff_joined',
+  'staff_left',
+  'escalated',
+] as const;
 /** Embedding dimensions: Cohere Embed Multilingual v3 (ADR-019). */
 export const EMBEDDING_DIMENSIONS = 1024;
 /** Turn outcomes that make a visitor question a coverage gap (FEAT-019 D2). */
@@ -1752,7 +1758,8 @@ export const onboardingProgress = pgTable(
 );
 
 export const ALERT_EVENTS = ['escalation', 'approval_pending', 'hot_lead'] as const;
-export const NOTIFICATION_KINDS = [...ALERT_EVENTS, 'test'] as const;
+/** `escalation_reminder` is muted with `escalation` (FEAT-044 D6), so it is not an alert event. */
+export const NOTIFICATION_KINDS = [...ALERT_EVENTS, 'escalation_reminder', 'test'] as const;
 export const NOTIFICATION_STATUSES = [
   'pending',
   'held',
@@ -1838,7 +1845,7 @@ export const notifications = pgTable(
     }).onDelete('cascade'),
     check(
       'notifications_kind_ck',
-      sql`${t.kind} in ('escalation', 'approval_pending', 'hot_lead', 'test')`,
+      sql`${t.kind} in ('escalation', 'approval_pending', 'hot_lead', 'escalation_reminder', 'test')`,
     ),
     check(
       'notifications_subject_ck',
@@ -1852,6 +1859,82 @@ export const notifications = pgTable(
       'notifications_skip_ck',
       sql`(${t.skipReason} is null or ${t.skipReason} in ('muted', 'inactive')) and (${t.skipReason} is not null) = (${t.status} = 'skipped')`,
     ),
+  ],
+);
+
+export const ESCALATION_SOURCES = ['visitor_button', 'visitor_asked', 'unverified'] as const;
+export const ESCALATION_RESOLUTIONS = ['claimed', 'closed', 'returned'] as const;
+export const ESCALATION_MODES = ['round_robin', 'person'] as const;
+
+/**
+ * A request for a person on one conversation (INB-05, UC-23; FEAT-044 §4). At most one open
+ * (unresolved) escalation per conversation. `next_reminder_at` is the durable reminder timer
+ * (ADR-012); `transition` (@kaki/inbox) resolves it on every move out of `escalated`.
+ */
+export const escalations = pgTable(
+  'escalations',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tenantId: uuid('tenant_id').notNull(),
+    conversationId: uuid('conversation_id').notNull(),
+    source: text('source', { enum: ESCALATION_SOURCES }).notNull(),
+    urgent: boolean('urgent').notNull(),
+    afterHours: boolean('after_hours').notNull(),
+    assigneeUserId: uuid('assignee_user_id'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    reminders: integer('reminders').notNull().default(0),
+    nextReminderAt: timestamp('next_reminder_at', { withTimezone: true }),
+    reminderQueuedAt: timestamp('reminder_queued_at', { withTimezone: true }),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+    resolution: text('resolution', { enum: ESCALATION_RESOLUTIONS }),
+    resolvedBy: uuid('resolved_by'),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.tenantId, t.conversationId],
+      foreignColumns: [conversations.tenantId, conversations.id],
+    }),
+    uniqueIndex('escalations_open_uq')
+      .on(t.tenantId, t.conversationId)
+      .where(sql`${t.resolvedAt} is null`),
+    index('escalations_due_idx')
+      .on(t.nextReminderAt)
+      .where(sql`${t.resolvedAt} is null`),
+    index('escalations_assignee_idx')
+      .on(t.tenantId, t.assigneeUserId)
+      .where(sql`${t.resolvedAt} is null`),
+    check(
+      'escalations_source_ck',
+      sql`${t.source} in ('visitor_button', 'visitor_asked', 'unverified')`,
+    ),
+    check(
+      'escalations_resolution_ck',
+      sql`(${t.resolution} is null or ${t.resolution} in ('claimed', 'closed', 'returned')) and (${t.resolvedAt} is null) = (${t.resolution} is null)`,
+    ),
+    check('escalations_reminders_ck', sql`${t.reminders} >= 0`),
+  ],
+);
+
+/** A tenant's escalation routing (INB-05; FEAT-044 §4, D4). No row = round-robin, 10 minutes. */
+export const escalationRouting = pgTable(
+  'escalation_routing',
+  {
+    tenantId: uuid('tenant_id').primaryKey(),
+    mode: text('mode', { enum: ESCALATION_MODES }).notNull().default('round_robin'),
+    personUserId: uuid('person_user_id'),
+    reminderMinutes: integer('reminder_minutes').notNull().default(10),
+    /** The round-robin cursor. */
+    lastAssignedUserId: uuid('last_assigned_user_id'),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedBy: uuid('updated_by'),
+  },
+  (t) => [
+    check('escalation_routing_mode_ck', sql`${t.mode} in ('round_robin', 'person')`),
+    check(
+      'escalation_routing_person_ck',
+      sql`${t.mode} <> 'person' or ${t.personUserId} is not null`,
+    ),
+    check('escalation_routing_minutes_ck', sql`${t.reminderMinutes} between 1 and 240`),
   ],
 );
 
@@ -1889,4 +1972,6 @@ export const TENANT_SCOPED_TABLES = [
   'conversation_owners',
   'notification_prefs',
   'notifications',
+  'escalations',
+  'escalation_routing',
 ] as const;
