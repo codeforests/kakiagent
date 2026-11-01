@@ -52,4 +52,4 @@ Test ref appended: LED-04 (partial: email only; Telegram FEAT-037, web push FEAT
 
 ## CI
 
-GitHub CI run 93 on `feat/FEAT-052-owner-alerts`: see below.
+GitHub CI run 93 on `feat/FEAT-052-owner-alerts` at `e49bb31` (the code head; the later commit is this report and docs only), 2026-11-01: all 11 jobs green, including E2E on Chromium, Firefox and WebKit (`notifications.e2e.ts` with axe at 1280 and 375 px), integration tests with coverage (incl. the Docker-only `rate-limit.int` and `uploads.int`), and Terraform validate, `terraform test` (run "mail") and tflint.
