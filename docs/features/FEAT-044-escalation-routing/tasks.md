@@ -1,7 +1,7 @@
 # Tasks: FEAT-044 — Escalation routing, "talk to a person", reminders
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: developer-done · Last updated: 2026-11-01 (build UI: T6–T9)
+> Status: accepted · Last updated: 2026-11-01 (verify: accepted, see acceptance-report.md)
 
 - [x] T1 — Schema: `0045_escalations.sql` (`escalations` with the checks, the partial unique and the two partial indexes; `escalation_routing` with its checks; forced RLS and tenant policies on both; grants for `app_agent_visitor` and `app_dashboard`; role `kaki_escalation_route` and `escalation_candidates()`; `inbox_queue_escalation_reminders()` owned by `kaki_inbox_timer` with its column grants and policy, EXECUTE to `app_outbox`; `inbox_queue_auto_close()` replaced to skip `escalated`; `NOTICE_KINDS` + `escalated` and the notice check; `NOTIFICATION_KINDS` + `escalation_reminder` and its check) + Drizzle tables, `TENANT_SCOPED_TABLES` (design §4; AC-9, D5, D6)
       Done when: `drizzle-kit generate` reports no drift after 0045; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes with RLS cases for both tables (tenant B sees and writes nothing of A's), a second open escalation for one conversation refused, `escalation_candidates()` under tenant A returning only A's active members (a deactivated member and tenant B's members absent) and not executable by `app_identity`/`app_outbox`, and `mode = 'person'` without a person refused.
@@ -27,15 +27,15 @@
 
 ## Verification evidence
 
-- AC-1: —
-- AC-2: —
-- AC-3: —
-- AC-4: —
-- AC-5: —
-- AC-6: —
-- AC-7: —
-- AC-8: —
-- AC-9: —
-- AC-10: —
+- AC-1: see acceptance-report.md audit table
+- AC-2: see acceptance-report.md audit table
+- AC-3: see acceptance-report.md audit table
+- AC-4: see acceptance-report.md audit table
+- AC-5: see acceptance-report.md audit table
+- AC-6: see acceptance-report.md audit table
+- AC-7: see acceptance-report.md audit table
+- AC-8: see acceptance-report.md audit table
+- AC-9: see acceptance-report.md audit table
+- AC-10: see acceptance-report.md audit table
 
 Build (UI) notes, 2026-11-01: T6 widget unit tests 40 pass, `pnpm size` panel 13.4 KB gz / loader 4.4 KB gz; stubbed-API Chromium check of Talk to a person (ok, failed → Retry, menu hides, notice once, focus back on the menu button). T7 dashboard unit tests 190 pass; stubbed check of the Team card (validation, save body, toast, 375 px no sideways scroll), escalated row + Urgent chip, strip and divider. T8 spec lints and typechecks; E2E runs in the verify stage's CI. T9: `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test` green; `test:coverage` through `scripts/test-env.sh` green for inbox, agent, tenancy, db (widget and dashboard have no `test:coverage` script; their unit tests pass); platform (`rate-limit.int.test.ts`, needs Valkey) and api (`uploads.int.test.ts`, needs LocalStack S3) fail only on those container-bound files, as in the backend session.
