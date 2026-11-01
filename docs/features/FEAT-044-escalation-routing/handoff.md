@@ -1,23 +1,21 @@
 # Handoff: FEAT-044 — Escalation routing, "talk to a person", reminders
-Branch: feat/FEAT-044-escalation-routing · PR: none · Updated: 2026-11-01 by build (backend)
-Stage done: build (T1–T5 of 9)
-Next: build (UI, T6–T9) — kickoff: "Build FEAT-044 (UI) on branch feat/FEAT-044-escalation-routing.
-Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage build."
+Branch: feat/FEAT-044-escalation-routing · PR: see the thread / branch PR (draft) · Updated: 2026-11-01 by build (UI)
+Stage done: build (T1–T9 of 9), status developer-done
+Next: verify — kickoff: "Verify FEAT-044 on branch feat/FEAT-044-escalation-routing.
+Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
 
 ## What the next stage needs
-- Routes: `POST /widget/v1/conversations/:id/escalate` → `EscalateResponse` (`escalated` | `already_escalated` | `with_person`; `notice` is the stored `Message`, null on a repeat or `with_person`). A closed chat is 409 `chat_ended` (the existing `ConversationClosedError` mapping, not `closed` as design §3 says); not this visitor's is 404. `GET`/`PUT /api/v1/settings/escalation` → `EscalationRouting`; PUT errors 403, 422 `invalid_routing` with `fields` (`personUserId: 'person_required'`, else `invalid`), 422 `person_not_member`.
-- Contracts: `ConversationSummary.escalation: OpenEscalation | null` (required key; fixtures need `escalation: null`), `ThreadEvent.reason 'escalated'` with `subject.name` the assignee and `source`, `Message.noticeKind 'escalated'`, `EscalationSource`, `EscalationMode`, `EscalationRoutingBody`, `TurnQueueJob` gains `EscalationReminderJob`. `WidgetConfigResponse.controls.talkToPerson` is now `channel.live && !aiPaused`.
-- Thread dividers: one `escalated` divider per escalation (from `escalation.assigned`); the plain `ai → escalated` state change is filtered out so it doesn't repeat.
-- Words path: an escalate-only turn stores the notice as its reply (system message, body '', `noticeKind: 'escalated'`, in reply to the visitor's message, with the disclosure). With an answer task the notice is a separate system message (`TurnResult.escalationNotice`), published before the reply. So the widget can derive "pending" from `noticeKind === 'escalated'` on either path.
-- Realtime summaries from the agent-worker carry the escalation but can't name the assignee (visitor zone): name is "A team member". In `applySummary`/realtime patching, keep the cached assignee name when the incoming assignee `userId` matches. API-published summaries (widget routes, inbox routes) are named.
-- Escalated conversations keep being answered (D9); auto-close skips them (D5); every move out of `escalated` resolves the escalation and cancels pending/held alerts inside `transition`.
-- Disclosure core and `unsure` texts changed (AC-8); FEAT-022/023/024 test and eval expectations were updated to the new texts, including `e2e/tests/assistant.e2e.ts` (two "…Our team reads every chat." strings). The eval case `multi-talk-to-person` (feat-004) lost its `expectRoute` (escalate-only turns call no reply model) and checks outcome `escalated`.
-- New deps: `@kaki/inbox` → `@kaki/tenancy`, `@kaki/agent-worker` → `@kaki/tenancy` (dependency-cruiser clean).
+- Widget: `escalationPending` (chat.ts), `menuItems(..., { handover })` hides Talk to a person while asking, pending or staff-handled; `api.escalate`; panel `talkToPerson()` creates the conversation first; transient "Asking the team…" row (`.notice.asking`, role=status), failed row `.error.retry` with Retry; 409 shows the ended card. Focus returns to the menu button even when it unmounts for a render (focusNext waits for it).
+- Dashboard: `lib/inbox.ts` `waitingFor`, `escalationText`, `escalationStrip`, `keepAssigneeName` (used in `applySummary`), `matchesView` holder = owner else escalation assignee, `eventText` for `escalated`. Strip in `takeover-dock.tsx` `TakeoverBar` (`data-testid="escalation-strip"`), `UrgentChip`, row line `conversation-escalation`; list wait times tick every minute. Team card `pages/escalation-card.tsx`, helpers `lib/escalation.ts`; shown to everyone, editable for Owner/Admin.
+- Realtime: the open thread refetches when the escalation id, assignee or reminder count changes.
+- **Test change by requirement, not weakening:** `e2e/tests/widget-controls.e2e.ts` expected no menu button before a conversation and one privacy item; with CHN-13 (Talk to a person always shown while live) the menu now starts with Talk to a person, so those steps were updated (ArrowDown/ArrowUp to reach End chat / Privacy, count 2).
+- `escalation.e2e.ts` turns Mei Ling's quiet hours off for the run (an after-hours alert is not urgent and would be held for the digest) and restores the seeded prefs; routing reset to round-robin in `afterEach`.
+- Stubbed-API Playwright checks run here: Team card save/validation/toast/phone width, inbox row + Urgent chip + strip + divider, widget Talk to a person (ok, failed → Retry, menu hides, notice once).
 
 ## Left to CI or later
-- `apps/api` `uploads.int.test.ts` and `@kaki/platform` `rate-limit.int.test.ts` need LocalStack/Valkey containers (no Docker here); everything else in api, agent, inbox, db, platform passed through `scripts/test-env.sh`.
-- E2E (`escalation.e2e.ts`, T8) and the changed `assistant.e2e.ts` run in the verify stage's GitHub CI.
-- The abuse rule (`endAiConversation`) still ends only `ai` chats, so repeated abuse in an escalated chat warns but doesn't end it; unchanged here, worth a note for verify.
+- E2E (`escalation.e2e.ts`, changed `widget-controls.e2e.ts` and `assistant.e2e.ts`) and screen renders: verify stage's GitHub CI.
+- `apps/api` uploads and `@kaki/platform` rate-limit integration tests need LocalStack/Valkey (no Docker here).
+- Abuse rule still ends only `ai` chats (see backend note); worth a line in the acceptance report.
 
 ## Pending for Ken
 - None blocking.

@@ -1,7 +1,7 @@
 # Tasks: FEAT-044 — Escalation routing, "talk to a person", reminders
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: designed · Last updated: 2026-11-01 (build backend: T1–T5)
+> Status: developer-done · Last updated: 2026-11-01 (build UI: T6–T9)
 
 - [x] T1 — Schema: `0045_escalations.sql` (`escalations` with the checks, the partial unique and the two partial indexes; `escalation_routing` with its checks; forced RLS and tenant policies on both; grants for `app_agent_visitor` and `app_dashboard`; role `kaki_escalation_route` and `escalation_candidates()`; `inbox_queue_escalation_reminders()` owned by `kaki_inbox_timer` with its column grants and policy, EXECUTE to `app_outbox`; `inbox_queue_auto_close()` replaced to skip `escalated`; `NOTICE_KINDS` + `escalated` and the notice check; `NOTIFICATION_KINDS` + `escalation_reminder` and its check) + Drizzle tables, `TENANT_SCOPED_TABLES` (design §4; AC-9, D5, D6)
       Done when: `drizzle-kit generate` reports no drift after 0045; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes with RLS cases for both tables (tenant B sees and writes nothing of A's), a second open escalation for one conversation refused, `escalation_candidates()` under tenant A returning only A's active members (a deactivated member and tenant B's members absent) and not executable by `app_identity`/`app_outbox`, and `mode = 'person'` without a person refused.
@@ -23,7 +23,7 @@
 - [x] T8 — E2E `e2e/tests/escalation.e2e.ts` (design §5.9; AC-1, AC-3, AC-4, AC-7, AC-10)
       Done when: the spec is written and lints; it runs in the verify stage's GitHub CI.
       Note: no Docker in cloud sessions, so E2E and screen renders run in CI (STATE.md).
-- [ ] T9 — Verify: full `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `test:coverage` for db, inbox, agent, tenancy, platform, api, widget, dashboard through `scripts/test-env.sh`; tick tasks; status `developer-done`.
+- [x] T9 — Verify: full `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `test:coverage` for db, inbox, agent, tenancy, platform, api, widget, dashboard through `scripts/test-env.sh`; tick tasks; status `developer-done`.
 
 ## Verification evidence
 
@@ -37,3 +37,5 @@
 - AC-8: —
 - AC-9: —
 - AC-10: —
+
+Build (UI) notes, 2026-11-01: T6 widget unit tests 40 pass, `pnpm size` panel 13.4 KB gz / loader 4.4 KB gz; stubbed-API Chromium check of Talk to a person (ok, failed → Retry, menu hides, notice once, focus back on the menu button). T7 dashboard unit tests 190 pass; stubbed check of the Team card (validation, save body, toast, 375 px no sideways scroll), escalated row + Urgent chip, strip and divider. T8 spec lints and typechecks; E2E runs in the verify stage's CI. T9: `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test` green; `test:coverage` through `scripts/test-env.sh` green for inbox, agent, tenancy, db, widget, dashboard; platform (`rate-limit.int.test.ts`, needs Valkey) and api (`uploads.int.test.ts`, needs LocalStack S3) fail only on those container-bound files, as in the backend session.
