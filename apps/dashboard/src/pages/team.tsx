@@ -19,6 +19,7 @@ import {
   withArticle,
   type MemberAction,
 } from '../lib/team.ts';
+import { EscalationCard } from './escalation-card.tsx';
 import { InvitationsSection, InviteDialog, MembersSection, RoleDialog } from './team-parts.tsx';
 
 /**
@@ -61,6 +62,7 @@ export function TeamPage() {
           onToast={setToast}
         />
       )}
+      {me.data && <EscalationCard canEdit={manage} onToast={setToast} />}
       {teamMfa.isError ? (
         <ErrorState
           title="We couldn't load your team's two-step setting."

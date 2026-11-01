@@ -62,7 +62,10 @@ export function onConversation(queryClient: QueryClient, summary: ConversationSu
     thread &&
     (thread.conversation.status !== summary.status ||
       thread.conversation.flaggedAt !== summary.flaggedAt ||
-      thread.conversation.owner?.userId !== summary.owner?.userId)
+      thread.conversation.owner?.userId !== summary.owner?.userId ||
+      thread.conversation.escalation?.id !== summary.escalation?.id ||
+      thread.conversation.escalation?.assignee?.userId !== summary.escalation?.assignee?.userId ||
+      thread.conversation.escalation?.reminders !== summary.escalation?.reminders)
   )
     void queryClient.invalidateQueries({ queryKey: threadKey(summary.id) });
 }

@@ -1,7 +1,7 @@
 import type { Me } from '@kaki/contracts';
 import { Button, ConfirmDialog } from '@kaki/ui';
 import { useEffect, useRef, useState } from 'react';
-import { dockText, initials, ownerText, type DockMode } from '../lib/inbox.ts';
+import { dockText, escalationStrip, initials, ownerText, type DockMode } from '../lib/inbox.ts';
 import {
   MAX_REPLY,
   newClientId,
@@ -60,7 +60,7 @@ function DockBody({
   mode: DockMode;
 }) {
   if (mode === 'closed') return <Dock conversation={c} />;
-  if (mode === 'ai') return <TakeoverBar conversation={c} actions={actions} />;
+  if (mode === 'ai') return <TakeoverBar conversation={c} actions={actions} meId={me?.user.id} />;
   if (mode === 'mine') return <Composer key={c.id} actions={actions} phone={phone} />;
   return <OwnedBar conversation={c} me={me} actions={actions} />;
 }
@@ -79,12 +79,25 @@ function useFocusOnArrival<T extends HTMLElement>(
   return ref;
 }
 
-function TakeoverBar({ conversation, actions }: { conversation: Summary; actions: DockActions }) {
+function TakeoverBar({
+  conversation,
+  actions,
+  meId,
+}: {
+  conversation: Summary;
+  actions: DockActions;
+  meId: string | undefined;
+}) {
   const ref = useFocusOnArrival<HTMLButtonElement>(actions, 'takeover');
   const pending = actions.takeOver.isPending;
+  const escalation = conversation.status === 'escalated' ? conversation.escalation : null;
   return (
     <div className="thread-dock thread-dock--bar" data-testid="thread-dock" data-mode="ai">
-      <p>{dockText(conversation)}</p>
+      {escalation ? (
+        <EscalationStrip strip={escalationStrip(escalation, meId)} />
+      ) : (
+        <p>{dockText(conversation)}</p>
+      )}
       <Button
         ref={ref}
         onClick={() => actions.takeOver.mutate(undefined)}
@@ -94,6 +107,18 @@ function TakeoverBar({ conversation, actions }: { conversation: Summary; actions
         {pending && <span className="spinner" aria-hidden="true" />}
         {pending ? 'Taking over…' : 'Take over'}
       </Button>
+    </div>
+  );
+}
+
+/** The escalation strip (FEAT-044 ui-design SCR-APP-015): who, since when, and why. */
+function EscalationStrip({ strip }: { strip: ReturnType<typeof escalationStrip> }) {
+  return (
+    <div className="escalation-strip" data-testid="escalation-strip">
+      <p>{strip.lead}</p>
+      <p>{strip.rest}</p>
+      {strip.afterHours && <p className="escalation-strip__caption">{strip.afterHours}</p>}
+      {strip.reminders && <p className="escalation-strip__caption">{strip.reminders}</p>}
     </div>
   );
 }

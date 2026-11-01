@@ -12,6 +12,10 @@ import {
   dockMode,
   dockText,
   eventText,
+  escalationStrip,
+  escalationText,
+  keepAssigneeName,
+  waitingFor,
   filterOfKey,
   flattenPages,
   listKey,
@@ -342,5 +346,100 @@ describe('takeover (FEAT-043)', () => {
       message(2, { author: 'staff', authorName: 'Ken' }),
     );
     expect(t?.messages.at(-1)?.authorUserId).toBeNull();
+  });
+});
+
+describe('escalations (FEAT-044 AC-7)', () => {
+  const ME = id(90);
+  const MEI = id(91);
+  const now = new Date('2026-11-01T06:10:00.000Z');
+  const esc = (over: Partial<NonNullable<ConversationSummary['escalation']>> = {}) => ({
+    id: id(80),
+    assignee: { userId: MEI, name: 'Mei Ling' },
+    since: '2026-11-01T06:04:00.000Z',
+    source: 'visitor_button' as const,
+    urgent: true,
+    afterHours: false,
+    reminders: 0,
+    ...over,
+  });
+  const escalated = summary(1, { status: 'escalated', escalation: esc() });
+
+  it('formats the wait: just now, minutes, hours, then the date', () => {
+    expect(waitingFor('2026-11-01T06:09:30.000Z', now)).toBe('just now');
+    expect(waitingFor('2026-11-01T06:04:00.000Z', now)).toBe('6 min');
+    expect(waitingFor('2026-11-01T03:00:00.000Z', now)).toBe('3 h');
+    expect(waitingFor('2026-10-28T03:00:00.000Z', now)).toBe('28 Oct');
+  });
+
+  it('names the assignee on unowned escalated rows only', () => {
+    expect(escalationText(escalated, ME, now)).toBe('For Mei Ling · 6 min');
+    expect(escalationText(escalated, MEI, now)).toBe('For you · 6 min');
+    expect(escalationText({ ...escalated, escalation: esc({ assignee: null }) }, ME, now)).toBe(
+      'For a team member · 6 min',
+    );
+    expect(
+      escalationText({ ...escalated, owner: { userId: ME, name: 'Owner' } }, ME, now),
+    ).toBeNull();
+    expect(escalationText(summary(2), ME, now)).toBeNull();
+  });
+
+  it('matches the assignee filter on the owner, else the escalation assignee', () => {
+    expect(matchesView(escalated, 'escalated', null, 'me', MEI)).toBe(true);
+    expect(matchesView(escalated, 'escalated', null, MEI, ME)).toBe(true);
+    expect(matchesView(escalated, 'escalated', null, 'me', ME)).toBe(false);
+    expect(matchesView(escalated, 'open', null, 'none', ME)).toBe(false);
+    const owned = { ...escalated, owner: { userId: ME, name: 'Owner' } };
+    expect(matchesView(owned, 'open', null, 'me', ME)).toBe(true);
+    expect(matchesView(owned, 'open', null, MEI, ME)).toBe(false);
+    expect(matchesView(summary(3), 'open', null, 'none', ME)).toBe(true);
+  });
+
+  it('keeps the cached assignee name when the worker could not name them', () => {
+    const unnamed = {
+      ...escalated,
+      escalation: esc({ assignee: { userId: MEI, name: 'A team member' } }),
+    };
+    expect(keepAssigneeName(unnamed, escalated).escalation?.assignee?.name).toBe('Mei Ling');
+    const other = {
+      ...escalated,
+      escalation: esc({ assignee: { userId: ME, name: 'A team member' } }),
+    };
+    expect(keepAssigneeName(other, escalated).escalation?.assignee?.name).toBe('A team member');
+    const list = applySummary(data([[escalated]], null), unnamed, open, ME);
+    expect(flattenPages(list)[0]!.escalation?.assignee?.name).toBe('Mei Ling');
+  });
+
+  it('writes the strip and the divider', () => {
+    expect(escalationStrip(esc(), ME, now)).toEqual({
+      lead: 'Escalated to Mei Ling 6 min ago. The visitor asked for a person.',
+      rest: 'The assistant keeps answering until someone takes over.',
+      afterHours: null,
+      reminders: null,
+    });
+    const s = escalationStrip(
+      esc({ source: 'unverified', afterHours: true, reminders: 2 }),
+      MEI,
+      now,
+    );
+    expect(s.lead).toBe(
+      "Escalated to you 6 min ago. A reply couldn't be checked, so the assistant asked the team.",
+    );
+    expect(s.afterHours).toBe('Asked after hours; the visitor was told when you open.');
+    expect(s.reminders).toBe('Reminded 2 times');
+    const divider = {
+      at: now.toISOString(),
+      kind: 'state' as const,
+      to: 'escalated' as const,
+      from: 'ai' as const,
+      reason: 'escalated' as const,
+      actor: { type: 'system' as const, name: null },
+      subject: { name: 'Mei Ling' },
+      source: 'visitor_asked' as const,
+    };
+    expect(eventText(divider)).toBe('Escalated to Mei Ling · visitor asked for a person');
+    expect(eventText({ ...divider, source: 'unverified' })).toBe(
+      "Escalated to Mei Ling · reply couldn't be checked",
+    );
   });
 });

@@ -47,6 +47,7 @@ import {
   ThreadPage,
   CloseConversationResponse,
   InboxMembers,
+  EscalationRouting,
   StaffMessageResponse,
   TakeoverResult,
   type InboxView,
@@ -64,6 +65,7 @@ import {
   TeamResponse,
   WorkspaceList,
   type InviteBody,
+  type EscalationRoutingBody,
   type MemberPatch,
   FactList,
   FactResponse,
@@ -302,6 +304,9 @@ export const api = {
   requestHandover: async (id: string) =>
     void (await send('POST', `/api/v1/conversations/${encodeURIComponent(id)}/handover-request`)),
   inboxMembers: () => getJson('/api/v1/inbox/members', InboxMembers),
+  escalationRouting: () => getJson('/api/v1/settings/escalation', EscalationRouting),
+  saveEscalationRouting: (body: EscalationRoutingBody) =>
+    request('PUT', '/api/v1/settings/escalation', EscalationRouting, body),
   facts: (filter: FactListQuery) => {
     const params = new URLSearchParams();
     for (const [k, v] of Object.entries(filter))
