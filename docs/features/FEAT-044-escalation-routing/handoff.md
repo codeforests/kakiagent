@@ -8,10 +8,10 @@ Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage 
 - R1 cause: not the SSE. Escape pressed right after clicking the menu button reached the panel's Escape-to-close, because the first menu item takes focus only after paint (Preact `useEffect`) and the menu's Escape handler sat on the `ul`. On Chromium the dialog closed, so the joined notice was "not found". Fix: `panel.tsx` HeaderMenu handles Escape on its wrapper whenever open. tasks.md has the rework note.
 - Also: the mount's `lang` now updates in `useLayoutEffect` (the `widget-controls.e2e.ts:124` Chromium flake, same frame lag).
 - New regression step in `widget-controls.e2e.ts` (Escape with the menu open and focus on the button keeps the panel open).
-- The rework CI run number and result are in the PR thread / below once green.
+- GitHub CI run 96 (`037a1d5`), 2026-11-01: all jobs green, including E2E on Chromium, Firefox and WebKit.
 
 ## Left to CI or later
-- E2E on all three browsers in the rework CI run.
+- Nothing: run 96 green. Verify re-checks R1 and writes the RTM, STATE and tasks status.
 
 ## Pending for Ken
 - None new. Earlier notes (D5 vs INB-08, abuse rule in escalated chats) stay in pending-actions.
