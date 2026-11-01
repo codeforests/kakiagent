@@ -5,7 +5,7 @@
 
 ## Verdict summary
 
-**Accepted.** INB-05 is met for email (Telegram with FEAT-037, web push with FEAT-048). CHN-13 is complete (after-hours lead capture with FEAT-049). AGT-06 gains `escalate_to_human`, and AGT-04 and AGT-09 gain the offer of a person and the after-hours notice (lead capture with FEAT-049). INB-01's assignee filter now covers escalation assignees. UC-23 steps 1 and 2 and alternates 2a (without lead capture) and 2b are realised. Every criterion has a test that asserts what it says. No test was weakened, skipped or deleted: the changed tests follow new required behaviour (below). Every local result below was produced in this session. E2E and screen renders ran in GitHub CI (see CI).
+**Rework.** In GitHub CI, on Chromium, the visitor never sees "Mei Ling joined the chat." after Mei Ling takes over an escalated conversation. This failed twice in a row on `23975a8` (run 95, attempt 1 and its re-run), while Firefox and WebKit pass the same test. This breaks AC-1 ("hides the item until staff join": the visitor must learn that staff joined) and AC-10, on the most common visitor browser. Everything else holds: every criterion has a test that asserts what it says, no test was weakened, and every local check and the CI integration suite (including the Docker-only suites) is green. No RTM write until the rework is accepted.
 
 ## Audit standard
 
@@ -56,14 +56,16 @@ Re-derived from SRS v0.4: INB-05 ("round-robin or a specific person; notifies by
 
 ## Findings
 
-- None blocking.
-- Note (from the build): the abuse rule (`endAiConversation`) still ends only `ai` chats, so repeated abuse in an escalated chat warns but doesn't end the chat. This is outside FEAT-044's criteria and goes to pending-actions for a later feature (GOV/boundary owner).
-- Note for Ken: D5 (escalated widget chats aren't auto-closed while unclaimed) departs from the letter of INB-08 ("widget 30 minutes"). The design records it, and it is needed for INB-05's "until claimed". It may deserve an INB-08 note at the next SRS amendment (added to pending-actions).
+- **R1 (rework, AC-1, AC-10; Chromium only).** In `escalation.e2e.ts:159-161`, after the take-over (`thread-dock` shows `data-mode="mine"`, the strip is gone), the check `visitor.panel.locator('.notice', { hasText: 'Mei Ling joined the chat.' })` finds no element within 2 s. CI run 95 (`23975a8`) failed this way on Chromium twice: job 124763046573, then the re-run job 124815466719. The trace and error context are in the `playwright-chromium` artifact of run 41277552542. FEAT-043's `takeover.e2e.ts` passes the same assertion on Chromium. The differences in this flow: the conversation is created by Talk to a person, before any visitor message (`panel.tsx` `talkToPerson`, which sets `conversationId` and then escalates while the SSE `useEffect` connects), it is escalated, and three browser contexts are open. The server side looks right on reading: `takeOver` writes `staff_joined` and `inbox.ts` publishes it on the conversation channel. So start from the trace: is the visitor's EventSource open and receiving at take-over time? Is there a race between `setConversationId`, the SSE replay and the escalate response?
+- Also on that re-run, `widget-controls.e2e.ts:124` (the chrome language switches back to `en`) failed once on Chromium. It passed on run 95's first attempt and on Firefox and WebKit, so it is not counted as a finding. Worth a look while in the widget.
+- Note (from the build): the abuse rule (`endAiConversation`) still ends only `ai` chats, so repeated abuse in an escalated chat warns but doesn't end the chat. This is outside FEAT-044's criteria (in pending-actions).
+- Note for Ken: D5 (escalated widget chats aren't auto-closed while unclaimed) departs from the letter of INB-08 ("widget 30 minutes"). The design records it, and it is needed for INB-05's "until claimed" (in pending-actions).
 
 ## RTM
 
-Test ref appended: INB-05 (partial: email; Telegram FEAT-037, web push FEAT-048); CHN-13 (talk to a person; after-hours lead capture with FEAT-049); AGT-06 (`escalate_to_human`); AGT-04 (offer of a person; lead capture FEAT-049); AGT-09 (after-hours escalation notice; lead capture FEAT-049); INB-01 (assignee = owner, else escalation assignee).
+Not written (rework). On acceptance, append Test ref: INB-05 (partial: email; Telegram FEAT-037, web push FEAT-048); CHN-13 (talk to a person; after-hours lead capture FEAT-049); AGT-06 (partial: `escalate_to_human`); AGT-04 and AGT-09 (partial; lead capture FEAT-049); INB-01 (assignee = owner, else escalation assignee).
 
 ## CI
 
-GitHub CI on `feat/FEAT-044-escalation-routing` at `03effa5` (the code head; later commits are this report and docs only): see below.
+- Run 94 (`03effa5`): Chromium E2E failed at the spec's setup (an Agent's preferences PUT with approval alerts, 403). Corrected in `23975a8` (Corrected tests). The rest of run 94 was cancelled.
+- Run 95 (`23975a8`): green on unit, lint and typecheck, build and size, eval, integration with coverage (including `rate-limit.int` and `uploads.int`), Terraform, scanning, workflow lint, and E2E on Firefox and WebKit. E2E on Chromium failed twice: R1.
