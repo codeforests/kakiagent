@@ -21,11 +21,12 @@ const AGENT = 'agent@kaki-bakery.test';
 const ROUND_ROBIN = { mode: 'round_robin', personUserId: null, reminderMinutes: 10 };
 const NOTICE = /I've (asked|let) the team/;
 // Mei Ling's alert settings: the seeded defaults, and without quiet hours for the test, so
-// an after-hours (not urgent) alert is sent at once rather than held for the digest.
+// an after-hours (not urgent) alert is sent at once rather than held for the digest. An
+// Agent can't receive approval alerts (FEAT-052 D9: 403), and events not listed keep their
+// stored setting, so approval_pending is left out.
 const PREFS = (quiet: boolean) => ({
   events: [
     { event: 'escalation', email: true },
-    { event: 'approval_pending', email: true },
     { event: 'hot_lead', email: true },
   ],
   quietHours: { enabled: quiet, start: '22:00', end: '08:00' },
