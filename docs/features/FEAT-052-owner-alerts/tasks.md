@@ -1,7 +1,7 @@
 # Tasks: FEAT-052 — Owner alerts by email, quiet hours, digest, notification preferences
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: developer-done · Last updated: 2026-11-01 (build, UI)
+> Status: accepted · Last updated: 2026-11-01 (verify)
 
 ## Build session 1 (backend)
 
@@ -34,14 +34,14 @@
 
 ## Verification evidence
 
-- AC-1 —
-- AC-2 —
-- AC-3 —
-- AC-4 —
-- AC-5 —
-- AC-6 —
-- AC-7 —
-- AC-8 —
-- AC-9 —
-- AC-10 —
-- AC-11 —
+- AC-1 — Pass; see acceptance-report.md (audit table)
+- AC-2 — Pass; see acceptance-report.md (audit table)
+- AC-3 — Pass; see acceptance-report.md (audit table)
+- AC-4 — Pass; see acceptance-report.md (audit table)
+- AC-5 — Pass; see acceptance-report.md (audit table)
+- AC-6 — Pass; see acceptance-report.md (audit table)
+- AC-7 — Pass; see acceptance-report.md (audit table)
+- AC-8 — Pass; see acceptance-report.md (audit table)
+- AC-9 — Pass; see acceptance-report.md (audit table)
+- AC-10 — Pass; see acceptance-report.md (audit table)
+- AC-11 — Pass; see acceptance-report.md (audit table)
