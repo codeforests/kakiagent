@@ -250,8 +250,7 @@ export async function requestEscalation(
 
   let notice: MessageRow | null = null;
   if (input.noticeText) {
-    const language =
-      input.language ?? (await conversationLanguage(tx, tenantId, conversationId));
+    const language = input.language ?? (await conversationLanguage(tx, tenantId, conversationId));
     const text = input.noticeText({ language, afterHours, nextOpen, now });
     const [stored] = await tx
       .insert(m)

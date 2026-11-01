@@ -50,7 +50,9 @@ test('the owner names the assistant and the widget introduces itself that way', 
   await expectNoSeriousA11yViolations(page);
 
   const preview = page.getByRole('complementary', { name: 'Preview' });
-  await expect(preview).toContainText("You're chatting with an AI assistant for Kaki Bakery. A person can take over at any time.");
+  await expect(preview).toContainText(
+    "You're chatting with an AI assistant for Kaki Bakery. A person can take over at any time.",
+  );
   await page.getByLabel('Assistant name').fill('Kaki');
   await page.getByRole('switch', { name: 'Use emoji in replies' }).click();
   const english = page.getByRole('tabpanel');

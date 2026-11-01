@@ -1,7 +1,7 @@
 # Tasks: FEAT-044 — Escalation routing, "talk to a person", reminders
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: designed · Last updated: 2026-11-01 (design)
+> Status: designed · Last updated: 2026-11-01 (build backend: T1–T5)
 
 - [x] T1 — Schema: `0045_escalations.sql` (`escalations` with the checks, the partial unique and the two partial indexes; `escalation_routing` with its checks; forced RLS and tenant policies on both; grants for `app_agent_visitor` and `app_dashboard`; role `kaki_escalation_route` and `escalation_candidates()`; `inbox_queue_escalation_reminders()` owned by `kaki_inbox_timer` with its column grants and policy, EXECUTE to `app_outbox`; `inbox_queue_auto_close()` replaced to skip `escalated`; `NOTICE_KINDS` + `escalated` and the notice check; `NOTIFICATION_KINDS` + `escalation_reminder` and its check) + Drizzle tables, `TENANT_SCOPED_TABLES` (design §4; AC-9, D5, D6)
       Done when: `drizzle-kit generate` reports no drift after 0045; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes with RLS cases for both tables (tenant B sees and writes nothing of A's), a second open escalation for one conversation refused, `escalation_candidates()` under tenant A returning only A's active members (a deactivated member and tenant B's members absent) and not executable by `app_identity`/`app_outbox`, and `mode = 'person'` without a person refused.
