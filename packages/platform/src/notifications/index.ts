@@ -8,3 +8,4 @@ export * from './prefs.js';
 export * from './notify.js';
 export * from './templates.js';
 export * from './links.js';
+export * from './send.js';
