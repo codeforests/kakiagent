@@ -6,12 +6,13 @@
  */
 import type { Message } from '@kaki/contracts';
 import { render } from 'preact';
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { ChatEndedError, createApi } from './api.js';
 import {
   awaitingTurn,
   chatEnded,
   chromeLocale,
+  escalationPending,
   emptyChat,
   greetingFor,
   langOf,
@@ -20,6 +21,7 @@ import {
   pausedNotice,
   pendingText,
   rowsOf,
+  staffHandling,
   withMessage,
   withSegment,
   type Chat,
@@ -148,11 +150,7 @@ function HeaderMenu({
     else if (e.key === 'ArrowUp') move(at - 1);
     else if (e.key === 'Home') move(0);
     else if (e.key === 'End') move(-1);
-    else if (e.key === 'Escape') {
-      e.preventDefault();
-      e.stopPropagation();
-      hide(true);
-    } else if (e.key === 'Tab') hide(false);
+    else if (e.key === 'Tab') hide(false);
     else if (e.key === ' ' && (e.target as HTMLElement).tagName === 'A') {
       e.preventDefault();
       (e.target as HTMLElement).click();
@@ -167,6 +165,14 @@ function HeaderMenu({
   return (
     <div
       class="menu-wrap"
+      // Escape closes an open menu only, wherever focus is inside it: the button keeps focus
+      // until the first item is focused after paint (FEAT-044 R1: Chromium closed the panel).
+      onKeyDown={(e) => {
+        if (e.key !== 'Escape' || !open) return;
+        e.preventDefault();
+        e.stopPropagation();
+        hide(true);
+      }}
       onFocusOut={(e) => {
         const next = e.relatedTarget as Node | null;
         if (open && !(next && (e.currentTarget as HTMLElement).contains(next))) hide(false);
@@ -364,6 +370,8 @@ function Panel({
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState(false);
+  // Talk to a person (FEAT-044 SCR-WGT-002): the transient asking row, or the failed row.
+  const [asking, setAsking] = useState<'idle' | 'asking' | 'failed'>('idle');
   const logRef = useRef<HTMLOListElement>(null);
   const menuRef = useRef<HTMLButtonElement | null>(null);
   // The visitor's end of chat (SCR-WGT-006): composer → confirm → ending → done card.
@@ -376,8 +384,11 @@ function Panel({
     const target = focusNext.current;
     focusNext.current = null;
     if (target === 'title') cardTitleRef.current?.focus();
-    else if (target === 'menu') menuRef.current?.focus();
-    else if (target === 'input') inputRef.current?.focus();
+    // The menu button can be gone for a render (Talk to a person, before the chat exists).
+    else if (target === 'menu') {
+      if (menuRef.current) menuRef.current.focus();
+      else focusNext.current = 'menu';
+    } else if (target === 'input') inputRef.current?.focus();
   });
 
   // The chrome follows the latest reply's language (FEAT-033 D3, AC-7).
@@ -388,7 +399,8 @@ function Panel({
   // AI paused (FEAT-057): a notice in place of the greeting; visitors can still write.
   const paused = preview ? null : pausedNotice(ctx.config, navigator.language);
   const greeting = greetingFor(ctx.config.greeting, locale);
-  useEffect(() => ctx.mount.setAttribute('lang', locale), [locale]);
+  // Layout effect: the mount's lang changes in the same frame as the chrome's strings.
+  useLayoutEffect(() => ctx.mount.setAttribute('lang', locale), [locale]);
 
   useEffect(() => {
     if (!conversationId) return;
@@ -430,7 +442,30 @@ function Panel({
     // Not live: no chat to end or hand over, only the privacy notice.
     ended: ended || visitorEnded || !!notLive,
     preview: !!preview,
+    handover: asking === 'asking' || escalationPending(chat) || staffHandling(chat),
   });
+
+  /** Creates the conversation if needed, then asks for a person (FEAT-044 §5.7). */
+  async function talkToPerson() {
+    if (preview || asking === 'asking') return;
+    setAsking('asking');
+    try {
+      const id = conversationId ?? (await api.createConversation());
+      if (!conversationId) setConversationId(id);
+      const res = await api.escalate(id);
+      // The same notice may also arrive over SSE; withMessage merges by id.
+      if (res.notice) setChat((c) => withMessage(c, res.notice!));
+      setAsking('idle');
+    } catch (err) {
+      if (err instanceof ChatEndedError) {
+        setAsking('idle');
+        setEndState('ended');
+        focusNext.current = 'title';
+        return;
+      }
+      setAsking('failed');
+    }
+  }
 
   function cancelEnd() {
     setEndState('open');
@@ -459,6 +494,7 @@ function Panel({
     setEndState('open');
     setText('');
     setError(false);
+    setAsking('idle');
     focusNext.current = 'input';
   }
 
@@ -511,6 +547,11 @@ function Panel({
             privacyUrl={privacyUrl}
             buttonRef={menuRef}
             onSelect={(item) => {
+              if (item === 'talkToPerson') {
+                focusNext.current = 'menu';
+                void talkToPerson();
+                return;
+              }
               if (item !== 'end') return;
               setEndState('confirm');
               focusNext.current = 'title';
@@ -585,6 +626,16 @@ function Panel({
                 <i />
               </li>
             )}
+            {asking === 'asking' && (
+              <li class="notice asking" role="status">
+                <span class="dots" aria-hidden="true">
+                  <i />
+                  <i />
+                  <i />
+                </span>
+                {t.askingTeam}
+              </li>
+            )}
             {waitingFor && !visitorEnded && slow && (
               <li class="notice" role="status">
                 {t.slow}
@@ -594,6 +645,14 @@ function Panel({
           {error && (
             <p class="error" role="alert">
               {t.failed}
+            </p>
+          )}
+          {asking === 'failed' && (
+            <p class="error retry" role="alert">
+              {t.escalateFailed}
+              <button type="button" class="btn sec" onClick={() => void talkToPerson()}>
+                {t.retry}
+              </button>
             </p>
           )}
           {endState !== 'open' ? (

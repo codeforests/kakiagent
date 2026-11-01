@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { hoursOn, openStatus, sgDay, sgInstant, sgWeekday, WeeklyHours } from './hours.js';
+import {
+  addBusinessMinutes,
+  hoursOn,
+  openStatus,
+  sgDay,
+  sgInstant,
+  sgWeekday,
+  WEEKDAYS,
+  WeeklyHours,
+} from './hours.js';
 import {
   isSgPublicHoliday,
   SG_HOLIDAYS_COVER_THROUGH,
@@ -222,5 +231,58 @@ describe('holiday exceptions (FEAT-009 AC-5)', () => {
     expect(
       openStatus(noSun, false, at('2026-11-08T10:00'), { '2026-11-08': 'closed' }).closedReason,
     ).toBeNull();
+  });
+});
+
+describe('addBusinessMinutes (FEAT-044 §5.3)', () => {
+  const iso = (d: Date) => d.toISOString();
+  it('counts on inside an opening', () => {
+    expect(iso(addBusinessMinutes(BAKERY, false, at('2026-11-02T10:00'), 10))).toBe(
+      iso(at('2026-11-02T10:10')),
+    );
+  });
+
+  it('carries the remainder past a close into the next morning', () => {
+    expect(iso(addBusinessMinutes(BAKERY, false, at('2026-11-02T18:55'), 10))).toBe(
+      iso(at('2026-11-03T08:05')),
+    );
+  });
+
+  it('starts at the next opening when closed', () => {
+    expect(iso(addBusinessMinutes(BAKERY, false, at('2026-11-02T21:00'), 10))).toBe(
+      iso(at('2026-11-03T08:10')),
+    );
+  });
+
+  it('skips a public holiday, unless open by exception', () => {
+    // Christmas Day 2026 is a Friday.
+    expect(iso(addBusinessMinutes(BAKERY, false, at('2026-12-24T18:55'), 10))).toBe(
+      iso(at('2026-12-26T09:05')),
+    );
+    expect(
+      iso(addBusinessMinutes(BAKERY, false, at('2026-12-24T18:55'), 10, { '2026-12-25': 'open' })),
+    ).toBe(iso(at('2026-12-25T08:05')));
+  });
+
+  it('runs through hours that span midnight', () => {
+    const late = WeeklyHours.parse({
+      mon: [{ open: '22:00', close: '24:00' }],
+      tue: [{ open: '00:00', close: '02:00' }],
+      wed: [],
+      thu: [],
+      fri: [],
+      sat: [],
+      sun: [],
+    });
+    expect(iso(addBusinessMinutes(late, false, at('2026-11-02T23:55'), 10))).toBe(
+      iso(at('2026-11-03T00:05')),
+    );
+  });
+
+  it('plain minutes without hours or without any opening in the horizon', () => {
+    const from = at('2026-11-02T21:00');
+    expect(iso(addBusinessMinutes(null, false, from, 10))).toBe(iso(at('2026-11-02T21:10')));
+    const never = WeeklyHours.parse(Object.fromEntries(WEEKDAYS.map((d) => [d, []])));
+    expect(iso(addBusinessMinutes(never, false, from, 10))).toBe(iso(at('2026-11-02T21:10')));
   });
 });

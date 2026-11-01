@@ -651,6 +651,10 @@ a {
   background: var(--color-danger-soft);
   color: var(--color-danger-default);
 }
+.state-chip--urgent {
+  background: var(--color-danger-soft);
+  color: var(--color-danger-default);
+}
 .conversation {
   display: flex;
   flex: 1;
@@ -843,6 +847,18 @@ a {
 }
 .thread-dock--bar > p {
   flex: 1 1 16rem;
+}
+.escalation-strip {
+  flex: 1 1 16rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.escalation-strip p:first-child {
+  color: var(--color-text-primary);
+}
+.escalation-strip__caption {
+  font-size: var(--type-caption-size);
 }
 .thread-dock--composer {
   flex-direction: column;
@@ -4754,6 +4770,38 @@ a.settings-row:hover {
     display: inline;
   }
   .notif-quiet__times {
+    flex-direction: column;
+  }
+}
+
+/* ---- Escalations card on Team (SCR-APP-045; FEAT-044 ui-design) ---- */
+.escalation-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.escalation-card > p {
+  margin: 0;
+}
+.escalation-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.escalation-form .input-suffix .escalation-form__minutes {
+  width: calc(var(--size-control-lg) * 2);
+}
+.escalation-form__actions {
+  display: flex;
+  gap: var(--space-3);
+}
+@media (max-width: 639px) {
+  .escalation-form .input,
+  .escalation-form .input-suffix .escalation-form__minutes {
+    width: 100%;
+    max-width: none;
+  }
+  .escalation-form__actions {
     flex-direction: column;
   }
 }

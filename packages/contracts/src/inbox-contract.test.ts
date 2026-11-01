@@ -21,6 +21,7 @@ const summary = {
   closeReason: null,
   closedAt: null,
   owner: null,
+  escalation: null,
 } as const;
 
 describe('inbox contracts (FEAT-042 §3)', () => {

@@ -87,6 +87,7 @@ function dispatchCtx(scope: 'visitor' | 'coaching') {
       flag: async () => {},
       recordAbuse: async () => 0,
       endAi: async () => {},
+      escalate: async () => ({ status: 'escalated' }),
     },
     coaching: {
       propose: async (p) => {

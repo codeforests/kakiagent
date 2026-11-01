@@ -13,6 +13,15 @@ export const CHANNELS = ['email'] as const;
 
 export type AlertEvent = (typeof ALERT_EVENTS)[number];
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
+/**
+ * The event a kind is muted with (FEAT-044 D6): a reminder follows its escalation's mute, so
+ * there is no separate preference. Null: never muted (the test alert).
+ */
+export function muteEvent(kind: NotificationKind): AlertEvent | null {
+  if (kind === 'test') return null;
+  if (kind === 'escalation_reminder') return 'escalation';
+  return kind;
+}
 export type SubjectType = (typeof schema.NOTIFICATION_SUBJECTS)[number];
 
 /** What an alert is about: a conversation, an approval, a lead, or (test alert) the user. */

@@ -146,7 +146,7 @@ describe('boundary rules in the visitor turn (FEAT-054)', () => {
     );
     expect(result.message.body).toContain(textsFor('en').blockedTopic(business));
     expect(requests.some((r) => r.model !== 'triage')).toBe(false);
-    // The answer became the refusal; the escalation is still dispatched (no handler yet).
+    // The answer became the refusal; the escalation is still dispatched (FEAT-044's handler).
     expect(result.plan?.tasks.map((t) => t.kind)).toEqual(['escalate', 'out_of_scope']);
     expect(result.dispatched.map((d) => d.task)).toEqual(['escalate', 'out_of_scope']);
   });

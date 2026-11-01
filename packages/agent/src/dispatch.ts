@@ -55,6 +55,13 @@ export interface ConversationPort {
   recordAbuse(turnId: string): Promise<number>;
   /** Ends the AI's part in the conversation: the send gate keeps it silent after. */
   endAi(reason: 'abuse'): Promise<void>;
+  /**
+   * Asks for a person (INB-05, AGT-06 `escalate_to_human`; FEAT-044 §5.4): inbox
+   * `requestEscalation` routes, alerts and stores the visitor's notice.
+   */
+  escalate(
+    source: 'visitor_asked' | 'unverified',
+  ): Promise<{ status: 'escalated' | 'already_escalated' | 'with_person' }>;
 }
 
 /**
@@ -110,6 +117,8 @@ export interface TaskResult {
   reply?: { key: ReplyKey };
   /** A coaching proposal stored as an open correction (FEAT-027). */
   proposal?: { correctionId: string };
+  /** What an escalation request did (FEAT-044). */
+  escalation?: { status: 'escalated' | 'already_escalated' | 'with_person' };
 }
 
 export interface TaskHandler<A = unknown> {
@@ -213,11 +222,27 @@ export const abuseHandler: TaskHandler<Record<string, unknown>> = {
   },
 };
 
+/**
+ * AGT-06 `escalate_to_human` (FEAT-044 §5.4, D8): a visitor asked for a person in words. The
+ * escalation's notice is the reply, so the handler returns no `reply`; answer tasks in the same
+ * message are still answered.
+ */
+export const escalateHandler: TaskHandler<Record<string, unknown>> = {
+  kind: 'escalate',
+  scopes: ['visitor'],
+  args: z.record(z.string(), z.unknown()).catch({}),
+  async run(ctx) {
+    const { status } = await ctx.conversation.escalate('visitor_asked');
+    return { escalation: { status } };
+  },
+};
+
 /** The visitor scope's handlers (ADR-025). Kinds without one are reported `unhandled`. */
 export const visitorRegistry: Registry = createRegistry([
   crisisHandler,
   abuseHandler,
   outOfScopeHandler,
+  escalateHandler,
 ]);
 
 type Checked = { ok: true; args: unknown } | { ok: false; reason: RefusalReason };

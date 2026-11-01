@@ -18,7 +18,8 @@
     "@kaki/contracts": "workspace:*",
     "@kaki/db": "workspace:*",
     "@kaki/governance": "workspace:*",
-    "@kaki/platform": "workspace:*"
+    "@kaki/platform": "workspace:*",
+    "@kaki/tenancy": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "22.20.5",

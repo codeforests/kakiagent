@@ -276,7 +276,8 @@
       "source": {
         "spec": "features/FEAT-042-inbox/ui-design.md#scr-app-014--inbox",
         "extended_by": [
-          "features/FEAT-043-takeover/ui-design.md#scr-app-014--inbox-partial"
+          "features/FEAT-043-takeover/ui-design.md#scr-app-014--inbox-partial",
+          "features/FEAT-044-escalation-routing/ui-design.md#scr-app-014--inbox-partial"
         ]
       },
       "states": {
@@ -295,7 +296,9 @@
           "two-pane",
           "one-pane",
           "assignee filter",
-          "owner on rows"
+          "owner on rows",
+          "escalation assignee on rows",
+          "urgent chip"
         ],
         "gaps": [
           "search (FEAT-046)"
@@ -329,7 +332,8 @@
         "prototype": "02-design/anchors/scr-app-015-conversation.html",
         "anchor": "02-design/anchor-screens.md#scr-app-015--conversation",
         "extended_by": [
-          "features/FEAT-043-takeover/ui-design.md#scr-app-015--conversation-partial"
+          "features/FEAT-043-takeover/ui-design.md#scr-app-015--conversation-partial",
+          "features/FEAT-044-escalation-routing/ui-design.md#scr-app-015--conversation-partial"
         ]
       },
       "states": {
@@ -358,7 +362,11 @@
           "not owner",
           "request sent",
           "take-from dialog",
-          "owner conflict"
+          "owner conflict",
+          "escalation strip",
+          "escalated divider",
+          "escalated after hours",
+          "reminded"
         ],
         "gaps": [
           "AI suggestion in the composer (FEAT-045)",
@@ -1150,7 +1158,12 @@
           "menu-open",
           "locale-zh",
           "chat-ended-visitor",
-          "staff-left"
+          "staff-left",
+          "talk to a person",
+          "asking the team",
+          "escalation notice",
+          "escalation notice after hours",
+          "escalate failed"
         ],
         "gaps": [
           "rate-limited",
@@ -1218,6 +1231,11 @@
             "state": "human",
             "strategy": "code-native",
             "source": "features/FEAT-043-takeover/ui-design.md#scr-wgt-002--chat-panel-partial-state-human"
+          },
+          {
+            "state": "escalation (talk to a person)",
+            "strategy": "code-native",
+            "source": "features/FEAT-044-escalation-routing/ui-design.md#scr-wgt-002--chat-panel-partial"
           }
         ]
       },
@@ -1230,7 +1248,8 @@
         "Message.noticeKind (FEAT-025)",
         "POST /widget/v1/conversations/:id/end (FEAT-033)",
         "GET /widget/v1/config (privacyNoticeUrl, controls; FEAT-033)",
-        "Message.language (FEAT-033)"
+        "Message.language (FEAT-033)",
+        "POST /widget/v1/conversations/:id/escalate"
       ],
       "conformance": {
         "result": "pass",
@@ -1788,12 +1807,16 @@
           "reactivate",
           "approval rights",
           "read-only (Agent, team)",
-          "member names (FEAT-008)"
+          "member names (FEAT-008)",
+          "escalation routing",
+          "escalation routing read-only",
+          "person inactive"
         ],
         "gaps": [],
         "supplements": [
           "features/FEAT-006-mfa-reauth/ui-design.md#scr-app-045--team-part-require-two-step-verification",
-          "features/FEAT-008-my-account/ui-design.md#team-member-row-scr-app-045-feat-007-layout"
+          "features/FEAT-008-my-account/ui-design.md#team-member-row-scr-app-045-feat-007-layout",
+          "features/FEAT-044-escalation-routing/ui-design.md#scr-app-045--team-partial-escalation-routing-card"
         ]
       },
       "contract_bindings": [
@@ -1803,7 +1826,9 @@
         "POST /api/v1/team/invitations",
         "POST /api/v1/team/invitations/:id/resend",
         "DELETE /api/v1/team/invitations/:id",
-        "PATCH /api/v1/team/members/:userId"
+        "PATCH /api/v1/team/members/:userId",
+        "GET /api/v1/settings/escalation",
+        "PUT /api/v1/settings/escalation"
       ],
       "conformance": {
         "result": "pass",

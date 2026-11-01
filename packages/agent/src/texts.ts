@@ -1,4 +1,5 @@
 import type { LocalText, Persona } from '@kaki/tenancy';
+import { formatNextOpen } from './hours-text.js';
 import type { ReplyLanguage } from './language.js';
 
 /**
@@ -35,15 +36,20 @@ export interface Texts {
   chatEnded: string;
 }
 
-/** The fixed AI disclosure core (AGT-11, FEAT-024 D2): `{name}` and `{business}` are filled. */
+/**
+ * The fixed AI disclosure core (AGT-11, FEAT-024 D2): `{name}` and `{business}` are filled.
+ * FEAT-044 adds design.md §6's take-over sentence, now that a person can be asked for.
+ */
 const DISCLOSURE_CORE: Record<ReplyLanguage, { named: string; unnamed: string }> = {
   en: {
-    named: "You're chatting with {name}, an AI assistant for {business}.",
-    unnamed: "You're chatting with an AI assistant for {business}.",
+    named:
+      "You're chatting with {name}, an AI assistant for {business}. A person can take over at any time.",
+    unnamed:
+      "You're chatting with an AI assistant for {business}. A person can take over at any time.",
   },
   zh: {
-    named: '您正在与 {name} 对话，这是 {business} 的 AI 助手。',
-    unnamed: '您正在与 {business} 的 AI 助手聊天。',
+    named: '您正在与 {name} 对话，这是 {business} 的 AI 助手。您可以随时要求真人客服接手。',
+    unnamed: '您正在与 {business} 的 AI 助手聊天。您可以随时要求真人客服接手。',
   },
 };
 
@@ -112,8 +118,9 @@ const FIXED: Record<ReplyLanguage, Pick<Texts, FixedKeys>> = {
     /** AGT-04: a question unrelated to the business (UC-20 5a). */
     outOfScope: (businessName: string) =>
       `Sorry, I can only help with questions about ${businessName}.`,
-    /** AGT-04: low confidence and nothing in the KB, so no guess (UC-20 5a). */
-    unsure: "I'm not sure about that, so I'll check with the team and get back to you.",
+    /** AGT-04: low confidence and nothing in the KB, so no guess (UC-20 5a); FEAT-044 offers a person. */
+    unsure:
+      "I'm not sure about that, so I won't guess. If you'd like, ask for a person and someone from the team will help.",
     injection: (b: string) =>
       `I can't change how I work or share my instructions, but I'm happy to help with questions about ${b}.`,
     impersonation: (b: string) =>
@@ -133,7 +140,7 @@ const FIXED: Record<ReplyLanguage, Pick<Texts, FixedKeys>> = {
   zh: {
     escalation: '我先跟团队确认一下，稍后回复您。',
     outOfScope: (businessName: string) => `抱歉，我只能回答与 ${businessName} 有关的问题。`,
-    unsure: '这个问题我不太确定，我先跟团队确认，稍后回复您。',
+    unsure: '这个问题我不太确定，所以不乱猜。如需要，您可以要求转人工，团队成员会来协助您。',
     injection: (b: string) =>
       `抱歉，我无法更改我的工作方式或透露我的指令，但很乐意回答与 ${b} 有关的问题。`,
     impersonation: (b: string) =>
@@ -234,4 +241,27 @@ export function assistantDefaults(businessName: string): AssistantDefaults {
     disclosureCore: { en: core('en'), zh: core('zh') },
     afterHoursLead: { en: AFTER_HOURS_LEAD.en.known, zh: AFTER_HOURS_LEAD.zh.known },
   };
+}
+
+/**
+ * The visitor's escalation notice (INB-05, AGT-09, UC-23 2a; FEAT-044 §5.1 step 4): in hours,
+ * the team is joining; after hours, when they'll reply (`formatNextOpen`, SGT). The AI keeps
+ * answering meanwhile (D9). Rendered here and passed to inbox `requestEscalation`.
+ */
+export function escalationNotice(
+  lang: ReplyLanguage,
+  afterHours: boolean,
+  nextOpen: Date | null,
+  now: Date,
+): string {
+  if (!afterHours)
+    return lang === 'zh'
+      ? '我已请团队成员加入，很快会有人来协助您；在此之前，我可以继续回答您的问题。'
+      : "I've asked the team to join. Someone will be with you shortly; I can keep answering questions until then.";
+  if (lang === 'zh') {
+    const when = nextOpen ? `于${formatNextOpen(nextOpen, now, 'zh')}起` : '营业后';
+    return `我已通知团队。我们现在休息，团队将${when}回复您；在此之前，我可以继续回答您的问题。`;
+  }
+  const when = nextOpen ? `from ${formatNextOpen(nextOpen, now, 'en')}` : "when we're next open";
+  return `I've let the team know. We're closed now, so they'll reply ${when}. I can keep answering questions until then.`;
 }

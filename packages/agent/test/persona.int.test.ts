@@ -104,7 +104,9 @@ async function decision(messageId: string) {
 describe('the persona through the turn (FEAT-024)', () => {
   it('with no saved settings, the first reply is exactly as before', async () => {
     const r = await ask('how much is the chocolate fudge cake?');
-    expect(r.message.disclosure).toBe("You're chatting with an AI assistant for Kaki Bakery.");
+    expect(r.message.disclosure).toBe(
+      "You're chatting with an AI assistant for Kaki Bakery. A person can take over at any time.",
+    );
     expect(r.message.body).toBe('The Chocolate fudge cake (1 kg) is S$55.00.');
     expect(await decision(r.message.id)).toMatchObject({ tone: 'friendly', emojiRemoved: false });
   });
@@ -113,11 +115,11 @@ describe('the persona through the turn (FEAT-024)', () => {
     await savePersona(PERSONA);
     const en = await ask('how much is the chocolate fudge cake?');
     expect(en.message.disclosure).toBe(
-      "You're chatting with Kaki, an AI assistant for Kaki Bakery. Our team reads every chat.",
+      "You're chatting with Kaki, an AI assistant for Kaki Bakery. A person can take over at any time. Our team reads every chat.",
     );
     const zh = await ask('chocolate fudge cake 多少钱？');
     expect(zh.message.disclosure).toBe(
-      '您正在与 Kaki 对话，这是 Kaki Bakery 的 AI 助手。 我们的团队会阅读每条对话。',
+      '您正在与 Kaki 对话，这是 Kaki Bakery 的 AI 助手。您可以随时要求真人客服接手。 我们的团队会阅读每条对话。',
     );
   });
 

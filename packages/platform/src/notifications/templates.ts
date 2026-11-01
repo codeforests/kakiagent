@@ -23,6 +23,7 @@ const SUBJECT: Record<NotificationKind, string> = {
   escalation: 'A customer wants to talk to a person',
   approval_pending: 'A reply is waiting for your approval',
   hot_lead: 'New hot lead',
+  escalation_reminder: 'Reminder: a customer is still waiting for a person',
   test: 'Test alert from KakiAgent',
 };
 
@@ -30,6 +31,7 @@ const LINE: Record<NotificationKind, string> = {
   escalation: 'A customer asked to talk to a person.',
   approval_pending: 'A reply is waiting for your approval before it is sent.',
   hot_lead: 'A new hot lead came in.',
+  escalation_reminder: 'A customer who asked for a person is still waiting.',
   test: 'This is a test alert. Your alert emails are working.',
 };
 

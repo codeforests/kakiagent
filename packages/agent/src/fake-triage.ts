@@ -22,7 +22,7 @@ const RULES: [Exclude<TaskKind, 'answer'>, RegExp][] = [
   ],
   [
     'escalate',
-    /\b(talk|speak|chat) (to|with) (a |an )?(person|human|staff|someone|real)\b|真人|人工/i,
+    /\b(talk|speak|chat) (to|with) (a |an )?(person|human|staff|someone|real)\b|\b(can|could) (someone|somebody|a person) (call|contact|phone) me\b|真人|人工/i,
   ],
   [
     'request_commitment',

@@ -19,6 +19,7 @@ export {
   HORIZON_DAYS,
   type ClosedReason,
   type HolidayExceptions,
+  addBusinessMinutes,
   hoursOn,
   Interval,
   openStatus,

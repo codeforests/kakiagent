@@ -9,6 +9,7 @@ import {
 import {
   CreateConversationResponse,
   EndConversationResponse,
+  EscalateResponse,
   SendMessageBody,
   SendMessageResponse,
   WidgetConfigQuery,
@@ -33,11 +34,13 @@ import {
 import {
   appendVisitorMessage,
   ConversationClosedError,
+  conversationSummary,
   createConversation,
   endVisitorConversation,
+  getConversation,
   NotFoundError,
-  ownerOf,
   recentMessages,
+  requestEscalation,
   toMessage,
   toSummary,
 } from '@kaki/inbox';
@@ -70,6 +73,7 @@ import {
   ConversationGoneError,
   DEFAULT_BOT_NAME,
   DEFAULT_GREETING,
+  escalationNotice,
   InvalidReplayCursorError,
   InvalidSessionCursorError,
   NothingToReplayError,
@@ -121,6 +125,7 @@ import { registerInboxRoutes } from './inbox.js';
 import { registerAiRoutes } from './ai.js';
 import { registerTeamRoutes, teamErrorReply } from './team.js';
 import { notificationsErrorReply, registerNotificationRoutes } from './notifications.js';
+import { escalationErrorReply, registerEscalationRoutes } from './escalation.js';
 import {
   AttestationRequiredError,
   FileTooLargeError,
@@ -382,6 +387,8 @@ export async function buildApp(deps: Deps) {
     if (team) return reply.code(team.status).send(team.body);
     const account = accountErrorReply(err);
     if (account) return reply.code(account.status).send(account.body);
+    const escalation = escalationErrorReply(err);
+    if (escalation) return reply.code(escalation.status).send(escalation.body);
     const notifications = notificationsErrorReply(err);
     if (notifications) return reply.code(notifications.status).send(notifications.body);
     const onboarding = onboardingErrorReply(err);
@@ -505,10 +512,10 @@ export async function buildApp(deps: Deps) {
         zh: persona?.greeting.zh ?? DEFAULT_GREETING.zh,
       },
       theme,
-      // GOV-14 (FEAT-058): the tenant's link or the hosted template page. Talk to a person
-      // arrives with FEAT-044 (FEAT-033 D2).
+      // GOV-14 (FEAT-058): the tenant's link or the hosted template page.
       privacyNoticeUrl: privacyNoticeUrl(privacy?.notice ?? null, key, config.PUBLIC_API_URL),
-      controls: { talkToPerson: false },
+      // CHN-13 (FEAT-044 §3): Talk to a person whenever the widget is live and the AI isn't paused.
+      controls: { talkToPerson: channel.live && !tenantState?.aiPaused },
       availability: channel.live
         ? { live: true }
         : { live: false, mode: channel.mode, message: channel.message, contact: channel.contact },
@@ -524,6 +531,16 @@ export async function buildApp(deps: Deps) {
         : null,
     });
   });
+
+  /** An inbox summary with staff-facing names (owner, escalation assignee) via the identity zone. */
+  const summaryFor = (t: string, conversationId: string) =>
+    withTenant(visitorDb, t, (tx) =>
+      conversationSummary(tx, t, conversationId, (ids) =>
+        ids.length
+          ? withTenant(deps.identityDb, t, (itx) => memberNames(itx, ids))
+          : Promise.resolve(new Map()),
+      ),
+    );
 
   app.post('/widget/v1/conversations', async (req, reply) => {
     const v = visitorFrom(req, reply);
@@ -562,21 +579,10 @@ export async function buildApp(deps: Deps) {
           type: 'message',
           message,
         });
-        // A taken-over conversation keeps its owner on the inbox row (FEAT-043 §5.3).
-        const owner = await withTenant(visitorDb, v.t, (tx) => ownerOf(tx, v.t, conversationId));
-        const ownerName = owner
-          ? ((await withTenant(deps.identityDb, v.t, (tx) => memberNames(tx, [owner.userId]))).get(
-              owner.userId,
-            ) ?? 'A team member')
-          : null;
-        await notify([channels.inbox(v.t)], {
-          type: 'conversation',
-          conversation: toSummary(
-            result.conversation,
-            message.body,
-            owner ? { userId: owner.userId, name: ownerName! } : null,
-          ),
-        });
+        // The inbox row keeps its owner (FEAT-043 §5.3) and open escalation (FEAT-044).
+        const summary =
+          (await summaryFor(v.t, conversationId)) ?? toSummary(result.conversation, message.body);
+        await notify([channels.inbox(v.t)], { type: 'conversation', conversation: summary });
       }
       return reply.code(result.created ? 201 : 200).send(SendMessageResponse.parse({ message }));
     },
@@ -606,6 +612,48 @@ export async function buildApp(deps: Deps) {
     return EndConversationResponse.parse({ status: 'closed' });
   });
 
+  // CHN-13, INB-05 (FEAT-044 §5.6, D8): Talk to a person. No model: the button is a
+  // deterministic intent; routing, the alert and the notice come from inbox.
+  app.post<{ Params: { id: string } }>(
+    '/widget/v1/conversations/:id/escalate',
+    async (req, reply) => {
+      const v = visitorFrom(req, reply);
+      const conversationId = req.params.id;
+      if (!/^[0-9a-f-]{36}$/i.test(conversationId)) throw new NotFoundError();
+      const result = await withTenant(visitorDb, v.t, async (tx) => {
+        const conv = await getConversation(tx, v.t, conversationId);
+        if (!conv || conv.visitorId !== v.v) throw new NotFoundError('conversation not found');
+        const tenant = await visitorTenantState(tx);
+        return requestEscalation(tx, {
+          tenantId: v.t,
+          conversationId,
+          source: 'visitor_button',
+          hours: tenant
+            ? {
+                hours: tenant.hours,
+                openOnPublicHolidays: tenant.openOnPublicHolidays,
+                holidays: tenant.holidays,
+              }
+            : null,
+          noticeText: (n) => escalationNotice(n.language, n.afterHours, n.nextOpen, n.now),
+          log: req.log,
+        });
+      });
+      const notice = result.notice ? toMessage(result.notice) : null;
+      if (notice)
+        await notify([channels.conversation(v.t, conversationId), channels.inbox(v.t)], {
+          type: 'message',
+          message: notice,
+        });
+      if (result.status !== 'with_person') {
+        const summary = await summaryFor(v.t, conversationId);
+        if (summary)
+          await notify([channels.inbox(v.t)], { type: 'conversation', conversation: summary });
+      }
+      return EscalateResponse.parse({ status: result.status, notice });
+    },
+  );
+
   // ---- Dashboard API (dashboard trust zone) -------------------------------------------
   const { authFrom, sessionFrom, meOf } = registerAuth(app, deps);
   registerMfaRoutes(app, deps, { authFrom, sessionFrom });
@@ -629,6 +677,7 @@ export async function buildApp(deps: Deps) {
   registerTeamRoutes(app, deps, { authFrom, sessionFrom, meOf });
   registerAccountRoutes(app, deps, { authFrom });
   registerNotificationRoutes(app, deps, sessionFrom);
+  registerEscalationRoutes(app, deps, sessionFrom);
 
   return app;
 }

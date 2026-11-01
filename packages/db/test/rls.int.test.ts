@@ -3394,3 +3394,224 @@ describe('notification prefs and notifications (FEAT-052)', () => {
     await expect(insertAlert(owner, TENANT_A, ownerB, 'a-2')).rejects.toThrow(/foreign key/);
   });
 });
+
+describe('escalations and routing (FEAT-044)', () => {
+  const conversation = async (t: string) =>
+    (
+      await owner.query<{ id: string }>(
+        `insert into conversations (tenant_id, channel, visitor_id, status) values ($1, 'widget', gen_random_uuid(), 'escalated') returning id`,
+        [t],
+      )
+    ).rows[0]!.id;
+  const escalate = (c: pg.Client, tenantId: string, conversationId: string) =>
+    c.query(
+      `insert into escalations (tenant_id, conversation_id, source, urgent, after_hours) values ($1, $2, 'visitor_button', true, false)`,
+      [tenantId, conversationId],
+    );
+  let deactivated: string;
+
+  beforeAll(async () => {
+    deactivated = (
+      await owner.query<{ id: string }>(
+        `insert into users (email) values ('gone@kaki-bakery.test') returning id`,
+      )
+    ).rows[0]!.id;
+    await owner.query(
+      `insert into memberships (tenant_id, user_id, role, status) values ($1, $2, 'agent', 'deactivated')`,
+      [TENANT_A, deactivated],
+    );
+  });
+
+  afterAll(async () => {
+    await owner.query(`delete from escalations`);
+    await owner.query(`delete from escalation_routing`);
+    await owner.query(`delete from memberships where user_id = $1`, [deactivated]);
+    await owner.query(`delete from users where id = $1`, [deactivated]);
+  });
+
+  it("tenant B sees, writes and resolves nothing of tenant A's", async () => {
+    const id = await conversation(TENANT_A);
+    await escalate(owner, TENANT_A, id);
+    await owner.query(`insert into escalation_routing (tenant_id) values ($1)`, [TENANT_A]);
+    for (const role of ['app_dashboard', 'app_agent_visitor'] as const) {
+      const seen = await asRole(role, TENANT_B, async (c) => ({
+        escalations: (await c.query(`select id from escalations`)).rows,
+        routing: (await c.query(`select tenant_id from escalation_routing`)).rows,
+        resolved: (
+          await c.query(
+            `update escalations set resolved_at = now(), resolution = 'closed' where conversation_id = $1`,
+            [id],
+          )
+        ).rowCount,
+      }));
+      expect(seen).toEqual({ escalations: [], routing: [], resolved: 0 });
+      // Only the visitor zone opens escalations; the dashboard has no insert at all.
+      await expect(asRole(role, TENANT_B, (c) => escalate(c, TENANT_A, id))).rejects.toThrow(
+        role === 'app_agent_visitor' ? /row-level security/ : /permission denied/,
+      );
+      await expect(
+        asRole(role, TENANT_B, (c) =>
+          c.query(`insert into escalation_routing (tenant_id) values ($1)`, [TENANT_A]),
+        ),
+      ).rejects.toThrow(/row-level security/);
+      const own = await asRole(
+        role,
+        TENANT_A,
+        async (c) => (await c.query(`select conversation_id from escalations`)).rows,
+      );
+      expect(own).toEqual([{ conversation_id: id }]);
+    }
+    // The dashboard resolves but never re-routes; nobody deletes.
+    await expect(
+      asRole('app_dashboard', TENANT_A, (c) =>
+        c.query(`update escalations set assignee_user_id = null`),
+      ),
+    ).rejects.toThrow(/permission denied/);
+    await expect(
+      asRole('app_agent_visitor', TENANT_A, (c) => c.query(`delete from escalations`)),
+    ).rejects.toThrow(/permission denied/);
+    await expect(
+      asRole('app_agent_visitor', TENANT_A, (c) =>
+        c.query(`update escalation_routing set mode = 'person'`),
+      ),
+    ).rejects.toThrow(/permission denied/);
+  });
+
+  it('one open escalation per conversation; checks hold', async () => {
+    const id = await conversation(TENANT_A);
+    await escalate(owner, TENANT_A, id);
+    await expect(escalate(owner, TENANT_A, id)).rejects.toThrow(/escalations_open_uq/);
+    await owner.query(
+      `update escalations set resolved_at = now(), resolution = 'claimed' where conversation_id = $1`,
+      [id],
+    );
+    await escalate(owner, TENANT_A, id);
+    await expect(
+      owner.query(
+        `update escalations set resolution = 'claimed' where conversation_id = $1 and resolved_at is null`,
+        [id],
+      ),
+    ).rejects.toThrow(/escalations_resolution_ck/);
+    await expect(
+      owner.query(
+        `insert into escalations (tenant_id, conversation_id, source, urgent, after_hours) values ($1, $2, 'magic', true, false)`,
+        [TENANT_A, await conversation(TENANT_A)],
+      ),
+    ).rejects.toThrow(/escalations_source_ck/);
+    await expect(
+      owner.query(
+        `update escalation_routing set mode = 'person', person_user_id = null where tenant_id = $1`,
+        [TENANT_A],
+      ),
+    ).rejects.toThrow(/escalation_routing_person_ck/);
+    await expect(
+      owner.query(`update escalation_routing set reminder_minutes = 0 where tenant_id = $1`, [
+        TENANT_A,
+      ]),
+    ).rejects.toThrow(/escalation_routing_minutes_ck/);
+    await expect(
+      owner.query(
+        `insert into messages (tenant_id, conversation_id, author, body, notice, notice_kind) values ($1, $2, 'system', 'x', 'x', 'escalated')`,
+        [TENANT_A, id],
+      ),
+    ).resolves.toBeTruthy();
+  });
+
+  it("escalation_candidates() returns the current tenant's active members only", async () => {
+    const members = await owner.query<{ user_id: string }>(
+      `select user_id from memberships where tenant_id = $1 and status = 'active' order by user_id`,
+      [TENANT_A],
+    );
+    for (const role of ['app_dashboard', 'app_agent_visitor'] as const) {
+      const a = await asRole(
+        role,
+        TENANT_A,
+        async (c) =>
+          (
+            await c.query<{ user_id: string; role: string }>(
+              `select * from escalation_candidates()`,
+            )
+          ).rows,
+      );
+      expect(a.map((r) => r.user_id)).toEqual(members.rows.map((r) => r.user_id));
+      expect(a.map((r) => r.user_id)).not.toContain(deactivated);
+      expect(Object.keys(a[0]!).sort()).toEqual(['role', 'user_id']);
+      const none = await asRole(
+        role,
+        null,
+        async (c) => (await c.query(`select * from escalation_candidates()`)).rows,
+      );
+      expect(none).toEqual([]);
+    }
+    const b = await asRole(
+      'app_agent_visitor',
+      TENANT_B,
+      async (c) =>
+        (await c.query<{ user_id: string }>(`select user_id from escalation_candidates()`)).rows,
+    );
+    expect(b.map((r) => r.user_id)).not.toEqual(
+      expect.arrayContaining(members.rows.map((r) => r.user_id)),
+    );
+    for (const role of ['app_identity', 'app_outbox'] as const) {
+      await expect(
+        asRole(role, TENANT_A, (c) => c.query(`select * from escalation_candidates()`)),
+      ).rejects.toThrow(/permission denied/);
+    }
+    // The visitor zone still can't read memberships directly.
+    await expect(
+      asRole('app_agent_visitor', TENANT_A, (c) => c.query(`select * from memberships`)),
+    ).rejects.toThrow(/permission denied/);
+  });
+
+  it('the reminder queue marks and queues each due escalation once, across tenants', async () => {
+    await owner.query(`delete from escalations`);
+    const a = await conversation(TENANT_A);
+    const b = await conversation(TENANT_B);
+    for (const [t, id] of [
+      [TENANT_A, a],
+      [TENANT_B, b],
+    ] as const) {
+      await owner.query(
+        `insert into escalations (tenant_id, conversation_id, source, urgent, after_hours, next_reminder_at) values ($1, $2, 'visitor_button', true, false, now() - interval '1 minute')`,
+        [t, id],
+      );
+    }
+    const first = await asRole('app_outbox', null, async (c) => {
+      const r = await c.query(`select * from inbox_queue_escalation_reminders()`);
+      await c.query('commit');
+      await c.query('begin');
+      return r.rows;
+    });
+    expect(first).toEqual(
+      [TENANT_A, TENANT_B].sort().map((tenant_id) => ({ tenant_id, queued: 1 })),
+    );
+    const again = await asRole(
+      'app_outbox',
+      null,
+      async (c) => (await c.query(`select * from inbox_queue_escalation_reminders()`)).rows,
+    );
+    expect(again).toEqual([]);
+    const jobs = await owner.query(
+      `select payload from outbox where payload->>'kind' = 'escalation_reminder' order by tenant_id`,
+    );
+    expect(jobs.rows.map((r) => r.payload.tenantId)).toEqual([TENANT_A, TENANT_B].sort());
+    await expect(
+      asRole('app_dashboard', TENANT_A, (c) =>
+        c.query(`select * from inbox_queue_escalation_reminders()`),
+      ),
+    ).rejects.toThrow(/permission denied/);
+  });
+
+  it('auto-close skips escalated conversations (D5)', async () => {
+    const id = await conversation(TENANT_A);
+    await owner.query(
+      `update conversations set last_message_at = now() - interval '2 hours' where id = $1`,
+      [id],
+    );
+    await asRole('app_outbox', null, (c) => c.query(`select * from inbox_queue_auto_close()`));
+    const row = await owner.query(`select auto_close_queued_at from conversations where id = $1`, [
+      id,
+    ]);
+    expect(row.rows[0].auto_close_queued_at).toBeNull();
+  });
+});

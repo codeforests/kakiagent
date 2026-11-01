@@ -12,6 +12,7 @@ import {
   listKey,
   MEMBERS_KEY,
   ownerText,
+  escalationText,
   rowTime,
   searchFromView,
   VIEW_LABEL,
@@ -21,7 +22,7 @@ import {
 } from '../lib/inbox.ts';
 import { inboxEvents, useLiveState, type LiveState } from '../lib/realtime.ts';
 import { ConversationPane } from './conversation.tsx';
-import { FlaggedChip, StateChip, VisitorAvatar } from './conversation-parts.tsx';
+import { FlaggedChip, StateChip, UrgentChip, VisitorAvatar } from './conversation-parts.tsx';
 
 const COUNT_OF: Partial<Record<InboxView, keyof InboxCounts>> = {
   open: 'open',
@@ -134,6 +135,7 @@ function InboxList({
     staleTime: 5 * 60_000,
   });
   const meId = me.data?.user.id ?? null;
+  const now = useMinuteNow();
   // Switching views keeps the open conversation on screen (the thread pane, ≥ 1024).
   const to = (f: InboxFilter) => `/inbox${selected ? `/${selected}` : ''}${searchFromView(f)}`;
 
@@ -194,6 +196,7 @@ function InboxList({
           <select
             className="input"
             data-testid="assignee-filter"
+            aria-describedby="assignee-help"
             value={filter.assignee ?? ''}
             onChange={(e) => void navigate(to({ ...filter, assignee: e.target.value || null }))}
           >
@@ -209,6 +212,9 @@ function InboxList({
               ))}
           </select>
         </label>
+        <span id="assignee-help" className="sr-only">
+          Who has it, or who it was escalated to.
+        </span>
       </div>
       <div className="inbox__rows">
         {list.isPending && (
@@ -243,7 +249,7 @@ function InboxList({
             data-testid="conversation-list"
           >
             {rows.map((c) => (
-              <Row key={c.id} c={c} qs={qs} selected={c.id === selected} meId={meId} />
+              <Row key={c.id} c={c} qs={qs} selected={c.id === selected} meId={meId} now={now} />
             ))}
           </ul>
         )}
@@ -304,18 +310,31 @@ function ListEmpty({ filter, onClear }: { filter: InboxFilter; onClear: () => vo
   return <EmptyState title={EMPTY_TITLE[filter.view]}>{EMPTY_VIEW[filter.view]}</EmptyState>;
 }
 
+/** The current time, refreshed every minute (escalation wait times, FEAT-044). */
+function useMinuteNow(): Date {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
+  return now;
+}
+
 function Row({
   c,
   qs,
   selected,
   meId,
+  now,
 }: {
   c: ConversationSummary;
   qs: string;
   selected: boolean;
   meId: string | null;
+  now: Date;
 }) {
   const owner = c.owner ? ownerText(c.owner, meId) : null;
+  const escalation = escalationText(c, meId, now);
   return (
     <li data-testid="conversation-row" data-id={c.id}>
       <Link
@@ -338,12 +357,19 @@ function Row({
               {owner}
             </span>
           )}
+          {escalation && (
+            <span className="conversation-row__owner" data-testid="conversation-escalation">
+              <span className="sr-only">Escalated: </span>
+              {escalation}
+            </span>
+          )}
         </span>
         <span className="conversation-row__meta">
           <time dateTime={c.lastMessageAt}>{rowTime(c.lastMessageAt)}</time>
           <span className="conversation-row__chips">
             {c.flaggedAt && <FlaggedChip />}
             <StateChip status={c.status} />
+            {c.escalation?.urgent && <UrgentChip />}
           </span>
         </span>
       </Link>

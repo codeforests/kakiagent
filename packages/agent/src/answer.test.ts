@@ -137,7 +137,7 @@ describe('answerTurn', () => {
     expect(calls).toEqual([]);
     expect(result).toMatchObject({
       outcome: 'unsure',
-      text: "I'm not sure about that, so I'll check with the team and get back to you.",
+      text: "I'm not sure about that, so I won't guess. If you'd like, ask for a person and someone from the team will help.",
     });
   });
 

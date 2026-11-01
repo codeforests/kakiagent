@@ -7,6 +7,7 @@ import type {
   InboxView,
   IntentSignal,
   Me,
+  OpenEscalation,
   MemberEvent,
   Message,
   ThreadEvent,
@@ -78,8 +79,10 @@ export function matchesView(
   meId: string | null = null,
 ): boolean {
   if (channel && s.channel !== channel) return false;
-  if (assignee === 'none' && s.owner) return false;
-  if (assignee && assignee !== 'none' && s.owner?.userId !== (assignee === 'me' ? meId : assignee))
+  // Who has it: the owner, else the open escalation's assignee (FEAT-044 AC-7).
+  const holder = s.owner?.userId ?? s.escalation?.assignee?.userId ?? null;
+  if (assignee === 'none' && holder) return false;
+  if (assignee && assignee !== 'none' && holder !== (assignee === 'me' ? meId : assignee))
     return false;
   switch (view) {
     case 'open':
@@ -114,6 +117,8 @@ export function applySummary(
   meId: string | null = null,
 ): InfiniteData<ConversationList, unknown> | undefined {
   if (!data) return data;
+  const cached = data.pages.flatMap((p) => p.conversations).find((c) => c.id === summary.id);
+  summary = keepAssigneeName(summary, cached);
   const pages = data.pages.map((p) => ({
     ...p,
     conversations: p.conversations.filter((c) => c.id !== summary.id),
@@ -133,6 +138,23 @@ export function applySummary(
   }
   return { ...data, pages };
 }
+
+/**
+ * Summaries the agent-worker publishes can't name the assignee (visitor zone): keep the
+ * name already cached for the same person (FEAT-044 handoff).
+ */
+export function keepAssigneeName(
+  summary: ConversationSummary,
+  cached: ConversationSummary | undefined,
+): ConversationSummary {
+  const next = summary.escalation?.assignee;
+  const prev = cached?.escalation?.assignee;
+  if (!next || !prev || next.userId !== prev.userId || next.name === prev.name) return summary;
+  if (next.name && next.name !== TEAM_MEMBER) return summary;
+  return { ...summary, escalation: { ...summary.escalation!, assignee: prev } };
+}
+
+const TEAM_MEMBER = 'A team member';
 
 /** Every loaded row once, in order (a row can move between pages while paging). */
 export function flattenPages(data: InfiniteData<ConversationList, unknown> | undefined) {
@@ -242,6 +264,10 @@ export function eventText(e: ThreadEvent): string {
       return `${who} took over from ${whom}`;
     case 'handover_requested':
       return `${who} asked ${whom} to hand over`;
+    case 'escalated':
+      return `Escalated to ${e.subject?.name ?? 'a team member'} · ${
+        e.source === 'unverified' ? "reply couldn't be checked" : 'visitor asked for a person'
+      }`;
   }
   if (e.to === 'closed') {
     switch (e.reason) {
@@ -357,6 +383,60 @@ export function rowTime(iso: string, now = new Date()): string {
   if (key === dayKey.format(now)) return clock.format(d);
   if (key === dayKey.format(new Date(now.getTime() - 86_400_000))) return 'Yesterday';
   return dayMonth.format(d);
+}
+
+/** How long an escalation has waited: "just now", "6 min", "2 h", then the date. */
+export function waitingFor(since: string, now = new Date()): string {
+  const min = Math.floor((now.getTime() - new Date(since).getTime()) / 60_000);
+  if (min < 1) return 'just now';
+  if (min < 60) return `${min} min`;
+  if (min < 24 * 60) return `${Math.floor(min / 60)} h`;
+  return dayMonth.format(new Date(since));
+}
+
+const assigneeName = (e: OpenEscalation, meId: string | null | undefined, you: string) =>
+  e.assignee
+    ? e.assignee.userId === meId
+      ? you
+      : e.assignee.name || 'a team member'
+    : 'a team member';
+
+/**
+ * An unowned escalated row's line (ui-design SCR-APP-014): "For Mei Ling · 6 min",
+ * "For you · …"; null when someone owns it or nothing is escalated.
+ */
+export function escalationText(
+  c: Pick<ConversationSummary, 'owner' | 'escalation'>,
+  meId: string | null | undefined,
+  now = new Date(),
+): string | null {
+  if (c.owner || !c.escalation) return null;
+  return `For ${assigneeName(c.escalation, meId, 'you')} · ${waitingFor(c.escalation.since, now)}`;
+}
+
+/**
+ * The escalation strip in the takeover bar (ui-design SCR-APP-015): the lead line, the
+ * standing line, and the after-hours and reminders captions when they apply.
+ */
+export function escalationStrip(
+  e: OpenEscalation,
+  meId: string | null | undefined,
+  now = new Date(),
+): { lead: string; rest: string; afterHours: string | null; reminders: string | null } {
+  const wait = waitingFor(e.since, now);
+  const ago =
+    wait === 'just now' ? 'just now' : /\d (min|h)$/.test(wait) ? `${wait} ago` : `on ${wait}`;
+  const why =
+    e.source === 'unverified'
+      ? "A reply couldn't be checked, so the assistant asked the team."
+      : 'The visitor asked for a person.';
+  return {
+    lead: `Escalated to ${assigneeName(e, meId, 'you')} ${ago}. ${why}`,
+    rest: 'The assistant keeps answering until someone takes over.',
+    afterHours: e.afterHours ? 'Asked after hours; the visitor was told when you open.' : null,
+    reminders:
+      e.reminders > 0 ? `Reminded ${e.reminders} ${e.reminders === 1 ? 'time' : 'times'}` : null,
+  };
 }
 
 /** Two letters for an avatar ("Website visitor" → "WV"). */

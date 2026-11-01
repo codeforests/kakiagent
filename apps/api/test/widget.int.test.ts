@@ -243,8 +243,9 @@ describe('GET /widget/v1/config (FEAT-032 §3)', () => {
     });
     const res = await config('http://localhost:5175');
     expect(res.statusCode).toBe(200);
-    // FEAT-033 D1, D2: no privacy notice or talk-to-a-person until FEAT-058 and FEAT-044.
-    expect(res.json()).toMatchObject({ privacyNoticeUrl: null, controls: { talkToPerson: false } });
+    // FEAT-033 D1: no privacy notice until one is set (FEAT-058); Talk to a person is on while
+    // the widget is live and the AI isn't paused (FEAT-044 §3).
+    expect(res.json()).toMatchObject({ privacyNoticeUrl: null, controls: { talkToPerson: true } });
     expect(res.json().theme).toEqual({
       position: 'left',
       overrides: { accent: '#c2410c' },

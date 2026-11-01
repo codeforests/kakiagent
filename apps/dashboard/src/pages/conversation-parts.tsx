@@ -74,6 +74,16 @@ export function FlaggedChip() {
   );
 }
 
+/** An urgent escalation (FEAT-044 ui-design SCR-APP-014): text, never colour only. */
+export function UrgentChip() {
+  return (
+    <span className="state-chip state-chip--urgent" data-testid="urgent-chip">
+      <Glyph name="alert-triangle" size={12} />
+      Urgent
+    </span>
+  );
+}
+
 /** The visitor's avatar with the channel's badge glyph. */
 export function VisitorAvatar({
   label,

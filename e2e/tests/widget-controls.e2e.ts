@@ -51,16 +51,18 @@ async function withPrivacyUrl(page: Page) {
 test('the visitor ends the chat by keyboard and starts a new one', async ({ page, browser }) => {
   const created = nextConversation(page);
   const panel = await openPanel(page);
-  // No conversation and no privacy URL: nothing to offer, so no menu button.
-  await expect(panel.getByRole('button', { name: 'Chat options' })).toHaveCount(0);
+  // No conversation yet: the menu offers only Talk to a person (FEAT-044: always while live).
+  const menuButton = panel.getByRole('button', { name: 'Chat options' });
+  await expect(menuButton).toBeVisible();
   await ask(panel, 'What time do you open on Saturday?', 0);
   const conversationId = await created;
 
   // Menu-button pattern: ArrowDown opens on the first item; Escape closes the menu only.
-  const menuButton = panel.getByRole('button', { name: 'Chat options' });
   await menuButton.focus();
   await page.keyboard.press('ArrowDown');
   await expect(menuButton).toHaveAttribute('aria-expanded', 'true');
+  await expect(panel.getByRole('menuitem', { name: 'Talk to a person' })).toBeFocused();
+  await page.keyboard.press('ArrowDown');
   const endItem = panel.getByRole('menuitem', { name: 'End chat' });
   await expect(endItem).toBeFocused();
   await expectNoSeriousA11yViolations(page, 'kaki-agent');
@@ -68,9 +70,18 @@ test('the visitor ends the chat by keyboard and starts a new one', async ({ page
   await expect(panel.getByRole('menu')).toHaveCount(0);
   await expect(panel).toBeVisible();
   await expect(menuButton).toBeFocused();
+  // Escape with the menu open and focus still on the button (before the first item takes
+  // it) closes the menu only, too (FEAT-044 R1).
+  await menuButton.click();
+  await expect(panel.getByRole('menu')).toBeVisible();
+  await menuButton.focus();
+  await page.keyboard.press('Escape');
+  await expect(panel.getByRole('menu')).toHaveCount(0);
+  await expect(panel).toBeVisible();
+  await expect(menuButton).toBeFocused();
 
   // Confirm card: focus on its title; Keep chatting returns focus to the menu button.
-  await page.keyboard.press('Enter');
+  await page.keyboard.press('ArrowUp');
   await expect(endItem).toBeFocused();
   await page.keyboard.press('Enter');
   const confirm = panel.getByRole('group', { name: 'End this chat?' });
@@ -146,13 +157,15 @@ test('the privacy notice opens in a new tab from the menu and the footer', async
   await expect(footer).toHaveAttribute('target', '_blank');
   await expect(footer).toHaveAttribute('rel', 'noopener noreferrer');
 
-  // Before a conversation the menu holds only the privacy item.
+  // Before a conversation the menu holds Talk to a person (FEAT-044) and the privacy item.
   const menuButton = panel.getByRole('button', { name: 'Chat options' });
   await menuButton.focus();
   await page.keyboard.press('Enter');
+  await expect(panel.getByRole('menuitem', { name: 'Talk to a person' })).toBeFocused();
+  await expect(panel.getByRole('menuitem')).toHaveCount(2);
+  await page.keyboard.press('ArrowDown');
   const item = panel.getByRole('menuitem', { name: 'Privacy notice (opens in a new tab)' });
   await expect(item).toBeFocused();
-  await expect(panel.getByRole('menuitem')).toHaveCount(1);
   await expect(item).toHaveAttribute('href', PRIVACY);
   await expect(item).toHaveAttribute('target', '_blank');
   await expect(item).toHaveAttribute('rel', 'noopener noreferrer');

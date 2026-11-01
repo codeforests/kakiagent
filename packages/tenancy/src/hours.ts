@@ -102,16 +102,16 @@ export function hoursOn(
   return hours[sgWeekday(sgInstant(day, '12:00'))];
 }
 
-/** Whether the business is open at `now`, since when, and when it next opens (AC-6). */
-export function openStatus(
+/** The openings from `fromDay` to `HORIZON_DAYS` days around `now`, as merged [start, end) ms spans. */
+function openingSpans(
   hours: WeeklyHours,
   openOnPublicHolidays: boolean,
   now: Date,
-  exceptions: HolidayExceptions = NO_EXCEPTIONS,
-): OpenStatus {
-  const today = sgDay(now);
+  fromDay: number,
+  exceptions: HolidayExceptions,
+): [number, number][] {
   const spans: [number, number][] = [];
-  for (let d = -HORIZON_DAYS; d <= HORIZON_DAYS; d++) {
+  for (let d = fromDay; d <= HORIZON_DAYS; d++) {
     const day = sgDay(new Date(now.getTime() + d * DAY_MS));
     for (const i of hoursOn(hours, openOnPublicHolidays, day, exceptions)) {
       const s = sgInstant(day, i.open).getTime();
@@ -122,6 +122,18 @@ export function openStatus(
       else spans.push([s, e]);
     }
   }
+  return spans;
+}
+
+/** Whether the business is open at `now`, since when, and when it next opens (AC-6). */
+export function openStatus(
+  hours: WeeklyHours,
+  openOnPublicHolidays: boolean,
+  now: Date,
+  exceptions: HolidayExceptions = NO_EXCEPTIONS,
+): OpenStatus {
+  const today = sgDay(now);
+  const spans = openingSpans(hours, openOnPublicHolidays, now, -HORIZON_DAYS, exceptions);
   const t = now.getTime();
   const todayHours = hoursOn(hours, openOnPublicHolidays, today, exceptions);
   const closedReason =
@@ -147,4 +159,30 @@ export function openStatus(
     closedForHoliday,
     closedReason,
   };
+}
+
+/**
+ * `minutes` of opening time after `from` (INB-05 reminders; FEAT-044 §5.3): inside an opening
+ * it counts on, carrying any remainder into the next opening; outside one it starts at the
+ * next opening. No hours (null), or no opening left in the horizon: plain minutes, so a
+ * reminder never stalls.
+ */
+export function addBusinessMinutes(
+  hours: WeeklyHours | null,
+  openOnPublicHolidays: boolean,
+  from: Date,
+  minutes: number,
+  exceptions: HolidayExceptions = NO_EXCEPTIONS,
+): Date {
+  const plain = new Date(from.getTime() + minutes * 60_000);
+  if (!hours) return plain;
+  let left = minutes * 60_000;
+  const t = from.getTime();
+  for (const [s, e] of openingSpans(hours, openOnPublicHolidays, from, -1, exceptions)) {
+    if (e <= t) continue;
+    const start = Math.max(s, t);
+    if (start + left <= e) return new Date(start + left);
+    left -= e - start;
+  }
+  return plain;
 }

@@ -305,7 +305,7 @@
     "expect": [
       {
         "kind": "disclosure",
-        "contains": "You're chatting with Kaki, an AI assistant for Kaki Bakery. Our team reads every chat."
+        "contains": "You're chatting with Kaki, an AI assistant for Kaki Bakery. A person can take over at any time. Our team reads every chat."
       }
     ]
   },
@@ -329,7 +329,7 @@
     "expect": [
       {
         "kind": "disclosure",
-        "contains": "您正在与 小卡 对话，这是 Kaki Bakery 的 AI 助手。 我们的团队会查看每一段对话。"
+        "contains": "您正在与 小卡 对话，这是 Kaki Bakery 的 AI 助手。您可以随时要求真人客服接手。 我们的团队会查看每一段对话。"
       },
       {
         "kind": "language",
@@ -349,7 +349,7 @@
     "expect": [
       {
         "kind": "disclosure",
-        "contains": "You're chatting with an AI assistant for Kaki Bakery."
+        "contains": "You're chatting with an AI assistant for Kaki Bakery. A person can take over at any time."
       },
       {
         "kind": "not-contains",

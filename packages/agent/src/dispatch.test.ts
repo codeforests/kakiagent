@@ -30,7 +30,12 @@ function planOf(tasks: [TaskKind, Record<string, string>?][]): TurnPlan {
 
 /** An in-memory conversation port that records what handlers did (FEAT-025 §5.2). */
 function memoryConversation(failFlag = false) {
-  const state = { flags: [] as string[], abuseTurns: new Set<string>(), ended: false };
+  const state = {
+    flags: [] as string[],
+    abuseTurns: new Set<string>(),
+    ended: false,
+    escalations: [] as string[],
+  };
   const port: ConversationPort = {
     async flag(reason) {
       if (failFlag) throw new Error('db down');
@@ -43,12 +48,17 @@ function memoryConversation(failFlag = false) {
     async endAi() {
       state.ended = true;
     },
+    async escalate(source) {
+      state.escalations.push(source);
+      return { status: 'escalated' as const };
+    },
   };
   return { state, port };
 }
 
 function context(over: Partial<DispatchContext> = {}) {
   const audits: DispatchAuditEntry[] = [];
+  const memory = memoryConversation();
   const ctx: DispatchContext = {
     scope: 'visitor',
     tenantId: 't',
@@ -60,10 +70,10 @@ function context(over: Partial<DispatchContext> = {}) {
     audit: async (e) => {
       audits.push(e);
     },
-    conversation: memoryConversation().port,
+    conversation: memory.port,
     ...over,
   };
-  return { ctx, audits };
+  return { ctx, audits, conversation: memory.state };
 }
 
 /** A handler that records its runs. */
@@ -265,7 +275,7 @@ describe('the out_of_scope handler (FEAT-023 AC-4)', () => {
     );
     expect(reports).toEqual([
       { task: 'out_of_scope', index: 0, outcome: 'done' },
-      { task: 'escalate', index: 2, outcome: 'unhandled' },
+      { task: 'escalate', index: 2, outcome: 'done' },
       { task: 'out_of_scope', index: 3, outcome: 'done' },
     ]);
     expect(replies).toEqual(['out_of_scope']);
@@ -329,7 +339,14 @@ describe('the safety handlers (FEAT-025 AC-6, AC-7; ADR-025 decision 6)', () => 
   });
 
   it('the visitor registry has no owner function (AC-5; ADR-009)', () => {
-    expect([...visitorRegistry.byKind.keys()].sort()).toEqual(['abuse', 'crisis', 'out_of_scope']);
+    // `escalate` (FEAT-044) asks for a person for this conversation; it reads or changes no
+    // tenant data.
+    expect([...visitorRegistry.byKind.keys()].sort()).toEqual([
+      'abuse',
+      'crisis',
+      'escalate',
+      'out_of_scope',
+    ]);
     expect([...visitorRegistry.byTool.keys()]).toEqual([]);
   });
 });
@@ -352,5 +369,36 @@ describe('out_of_scope topics (FEAT-025 AC-8, D3)', () => {
   it('never refuses the task over its arguments', () => {
     expect(OutOfScopeArgs.parse(42)).toEqual({ topic: 'other' });
     expect(OutOfScopeArgs.parse({})).toEqual({ topic: 'other' });
+  });
+});
+
+describe('the escalate handler (FEAT-044 §5.4; AC-2)', () => {
+  it('asks the port for a person, adds no reply key, and is audited', async () => {
+    const { ctx, audits, conversation } = context();
+    const { reports, replies } = await dispatchPlan(
+      visitorRegistry,
+      planOf([['answer'], ['escalate']]),
+      ctx,
+    );
+    expect(reports).toEqual([{ task: 'escalate', index: 1, outcome: 'done' }]);
+    expect(replies).toEqual([]);
+    expect(conversation.escalations).toEqual(['visitor_asked']);
+    expect(audits).toEqual([{ task: 'escalate', outcome: 'done' }]);
+  });
+
+  it('is refused in coaching scope and with the gate closed; nothing escalates', async () => {
+    const coaching = context();
+    const r = await dispatchPlan(visitorRegistry, planOf([['escalate']]), {
+      ...coaching.ctx,
+      scope: 'coaching',
+    });
+    expect(r.reports).toEqual([
+      { task: 'escalate', index: 0, outcome: 'refused', reason: 'scope' },
+    ]);
+    const closed = context({ gateOpen: async () => false });
+    const r2 = await dispatchPlan(visitorRegistry, planOf([['escalate']]), closed.ctx);
+    expect(r2.reports[0]).toMatchObject({ outcome: 'refused', reason: 'gate_closed' });
+    expect(coaching.conversation.escalations).toEqual([]);
+    expect(closed.conversation.escalations).toEqual([]);
   });
 });

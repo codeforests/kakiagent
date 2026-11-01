@@ -2,7 +2,13 @@ import { fakeAgentScript, runVisitorTurn } from '@kaki/agent';
 import { usageSink } from '@kaki/analytics';
 import { TurnQueueJob, type RealtimeEvent } from '@kaki/contracts';
 import { createZoneDb, ping, withTenant } from '@kaki/db';
-import { autoCloseIdle, conversationSummary, toMessage, toSummary } from '@kaki/inbox';
+import {
+  autoCloseIdle,
+  conversationSummary,
+  remindEscalation,
+  toMessage,
+  toSummary,
+} from '@kaki/inbox';
 import { gatewayFromConfig, type UsageEvent } from '@kaki/llm-gateway';
 import {
   channels,
@@ -14,6 +20,7 @@ import {
   startHealthServer,
   startTelemetry,
 } from '@kaki/platform';
+import { visitorTenantState } from '@kaki/tenancy';
 import { z } from 'zod';
 
 const config = loadConfig(
@@ -75,6 +82,34 @@ const consuming = queue.consume<unknown>(
   },
   async (msg) => {
     const parsed = TurnQueueJob.parse(msg.body);
+    // An escalation reminder (INB-05; FEAT-044 §5.5) rides the conversation's FIFO group. The
+    // escalation's lock and its resolved check make a duplicate job a no-op; the dedupe key
+    // keeps a redelivered one from alerting twice.
+    if ('kind' in parsed && parsed.kind === 'escalation_reminder') {
+      const t = parsed.tenantId;
+      const log = logger.child({
+        outboxId: msg.id,
+        tenantId: t,
+        escalationId: parsed.escalationId,
+      });
+      const outcome = await withTenant(visitorDb, t, async (tx) => {
+        const tenant = await visitorTenantState(tx);
+        return remindEscalation(tx, {
+          tenantId: t,
+          escalationId: parsed.escalationId,
+          hours: tenant
+            ? {
+                hours: tenant.hours,
+                openOnPublicHolidays: tenant.openOnPublicHolidays,
+                holidays: tenant.holidays,
+              }
+            : null,
+          log,
+        });
+      });
+      log.info({ outcome }, 'escalation reminder');
+      return;
+    }
     const log = logger.child({
       outboxId: msg.id,
       tenantId: parsed.tenantId,
@@ -121,15 +156,32 @@ const consuming = queue.consume<unknown>(
       return;
     }
     const message = toMessage(reply.message);
+    // An escalated conversation's summary carries its open escalation (FEAT-044); the
+    // visitor zone can't name the assignee, so the dashboard keeps the name it has.
+    const summary =
+      reply.conversation.status === 'escalated'
+        ? ((await withTenant(visitorDb, job.tenantId, (tx) =>
+            conversationSummary(tx, job.tenantId, job.conversationId),
+          ).catch(() => null)) ?? toSummary(reply.conversation, message.body))
+        : toSummary(reply.conversation, message.body);
     const events: [string[], RealtimeEvent][] = [
+      // The escalation notice stored beside an answered reply goes first (FEAT-044 §5.4).
+      ...(reply.escalationNotice
+        ? [
+            [
+              [
+                channels.conversation(job.tenantId, job.conversationId),
+                channels.inbox(job.tenantId),
+              ],
+              { type: 'message', message: toMessage(reply.escalationNotice) },
+            ] as [string[], RealtimeEvent],
+          ]
+        : []),
       [
         [channels.conversation(job.tenantId, job.conversationId), channels.inbox(job.tenantId)],
         { type: 'message', message },
       ],
-      [
-        [channels.inbox(job.tenantId)],
-        { type: 'conversation', conversation: toSummary(reply.conversation, message.body) },
-      ],
+      [[channels.inbox(job.tenantId)], { type: 'conversation', conversation: summary }],
     ];
     for (const [names, event] of events) {
       await Promise.all(names.map((n) => publisher.publish(n, event))).catch((err) =>

@@ -18,9 +18,12 @@ export const Message = z.object({
   notice: z.string().nullable(),
   /**
    * What the notice is (FEAT-025): `chat_ended` closes the widget's composer; `staff_joined`
-   * and `staff_left` mark a take-over and hand-back (FEAT-043).
+   * and `staff_left` mark a take-over and hand-back (FEAT-043); `escalated` is the visitor's
+   * "I've asked the team to join" notice (FEAT-044).
    */
-  noticeKind: z.enum(['after_hours', 'chat_ended', 'staff_joined', 'staff_left']).nullable(),
+  noticeKind: z
+    .enum(['after_hours', 'chat_ended', 'staff_joined', 'staff_left', 'escalated'])
+    .nullable(),
   /**
    * The visitor-facing name on staff messages and staff notices, snapshotted at take-over
    * (FEAT-043 D3): the display name only, never an email; null otherwise or without one.
@@ -45,6 +48,22 @@ export type ConversationStatus = z.infer<typeof ConversationStatus>;
 export const CloseReason = z.enum(['staff', 'inactive', 'visitor', 'abuse']);
 export type CloseReason = z.infer<typeof CloseReason>;
 
+/** What started an escalation (INB-05, CHN-13; FEAT-044 §3). */
+export const EscalationSource = z.enum(['visitor_button', 'visitor_asked', 'unverified']);
+export type EscalationSource = z.infer<typeof EscalationSource>;
+
+/** The open escalation on a conversation (FEAT-044 §3); its assignee's staff-facing name. */
+export const OpenEscalation = z.object({
+  id: z.uuid(),
+  assignee: z.object({ userId: z.uuid(), name: z.string() }).nullable(),
+  since: z.iso.datetime({ offset: true }),
+  source: EscalationSource,
+  urgent: z.boolean(),
+  afterHours: z.boolean(),
+  reminders: z.number().int().min(0),
+});
+export type OpenEscalation = z.infer<typeof OpenEscalation>;
+
 export const ConversationSummary = z.object({
   id: z.uuid(),
   channel: z.enum(['widget']),
@@ -58,6 +77,8 @@ export const ConversationSummary = z.object({
   closedAt: z.iso.datetime({ offset: true }).nullable(),
   /** Who has taken it over (INB-09; FEAT-043): the staff-facing name. Null: nobody. */
   owner: z.object({ userId: z.uuid(), name: z.string() }).nullable(),
+  /** The open escalation (INB-05; FEAT-044); null when there is none. */
+  escalation: OpenEscalation.nullable(),
 });
 export type ConversationSummary = z.infer<typeof ConversationSummary>;
 
@@ -132,7 +153,7 @@ export const WidgetConfigResponse = z.object({
   theme: WidgetTheme,
   /** The tenant's privacy notice (GOV-14; FEAT-058): its own https link, the hosted template page, or null (no link). */
   privacyNoticeUrl: z.url().nullable(),
-  /** Visitor controls the tenant can offer (CHN-13). `talkToPerson` stays false until FEAT-044. */
+  /** Visitor controls (CHN-13): `talkToPerson` is on whenever the widget is live and the AI not paused (FEAT-044). */
   controls: z.object({ talkToPerson: z.boolean() }),
   /**
    * Whether the widget channel is live (ONB-10; FEAT-034). Offline: `hidden` → the loader
@@ -1782,8 +1803,15 @@ export const AutoCloseJob = z.object({
   conversationId: z.uuid(),
 });
 export type AutoCloseJob = z.infer<typeof AutoCloseJob>;
-/** Everything on `conversation-turns`: an auto-close job or a visitor turn. */
-export const TurnQueueJob = z.union([AutoCloseJob, TurnJob]);
+/** Queued by `inbox_queue_escalation_reminders()` on the turns topic (INB-05; FEAT-044 §5.5). */
+export const EscalationReminderJob = z.object({
+  kind: z.literal('escalation_reminder'),
+  tenantId: z.uuid(),
+  escalationId: z.uuid(),
+});
+export type EscalationReminderJob = z.infer<typeof EscalationReminderJob>;
+/** Everything on `conversation-turns`: an auto-close or escalation reminder job, or a visitor turn. */
+export const TurnQueueJob = z.union([AutoCloseJob, EscalationReminderJob, TurnJob]);
 export type TurnQueueJob = z.infer<typeof TurnQueueJob>;
 
 /**
@@ -2371,7 +2399,10 @@ export const ConversationListQuery = z.object({
   /** Opaque keyset cursor from `nextCursor`; a malformed one is 400 `bad_cursor`. */
   cursor: z.string().min(1).max(200).optional(),
   limit: z.coerce.number().int().min(1).max(50).default(25),
-  /** INB-01 by assignee: the current owner (FEAT-043 D7): me, nobody, or a member's ID. */
+  /**
+   * INB-01 by assignee: the current owner, else the open escalation's assignee (FEAT-043 D7,
+   * FEAT-044 §3): me, nobody (neither), or a member's ID.
+   */
   assignee: z.union([z.literal('me'), z.literal('none'), z.uuid()]).optional(),
 });
 export type ConversationListQuery = z.infer<typeof ConversationListQuery>;
@@ -2411,6 +2442,7 @@ export const ThreadEvent = z.object({
         'handed_back',
         'taken_from',
         'handover_requested',
+        'escalated',
       ]),
     ])
     .nullable(),
@@ -2420,6 +2452,8 @@ export const ThreadEvent = z.object({
   }),
   /** Whom a request or a take-from was about (FEAT-043); null otherwise. */
   subject: z.object({ name: z.string().nullable() }).nullable(),
+  /** On an `escalated` divider: what started it (FEAT-044). */
+  source: EscalationSource.optional(),
 });
 export type ThreadEvent = z.infer<typeof ThreadEvent>;
 
@@ -2577,3 +2611,41 @@ export const RateLimitedError = ErrorBody.extend({
   retryAfterSeconds: z.number().int(),
 });
 export type RateLimitedError = z.infer<typeof RateLimitedError>;
+
+// ---- Escalation (INB-05, CHN-13; FEAT-044 §3) ---------------------------------------------
+
+/** `POST /widget/v1/conversations/:id/escalate`: the stored notice; null for `with_person` and a repeat. */
+export const EscalateResponse = z.object({
+  status: z.enum(['escalated', 'already_escalated', 'with_person']),
+  notice: Message.nullable(),
+});
+export type EscalateResponse = z.infer<typeof EscalateResponse>;
+
+export const EscalationMode = z.enum(['round_robin', 'person']);
+export type EscalationMode = z.infer<typeof EscalationMode>;
+
+/**
+ * The tenant's routing (D2, D4). `personInactive`: the named person is no longer an active
+ * member, so escalations fall back to round-robin.
+ */
+export const EscalationRouting = z.object({
+  mode: EscalationMode,
+  personUserId: z.uuid().nullable(),
+  reminderMinutes: z.number().int().min(1).max(240),
+  personInactive: z.boolean(),
+});
+export type EscalationRouting = z.infer<typeof EscalationRouting>;
+
+/** `mode = 'person'` needs `personUserId` (`person_required`). */
+export const EscalationRoutingBody = z
+  .object({
+    mode: EscalationMode,
+    personUserId: z.uuid().nullable(),
+    reminderMinutes: z.number().int().min(1).max(240),
+  })
+  .strict()
+  .refine((b) => b.mode !== 'person' || b.personUserId !== null, {
+    path: ['personUserId'],
+    message: 'person_required',
+  });
+export type EscalationRoutingBody = z.infer<typeof EscalationRoutingBody>;

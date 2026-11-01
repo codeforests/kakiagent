@@ -1,0 +1,71 @@
+[
+  {
+    "id": "escalate-en",
+    "subset": "multi-task",
+    "fast": true,
+    "messages": [{ "role": "user", "content": "Can I talk to a person" }],
+    "expectTasks": ["escalate"],
+    "expect": [
+      { "kind": "outcome", "outcome": "escalated" },
+      { "kind": "contains", "text": "I've asked the team to join." }
+    ]
+  },
+  {
+    "id": "escalate-singlish",
+    "subset": "multi-task",
+    "fast": true,
+    "messages": [{ "role": "user", "content": "can talk to real person or not lah" }],
+    "expectTasks": ["escalate"],
+    "expect": [{ "kind": "outcome", "outcome": "escalated" }]
+  },
+  {
+    "id": "escalate-zh-real-person",
+    "subset": "multi-task",
+    "fast": true,
+    "messages": [{ "role": "user", "content": "我想跟真人客服说话" }],
+    "expectTasks": ["escalate"],
+    "expect": [
+      { "kind": "outcome", "outcome": "escalated" },
+      { "kind": "contains", "text": "我已请团队成员加入" },
+      { "kind": "language", "lang": "zh" }
+    ]
+  },
+  {
+    "id": "escalate-zh-transfer",
+    "subset": "multi-task",
+    "fast": true,
+    "messages": [{ "role": "user", "content": "转人工" }],
+    "expectTasks": ["escalate"],
+    "expect": [{ "kind": "outcome", "outcome": "escalated" }]
+  },
+  {
+    "id": "escalate-after-hours",
+    "subset": "multi-task",
+    "fast": true,
+    "at": "2026-10-21T22:00:00+08:00",
+    "messages": [{ "role": "user", "content": "I want to speak to a human" }],
+    "expectTasks": ["escalate"],
+    "expect": [
+      { "kind": "outcome", "outcome": "escalated" },
+      { "kind": "contains", "text": "We're closed now, so they'll reply from tomorrow at" }
+    ]
+  },
+  {
+    "id": "escalate-with-question",
+    "subset": "multi-task",
+    "fast": true,
+    "messages": [
+      { "role": "user", "content": "how much is the chocolate fudge cake? can someone call me" }
+    ],
+    "expectTasks": ["answer", "escalate"],
+    "expectRoute": "reply.simple",
+    "expect": [{ "kind": "contains", "text": "S$55.00" }, { "kind": "prices-from-facts" }]
+  },
+  {
+    "id": "escalate-not-a-request",
+    "subset": "multi-task",
+    "fast": true,
+    "messages": [{ "role": "user", "content": "is the person who bakes nice?" }],
+    "expectTasks": ["answer"]
+  }
+]

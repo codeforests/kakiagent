@@ -10,6 +10,7 @@ export function linkFor(kind: NotificationKind, subject: Subject, appUrl: string
   const base = appUrl.replace(/\/+$/, '');
   switch (kind) {
     case 'escalation':
+    case 'escalation_reminder':
       return `${base}/inbox/${subject.id}`;
     case 'approval_pending':
       return `${base}/approvals/${subject.id}`;

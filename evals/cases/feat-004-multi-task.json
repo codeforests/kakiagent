@@ -76,10 +76,10 @@
       }
     ],
     "expectTasks": ["escalate"],
-    "expectRoute": "reply.simple",
     "expect": [
       {
-        "kind": "prices-from-facts"
+        "kind": "outcome",
+        "outcome": "escalated"
       }
     ]
   },

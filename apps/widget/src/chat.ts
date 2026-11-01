@@ -68,6 +68,19 @@ export function staffHandling(c: Chat): boolean {
   return false;
 }
 
+/**
+ * The visitor asked for a person and nobody has joined yet (FEAT-044 §5.7): the latest of
+ * the escalated, staff joined/left and chat-ended notices is "escalated".
+ */
+export function escalationPending(c: Chat): boolean {
+  for (let i = c.messages.length - 1; i >= 0; i--) {
+    const k = c.messages[i]!.noticeKind;
+    if (k === 'escalated') return true;
+    if (k === 'staff_joined' || k === 'staff_left' || k === 'chat_ended') return false;
+  }
+  return false;
+}
+
 const HAN = /\p{Script=Han}/u;
 
 /** WCAG 3.1.2 language of parts (FEAT-023): Chinese text is marked; the rest inherits the panel's. */
@@ -135,13 +148,16 @@ export function chromeLocale(c: Chat, navLang: string | undefined): Locale {
 
 export type MenuItem = 'talkToPerson' | 'privacy' | 'end';
 
-/** The header menu's items, in order (SCR-WGT-002; FEAT-033 AC-5, AC-6). */
+/**
+ * The header menu's items, in order (SCR-WGT-002; FEAT-033 AC-5, AC-6). Talk to a person
+ * hides while an escalation is pending or a person handles the chat (FEAT-044 AC-1).
+ */
 export function menuItems(
   config: Pick<WidgetConfigResponse, 'privacyNoticeUrl' | 'controls'>,
-  s: { conversationId: string | null; ended: boolean; preview: boolean },
+  s: { conversationId: string | null; ended: boolean; preview: boolean; handover?: boolean },
 ): MenuItem[] {
   const items: MenuItem[] = [];
-  if (config.controls.talkToPerson && !s.ended) items.push('talkToPerson');
+  if (config.controls.talkToPerson && !s.ended && !s.handover) items.push('talkToPerson');
   if (config.privacyNoticeUrl) items.push('privacy');
   if (s.conversationId && !s.ended && !s.preview) items.push('end');
   return items;

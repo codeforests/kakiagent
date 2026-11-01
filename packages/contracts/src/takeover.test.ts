@@ -27,6 +27,7 @@ const summary = {
   closeReason: null,
   closedAt: null,
   owner: mei,
+  escalation: null,
 } as const;
 const notice = {
   id: ID,
