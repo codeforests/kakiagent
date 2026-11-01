@@ -2529,3 +2529,51 @@ export const MemberEvent = z.discriminatedUnion('type', [
   z.object({ type: z.literal('taken_from_you'), conversationId: z.uuid(), by: InboxMember }),
 ]);
 export type MemberEvent = z.infer<typeof MemberEvent>;
+
+// ---- Dashboard API: notifications (LED-04, DSH-09; FEAT-052 §3) ---------------------------
+
+/** The events a member can turn on or off (LED-04's three; the internal test alert isn't one). */
+export const AlertEvent = z.enum(['escalation', 'approval_pending', 'hot_lead']);
+export type AlertEvent = z.infer<typeof AlertEvent>;
+/** FEAT-037 adds `telegram`, FEAT-048 `push`. */
+export const NotificationChannel = z.enum(['email']);
+export type NotificationChannel = z.infer<typeof NotificationChannel>;
+/** "HH:MM", Singapore time. */
+export const ClockTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+/** Quiet hours may cross midnight; the same start and end is refused (`same_time`). */
+export const QuietHours = z
+  .object({ enabled: z.boolean(), start: ClockTime, end: ClockTime })
+  .refine((q) => q.start !== q.end, { path: ['end'], message: 'same_time' });
+export type QuietHours = z.infer<typeof QuietHours>;
+/** One boolean per channel; FEAT-037 adds `telegram`. */
+export const EventPref = z.object({ event: AlertEvent, email: z.boolean() });
+export type EventPref = z.infer<typeof EventPref>;
+/**
+ * A member's preferences in the current business. `events` lists only the events this member
+ * can receive (D9), in the order escalation, approval_pending, hot_lead.
+ */
+export const NotificationPrefs = z.object({
+  channels: z.array(NotificationChannel),
+  events: z.array(EventPref),
+  quietHours: QuietHours,
+  timeZone: z.literal('Asia/Singapore'),
+  sendTo: z.object({ email: z.string() }),
+});
+export type NotificationPrefs = z.infer<typeof NotificationPrefs>;
+/** Events not listed keep their stored setting. */
+export const NotificationPrefsBody = z
+  .object({ events: z.array(EventPref).max(3), quietHours: QuietHours })
+  .strict()
+  .refine((b) => new Set(b.events.map((e) => e.event)).size === b.events.length, {
+    path: ['events'],
+    message: 'duplicate_event',
+  });
+export type NotificationPrefsBody = z.infer<typeof NotificationPrefsBody>;
+export const TestAlertResult = z.object({ sentTo: z.string() });
+export type TestAlertResult = z.infer<typeof TestAlertResult>;
+/** 429: one test alert a minute per member (D11). */
+export const RateLimitedError = ErrorBody.extend({
+  error: z.literal('rate_limited'),
+  retryAfterSeconds: z.number().int(),
+});
+export type RateLimitedError = z.infer<typeof RateLimitedError>;
