@@ -1,5 +1,5 @@
 # Handoff: FEAT-044 — Escalation routing, "talk to a person", reminders
-Branch: feat/FEAT-044-escalation-routing · PR: see the thread / branch PR (draft) · Updated: 2026-11-01 by build (UI)
+Branch: feat/FEAT-044-escalation-routing · PR: https://github.com/codeforests/kakiagent/pull/48 (draft) · Updated: 2026-11-01 by build (UI)
 Stage done: build (T1–T9 of 9), status developer-done
 Next: verify — kickoff: "Verify FEAT-044 on branch feat/FEAT-044-escalation-routing.
 Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
