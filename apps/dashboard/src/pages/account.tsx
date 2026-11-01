@@ -1,6 +1,6 @@
 import type { MfaStatus } from '@kaki/contracts';
 import { Button, ConfirmDialog, ErrorState, FormDialog } from '@kaki/ui';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router';
 import { useAccount } from '../lib/account.ts';
@@ -18,6 +18,7 @@ import { RecoveryCodesList, ShieldCheckIcon } from './two-step-parts.tsx';
 export function AccountPage() {
   const status = useMfaStatus();
   const account = useAccount();
+  const me = useQuery({ queryKey: ['me'], queryFn: api.me });
   const [toast, setToast] = useToast();
   const { hash } = useLocation();
   const loaded = !!status.data;
@@ -81,6 +82,7 @@ export function AccountPage() {
           <div className="skeleton-field" />
         </section>
       )}
+      {me.data?.tenant && <NotificationsCard />}
       {toast && (
         <div className="toast" role="status">
           {toast}
@@ -247,4 +249,21 @@ function TwoStepCard({ status, onToast }: { status: MfaStatus; onToast: (t: stri
 function refusedBy(err: unknown) {
   const names = err instanceof ApiError ? err.details.workspaces : undefined;
   return Array.isArray(names) && names.length > 0 ? names.join(' and ') : null;
+}
+
+/** The way to My notifications (FEAT-052 ui-design); preferences are per business. */
+function NotificationsCard() {
+  return (
+    <section className="card account-card" aria-labelledby="notifications-title">
+      <h2 className="section-title" id="notifications-title">
+        Notifications
+      </h2>
+      <p>Choose which alerts you get by email and set quiet hours.</p>
+      <div className="account-card__actions">
+        <Button variant="secondary" asChild>
+          <Link to="/account/notifications">Notification settings</Link>
+        </Button>
+      </div>
+    </section>
+  );
 }

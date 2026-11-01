@@ -1,5 +1,6 @@
 import { createBrowserRouter } from 'react-router';
 import { AccountPage } from './pages/account.tsx';
+import { NotificationsPage } from './pages/notifications.tsx';
 import { AssistantPage } from './pages/assistant.tsx';
 import { BusinessProfilePage, SetupProfilePage } from './pages/business-profile.tsx';
 import { AddWebsitePage, SetupSourcesPage } from './pages/add-website.tsx';
@@ -121,6 +122,8 @@ export const router = createBrowserRouter([
       { path: 'settings/widget', element: <WidgetSettingsPage /> },
       // My account (SCR-APP-055): name, email and devices (FEAT-008), two-step (FEAT-006).
       { path: 'account', element: <AccountPage /> },
+      // My notifications (SCR-APP-056, FEAT-052): alerts by email and quiet hours, per business.
+      { path: 'account/notifications', element: <NotificationsPage /> },
       { path: 'more', element: <MorePage /> },
       { path: 'no-permission', element: <NoPermission /> },
       { path: '*', element: <NotFound /> },

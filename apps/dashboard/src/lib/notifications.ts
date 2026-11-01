@@ -107,9 +107,10 @@ export function useNotificationPrefs() {
 export function useSaveNotificationPrefs() {
   const queryClient = useQueryClient();
   const current = () => queryClient.getQueryData<NotificationPrefs>(NOTIFICATIONS_KEY);
-  return useMutation({
+  // The body is the cache after `onMutate` applied the change, so the change isn't needed here.
+  return useMutation<NotificationPrefs, Error, PrefsChange, { undo: PrefsChange | null }>({
     mutationKey: NOTIFICATIONS_KEY,
-    mutationFn: async (_change: PrefsChange) => {
+    mutationFn: async () => {
       const prefs = current();
       if (!prefs) throw new Error('preferences not loaded');
       return api.putNotificationPrefs(bodyOf(prefs));

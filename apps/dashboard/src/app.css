@@ -4652,3 +4652,108 @@ a.settings-row:hover {
 .auth__icon--danger {
   color: var(--color-danger-default);
 }
+
+/* ---- My notifications (SCR-APP-056; FEAT-052) */
+.notif-page {
+  max-width: var(--size-reading-max);
+}
+.notif-skeleton__title {
+  width: 40%;
+  height: var(--space-5);
+}
+.notif-sendto .kaki-btn {
+  margin-left: var(--space-2);
+}
+.notif-list__head {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-4);
+}
+.notif-list__channel,
+.notif-row__channel {
+  font-size: var(--type-body-sm-size);
+  line-height: var(--type-body-sm-line);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+}
+.notif-list__rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.notif-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  min-height: var(--space-11);
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--color-border-default);
+}
+.notif-list__rows .notif-row:first-child {
+  border-top: 0;
+}
+.notif-row--plain {
+  border-top: 0;
+  padding: 0;
+}
+.notif-row__text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.notif-row__label {
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  font-weight: var(--font-weight-medium);
+}
+.notif-row__help {
+  font-size: var(--type-body-sm-size);
+  line-height: var(--type-body-sm-line);
+  color: var(--color-text-secondary);
+}
+.notif-row__switches {
+  display: flex;
+  gap: var(--space-4);
+  flex-shrink: 0;
+}
+.notif-row__switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.notif-row__channel {
+  display: none;
+}
+.notif-quiet__times {
+  display: flex;
+  gap: var(--space-4);
+}
+.notif-quiet__times .field {
+  flex: 1;
+  min-width: 0;
+}
+.toggle[aria-busy='true'] {
+  cursor: progress;
+  opacity: 0.6;
+}
+/* A 44 px hit area on touch around the 24 px switch (ui-design). */
+@media (pointer: coarse) {
+  .toggle--touch::before {
+    content: '';
+    position: absolute;
+    inset: calc(-1 * var(--space-3));
+  }
+}
+@media (max-width: 639px) {
+  .notif-list__head {
+    display: none;
+  }
+  .notif-row__channel {
+    display: inline;
+  }
+  .notif-quiet__times {
+    flex-direction: column;
+  }
+}
