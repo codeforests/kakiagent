@@ -380,8 +380,11 @@ function Panel({
     const target = focusNext.current;
     focusNext.current = null;
     if (target === 'title') cardTitleRef.current?.focus();
-    else if (target === 'menu') menuRef.current?.focus();
-    else if (target === 'input') inputRef.current?.focus();
+    // The menu button can be gone for a render (Talk to a person, before the chat exists).
+    else if (target === 'menu') {
+      if (menuRef.current) menuRef.current.focus();
+      else focusNext.current = 'menu';
+    } else if (target === 'input') inputRef.current?.focus();
   });
 
   // The chrome follows the latest reply's language (FEAT-033 D3, AC-7).

@@ -20,7 +20,7 @@
       Done when: `pnpm --filter @kaki/widget test` (pending from notices; menu items per state; dedupe of the notice from response and SSE) passes and `pnpm build && pnpm size` stays within budget.
 - [x] T7 — Dashboard: `lib/api.ts` routing calls; `lib/inbox.ts` `escalationText`, `waitingFor`, assignee rule in `matchesView`; inbox rows (For {name}/For you, wait time, Urgent chip); the escalation strip in the takeover bar and the `escalated` divider; Team `EscalationCard` (edit, read-only, saving, saved toast, errors, person-inactive alert) (design §5.8; ui-design SCR-APP-014, -015, -045; AC-3, AC-5, AC-7, AC-10)
       Done when: `pnpm --filter @kaki/dashboard test` (unit tests for `escalationText`, `waitingFor`, `matchesView` with an escalation assignee, the card's form helpers) passes and the dashboard typechecks; a stubbed-API Playwright check of the Team card's save and the strip (log only the asserted fields).
-- [ ] T8 — E2E `e2e/tests/escalation.e2e.ts` (design §5.9; AC-1, AC-3, AC-4, AC-7, AC-10)
+- [x] T8 — E2E `e2e/tests/escalation.e2e.ts` (design §5.9; AC-1, AC-3, AC-4, AC-7, AC-10)
       Done when: the spec is written and lints; it runs in the verify stage's GitHub CI.
       Note: no Docker in cloud sessions, so E2E and screen renders run in CI (STATE.md).
 - [ ] T9 — Verify: full `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `test:coverage` for db, inbox, agent, tenancy, platform, api, widget, dashboard through `scripts/test-env.sh`; tick tasks; status `developer-done`.
