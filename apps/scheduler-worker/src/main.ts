@@ -22,6 +22,7 @@ import { channelHealthOnce } from './channel-health.js';
 import { gapClusterOnce } from './gap-cluster.js';
 import { staleScanOnce } from './stale-scan.js';
 import { autoCloseOnce } from './auto-close.js';
+import { escalationRemindersOnce } from './escalation-reminders.js';
 
 const config = loadConfig(
   envSchemas.base
@@ -81,6 +82,8 @@ const config = loadConfig(
         .default(5 * 60_000),
       /** Auto-close of idle conversations (INB-08, FEAT-042 §5.3): every minute, first run at start-up. */
       AUTO_CLOSE_INTERVAL_MS: z.coerce.number().int().positive().default(60_000),
+      /** Escalation reminders (INB-05, FEAT-044 §5.5): every 30 seconds, first run at start-up. */
+      ESCALATION_SWEEP_MS: z.coerce.number().int().positive().default(30_000),
     }),
 );
 const stopTelemetry = startTelemetry('scheduler-worker', config.OTEL_EXPORTER_OTLP_ENDPOINT);
@@ -230,6 +233,14 @@ const autoCloseTimer = setInterval(
   config.AUTO_CLOSE_INTERVAL_MS,
 );
 
+// Escalation reminders (FEAT-044 §5.5): queues a reminder job for each open escalation whose
+// time has come; the agent-worker reminds the assignee (and from the third, owners and admins).
+const escalationRun = escalationRemindersOnce(outboxDb, logger);
+const escalationTimer = setInterval(
+  () => void escalationRemindersOnce(outboxDb, logger),
+  config.ESCALATION_SWEEP_MS,
+);
+
 async function shutdown() {
   abort.abort();
   clearInterval(anchorTimer);
@@ -240,6 +251,7 @@ async function shutdown() {
   clearInterval(gapTimer);
   clearInterval(channelTimer);
   clearInterval(autoCloseTimer);
+  clearInterval(escalationTimer);
   await Promise.all([
     running.catch(() => {}),
     anchorRun,
@@ -250,6 +262,7 @@ async function shutdown() {
     gapRun,
     channelRun,
     autoCloseRun,
+    escalationRun,
   ]);
   health.close();
   await mailer.close();

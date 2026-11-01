@@ -76,8 +76,10 @@ describe('GET /api/v1/settings/assistant', () => {
     });
     expect(json.defaults.botName).toBe('Assistant');
     expect(json.defaults.disclosureCore.en).toEqual({
-      named: "You're chatting with {name}, an AI assistant for Kaki Bakery. A person can take over at any time.",
-      unnamed: "You're chatting with an AI assistant for Kaki Bakery. A person can take over at any time.",
+      named:
+        "You're chatting with {name}, an AI assistant for Kaki Bakery. A person can take over at any time.",
+      unnamed:
+        "You're chatting with an AI assistant for Kaki Bakery. A person can take over at any time.",
     });
     expect(json.defaults.greeting.en).toBe('Ask us anything. We usually reply right away.');
     expect(json.defaults.afterHoursLead.en).toContain('{when}');

@@ -37,6 +37,7 @@ const summary = (n: number, over: Partial<ConversationSummary> = {}): Conversati
   closeReason: null,
   closedAt: null,
   owner: null,
+  escalation: null,
   ...over,
 });
 const counts = { open: 0, escalated: 0, approval: 0, flagged: 0 };

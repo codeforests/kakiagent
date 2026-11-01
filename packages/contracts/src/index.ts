@@ -1803,8 +1803,15 @@ export const AutoCloseJob = z.object({
   conversationId: z.uuid(),
 });
 export type AutoCloseJob = z.infer<typeof AutoCloseJob>;
-/** Everything on `conversation-turns`: an auto-close job or a visitor turn. */
-export const TurnQueueJob = z.union([AutoCloseJob, TurnJob]);
+/** Queued by `inbox_queue_escalation_reminders()` on the turns topic (INB-05; FEAT-044 §5.5). */
+export const EscalationReminderJob = z.object({
+  kind: z.literal('escalation_reminder'),
+  tenantId: z.uuid(),
+  escalationId: z.uuid(),
+});
+export type EscalationReminderJob = z.infer<typeof EscalationReminderJob>;
+/** Everything on `conversation-turns`: an auto-close or escalation reminder job, or a visitor turn. */
+export const TurnQueueJob = z.union([AutoCloseJob, EscalationReminderJob, TurnJob]);
 export type TurnQueueJob = z.infer<typeof TurnQueueJob>;
 
 /**
