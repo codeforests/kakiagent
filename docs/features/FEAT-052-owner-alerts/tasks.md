@@ -22,7 +22,7 @@
 
 ## Build session 2 (UI)
 
-- [ ] T7 — Dashboard data: `lib/api.ts` calls (`getNotificationPrefs`, `putNotificationPrefs`, `sendTestAlert`); `lib/notifications.ts` hooks and pure helpers (`EVENT_TEXT`, `quietSummary`, `quietError`, `testErrorText`) with `lib/notifications.test.ts` (design §5.5; AC-5, AC-6, AC-11)
+- [x] T7 — Dashboard data: `lib/api.ts` calls (`getNotificationPrefs`, `putNotificationPrefs`, `sendTestAlert`); `lib/notifications.ts` hooks and pure helpers (`EVENT_TEXT`, `quietSummary`, `quietError`, `testErrorText`) with `lib/notifications.test.ts` (design §5.5; AC-5, AC-6, AC-11)
   Done when: `pnpm --filter @kaki/dashboard test` and typecheck pass.
 - [ ] T8 — SCR-APP-056 `pages/notifications.tsx` at `/account/notifications`; route in `router.tsx`; "Notifications" in the account menu; the Notifications card on My account (ui-design SCR-APP-056; AC-11)
   Done when: a stubbed-API Chromium run shows the default, saving, rolled-back switch, quiet-hours error, test sent and rate-limited states, with focus as specified.
