@@ -6,7 +6,7 @@
  */
 import type { Message } from '@kaki/contracts';
 import { render } from 'preact';
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { ChatEndedError, createApi } from './api.js';
 import {
   awaitingTurn,
@@ -150,11 +150,7 @@ function HeaderMenu({
     else if (e.key === 'ArrowUp') move(at - 1);
     else if (e.key === 'Home') move(0);
     else if (e.key === 'End') move(-1);
-    else if (e.key === 'Escape') {
-      e.preventDefault();
-      e.stopPropagation();
-      hide(true);
-    } else if (e.key === 'Tab') hide(false);
+    else if (e.key === 'Tab') hide(false);
     else if (e.key === ' ' && (e.target as HTMLElement).tagName === 'A') {
       e.preventDefault();
       (e.target as HTMLElement).click();
@@ -169,6 +165,14 @@ function HeaderMenu({
   return (
     <div
       class="menu-wrap"
+      // Escape closes an open menu only, wherever focus is inside it: the button keeps focus
+      // until the first item is focused after paint (FEAT-044 R1: Chromium closed the panel).
+      onKeyDown={(e) => {
+        if (e.key !== 'Escape' || !open) return;
+        e.preventDefault();
+        e.stopPropagation();
+        hide(true);
+      }}
       onFocusOut={(e) => {
         const next = e.relatedTarget as Node | null;
         if (open && !(next && (e.currentTarget as HTMLElement).contains(next))) hide(false);
@@ -395,7 +399,8 @@ function Panel({
   // AI paused (FEAT-057): a notice in place of the greeting; visitors can still write.
   const paused = preview ? null : pausedNotice(ctx.config, navigator.language);
   const greeting = greetingFor(ctx.config.greeting, locale);
-  useEffect(() => ctx.mount.setAttribute('lang', locale), [locale]);
+  // Layout effect: the mount's lang changes in the same frame as the chrome's strings.
+  useLayoutEffect(() => ctx.mount.setAttribute('lang', locale), [locale]);
 
   useEffect(() => {
     if (!conversationId) return;

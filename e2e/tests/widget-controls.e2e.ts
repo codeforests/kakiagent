@@ -70,6 +70,15 @@ test('the visitor ends the chat by keyboard and starts a new one', async ({ page
   await expect(panel.getByRole('menu')).toHaveCount(0);
   await expect(panel).toBeVisible();
   await expect(menuButton).toBeFocused();
+  // Escape with the menu open and focus still on the button (before the first item takes
+  // it) closes the menu only, too (FEAT-044 R1).
+  await menuButton.click();
+  await expect(panel.getByRole('menu')).toBeVisible();
+  await menuButton.focus();
+  await page.keyboard.press('Escape');
+  await expect(panel.getByRole('menu')).toHaveCount(0);
+  await expect(panel).toBeVisible();
+  await expect(menuButton).toBeFocused();
 
   // Confirm card: focus on its title; Keep chatting returns focus to the menu button.
   await page.keyboard.press('ArrowUp');
