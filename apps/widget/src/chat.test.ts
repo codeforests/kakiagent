@@ -4,6 +4,7 @@ import {
   awaitingTurn,
   chatEnded,
   chromeLocale,
+  escalationPending,
   emptyChat,
   greetingFor,
   langOf,
@@ -315,5 +316,50 @@ describe('staff take-over (FEAT-043; SCR-WGT-002 human)', () => {
     c = withMessage(withMessage(c, left), msg('v3', 6, 'visitor'));
     expect(staffHandling(c)).toBe(false);
     expect(awaitingTurn(c)).toBe('v3');
+  });
+});
+
+describe('talk to a person (SCR-WGT-002, FEAT-044 AC-1)', () => {
+  const notice = (id: string, seq: number, kind: Message['noticeKind']) => ({
+    ...msg(id, seq, 'system'),
+    body: '',
+    notice: kind === 'escalated' ? "I've asked the team to join." : null,
+    noticeKind: kind,
+  });
+  const on = { privacyNoticeUrl: null, controls: { talkToPerson: true } };
+  const live = { conversationId: CONV, ended: false, preview: false };
+
+  it('is pending from the escalated notice until staff join, leave, or the chat ends', () => {
+    let c = withMessage(emptyChat, msg('v1', 1, 'visitor'));
+    expect(escalationPending(c)).toBe(false);
+    c = withMessage(c, notice('e1', 2, 'escalated'));
+    expect(escalationPending(c)).toBe(true);
+    c = withMessage(c, msg('a1', 3, 'agent', 'v1'));
+    expect(escalationPending(c)).toBe(true);
+    expect(escalationPending(withMessage(c, notice('j', 4, 'staff_joined')))).toBe(false);
+    expect(escalationPending(withMessage(c, notice('l', 4, 'staff_left')))).toBe(false);
+    expect(escalationPending(withMessage(c, notice('x', 4, 'chat_ended')))).toBe(false);
+    // Escalated again after a person left.
+    const again = withMessage(
+      withMessage(c, notice('l', 4, 'staff_left')),
+      notice('e2', 5, 'escalated'),
+    );
+    expect(escalationPending(again)).toBe(true);
+  });
+
+  it('hides the menu item while pending or handled by a person', () => {
+    expect(menuItems(on, live)).toEqual(['talkToPerson', 'end']);
+    expect(menuItems(on, { ...live, handover: true })).toEqual(['end']);
+    expect(menuItems(on, { ...live, conversationId: null, handover: false })).toEqual([
+      'talkToPerson',
+    ]);
+  });
+
+  it('shows the notice once when it comes from both the response and SSE', () => {
+    const n = notice('e1', 2, 'escalated');
+    let c = withMessage(withMessage(emptyChat, msg('v1', 1, 'visitor')), n);
+    c = withMessage(c, { ...n });
+    expect(c.messages.filter((m) => m.noticeKind === 'escalated')).toHaveLength(1);
+    expect(rowsOf(n)).toEqual([{ kind: 'notice', key: 'e1-notice', text: n.notice }]);
   });
 });
