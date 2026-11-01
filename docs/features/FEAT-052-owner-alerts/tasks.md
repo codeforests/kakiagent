@@ -26,7 +26,7 @@
   Done when: `pnpm --filter @kaki/dashboard test` and typecheck pass.
 - [x] T8 — SCR-APP-056 `pages/notifications.tsx` at `/account/notifications`; route in `router.tsx`; "Notifications" in the account menu; the Notifications card on My account (ui-design SCR-APP-056; AC-11)
   Done when: a stubbed-API Chromium run shows the default, saving, rolled-back switch, quiet-hours error, test sent and rate-limited states, with focus as specified.
-- [ ] T9 — E2E `e2e/tests/notifications.e2e.ts` (design §5.7; AC-1, AC-5, AC-6, AC-11)
+- [x] T9 — E2E `e2e/tests/notifications.e2e.ts` (design §5.7; AC-1, AC-5, AC-6, AC-11)
   Note: runs in the verify stage's GitHub CI (no local stack in cloud sessions).
 - [ ] T10 — Verify: full `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `test:coverage` for platform, db, api, contracts, scheduler-worker, dashboard through `scripts/test-env.sh`; tick tasks; status `developer-done`.
 
