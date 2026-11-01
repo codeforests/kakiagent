@@ -2,11 +2,12 @@ import { and, asc, desc, eq, gt, gte, lt, lte, or, schema, sql, type Tx } from '
 import { audit, auditCode } from '@kaki/governance';
 import { piiMask } from '@kaki/platform';
 import { enqueue } from '@kaki/platform/outbox';
-import { reopenable, transition } from './lifecycle.js';
+import { ConversationClosedError, reopenable, transition } from './lifecycle.js';
 
 export * from './lifecycle.js';
 export * from './views.js';
 export * from './ownership.js';
+export * from './escalation.js';
 
 /**
  * Conversation and message repository. Every function takes a transaction opened by
@@ -16,8 +17,6 @@ export * from './ownership.js';
  */
 
 export class NotFoundError extends Error {}
-/** A new visitor message to a closed conversation (FEAT-033 D5): the API answers 409. */
-export class ConversationClosedError extends Error {}
 
 export * from './mappers.js';
 import type { ConversationRow, FlagReason, MessageRow, NoticeKind } from './mappers.js';

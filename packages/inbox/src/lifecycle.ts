@@ -1,5 +1,6 @@
 import { and, eq, schema, sql, type Tx, type ZoneDb } from '@kaki/db';
 import { audit, auditCode, type ActorType } from '@kaki/governance';
+import { cancelNotifications } from '@kaki/platform/notifications';
 
 /**
  * The conversation lifecycle (INB-08, ADR-013 d1; FEAT-042 §5.1). Every write of
@@ -50,6 +51,8 @@ export class AlreadyClosedError extends Error {
   }
 }
 export class ConversationNotFoundError extends Error {}
+/** A new visitor message (FEAT-033 D5) or an escalation (FEAT-044) to a closed conversation: the API answers 409. */
+export class ConversationClosedError extends Error {}
 /** Someone else owns the conversation (INB-09; FEAT-043): carries who. */
 export class OwnedError extends Error {
   constructor(readonly owner: { userId: string; visitorName: string | null }) {
@@ -78,7 +81,43 @@ export const LIFECYCLE_ACTIONS = [
   'conversation.owner_changed',
   /** Someone asked the owner for it (FEAT-043 §5.1); not a state change. */
   'conversation.handover_requested',
+  /** An escalation opened and was routed (FEAT-044 §5.1): the "Escalated to {name}" divider. */
+  'escalation.assigned',
 ] as const;
+
+export type EscalationResolution = (typeof schema.ESCALATION_RESOLUTIONS)[number];
+
+/**
+ * Resolves the conversation's open escalation, if any, and cancels its alerts not yet sent
+ * (pending and held), so no reminder or digest mentions it (FEAT-044 §5.1). `transition` calls
+ * it on every move out of `escalated`; `remindEscalation` as a safety net.
+ */
+export async function resolveEscalation(
+  tx: Tx,
+  input: {
+    tenantId: string;
+    conversationId: string;
+    resolution: EscalationResolution;
+    by: string | null;
+  },
+): Promise<boolean> {
+  const e = schema.escalations;
+  const resolved = await tx
+    .update(e)
+    .set({ resolvedAt: sql`now()`, resolution: input.resolution, resolvedBy: input.by })
+    .where(
+      and(
+        eq(e.tenantId, input.tenantId),
+        eq(e.conversationId, input.conversationId),
+        sql`${e.resolvedAt} is null`,
+      ),
+    )
+    .returning({ id: e.id });
+  const subject = { type: 'conversation', id: input.conversationId } as const;
+  await cancelNotifications(tx, input.tenantId, subject, 'escalation');
+  await cancelNotifications(tx, input.tenantId, subject, 'escalation_reminder');
+  return resolved.length > 0;
+}
 
 async function lockRow(tx: Tx, tenantId: string, conversationId: string): Promise<Row> {
   const c = schema.conversations;
@@ -135,6 +174,14 @@ export async function transition(tx: Tx, input: TransitionInput): Promise<Row> {
       .delete(o)
       .where(and(eq(o.tenantId, input.tenantId), eq(o.conversationId, input.conversationId)));
   }
+  // Every claim, close and return resolves the open escalation and drops its alerts (§5.1).
+  if (from === 'escalated')
+    await resolveEscalation(tx, {
+      tenantId: input.tenantId,
+      conversationId: input.conversationId,
+      resolution: input.to === 'human' ? 'claimed' : input.to === 'closed' ? 'closed' : 'returned',
+      by: input.actor.type === 'user' ? input.actor.id : null,
+    });
   const reopening = from === 'closed';
   const action = closing
     ? CLOSE_ACTIONS[input.reason!]

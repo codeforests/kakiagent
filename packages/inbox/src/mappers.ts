@@ -30,6 +30,7 @@ export function toSummary(
   row: ConversationRow,
   lastMessage: string | null,
   owner: SummaryOwner = null,
+  escalation: ConversationSummary['escalation'] = null,
 ): ConversationSummary {
   return {
     id: row.id,
@@ -42,5 +43,6 @@ export function toSummary(
     closeReason: row.closeReason,
     closedAt: row.closedAt?.toISOString() ?? null,
     owner,
+    escalation,
   };
 }

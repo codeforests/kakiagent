@@ -12,6 +12,7 @@ type SQL = ReturnType<typeof eq>;
 import { toMessage, toSummary, type SummaryOwner } from './mappers.js';
 import { LIFECYCLE_ACTIONS } from './lifecycle.js';
 import { ownersOf } from './ownership.js';
+import { escalationsOf, toOpenEscalation } from './escalation.js';
 
 /**
  * Staff-facing names for owners (FEAT-043 §5.3): the API passes identity's `memberNames`
@@ -20,20 +21,37 @@ import { ownersOf } from './ownership.js';
 export type OwnerNames = (userIds: string[]) => Promise<Map<string, string>>;
 const UNNAMED = 'A team member';
 
-async function namedOwners(
+/** Owners and open escalations of a page, named in one call (FEAT-043 §5.3, FEAT-044 §5.1). */
+async function namedPeople(
   tx: Tx,
   tenantId: string,
   ids: readonly string[],
   names: OwnerNames | undefined,
-): Promise<Map<string, SummaryOwner>> {
+): Promise<{
+  owners: Map<string, SummaryOwner>;
+  escalations: Map<string, ConversationSummary['escalation']>;
+}> {
   const owners = await ownersOf(tx, tenantId, ids);
-  if (owners.size === 0) return new Map();
-  const named = names
-    ? await names([...new Set([...owners.values()].map((x) => x.userId))])
-    : new Map<string, string>();
-  return new Map(
-    [...owners].map(([id, x]) => [id, { userId: x.userId, name: named.get(x.userId) ?? UNNAMED }]),
-  );
+  const escalations = await escalationsOf(tx, tenantId, ids);
+  const people = new Set([
+    ...[...owners.values()].map((x) => x.userId),
+    ...[...escalations.values()].flatMap((x) => (x.assigneeUserId ? [x.assigneeUserId] : [])),
+  ]);
+  const named = names && people.size > 0 ? await names([...people]) : new Map<string, string>();
+  return {
+    owners: new Map(
+      [...owners].map(([id, x]) => [
+        id,
+        { userId: x.userId, name: named.get(x.userId) ?? UNNAMED },
+      ]),
+    ),
+    escalations: new Map(
+      [...escalations].map(([id, x]) => [
+        id,
+        toOpenEscalation(x, x.assigneeUserId ? (named.get(x.assigneeUserId) ?? UNNAMED) : null),
+      ]),
+    ),
+  };
 }
 
 /**
@@ -91,7 +109,10 @@ function viewFilter(view: InboxView): SQL {
   }
 }
 
-/** The INB-01 assignee filter on the current owner (D7); `me` is resolved by the API. */
+/**
+ * The INB-01 assignee filter (FEAT-043 D7, FEAT-044 §5.1): the owner, else the open
+ * escalation's assignee; `none` = neither. `me` is resolved by the API.
+ */
 export type AssigneeFilter = { kind: 'user'; userId: string } | { kind: 'none' };
 
 export interface ListQuery {
@@ -128,11 +149,19 @@ export async function listConversations(
         viewFilter(q.view),
         q.channel ? eq(c.channel, q.channel) : undefined,
         q.assignee?.kind === 'user'
-          ? sql`exists (select 1 from conversation_owners o where o.tenant_id = "conversations"."tenant_id"
-                  and o.conversation_id = "conversations"."id" and o.user_id = ${q.assignee.userId})`
+          ? sql`(exists (select 1 from conversation_owners o where o.tenant_id = "conversations"."tenant_id"
+                  and o.conversation_id = "conversations"."id" and o.user_id = ${q.assignee.userId})
+                or (not exists (select 1 from conversation_owners o where o.tenant_id = "conversations"."tenant_id"
+                  and o.conversation_id = "conversations"."id")
+                  and exists (select 1 from escalations e where e.tenant_id = "conversations"."tenant_id"
+                  and e.conversation_id = "conversations"."id" and e.resolved_at is null
+                  and e.assignee_user_id = ${q.assignee.userId})))`
           : q.assignee?.kind === 'none'
             ? sql`not exists (select 1 from conversation_owners o where o.tenant_id = "conversations"."tenant_id"
-                    and o.conversation_id = "conversations"."id")`
+                    and o.conversation_id = "conversations"."id")
+                  and not exists (select 1 from escalations e where e.tenant_id = "conversations"."tenant_id"
+                    and e.conversation_id = "conversations"."id" and e.resolved_at is null
+                    and e.assignee_user_id is not null)`
             : undefined,
         after
           ? sql`(${c.lastMessageAt}, ${c.id}) < (${after.at}::timestamptz, ${after.id}::uuid)`
@@ -143,7 +172,7 @@ export async function listConversations(
     .limit(q.limit + 1);
   const page = rows.slice(0, q.limit);
   const last = page.at(-1);
-  const owners = await namedOwners(
+  const { owners, escalations } = await namedPeople(
     tx,
     tenantId,
     page.map((r) => r.conversation.id),
@@ -151,7 +180,12 @@ export async function listConversations(
   );
   return {
     conversations: page.map((r) =>
-      toSummary(r.conversation, r.lastMessage, owners.get(r.conversation.id) ?? null),
+      toSummary(
+        r.conversation,
+        r.lastMessage,
+        owners.get(r.conversation.id) ?? null,
+        escalations.get(r.conversation.id) ?? null,
+      ),
     ),
     nextCursor:
       rows.length > q.limit && last
@@ -178,8 +212,13 @@ export async function conversationSummary(
     .from(c)
     .where(and(eq(c.tenantId, tenantId), eq(c.id, conversationId)));
   if (!row) return null;
-  const owners = await namedOwners(tx, tenantId, [conversationId], names);
-  return toSummary(row.conversation, row.lastMessage, owners.get(conversationId) ?? null);
+  const { owners, escalations } = await namedPeople(tx, tenantId, [conversationId], names);
+  return toSummary(
+    row.conversation,
+    row.lastMessage,
+    owners.get(conversationId) ?? null,
+    escalations.get(conversationId) ?? null,
+  );
 }
 
 /** The tab counts, in one query (closed isn't counted). */
@@ -249,7 +288,9 @@ const REASONS = new Set<string>([
   'handed_back',
   'taken_from',
   'handover_requested',
+  'escalated',
 ]);
+const SOURCES = new Set<string>(schema.ESCALATION_SOURCES);
 const USER_REF = 'user:';
 const asStatus = (v: unknown) =>
   typeof v === 'string' && STATUSES.has(v) ? (v as ThreadEvent['to'] & string) : null;
@@ -286,7 +327,17 @@ export async function threadEvents(
       ),
     )
     .orderBy(a.seq);
-  return rows.map(toThreadEvent);
+  // `escalation.assigned` is the escalation's divider (FEAT-044); the plain state change
+  // that `transition` writes with it would repeat it.
+  return rows
+    .filter(
+      (r) =>
+        !(
+          r.eventType === 'conversation.state_changed' &&
+          (r.payload as { to?: unknown } | null)?.to === 'escalated'
+        ),
+    )
+    .map(toThreadEvent);
 }
 
 /** An audit row of `threadEvents`. */
@@ -303,6 +354,24 @@ export interface AuditEventRow {
 export function toThreadEvent(r: AuditEventRow): ThreadEventRow {
   const p = (r.payload ?? {}) as Record<string, unknown>;
   const flagged = r.eventType === 'conversation.flagged';
+  if (r.eventType === 'escalation.assigned') {
+    const ref = r.subjectRefs.find((x) => x.startsWith(USER_REF));
+    return {
+      at: r.ts.toISOString(),
+      kind: 'state',
+      from: null,
+      to: 'escalated',
+      reason: 'escalated',
+      actor: {
+        type: r.actorType === 'operator' ? 'system' : r.actorType,
+        id: r.actorType === 'user' ? r.actorRef : null,
+      },
+      subject: { id: ref ? ref.slice(USER_REF.length) : null },
+      ...(typeof p.source === 'string' && SOURCES.has(p.source)
+        ? { source: p.source as ThreadEvent['source'] & string }
+        : {}),
+    } satisfies ThreadEventRow;
+  }
   const from = flagged ? null : asStatus(p.from);
   const to = flagged ? null : asStatus(p.to);
   // A take-over and a hand-back are plain state changes in the log (D2); name them here.

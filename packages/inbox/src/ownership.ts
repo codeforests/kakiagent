@@ -86,7 +86,7 @@ export function staffNoticeText(kind: StaffNoticeKind, name: string | null, lang
 }
 
 /** The conversation's language: that of its latest agent or system message, else English. */
-async function conversationLanguage(tx: Tx, tenantId: string, conversationId: string) {
+export async function conversationLanguage(tx: Tx, tenantId: string, conversationId: string) {
   const [row] = await tx
     .select({ language: m.language })
     .from(m)
