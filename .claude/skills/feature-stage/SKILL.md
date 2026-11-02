@@ -39,7 +39,8 @@ Every call re-reads the whole context, and the session's starting prompt alone i
 3. Write `technical-design.md`, `tasks.md` (status `designed`), `ui-design.md` and the manifest entries. In `tasks.md`, order backend tasks before UI tasks and mark the split with a `## Build session 2 (UI)` heading before the first UI task, unless the feature is small enough for one build session (STATE.md).
 4. Open questions that change the design go to Ken with a decision card before finishing; record answers as D-n.
 5. If the feature changes the agent pipeline, the dashboard's patterns or the layers, update `code-map.md` in the same commit. Any file the design had to read by range because `code-map.md` didn't cover it gets one line there too (FEAT-054: `prompt.ts`, `guard.ts`, ~5k).
-6. Write `handoff.md`, commit, push. Reply with the build kickoff (the backend one when the build is split).
+6. **RTM, mandatory:** append this feature's refs to `docs/01-requirements/rtm.md` for every requirement in the design's `> Implements:` line: `features/FEAT-NNN-<slug>/technical-design.md` (and `ui-design.md`) to Design ref, `FEAT-NNN` to Plan ref. `node scripts/check-rtm.mjs FEAT-NNN --fix` appends both; then `node scripts/check-rtm.mjs FEAT-NNN` must pass before you push (`pnpm lint` runs it on every feature, so a gap fails the build and verify checks).
+7. Write `handoff.md`, commit, push. Reply with the build kickoff (the backend one when the build is split).
 
 ## Stage: build
 
@@ -54,9 +55,12 @@ Every call re-reads the whole context, and the session's starting prompt alone i
 1. Load `agentic-sdlc-kit:acceptance-verification`. This session is the independent verifier: it didn't write the code. Diff against `origin/main` (Token rules), and take the report format from the previous report's headings and per-AC table only.
 2. Inputs: `handoff.md`, the design's §6, `tasks.md` evidence, `git diff main...HEAD`.
 3. Re-run this feature's tests fresh, then the full local checks (STATE.md, CI). Then start GitHub CI on the PR branch and let the PR events wake you; fix anything red and re-run until green. Review the test diff and the invariants in `AGENTS.md`.
-4. Write `acceptance-report.md`; on acceptance, append the RTM Test ref and set `tasks.md` status `accepted`.
+4. Write `acceptance-report.md`; on acceptance, set `tasks.md` status `accepted` and update the RTM (Ken, 2026-11-02: never skip this; FEAT-027 merged without a report and 40 rows went without Design refs):
+   - [ ] Test ref: append `features/FEAT-NNN-<slug>/acceptance-report.md` (with `(partial: …)` where only part was verified) to **every** requirement in the design's `> Implements:` line, including the ones named inside parentheses, and to any other requirement the report's audit table verifies.
+   - [ ] Design ref and Plan ref: every row that now cites this report also names this feature's `technical-design.md` and `FEAT-NNN` (`node scripts/check-rtm.mjs FEAT-NNN --fix` appends any the design stage missed).
+   - [ ] `node scripts/check-rtm.mjs FEAT-NNN --stage verify` passes (report exists, status `accepted`, Design/Plan/Test refs all present). Paste its line into the report's `## RTM` section. A failure here is not acceptance: fix the RTM and re-run.
 5. Update `docs/build/STATE.md` in the same PR: move the feature to Merged, set the next feature and the remaining order, and the last CI run.
-6. Put the local check results in the PR body, mark it ready, subscribe to it and run GitHub CI (step 3); record the green run in the report. Reply once with the PR link. Ken approves; squash-merge only with his go-ahead.
+6. Put the local check results and the `check-rtm --stage verify` line in the PR body, mark it ready, subscribe to it and run GitHub CI (step 3); record the green run in the report. Reply once with the PR link. Ken approves; squash-merge only with his go-ahead.
 7. After the merge, post the remaining build order with the next feature first, and the design kickoff for it.
 8. Rework goes back to a build session (kickoff in `handoff.md`); a design defect goes to a design session.
 

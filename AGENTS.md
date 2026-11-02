@@ -37,7 +37,7 @@ pnpm dev                         # every app in watch mode
 
 # Checks (CI runs all of these, .github/workflows/ci.yml)
 pnpm format:check
-pnpm lint                        # ESLint, then dependency-cruiser module boundaries
+pnpm lint                        # ESLint, dependency-cruiser module boundaries, then the RTM ref check (scripts/check-rtm.mjs)
 pnpm typecheck
 pnpm test                        # unit tests, including the design-token contrast check
 pnpm test:integration            # Testcontainers: RLS cross-tenant suite, outbox, inbox, agent
