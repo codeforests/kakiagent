@@ -81,3 +81,9 @@ FEAT-015 adds file pages to the extraction subset: a page with `fileName` is tex
 file parser and OCR give it (its `url` is the page's locator, such as `page/1` or
 `part/1`), extracted with the file prompt. `file-ocr-price-list` is a scanned menu page
 as Tesseract reads it; `file-docx-faq` is the first part of a Word FAQ.
+
+FEAT-045 adds `feat-045-suggest.json`: a staff member's suggested reply takes the visitor
+turn's answer path (`answerStep` → `answerTurn`), so its cases run here unchanged and
+score what the suggestion maps from the outcome: `answered` → a draft; `escalated`
+(failed checks twice), `out_of_scope`, `ended` and the rest → no draft
+(`no_checked_answer`/`unavailable`, FEAT-045 §5.1 step 4). No new subset or threshold.
