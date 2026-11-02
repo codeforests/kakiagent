@@ -1,5 +1,5 @@
 # Handoff: FEAT-045 — AI-suggested replies for staff (verified)
-Branch: feat/FEAT-045-suggested-replies · PR: draft (see the thread) · Updated: 2026-11-02 by build (UI)
+Branch: feat/FEAT-045-suggested-replies · PR: https://github.com/codeforests/kakiagent/pull/50 (draft) · Updated: 2026-11-02 by build (UI)
 Stage done: build (T1–T8 of 8), status `developer-done`
 Next: verify — kickoff: "Verify FEAT-045 on branch feat/FEAT-045-suggested-replies.
 Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
