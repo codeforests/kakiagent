@@ -5,7 +5,7 @@
 
 ## Verdict summary
 
-**Accepted** (2026-11-02). Every criterion AC-1..AC-9 has a test that asserts what it says, all local checks are green at `b328451` (the only red is the LocalStack-only `uploads.int`, unrelated), no existing test was changed or weakened, and the invariants hold (Direct verification). GitHub CI: see CI below.
+**Accepted** (2026-11-02). Every criterion AC-1..AC-9 has a test that asserts what it says, all local checks are green at `b328451` (the only red is the LocalStack-only `uploads.int`, unrelated), no existing test was changed or weakened, and the invariants hold (Direct verification). GitHub CI run 98 is green in all 11 jobs, including E2E on all three browsers.
 
 ## Audit standard
 
@@ -61,4 +61,4 @@ Test ref appended 2026-11-02: INB-03; KB-18 (partial: staff-edit producer; `staf
 
 ## CI
 
-CI_LINE
+GitHub CI run 98 (`workflow_dispatch`, https://github.com/codeforests/kakiagent/actions/runs/41457860757) at `b328451`, 2026-11-02: all 11 jobs green, including integration with coverage (Testcontainers, so `uploads.int` with LocalStack too), the eval, build and size, and E2E on Chromium, Firefox and WebKit (`suggested-reply.e2e` with axe at 1280 and 375). The later verify commit changes docs only.
