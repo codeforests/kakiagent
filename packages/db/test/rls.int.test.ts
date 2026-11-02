@@ -3615,3 +3615,123 @@ describe('escalations and routing (FEAT-044)', () => {
     expect(row.rows[0].auto_close_queued_at).toBeNull();
   });
 });
+
+describe('suggestions (FEAT-045)', () => {
+  const thread = async (t: string) => {
+    const conversationId = (
+      await owner.query<{ id: string }>(
+        `insert into conversations (tenant_id, channel, visitor_id, status) values ($1, 'widget', gen_random_uuid(), 'human') returning id`,
+        [t],
+      )
+    ).rows[0]!.id;
+    const messageId = (
+      await owner.query<{ id: string }>(
+        `insert into messages (tenant_id, conversation_id, author, body) values ($1, $2, 'visitor', 'How much is the cake?') returning id`,
+        [t, conversationId],
+      )
+    ).rows[0]!.id;
+    return { conversationId, messageId };
+  };
+  const suggest = (
+    c: pg.Client,
+    tenantId: string,
+    t: { conversationId: string; messageId: string },
+  ) =>
+    c.query<{ id: string }>(
+      `insert into suggestions (tenant_id, conversation_id, for_message_id, requested_by, outcome, body, language)
+       values ($1, $2, $3, gen_random_uuid(), 'ready', 'It is $48.', 'en') returning id`,
+      [tenantId, t.conversationId, t.messageId],
+    );
+
+  afterAll(async () => {
+    await owner.query(`delete from suggestions`);
+  });
+
+  it("tenant B sees and writes nothing of tenant A's; the visitor zone has no grant", async () => {
+    const a = await thread(TENANT_A);
+    await suggest(owner, TENANT_A, a);
+    const seen = await asRole('app_dashboard', TENANT_B, async (c) => ({
+      rows: (await c.query(`select id from suggestions`)).rows,
+      updated: (await c.query(`update suggestions set status = 'superseded'`)).rowCount,
+    }));
+    expect(seen).toEqual({ rows: [], updated: 0 });
+    await expect(asRole('app_dashboard', TENANT_B, (c) => suggest(c, TENANT_A, a))).rejects.toThrow(
+      /row-level security/,
+    );
+    const own = await asRole(
+      'app_dashboard',
+      TENANT_A,
+      async (c) => (await c.query(`select conversation_id from suggestions`)).rows,
+    );
+    expect(own).toEqual([{ conversation_id: a.conversationId }]);
+    await expect(
+      asRole('app_agent_visitor', TENANT_A, (c) => c.query(`select id from suggestions`)),
+    ).rejects.toThrow(/permission denied/);
+    await expect(
+      asRole('app_dashboard', TENANT_A, (c) => c.query(`update suggestions set body = 'x'`)),
+    ).rejects.toThrow(/permission denied/);
+    await expect(
+      asRole('app_dashboard', TENANT_A, (c) => c.query(`delete from suggestions`)),
+    ).rejects.toThrow(/permission denied/);
+  });
+
+  it('checks hold; a deleted sent message clears only sent_message_id', async () => {
+    const a = await thread(TENANT_A);
+    await expect(
+      owner.query(
+        `insert into suggestions (tenant_id, conversation_id, for_message_id, requested_by, outcome, language)
+         values ($1, $2, $3, gen_random_uuid(), 'ready', 'en')`,
+        [TENANT_A, a.conversationId, a.messageId],
+      ),
+    ).rejects.toThrow(/suggestions_body_ck/);
+    const id = (await suggest(owner, TENANT_A, a)).rows[0]!.id;
+    await expect(
+      owner.query(`update suggestions set status = 'sent' where id = $1`, [id]),
+    ).rejects.toThrow(/suggestions_used_ck/);
+    const sent = (
+      await owner.query<{ id: string }>(
+        `insert into messages (tenant_id, conversation_id, author, body) values ($1, $2, 'staff', 'It is $48.') returning id`,
+        [TENANT_A, a.conversationId],
+      )
+    ).rows[0]!.id;
+    await owner.query(
+      `update suggestions set status = 'sent', sent_message_id = $2, used_at = now() where id = $1`,
+      [id, sent],
+    );
+    await owner.query(`delete from messages where id = $1`, [sent]);
+    const row = await owner.query(
+      `select tenant_id, sent_message_id from suggestions where id = $1`,
+      [id],
+    );
+    expect(row.rows[0]).toEqual({ tenant_id: TENANT_A, sent_message_id: null });
+  });
+
+  it('the dashboard updates only fact_ids, only on staff messages', async () => {
+    const a = await thread(TENANT_A);
+    const n = await asRole(
+      'app_dashboard',
+      TENANT_A,
+      async (c) =>
+        (await c.query(`update messages set fact_ids = '{}' where id = $1`, [a.messageId]))
+          .rowCount,
+    );
+    expect(n).toBe(0);
+    await expect(
+      asRole('app_dashboard', TENANT_A, (c) =>
+        c.query(`update messages set body = 'x' where id = $1`, [a.messageId]),
+      ),
+    ).rejects.toThrow(/permission denied/);
+  });
+
+  it('one reply_edit correction per suggestion', async () => {
+    const change = JSON.stringify({ kind: 'reply_edit', suggestionId: TENANT_B });
+    const insert = () =>
+      owner.query(
+        `insert into corrections (tenant_id, source_type, proposed_by, proposed_change) values ($1, 'staff_edit', 'staff', $2)`,
+        [TENANT_A, change],
+      );
+    await insert();
+    await expect(insert()).rejects.toThrow(/corrections_reply_edit_uq/);
+    await owner.query(`delete from corrections where proposed_change->>'kind' = 'reply_edit'`);
+  });
+});

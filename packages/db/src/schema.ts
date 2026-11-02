@@ -1338,6 +1338,10 @@ export const corrections = pgTable(
     uniqueIndex('corrections_open_stale_uq')
       .on(t.tenantId, sql`(${t.factRefs}[1])`)
       .where(sql`${t.sourceType} = 'stale' and ${t.status} = 'open'`),
+    /** One item per suggested reply (FEAT-045 §4): a retried send adds nothing. */
+    uniqueIndex('corrections_reply_edit_uq')
+      .on(t.tenantId, sql`(${t.proposedChange}->>'suggestionId')`)
+      .where(sql`${t.proposedChange}->>'kind' = 'reply_edit'`),
     check(
       'corrections_accepted_change_ck',
       sql`(${t.status} = 'edited_and_accepted') = (${t.acceptedChange} is not null)`,
@@ -1938,6 +1942,65 @@ export const escalationRouting = pgTable(
   ],
 );
 
+export const SUGGESTION_OUTCOMES = ['ready', 'no_checked_answer', 'unavailable'] as const;
+export const SUGGESTION_STATUSES = ['open', 'sent', 'sent_edited', 'superseded'] as const;
+
+/**
+ * AI-suggested replies for staff (INB-03; FEAT-045 §4). Dashboard zone only (ADR-009): the
+ * visitor zone never sees drafts. `sent_message_id`'s FK is hand-written in 0046
+ * (`on delete set null (sent_message_id)`, so `tenant_id` is kept).
+ */
+export const suggestions = pgTable(
+  'suggestions',
+  {
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id),
+    id: uuid('id').notNull().defaultRandom(),
+    conversationId: uuid('conversation_id').notNull(),
+    /** The visitor message the draft answers. */
+    forMessageId: uuid('for_message_id').notNull(),
+    requestedBy: uuid('requested_by').notNull(),
+    outcome: text('outcome', { enum: SUGGESTION_OUTCOMES }).notNull(),
+    body: text('body'),
+    factIds: uuid('fact_ids')
+      .array()
+      .notNull()
+      .default(sql`'{}'::uuid[]`),
+    language: text('language', { enum: ['en', 'zh'] }).notNull(),
+    status: text('status', { enum: SUGGESTION_STATUSES }).notNull().default('open'),
+    sentMessageId: uuid('sent_message_id'),
+    usedAt: timestamp('used_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.id] }),
+    foreignKey({
+      columns: [t.tenantId, t.conversationId],
+      foreignColumns: [conversations.tenantId, conversations.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      columns: [t.tenantId, t.forMessageId],
+      foreignColumns: [messages.tenantId, messages.id],
+    }).onDelete('cascade'),
+    index('suggestions_conversation_idx').on(t.tenantId, t.conversationId, t.createdAt.desc()),
+    check(
+      'suggestions_outcome_ck',
+      sql`${t.outcome} in ('ready', 'no_checked_answer', 'unavailable')`,
+    ),
+    check('suggestions_body_ck', sql`(${t.outcome} = 'ready') = (${t.body} is not null)`),
+    check('suggestions_language_ck', sql`${t.language} in ('en', 'zh')`),
+    check(
+      'suggestions_status_ck',
+      sql`${t.status} in ('open', 'sent', 'sent_edited', 'superseded')`,
+    ),
+    check(
+      'suggestions_used_ck',
+      sql`(${t.status} in ('sent', 'sent_edited')) = (${t.usedAt} is not null)`,
+    ),
+  ],
+);
+
 /** Tables with `tenant_id` + forced RLS. The cross-tenant suite asserts this list is complete. */
 export const TENANT_SCOPED_TABLES = [
   'tenants',
@@ -1974,4 +2037,5 @@ export const TENANT_SCOPED_TABLES = [
   'notifications',
   'escalations',
   'escalation_routing',
+  'suggestions',
 ] as const;
