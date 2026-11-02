@@ -14,7 +14,7 @@
 
 ## Build session 2 (UI)
 
-- [ ] T5 — Dashboard conversation: `lib/api.ts` `suggestReply`, `reply` with `suggestionId`; `lib/suggestion.ts` (`noneText`, `isStale`, `sendBody`) with unit tests; `takeover-dock.tsx` takeover bar Suggest a reply (take over → suggest), composer Suggest a reply / Suggest again, writing, holding (label, caption, 5 lines, A2), stale, none, paused, rate-limited and error states; the draft kept across a failed send (design §5.5; ui-design SCR-APP-015; AC-1, AC-3, AC-5, AC-8)
+- [x] T5 — Dashboard conversation: `lib/api.ts` `suggestReply`, `reply` with `suggestionId`; `lib/suggestion.ts` (`noneText`, `isStale`, `sendBody`) with unit tests; `takeover-dock.tsx` takeover bar Suggest a reply (take over → suggest), composer Suggest a reply / Suggest again, writing, holding (label, caption, 5 lines, A2), stale, none, paused, rate-limited and error states; the draft kept across a failed send (design §5.5; ui-design SCR-APP-015; AC-1, AC-3, AC-5, AC-8)
       Done when: `pnpm --filter @kaki/dashboard test` passes and the dashboard typechecks; a stubbed-API Playwright check of: bar → composer holding the draft with focus in the textarea; Send posts `suggestionId`; none and 429 alerts (log only the asserted fields).
 - [ ] T6 — Dashboard corrections: `lib/corrections.ts` `reply_edit` texts (`fixSummary`, `itemSummary`, `decisionLabel`, `acceptedLine`, `noReplayCaption`) with unit tests; `corrections.tsx` row; `correction.tsx` item (question, suggested vs sent, facts used, Add as FAQ prefilled, Close with no change; deleted-chat state) (ui-design SCR-APP-021, SCR-APP-022; AC-4, AC-8)
       Done when: `pnpm --filter @kaki/dashboard test` passes, the dashboard typechecks, and a stubbed-API Playwright check of the item: both texts shown, Add as FAQ opens prefilled.
@@ -25,4 +25,5 @@
 
 ## Verification evidence
 
-- (filled by build and verify)
+- T5: `pnpm --filter @kaki/dashboard test` PASS (18 files, 196 tests, incl. `lib/suggestion.test.ts`); dashboard typecheck and ESLint clean. Stubbed-API Playwright (Chromium, Vite dev server, `page.route` stubs) at 1280: bar Suggest a reply → taken over, composer holds the draft (rows 5, focus in the textarea, `aria-describedby=suggestion-label`, fact chip "Used: Chocolate cake 1 kg", button "Suggest again"); edited Send posted `suggestionId`; label gone after send; `none` → "The assistant couldn't write a reply that passes its checks. Write your own."; 429 (Retry-After 1500) → "…Try again in 25 min." and the button disabled. At 375: typed text → replace confirm "Replace your reply with a new suggestion?" → Replace fills the draft; icon button 50×44; `scrollWidth` 375.
+- T5 notes: the 429 wait comes from the `Retry-After` header, which `lib/api.ts` `send` now copies into `ApiError.details.retryAfterS` for any response. The suggestion state lives in `useDockActions` (`lib/takeover.ts`) so it survives the bar → composer switch; `coach.ts` and `corrections.ts` got their `reply_edit` switch cases here so the dashboard typechecks (corrections texts in T6).
