@@ -704,3 +704,4 @@ export async function hasConversation(tx: Tx, tenantId: string): Promise<boolean
     .limit(1);
   return rows.length > 0;
 }
+export * from './suggestions.js';

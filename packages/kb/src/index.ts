@@ -252,6 +252,7 @@ export {
   getCorrection,
   listCorrections,
   proposeCorrection,
+  proposeReplyEdit,
   reconfirmFact,
   type ApplyHours,
   type CorrectionEdit,
