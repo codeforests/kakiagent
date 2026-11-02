@@ -3349,6 +3349,18 @@ a.settings-row:hover {
     grid-template-columns: 1fr 1fr;
   }
 }
+/* FEAT-045: a staff edit's suggestion and sent reply (ui-design SCR-APP-022). */
+.reply-edit__columns {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.reply-edit__suggested {
+  background: var(--color-accent-soft);
+}
+.reply-edit__sent {
+  background: var(--color-info-soft);
+}
 
 /* SCR-APP-021 Review · Corrections and SCR-APP-022 Correction (FEAT-018 ui-design). */
 .segmented {

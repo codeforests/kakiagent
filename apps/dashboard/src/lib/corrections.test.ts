@@ -23,6 +23,7 @@ import {
   gapMeta,
   intervalError,
   isGap,
+  isStaffEdit,
   itemSummary,
   matchedCaption,
   monthsSince,
@@ -234,6 +235,36 @@ describe('coverage gap items (FEAT-019)', () => {
     expect(closedLine(gapItem({ status: 'dismissed' }), '2 hours ago')).toBe(
       'Closed 2 hours ago. Nothing in your knowledge changed.',
     );
+  });
+});
+
+describe('staff edit items (FEAT-045)', () => {
+  const editChange: ProposedChange = { kind: 'reply_edit', suggestionId: id(70) };
+  const editItem = (over: Partial<CorrectionItem> = {}) =>
+    item({
+      source: 'staff_edit',
+      proposedBy: 'staff',
+      change: editChange,
+      replyEdit: { question: 'How much is the chocolate cake?' },
+      ...over,
+    });
+  it('labels the origin and reads as the improved reply while open', () => {
+    expect(SOURCE_LABEL.staff_edit).toBe('Staff edit');
+    expect(isStaffEdit(editItem())).toBe(true);
+    expect(isStaffEdit(item())).toBe(false);
+    expect(itemSummary(editItem())).toBe(
+      'Staff improved a suggested reply: “How much is the chocolate cake?”',
+    );
+    expect(itemSummary(editItem({ replyEdit: null }))).toBe('Staff improved a suggested reply');
+    expect(fixSummary(editChange)).toBe('Staff improved a suggested reply');
+  });
+  it('is settled by an FAQ', () => {
+    const accepted = editItem({ status: 'edited_and_accepted', acceptedChange: faq });
+    expect(itemSummary(accepted)).toBe('New FAQ: Do you deliver on Sundays?');
+    expect(decisionLabel(accepted)).toBe('FAQ added');
+    expect(acceptedLine(faq, editChange)).toBe('FAQ added. Your assistant now uses it.');
+    expect(noReplayCaption(editChange)).toMatch(/No past answers used this yet/);
+    expect(decisionLabel(editItem({ status: 'dismissed' }))).toBe('Closed');
   });
 });
 
