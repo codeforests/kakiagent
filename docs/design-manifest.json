@@ -333,7 +333,8 @@
         "anchor": "02-design/anchor-screens.md#scr-app-015--conversation",
         "extended_by": [
           "features/FEAT-043-takeover/ui-design.md#scr-app-015--conversation-partial",
-          "features/FEAT-044-escalation-routing/ui-design.md#scr-app-015--conversation-partial"
+          "features/FEAT-044-escalation-routing/ui-design.md#scr-app-015--conversation-partial",
+          "features/FEAT-045-suggested-replies/ui-design.md#scr-app-015--conversation-partial"
         ]
       },
       "states": {
@@ -366,10 +367,20 @@
           "escalation strip",
           "escalated divider",
           "escalated after hours",
-          "reminded"
+          "reminded",
+          "takeover-and-suggest pending",
+          "writing suggestion",
+          "holding suggestion",
+          "holding edited suggestion",
+          "replace confirm",
+          "stale suggestion",
+          "no checked suggestion",
+          "suggestion unavailable",
+          "suggestions rate limited",
+          "suggest disabled (paused)",
+          "suggestion error"
         ],
         "gaps": [
-          "AI suggestion in the composer (FEAT-045)",
           "internal notes and tags (FEAT-047)"
         ],
         "supplements": []
@@ -383,7 +394,8 @@
         "POST /api/v1/conversations/:id/handback",
         "POST /api/v1/conversations/:id/messages",
         "POST /api/v1/conversations/:id/handover-request",
-        "WS /ws (member events)"
+        "WS /ws (member events)",
+        "POST /api/v1/conversations/:id/suggestion"
       ],
       "conformance": {
         "result": "pass",
@@ -502,7 +514,8 @@
       "source": {
         "spec": "features/FEAT-018-correction-queue/ui-design.md#scr-app-021--review--corrections",
         "extended_by": [
-          "features/FEAT-019-coverage-report/ui-design.md#scr-app-021--scr-app-022--corrections-extended-coverage-gap-items"
+          "features/FEAT-019-coverage-report/ui-design.md#scr-app-021--scr-app-022--corrections-extended-coverage-gap-items",
+          "features/FEAT-045-suggested-replies/ui-design.md#scr-app-021--review--corrections-partial"
         ]
       },
       "states": {
@@ -519,7 +532,8 @@
           "error",
           "review intervals dialog",
           "intervals validation",
-          "permission"
+          "permission",
+          "staff edit row"
         ],
         "gaps": [
           "Home KB health tiles (FEAT-065, SCR-APP-013)"
@@ -548,7 +562,8 @@
       "source": {
         "spec": "features/FEAT-018-correction-queue/ui-design.md#scr-app-022--correction",
         "extended_by": [
-          "features/FEAT-019-coverage-report/ui-design.md#scr-app-021--scr-app-022--corrections-extended-coverage-gap-items"
+          "features/FEAT-019-coverage-report/ui-design.md#scr-app-021--scr-app-022--corrections-extended-coverage-gap-items",
+          "features/FEAT-045-suggested-replies/ui-design.md#scr-app-022--correction-partial-staff-edit-item"
         ]
       },
       "states": {
@@ -575,7 +590,9 @@
           "not-found",
           "loading",
           "error",
-          "permission"
+          "permission",
+          "staff edit item",
+          "staff edit chat deleted"
         ],
         "gaps": [
           "Conversation link (FEAT-042, SCR-APP-015)"
