@@ -1,7 +1,7 @@
 # Tasks: FEAT-045 — AI-suggested replies for staff (verified)
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: developer-done · Last updated: 2026-11-02 (build UI)
+> Status: accepted · Last updated: 2026-11-02 (verify)
 
 - [x] T1 — Schema and contracts: `0046_suggestions.sql` (`suggestions` with its checks, FKs incl. `on delete set null (sent_message_id)`, index; forced RLS and policy; `app_dashboard` grants only; `corrections_reply_edit_uq`) + Drizzle table, `TENANT_SCOPED_TABLES`; contracts: the suggested-replies section (`SuggestionNone`, `Suggestion`, `SuggestionResponse` with its refine, `SuggestionRequest`), `StaffMessageBody.suggestionId`, `ProposedChange` `reply_edit`, `CorrectionItem.replyEdit`, `CorrectionContext.replyEdit` (design §3, §4; AC-7)
       Done when: `drizzle-kit generate` reports no drift after 0046; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes with an RLS case for `suggestions` (tenant B sees and writes nothing of A's; `app_agent_visitor` has no access), `body` without `ready` refused, `sent` without `used_at` refused, deleting the sent message keeps the row with `sent_message_id` null, and a second `reply_edit` correction for one suggestion refused; `pnpm --filter @kaki/contracts test` (round-trips; `SuggestionResponse` with both or neither null refused; `StaffMessageBody` with an extra key refused) passes.

@@ -4,10 +4,10 @@ The one file a fresh build session reads first. Keep it under 80 lines. The veri
 
 ## Where the build is
 
-- **Next feature:** FEAT-045 (M3), design, only after Ken says go (context-mode trial, below). FEAT-044 accepted 2026-11-01 after rework R1 (PR #48).
-- **M3 order (remaining):** 045 → 046 → 049 → 055 → 056 → 050 → 051 (plan §5).
+- **Next feature:** FEAT-046 (M3), design, only after Ken says go. FEAT-045 accepted 2026-11-02 (PR #50).
+- **M3 order (remaining):** 046 → 049 → 055 → 056 → 050 → 051 (plan §5).
 - **Demos:** the interim demo after FEAT-027 (coaching) is due; it can now include replay (FEAT-028). M2 closes now with `pipeline-verify` and a live demo of J1, J8 and J11, signed off by Ken, before M3 starts.
-- **Merged:** 001 (skeleton), 002, 003, 004, 005, 009, 011, 012, 013, 014, 015, 016, 017, 022, 023, 024, 025, 027 (merged 2026-10-24 without a verify stage; accepted retrospectively 2026-11-02), 028 (accepted 2026-10-24), 018 (accepted and merged 2026-10-24), 019 (accepted and merged 2026-10-25), 032 (accepted and merged 2026-10-25), 033 (accepted and merged 2026-10-26), 058 (accepted and merged 2026-10-27), 034 (accepted 2026-10-27, merged 2026-10-28 after GitHub CI went green), 057 (accepted 2026-10-28; GOV-08 partial until FEAT-049), 006 (accepted 2026-10-30; AUTH-03 partial: operators FEAT-070, each sensitive action's re-auth with its feature), 054 (accepted 2026-10-30; discount and quote enforcement at dispatch with FEAT-055), 035 (accepted 2026-10-30; ONB-08 instrumented only, pilot median pending), 007 (accepted 2026-10-31; AUTH-02 revocation clause only; Google join not E2E-tested), 008 (accepted 2026-10-31; AUTH-02 still partial: operators FEAT-070), 042 (accepted 2026-10-31), 043 (accepted 2026-10-31; INB-01 complete; assignee = current owner until FEAT-044), 052 (accepted 2026-11-01; LED-04 and DSH-09 email only until FEAT-037/048; NFR-18 live at MD; producers call `notify` from FEAT-044/050/055), 044 (accepted 2026-11-01 after rework R1; INB-05 alerts email only until FEAT-037/048; after-hours lead capture FEAT-049). Each has `docs/features/FEAT-NNN-*/`.
+- **Merged:** 001 (skeleton), 002, 003, 004, 005, 009, 011, 012, 013, 014, 015, 016, 017, 022, 023, 024, 025, 027 (merged 2026-10-24 without a verify stage; accepted retrospectively 2026-11-02), 028 (accepted 2026-10-24), 018 (accepted and merged 2026-10-24), 019 (accepted and merged 2026-10-25), 032 (accepted and merged 2026-10-25), 033 (accepted and merged 2026-10-26), 058 (accepted and merged 2026-10-27), 034 (accepted 2026-10-27, merged 2026-10-28 after GitHub CI went green), 057 (accepted 2026-10-28; GOV-08 partial until FEAT-049), 006 (accepted 2026-10-30; AUTH-03 partial: operators FEAT-070, each sensitive action's re-auth with its feature), 054 (accepted 2026-10-30; discount and quote enforcement at dispatch with FEAT-055), 035 (accepted 2026-10-30; ONB-08 instrumented only, pilot median pending), 007 (accepted 2026-10-31; AUTH-02 revocation clause only; Google join not E2E-tested), 008 (accepted 2026-10-31; AUTH-02 still partial: operators FEAT-070), 042 (accepted 2026-10-31), 043 (accepted 2026-10-31; INB-01 complete; assignee = current owner until FEAT-044), 052 (accepted 2026-11-01; LED-04 and DSH-09 email only until FEAT-037/048; NFR-18 live at MD; producers call `notify` from FEAT-044/050/055), 044 (accepted 2026-11-01 after rework R1; INB-05 alerts email only until FEAT-037/048; after-hours lead capture FEAT-049), 045 (accepted 2026-11-02; KB-18 staff-edit producer only, `staff_reply` later; suggestions run in the API, ADR-026 note pending). Each has `docs/features/FEAT-NNN-*/`.
 
 ## One feature = three fresh sessions
 
@@ -24,15 +24,15 @@ Each stage follows `.claude/skills/feature-stage/SKILL.md`. A stage never reads 
 ## Kickoff prompts (paste into a new thread)
 
 ```
-Design FEAT-045. Branch feat/FEAT-045-<slug> (create it from main).
+Design FEAT-046. Branch feat/FEAT-046-<slug> (create it from main).
 Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage design.
 ```
 ```
-Build FEAT-045 (backend) on branch feat/FEAT-045-<slug>.
+Build FEAT-046 (backend) on branch feat/FEAT-046-<slug>.
 Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage build.
 ```
 ```
-Verify FEAT-045 on branch feat/FEAT-045-<slug>.
+Verify FEAT-046 on branch feat/FEAT-046-<slug>.
 Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify.
 ```
 
@@ -60,7 +60,7 @@ The repo is public, so GitHub Actions minutes are free. CI (`.github/workflows/c
 
 Every stage session appends its token numbers to `/mnt/project-files/reviews/feat-NNN-token-use.md`, with a short comparison to earlier features (the feature-stage skill, "Ending every stage").
 
-**context-mode trial (Ken, 2026-11-01): FEAT-045 only.** Its stage threads run with the context-mode plugin (v1.0.169), which the cloud environment's setup script installs. In those threads, prefer `ctx_batch_execute`/`ctx_execute` for commands with long output and `ctx_search` over re-reading it; Read a file before you Edit it as usual. Each token log adds the `ctx_stats` output and compares with FEAT-052. After FEAT-045, Ken decides whether to keep it; until then other features run without it.
+**context-mode trial (Ken, 2026-11-01): FEAT-045 only.** Its stage threads run with the context-mode plugin (v1.0.169), which the cloud environment's setup script installs. In those threads, prefer `ctx_batch_execute`/`ctx_execute` for commands with long output and `ctx_search` over re-reading it; Read a file before you Edit it as usual. Each token log adds the `ctx_stats` output and compares with FEAT-052. After FEAT-045, Ken decides whether to keep it; until then other features run without it. **Result:** none of FEAT-045's stage threads had the `ctx_*` tools (the setup-script lines weren't active), so the trial has no data yet; Ken decides whether to retry it on FEAT-046.
 
 ## Environment
 
