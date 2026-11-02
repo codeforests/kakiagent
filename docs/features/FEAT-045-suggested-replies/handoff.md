@@ -1,24 +1,20 @@
 # Handoff: FEAT-045 — AI-suggested replies for staff (verified)
-Branch: feat/FEAT-045-suggested-replies · PR: none · Updated: 2026-11-02 by build (backend)
-Stage done: build (T1–T4 of 8)
-Next: build (UI, T5–T8) — kickoff: "Build FEAT-045 (UI) on branch feat/FEAT-045-suggested-replies.
-Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage build."
+Branch: feat/FEAT-045-suggested-replies · PR: draft (see the thread) · Updated: 2026-11-02 by build (UI)
+Stage done: build (T1–T8 of 8), status `developer-done`
+Next: verify — kickoff: "Verify FEAT-045 on branch feat/FEAT-045-suggested-replies.
+Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
 
 ## What the next stage needs
-- **The dashboard doesn't typecheck yet**: `ProposedChange` gained `reply_edit`, so the exhaustive switches in `apps/dashboard/src/lib/coach.ts` (~129, ~175, ~196) and `lib/corrections.ts` (~66, ~135) need the case (T6). Everything else typechecks.
-- Contracts (`packages/contracts/src/index.ts`, section "suggested replies" at the end): `Suggestion`, `SuggestionNone` (`no_checked_answer` | `unavailable`), `SuggestionResponse` (exactly one of `suggestion`/`none`), `SuggestionRequest` (`{}`); `StaffMessageBody.suggestionId?`; `CorrectionItem.replyEdit?: { question }`; `CorrectionContext.replyEdit: { question, suggested, sent, suggestedAt, sentAt, facts: FactChip[] } | null` (null = the chat was deleted). `FactChip` moved above the corrections section (same shape).
-- Routes (`apps/api/src/inbox.ts`): `POST /api/v1/conversations/:id/suggestion` (body `{}`) → 201 `SuggestionResponse`; 409 `not_owner` (with `conversation` summary, as FEAT-043), 409 `ai_paused`, 409 `nothing_to_answer`, 429 `too_many_suggestions` with `Retry-After` (seconds), 404 other tenant. `POST …/messages` takes `suggestionId`; an unedited send returns the message with the draft's `factIds`, an edited one with `[]` and adds the correction.
-- Error messages from the API: ai_paused "The assistant is paused, so it can't suggest replies."; nothing_to_answer "There's no customer message to answer yet."; 429 "Too many suggestions for this conversation. Try again later."
-- Correction items: `source: 'staff_edit'`, `proposedBy: 'staff'`, `change: { kind: 'reply_edit', suggestionId }`, `facts` = the draft's facts. Accept needs `edit: { kind: 'add_faq', question, answer }` (bare accept → 422 like `answer_gap`); close is the usual dismiss.
-- "Edited" (D8) is server-side (`normalise` in inbox): case, spacing, trailing punctuation and emoji don't count. The client's `isStale` compares `forSeq` with the latest visitor message's seq.
-- Evals: `evals/cases/feat-045-suggest.json` runs in existing subsets (prices, boundary, harmful, chinese); README notes how outcomes map. `pnpm eval --fast` passes, thresholds unchanged.
-- Deviation: history for the draft leaves out `system` rows (staff joined/left notices), as design §5.1 says; the visitor turn itself doesn't filter them.
-- Migration 0046 also grants `app_dashboard` `UPDATE (fact_ids) ON messages` with a restrictive policy to staff rows (copying an unedited draft's facts onto the sent message, §5.2).
+- Dashboard: suggestion state lives in `useDockActions` (`lib/takeover.ts`: `suggest`, `takeOverAndSuggest`, `suggestion`, `suggestPaused`, `suggestBlocked`, `dismissSuggestNotice`) so it survives the bar → composer switch; pure rules in `lib/suggestion.ts` (`noneText`, `isStale`, `latestVisitorSeq`, `sendBody`, `needsReplaceConfirm`, `suggestFailure`). The UI is `TakeoverBar` and `Composer` in `pages/takeover-dock.tsx`; `ThreadDock` takes `latestVisitorSeq` from `conversation.tsx`.
+- `lib/api.ts` `send` now copies a `Retry-After` header into `ApiError.details.retryAfterS` (any response); the 429 alert's minutes come from it.
+- Paused: the suggest buttons are disabled with the helper when `useAiStatus().data.status.paused` or after a 409 `ai_paused`.
+- Corrections: `isStaffEdit` and the `reply_edit` texts in `lib/corrections.ts` (decision "FAQ added", accepted line as gaps); the item's "What changed" is `WhatChanged` in `pages/correction.tsx`; `AddFaqDialog` takes an optional `answer` prefill. With `context.replyEdit` null the item shows "The chat this came from was deleted." and only Close with no change.
+- Stubbed-API Playwright checks for T5 and T6 are in `tasks.md` evidence (bar → draft, focus, Send posts `suggestionId`, none and 429 alerts, replace confirm, phone icon button 50×44, the item and row texts, prefilled FAQ, no sideways scroll at 375).
 
 ## Left to CI or later
-- `apps/api/test/uploads.int.test.ts` (S3 presigner) needs LocalStack or `KAKI_TEST_S3_ENDPOINT`, which this session lacks; the rest of the api suite (360 tests) passes. Unrelated to this feature.
-- E2E (`suggested-reply.e2e.ts`) and screen renders run in the verify stage's GitHub CI (no Docker here).
-- No context-mode plugin in this session either (no `ctx_*` tools), so the trial comparison has no plugin data from the backend build.
+- E2E `e2e/tests/suggested-reply.e2e.ts` (and all screen renders) has not run: no Docker here. Risks to watch in CI: the fake provider's draft for a run-unique product price (the spec expects `12.00` in the draft); the FAQ accept with a price in the answer.
+- `apps/api/test/uploads.int.test.ts` needs LocalStack or `KAKI_TEST_S3_ENDPOINT` (unrelated to this feature).
+- No context-mode plugin in this session (no `ctx_*` tools), so no trial data from the UI build either.
 
 ## Pending for Ken
 - Nothing.
