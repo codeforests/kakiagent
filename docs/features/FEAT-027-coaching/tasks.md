@@ -1,7 +1,7 @@
 # Tasks: FEAT-027 — Coaching mode
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: developer-done · Last updated: 2026-10-24
+> Status: accepted · Last updated: 2026-11-02 (retrospective verify)
 
 - [x] T1 — Schema: `coaching_sessions`, `coaching_messages`, `corrections`, `usage_events.coaching_session_id` (drizzle schema + `0027`, grants, forced RLS, checks); names in `TENANT_SCOPED_TABLES`; RLS suite cases for the three tables and "no visitor-role grant" (design §4; AC-8 schema half)
       Done when: `pnpm db:setup` applies 0027 on a database at 0026; `drizzle-kit generate` reports no drift; the RLS suite passes with the new cases.
