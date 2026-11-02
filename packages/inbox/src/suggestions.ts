@@ -109,7 +109,7 @@ export function normalise(text: string): string {
     .toLowerCase()
     .replace(/\s+/gu, ' ')
     .trim()
-    .replace(/[\s\p{P}\p{Extended_Pictographic}\p{Emoji_Modifier}‍️]+$/u, '');
+    .replace(/(?:[\s\p{P}\p{Extended_Pictographic}\p{Emoji_Modifier}]|\u200d|\ufe0f)+$/u, '');
 }
 
 /**

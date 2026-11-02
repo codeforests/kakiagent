@@ -169,6 +169,8 @@ describe('list and detail (AC-2, AC-10)', () => {
       conversation: null,
       // FEAT-019: only a coverage gap has gap context.
       gap: null,
+      // FEAT-045: only a staff edit has reply-edit context.
+      replyEdit: null,
     });
     expect(detail.replay).toBeNull();
     const summary = (await call('GET', '/api/v1/kb/review/summary', asA)).json();
