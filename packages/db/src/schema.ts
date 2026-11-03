@@ -397,6 +397,8 @@ export const messages = pgTable(
     uniqueIndex('messages_in_reply_to_uq').on(t.tenantId, t.inReplyTo),
     /** "Past questions that used this fact" (FEAT-018 §5.3). */
     index('messages_fact_ids_gin').using('gin', t.factIds),
+    /** Substring search on message text (FEAT-046 §4, D5): tenant first via btree_gin. */
+    index('messages_search_trgm_idx').using('gin', t.tenantId, t.body.op('gin_trgm_ops')),
     check(
       'messages_notice_ck',
       sql`(${t.notice} is null) = (${t.noticeKind} is null) and (${t.noticeKind} is null or ${t.noticeKind} in (${inList(NOTICE_KINDS)}))`,

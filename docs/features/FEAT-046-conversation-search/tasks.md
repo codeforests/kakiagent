@@ -3,7 +3,7 @@
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
 > Status: designed · Last updated: 2026-11-03 (design)
 
-- [ ] T1 — Schema and contracts: `0047_message_search.sql` (`pg_trgm`, `btree_gin`, `messages_search_trgm_idx`) + the index in `schema.ts`; contracts section "conversation search" (`ConversationSearchRequest`, `SearchMatch`, `ConversationSearchResult`, `ConversationSearchResults`) (design §3, §4; AC-1, AC-6)
+- [x] T1 — Schema and contracts: `0047_message_search.sql` (`pg_trgm`, `btree_gin`, `messages_search_trgm_idx`) + the index in `schema.ts`; contracts section "conversation search" (`ConversationSearchRequest`, `SearchMatch`, `ConversationSearchResult`, `ConversationSearchResults`) (design §3, §4; AC-1, AC-6)
       Done when: `drizzle-kit generate` reports no drift after 0047; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes (migrations apply; the index exists with both columns); `pnpm --filter @kaki/contracts test` passes with round-trips, a 1-character and a 101-character `q` refused, an extra key refused.
 - [ ] T2 — Inbox: `search.ts` (`searchPatterns` with masking, escaping and the SG phone variants; `excerptOf`; `searchConversations` with keyset paging, `namedPeople`, `toSummary`; `QueryTooShortError`), exported from the index (design §5.1; AC-1–AC-3, AC-6)
       Done when: `pnpm --filter @kaki/inbox test` passes with unit tests for `searchPatterns` (escapes `%`, `_`, `\`; NRIC masked; `9123 4567`, `+65-9123-4567` and `91234567` give the same three variants; under 2 after masking → null) and `excerptOf` (window and `…` cuts, ranges for several hits, Chinese, emoji not split, no-hit fallback); `scripts/test-env.sh pnpm --filter @kaki/inbox test:integration` passes with `search.int.test.ts`: substring and case-insensitive hits in visitor, agent and staff messages; closed conversations included; latest matching message chosen; order by last activity; two pages with no duplicates or gaps; `50%` matches literally; email part, phone in each spelling, Chinese name; tenant B sees none of A's.
@@ -23,4 +23,5 @@
 
 ## Verification evidence
 
-- (filled per task by the build sessions; one bullet per AC at T7)
+- T1: `drizzle-kit generate` after 0047 → "No schema changes"; `@kaki/db` integration 4 files / 189 tests pass (new `message-search-index.int.test.ts`: both extensions, `USING gin (tenant_id, body gin_trgm_ops)`); `@kaki/contracts` 14 files / 51 tests pass (`search.test.ts`: round-trip, 1 and 101 code points refused, emoji counted as one, extra key refused).
+- (T2–T7 below; one bullet per AC at T7)
