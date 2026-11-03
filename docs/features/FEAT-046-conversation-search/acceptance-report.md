@@ -5,7 +5,7 @@
 
 ## Verdict summary
 
-**Accepted** (2026-11-03). Every criterion AC-1..AC-7 has a test that asserts what it says (one AC-6 assertion was too weak and is corrected below), all local checks are green at `d08dca6` (the only red is the LocalStack-only `uploads.int`, unrelated), no existing test was weakened, and build note B1 holds against ADR-005 (Direct verification). INB-11 is accepted **partial**: message text (which finds emails and phones typed in chat) now, contact name/email/phone fields with FEAT-049 (D1, Ken 2026-11-03). GitHub CI: see CI.
+**Accepted** (2026-11-03). Every criterion AC-1..AC-7 has a test that asserts what it says (one AC-6 assertion was too weak and is corrected below), all local checks are green at `d08dca6`, one CI regression at 375 px was fixed (F2) (the only red is the LocalStack-only `uploads.int`, unrelated), no existing test was weakened, and build note B1 holds against ADR-005 (Direct verification). INB-11 is accepted **partial**: message text (which finds emails and phones typed in chat) now, contact name/email/phone fields with FEAT-049 (D1, Ken 2026-11-03). GitHub CI: see CI.
 
 ## Audit standard
 
@@ -49,6 +49,8 @@ All run fresh in this session through `scripts/test-env.sh scripts/check-summary
 ## Findings
 
 - F1 (fixed here, test artifact): AC-6 backslash assertion was vacuous; corrected above.
+- F2 (fixed here, CI run 99): `account.e2e` failed on Chromium and Firefox with `scrollWidth` 412 at 375 px (NFR-19 regression). The new top bar search button (36 px + gap) tipped a pre-existing fragility over: the topbar, a grid item with `min-width: auto`, widened the `1fr` track to its content instead of letting a long business name shrink. Fix in `app.css`: `min-width: 0` on `.topbar` and `.topbar__tenant`, so the name ellipsizes. Measured with a stubbed-API Playwright check: `/account` and `/inbox` at 375 → `scrollWidth` 375 (was 431 with a 26-character name); 1280 unchanged. A one-line CSS fix to keep CI green, recorded here rather than sent back as rework.
+- F3 (not this PR's): `widget-controls.e2e` "ends the chat by keyboard" failed once on Chromium (menu button focus), passed on Firefox; FEAT-046 doesn't touch the widget. Re-checked in the next CI run.
 - Note: `query_too_short` can't be reached over HTTP (Zod already collapses whitespace and masking only lengthens); kept as a guard and covered at the inbox layer. Not a defect.
 - Carried: INB-11 contact fields → FEAT-049 (D1, in pending-actions); a match older than the loaded 100 messages opens at the bottom (§8).
 
