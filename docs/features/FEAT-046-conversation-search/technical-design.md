@@ -120,6 +120,8 @@ Dev tenant: send a widget message with a unique token and an email, search it fr
 - The plan row's "Postgres FTS" is replaced by substring matching on `pg_trgm` (D2); recorded for the plan's next revision.
 - A conversation whose matching message is older than the thread's loaded 100 opens at the bottom (the excerpt shows the hit); jumping into older pages is left for later if staff ask.
 
+- Build note B1 (tasks.md): the search read goes through a SECURITY DEFINER `inbox_search_hits()` owned by NOLOGIN `kaki_inbox_search`, because RLS keeps the non-leakproof `ILIKE` from being an index condition.
+
 ## 9. Self-check
 
 - INB-11's clauses → AC-1 (message text), AC-2 (email, phone in text; contact fields D1), AC-3 (within the tenant), AC-4 (≤ 2 s at A1 for 12 months).

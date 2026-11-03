@@ -3735,3 +3735,71 @@ describe('suggestions (FEAT-045)', () => {
     await owner.query(`delete from corrections where proposed_change->>'kind' = 'reply_edit'`);
   });
 });
+
+// ---- FEAT-046: conversation search (FEAT-046 §4, build note B1; AC-3) ---------------------
+
+describe('inbox_search_hits (FEAT-046)', () => {
+  it("returns the current tenant's latest matching message per conversation only", async () => {
+    const seed = async (t: string, bodies: string[]) => {
+      const { rows } = await owner.query<{ id: string }>(
+        `insert into conversations (tenant_id, channel, visitor_id) values ($1, 'widget', gen_random_uuid()) returning id`,
+        [t],
+      );
+      const conv = rows[0]!.id;
+      for (const body of bodies)
+        await owner.query(
+          `insert into messages (tenant_id, conversation_id, author, body) values ($1, $2, 'visitor', $3)`,
+          [t, conv, body],
+        );
+      return conv;
+    };
+    const a = await seed(TENANT_A, ['zebrafind one', 'zebrafind two', 'other']);
+    const b = await seed(TENANT_B, ['zebrafind in b']);
+    const hits = (role: 'app_dashboard', t: string | null) =>
+      asRole(
+        role,
+        t,
+        async (c) =>
+          (
+            await c.query<{ tenant_id: string; conversation_id: string; body: string }>(
+              `select tenant_id, conversation_id, body from inbox_search_hits(array['%ZEBRAFIND%'])`,
+            )
+          ).rows,
+      );
+    try {
+      expect(await hits('app_dashboard', TENANT_A)).toEqual([
+        { tenant_id: TENANT_A, conversation_id: a, body: 'zebrafind two' },
+      ]);
+      expect(await hits('app_dashboard', TENANT_B)).toEqual([
+        { tenant_id: TENANT_B, conversation_id: b, body: 'zebrafind in b' },
+      ]);
+      expect(await hits('app_dashboard', null)).toEqual([]);
+      for (const role of ['app_agent_visitor', 'app_identity', 'app_outbox', 'app_ingest'] as const)
+        await expect(
+          asRole(role, TENANT_A, (c) => c.query(`select * from inbox_search_hits(array['%a%'])`)),
+        ).rejects.toThrow(/permission denied/);
+      const login = await owner.query(
+        `select rolcanlogin, rolbypassrls from pg_roles where rolname = 'kaki_inbox_search'`,
+      );
+      expect(login.rows).toEqual([{ rolcanlogin: false, rolbypassrls: false }]);
+      // The role reads only the columns search needs.
+      const cols = await owner.query<{ column_name: string }>(
+        `select column_name from information_schema.column_privileges
+         where grantee = 'kaki_inbox_search' and table_name = 'messages' and privilege_type = 'SELECT'
+         order by column_name`,
+      );
+      expect(cols.rows.map((r) => r.column_name)).toEqual([
+        'author',
+        'body',
+        'conversation_id',
+        'created_at',
+        'id',
+        'seq',
+        'tenant_id',
+      ]);
+    } finally {
+      await owner.query(`delete from messages where conversation_id = any($1::uuid[])`, [[a, b]]);
+      await owner.query(`delete from conversations where id = any($1::uuid[])`, [[a, b]]);
+    }
+  });
+});

@@ -112,7 +112,6 @@ export interface SearchQuery {
 }
 
 const c = schema.conversations;
-const m = schema.messages;
 
 /**
  * One page of the conversations with a message matching `q`, newest activity first,
@@ -128,23 +127,24 @@ export async function searchConversations(
   const terms = searchTerms(q.q);
   if (!terms) throw new QueryTooShortError('query too short');
   const after = q.cursor ? decodeCursor(q.cursor) : null;
-  const matches = sql.join(
-    terms.map((t) => sql`${m.body} ilike ${`%${escapeLike(t)}%`}`),
-    sql` or `,
+  const patterns = sql.join(
+    terms.map((t) => sql`${`%${escapeLike(t)}%`}`),
+    sql`, `,
   );
-  // The latest matching message per conversation (FEAT-049 unions contact hits here, D1).
+  // The latest matching message per conversation, through `inbox_search_hits` so the
+  // trigram index applies under RLS (0047, build note B1). FEAT-049 unions contact hits here (D1).
+  const fn = sql`inbox_search_hits(array[${patterns}]::text[])`;
   const hits = tx.$with('hits').as(
     tx
-      .selectDistinctOn([m.conversationId], {
-        conversationId: sql<string>`${m.conversationId}`.as('hit_conversation_id'),
-        messageId: sql<string>`${m.id}`.as('hit_message_id'),
-        author: sql<SearchMatch['author']>`${m.author}`.as('hit_author'),
-        body: sql<string>`${m.body}`.as('hit_body'),
-        at: sql<Date>`${m.createdAt}`.as('hit_at'),
+      .select({
+        tenantId: sql<string>`h.tenant_id`.as('hit_tenant_id'),
+        conversationId: sql<string>`h.conversation_id`.as('hit_conversation_id'),
+        messageId: sql<string>`h.message_id`.as('hit_message_id'),
+        author: sql<SearchMatch['author']>`h.author`.as('hit_author'),
+        body: sql<string>`h.body`.as('hit_body'),
+        at: sql<Date>`h.created_at`.as('hit_at'),
       })
-      .from(m)
-      .where(and(eq(m.tenantId, tenantId), sql`(${matches})`))
-      .orderBy(m.conversationId, desc(m.seq)),
+      .from(sql`${fn} h`),
   );
   const rows = await tx
     .with(hits)
@@ -165,6 +165,7 @@ export async function searchConversations(
     .where(
       and(
         eq(c.tenantId, tenantId),
+        eq(hits.tenantId, tenantId),
         after
           ? sql`(${c.lastMessageAt}, ${c.id}) < (${after.at}::timestamptz, ${after.id}::uuid)`
           : undefined,

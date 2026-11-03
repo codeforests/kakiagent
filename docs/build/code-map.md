@@ -21,7 +21,7 @@ Each layer has its own section below, so read only the ones a task touches: `gre
 ### Schema
 
 - Latest migrations: `0043`, FEAT-043's takeover: `conversation_owners`, `messages.author_user_id`/`author_name`, the dashboard's restrictive insert policy on `messages`; `0042` is FEAT-042's inbox lifecycle: status check, `version`, close columns, `messages.task_kinds`, `inbox_queue_auto_close()` owned by `kaki_inbox_timer`.
-- FEAT-046 adds `0047_message_search.sql` (`pg_trgm`, `btree_gin`, `messages_search_trgm_idx` on `(tenant_id, body gin_trgm_ops)`: substring search on message text).
+- FEAT-046 adds `0047_message_search.sql` (`pg_trgm`, `btree_gin`, `messages_search_trgm_idx` on `(tenant_id, body gin_trgm_ops)`: substring search on message text, read through SECURITY DEFINER `inbox_search_hits(patterns)` owned by NOLOGIN `kaki_inbox_search`). Lesson: under RLS a non-leakproof operator (`ILIKE`, `~`, `@@` on text) is never an index condition; a search that must use an index goes through such a function.
 - FEAT-045 adds `0046_suggestions.sql` (`suggestions`, dashboard zone only; `corrections_reply_edit_uq`).
 - FEAT-044 adds `0045_escalations.sql` (`escalations`, `escalation_routing`, `escalation_candidates()` for member IDs from the visitor zone, `inbox_queue_escalation_reminders()`).
 - `pnpm db:generate`, then add RLS, grants and checks by hand in the same or the next migration.
