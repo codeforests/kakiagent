@@ -73,6 +73,9 @@ beforeAll(async () => {
   fx.phone2 = await conv(TENANT_A, 31, [{ author: 'visitor', body: 'or 9123-4567 after 6' }]);
   fx.percent = await conv(TENANT_A, 40, [{ author: 'visitor', body: 'Is it 50% off today?' }]);
   fx.percentNot = await conv(TENANT_A, 41, [{ author: 'visitor', body: 'Is it 500 off today?' }]);
+  // AC-6: an unescaped `\b` would match a plain "ab"; only the literal backslash may match.
+  fx.backslash = await conv(TENANT_A, 42, [{ author: 'visitor', body: 'see folder a\\b please' }]);
+  fx.backslashNot = await conv(TENANT_A, 43, [{ author: 'visitor', body: 'a drab colour' }]);
   fx.chinese = await conv(TENANT_A, 50, [
     { author: 'visitor', body: '您好，我是陈美玲，想订蛋糕' },
   ]);
@@ -131,7 +134,7 @@ describe('matching rules (AC-2, AC-6)', () => {
   it('matches %, _ and \\ literally', async () => {
     expect(await ids(TENANT_A, '50%')).toEqual([fx.percent!.id]);
     expect(await ids(TENANT_A, 'it_5')).toEqual([]);
-    expect(await ids(TENANT_A, 'a\\b')).toEqual([]);
+    expect(await ids(TENANT_A, 'a\\b')).toEqual([fx.backslash!.id]);
   });
 
   it('finds a Chinese name and an NRIC by its masked token', async () => {
