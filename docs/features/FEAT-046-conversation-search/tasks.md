@@ -1,7 +1,7 @@
 # Tasks: FEAT-046 — Conversation search
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: designed (backend built T1–T4) · Last updated: 2026-11-03 (build, backend)
+> Status: developer-done · Last updated: 2026-11-03 (build, UI)
 
 - [x] T1 — Schema and contracts: `0047_message_search.sql` (`pg_trgm`, `btree_gin`, `messages_search_trgm_idx`) + the index in `schema.ts`; contracts section "conversation search" (`ConversationSearchRequest`, `SearchMatch`, `ConversationSearchResult`, `ConversationSearchResults`) (design §3, §4; AC-1, AC-6)
       Done when: `drizzle-kit generate` reports no drift after 0047; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes (migrations apply; the index exists with both columns); `pnpm --filter @kaki/contracts test` passes with round-trips, a 1-character and a 101-character `q` refused, an extra key refused.
@@ -19,7 +19,7 @@
 - [x] T6 — E2E `e2e/tests/inbox-search.e2e.ts` (design §5.5; AC-1, AC-3, AC-7)
       Done when: the spec is written and lints; it runs in the verify stage's GitHub CI.
       Note: no Docker in cloud sessions, so E2E and screen renders run in CI (STATE.md).
-- [ ] T7 — Verify: full `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `test:coverage` for db, inbox, api through `scripts/test-env.sh scripts/check-summary.sh`; tick tasks; status `developer-done`.
+- [x] T7 — Verify: full `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `test:coverage` for db, inbox, api through `scripts/test-env.sh scripts/check-summary.sh`; tick tasks; status `developer-done`.
 
 ## Verification evidence
 
@@ -29,7 +29,8 @@
 - T4: `@kaki/api` typechecks; `apps/api/test/search.int.test.ts` 7 tests pass: 200 with summaries and marked excerpts for owner and agent; email part; two pages by cursor; tenant B's session sees none of A's; 401 without a session; 400 `bad_request` for 1 and 101 characters, an extra `tenantId`, `limit: 0`, no `q`, a query that collapses to 1 character; 400 `bad_cursor`; a captured log stream (level debug) has the route's URL but not the query, the email or its parts. `query_too_short` can't be reached over HTTP today (Zod collapses the same whitespace and masking only lengthens), so the route keeps it as a guard and the inbox tests cover `QueryTooShortError`. Full `@kaki/api` integration: 31 of 32 files pass; `uploads.int.test.ts` (S3 presigner) needs a container runtime or `KAKI_TEST_S3_ENDPOINT`, not available here, unrelated. `testApp` takes an optional `logger` for the capture.
 - T5: `@kaki/dashboard` unit 205 tests pass (`search.test.ts`, 7: whitespace collapse, 2–100 code points incl. Chinese and emoji, marked parts and bad ranges dropped, author labels, status text, debounce and Enter commit, under 2 and reset end the search); dashboard typechecks and lints. Stubbed-API Playwright (Chromium, Vite dev server) at 1280 and 375: typing "jane" → 1 POST, body `{"q":"jane"}`, no `jane` in any request URL; tabs hidden; status "1 conversation matches"; excerpt "Visitor: Email me at jane@example.com please" with `mark` "jane"; Escape → field empty, tabs back, focus in the field; "zz" → "No conversations match “zz”"; a 500 → "Couldn't search conversations", field keeps "err"; opening the result → matched bubble `bubble--match`, centred inside the thread; at 1280 the results stay; at 375 Back → field "jane", 1 row, `scrollWidth` 375; top bar button from `/settings` → `/inbox` with focus in `inbox-search`; a repeat of "jane" within 30 s sent no new POST; local and session storage empty. `Row` moved to `pages/inbox-row.tsx` (shared by list and results).
 - T6: `e2e/tests/inbox-search.e2e.ts` written (word and email-part search with the POST body checked and no text in any URL, marked excerpt, open at the match, Escape, no results, 375 px Back keeps results and `scrollWidth` ≤ 375, top bar entry focuses the field, second tenant finds nothing, axe at 1280 and 375 tall); ESLint and `e2e` typecheck pass. Runs in the verify stage's GitHub CI (no Docker here).
-- (T7 below; one bullet per AC)
+- T7: through `scripts/test-env.sh scripts/check-summary.sh`: `pnpm format:check` PASS, `pnpm lint` PASS (incl. dependency-cruiser and the RTM check), `pnpm typecheck` PASS, `pnpm test` PASS (124 files, 1,497 tests); `@kaki/db test:coverage` PASS (190), `@kaki/inbox test:coverage` PASS (120); `@kaki/api test:coverage` 35 of 36 files pass, the one failure is `uploads.int.test.ts` (S3 presigner needs a container runtime, unavailable here; unrelated, as in T4).
+  - AC-1: T2 `search.int.test.ts`, T4 API test, T5/T6 marked excerpts and paging. AC-2: T2 (email part, phone in four spellings, NRIC token), T4 email part. AC-3: T2/T4 tenant A↔B, strict body; T6 second tenant. AC-4: T3 (worst 833 ms). AC-5: T4 log capture; T5/T6 text only in the POST body, never in a URL, storage empty. AC-6: T1 contracts, T2 escaping and too short, T4 400s and `bad_cursor`. AC-7: T5 stubbed Playwright at 1280/375; T6 E2E and axe in CI.
 
 ## Build notes
 
