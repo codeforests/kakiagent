@@ -1,7 +1,7 @@
 # Tasks: FEAT-046 — Conversation search
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: developer-done · Last updated: 2026-11-03 (build, UI)
+> Status: accepted · Last updated: 2026-11-03 (verify)
 
 - [x] T1 — Schema and contracts: `0047_message_search.sql` (`pg_trgm`, `btree_gin`, `messages_search_trgm_idx`) + the index in `schema.ts`; contracts section "conversation search" (`ConversationSearchRequest`, `SearchMatch`, `ConversationSearchResult`, `ConversationSearchResults`) (design §3, §4; AC-1, AC-6)
       Done when: `drizzle-kit generate` reports no drift after 0047; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes (migrations apply; the index exists with both columns); `pnpm --filter @kaki/contracts test` passes with round-trips, a 1-character and a 101-character `q` refused, an extra key refused.
