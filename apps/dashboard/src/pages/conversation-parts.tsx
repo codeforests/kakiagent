@@ -163,10 +163,13 @@ export function Bubble({
   message,
   facts,
   meId = null,
+  match = false,
 }: {
   message: ThreadMessage;
   facts: Map<string, FactChip>;
   meId?: string | null;
+  /** The message a search result opened at (FEAT-046). */
+  match?: boolean;
 }) {
   // A staff joined/left notice has no body: a caption row of what the visitor saw (FEAT-043).
   if (message.body === '' && message.notice)
@@ -182,12 +185,16 @@ export function Bubble({
       className={`thread-item thread-item--${side}`}
       data-author={message.author}
       data-testid="thread-message"
+      data-message-id={message.id}
+      data-match={match ? 'true' : undefined}
     >
       <div className="bubble-meta">
         <span>{authorLabel(message, meId)}</span>
         <time dateTime={message.createdAt}>{clockTime(message.createdAt)}</time>
       </div>
-      <div className={`bubble bubble--${message.author}`}>{message.body}</div>
+      <div className={`bubble bubble--${message.author}${match ? ' bubble--match' : ''}`}>
+        {message.body}
+      </div>
       {message.notice && <p className="bubble-notice">{message.notice}</p>}
       {message.author === 'agent' && <FactChips ids={message.factIds} facts={facts} />}
     </li>

@@ -1,5 +1,6 @@
 import {
   Account,
+  ConversationSearchResults,
   AiStatusResponse,
   DeviceSessionList,
   EmailChangeConfirmed,
@@ -272,6 +273,9 @@ export const api = {
     const qs = params.toString();
     return getJson(`/api/v1/conversations${qs ? `?${qs}` : ''}`, ConversationList);
   },
+  // Search (FEAT-046): a POST so the text never lands in a URL or a request log.
+  searchConversations: (body: { q: string; cursor?: string | undefined; limit?: number }) =>
+    request('POST', '/api/v1/conversations/search', ConversationSearchResults, body),
   conversation: (id: string) =>
     getJson(`/api/v1/conversations/${encodeURIComponent(id)}`, ConversationThread),
   conversationMessages: (id: string, before: number) =>

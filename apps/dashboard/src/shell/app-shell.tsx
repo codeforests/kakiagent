@@ -1,9 +1,11 @@
 import { SkipLink } from '@kaki/ui';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
-import { Navigate, NavLink, Outlet } from 'react-router';
+import { Navigate, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { useSetAiPaused } from '../lib/ai-status.ts';
 import { api } from '../lib/api.ts';
+import { useMedia } from '../lib/media.ts';
+import { focusInboxSearch } from '../lib/search.ts';
 import { Offline, TenantSuspended } from '../pages/system.tsx';
 import { AccountMenu } from './account-menu.tsx';
 import { AiStatusPill, KillSwitchDialog, type KillSwitchMode } from './ai-status.tsx';
@@ -30,6 +32,30 @@ function useOnline() {
     };
   }, []);
   return online;
+}
+
+/**
+ * The top bar's search entry (FEAT-046): to the inbox with focus in its search field. Where
+ * the field is already on screen (the inbox list, or any inbox page at ≥ 1024) it only
+ * moves focus.
+ */
+function SearchButton() {
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const twoPanes = useMedia('(min-width: 1024px)');
+  const onInbox = pathname === '/inbox' || (twoPanes && pathname.startsWith('/inbox/'));
+  return (
+    <button
+      type="button"
+      className="icon-button topbar__search"
+      aria-label="Search conversations"
+      onClick={() =>
+        onInbox ? focusInboxSearch() : void navigate('/inbox', { state: { focusSearch: true } })
+      }
+    >
+      <Icon name="search" />
+    </button>
+  );
 }
 
 /** The kill switch's toast. Not `useToast`: that one also shows a page's router-state toast. */
@@ -90,6 +116,7 @@ export function AppShell({ focused = false }: { focused?: boolean }) {
         )}
         <header className="topbar">
           <TenantSwitcher name={me.data?.tenant?.name} onLost={setLostWorkspace} />
+          {me.data?.tenant && <SearchButton />}
           <AiStatusPill
             ref={pillRef}
             role={me.data ? me.data.role : undefined}

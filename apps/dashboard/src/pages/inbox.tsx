@@ -1,4 +1,4 @@
-import type { ConversationSummary, InboxCounts, InboxView } from '@kaki/contracts';
+import type { InboxCounts, InboxView } from '@kaki/contracts';
 import { Button, EmptyState, ErrorState } from '@kaki/ui';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
@@ -8,12 +8,8 @@ import {
   CHANNEL_LABEL,
   COUNTS_KEY,
   flattenPages,
-  initials,
   listKey,
   MEMBERS_KEY,
-  ownerText,
-  escalationText,
-  rowTime,
   searchFromView,
   VIEW_LABEL,
   VIEWS,
@@ -21,8 +17,10 @@ import {
   type InboxFilter,
 } from '../lib/inbox.ts';
 import { inboxEvents, useLiveState, type LiveState } from '../lib/realtime.ts';
+import { useInboxSearch } from '../lib/search.ts';
 import { ConversationPane } from './conversation.tsx';
-import { FlaggedChip, StateChip, UrgentChip, VisitorAvatar } from './conversation-parts.tsx';
+import { Row } from './inbox-row.tsx';
+import { SearchField, SearchResults } from './inbox-search.tsx';
 
 const COUNT_OF: Partial<Record<InboxView, keyof InboxCounts>> = {
   open: 'open',
@@ -114,6 +112,7 @@ function InboxList({
 }) {
   const navigate = useNavigate();
   const announcement = useAnnouncement();
+  const search = useInboxSearch();
   const counts = useQuery({
     queryKey: COUNTS_KEY,
     queryFn: async () =>
@@ -152,129 +151,143 @@ function InboxList({
           Reconnecting. New messages will appear when the connection is back.
         </div>
       )}
-      <nav className="tabs inbox__views" aria-label="Views">
-        {VIEWS.map((v) => {
-          const key = COUNT_OF[v];
-          const n = key && counts.data ? counts.data[key] : 0;
-          const active = v === filter.view;
-          return (
-            <Link
-              key={v}
-              to={to({ ...filter, view: v })}
-              className="tabs__tab"
-              data-state={active ? 'active' : 'inactive'}
-              aria-current={active ? 'page' : undefined}
-            >
-              {VIEW_LABEL[v]}
-              {n > 0 && (
-                <span className="count-pill" data-testid={`count-${v}`}>
-                  {n}
-                </span>
-              )}
-            </Link>
-          );
-        })}
-      </nav>
-      <div className="inbox__filters">
-        <label className="field field--inline">
-          <span className="field__label">Channel</span>
-          <select
-            className="input"
-            value={filter.channel ?? ''}
-            onChange={(e) =>
-              void navigate(
-                to({ ...filter, channel: e.target.value === 'widget' ? 'widget' : null }),
-              )
-            }
-          >
-            <option value="">All channels</option>
-            <option value="widget">{CHANNEL_LABEL.widget}</option>
-          </select>
-        </label>
-        <label className="field field--inline">
-          <span className="field__label">Assigned to</span>
-          <select
-            className="input"
-            data-testid="assignee-filter"
-            aria-describedby="assignee-help"
-            value={filter.assignee ?? ''}
-            onChange={(e) => void navigate(to({ ...filter, assignee: e.target.value || null }))}
-          >
-            <option value="">Anyone</option>
-            <option value="me">Mine</option>
-            <option value="none">Unassigned</option>
-            {members.data?.members
-              .filter((m) => m.userId !== meId)
-              .map((m) => (
-                <option key={m.userId} value={m.userId}>
-                  {m.name}
-                </option>
-              ))}
-          </select>
-        </label>
-        <span id="assignee-help" className="sr-only">
-          Who has it, or who it was escalated to.
-        </span>
-      </div>
-      <div className="inbox__rows">
-        {list.isPending && (
-          <ul className="conversation-list" aria-busy="true" aria-label="Loading conversations">
-            {Array.from({ length: 6 }, (_, i) => (
-              <li key={i} className="conversation-row conversation-row--skeleton">
-                <span className="skeleton-line" />
-              </li>
-            ))}
-          </ul>
-        )}
-        {list.isError && !list.data && (
-          <ErrorState
-            title="Couldn't load conversations"
-            action={
-              <Button variant="secondary" onClick={() => void list.refetch()}>
-                Try again
-              </Button>
-            }
-          />
-        )}
-        {list.isSuccess && rows.length === 0 && (
-          <ListEmpty
-            filter={filter}
-            onClear={() => void navigate(to({ ...filter, channel: null, assignee: null }))}
-          />
-        )}
-        {rows.length > 0 && (
-          <ul
-            className="conversation-list"
-            aria-label="Conversations"
-            data-testid="conversation-list"
-          >
-            {rows.map((c) => (
-              <Row key={c.id} c={c} qs={qs} selected={c.id === selected} meId={meId} now={now} />
-            ))}
-          </ul>
-        )}
-        {list.hasNextPage && (
-          <div className="load-more">
-            <Button
-              variant="secondary"
-              className="load-more__button"
-              onClick={() => void list.fetchNextPage()}
-              disabled={list.isFetchingNextPage}
-            >
-              {list.isFetchingNextPage && <span className="spinner" aria-hidden="true" />}
-              Load more
-            </Button>
+      <SearchField />
+      {search.active ? (
+        <SearchResults qs={qs} selected={selected} meId={meId} now={now} />
+      ) : (
+        <>
+          <nav className="tabs inbox__views" aria-label="Views">
+            {VIEWS.map((v) => {
+              const key = COUNT_OF[v];
+              const n = key && counts.data ? counts.data[key] : 0;
+              const active = v === filter.view;
+              return (
+                <Link
+                  key={v}
+                  to={to({ ...filter, view: v })}
+                  className="tabs__tab"
+                  data-state={active ? 'active' : 'inactive'}
+                  aria-current={active ? 'page' : undefined}
+                >
+                  {VIEW_LABEL[v]}
+                  {n > 0 && (
+                    <span className="count-pill" data-testid={`count-${v}`}>
+                      {n}
+                    </span>
+                  )}
+                </Link>
+              );
+            })}
+          </nav>
+          <div className="inbox__filters">
+            <label className="field field--inline">
+              <span className="field__label">Channel</span>
+              <select
+                className="input"
+                value={filter.channel ?? ''}
+                onChange={(e) =>
+                  void navigate(
+                    to({ ...filter, channel: e.target.value === 'widget' ? 'widget' : null }),
+                  )
+                }
+              >
+                <option value="">All channels</option>
+                <option value="widget">{CHANNEL_LABEL.widget}</option>
+              </select>
+            </label>
+            <label className="field field--inline">
+              <span className="field__label">Assigned to</span>
+              <select
+                className="input"
+                data-testid="assignee-filter"
+                aria-describedby="assignee-help"
+                value={filter.assignee ?? ''}
+                onChange={(e) => void navigate(to({ ...filter, assignee: e.target.value || null }))}
+              >
+                <option value="">Anyone</option>
+                <option value="me">Mine</option>
+                <option value="none">Unassigned</option>
+                {members.data?.members
+                  .filter((m) => m.userId !== meId)
+                  .map((m) => (
+                    <option key={m.userId} value={m.userId}>
+                      {m.name}
+                    </option>
+                  ))}
+              </select>
+            </label>
+            <span id="assignee-help" className="sr-only">
+              Who has it, or who it was escalated to.
+            </span>
           </div>
-        )}
-        {list.isFetchNextPageError && (
-          <div className="alert alert--danger" role="alert">
-            Couldn't load more conversations.{' '}
-            <Button variant="ghost" onClick={() => void list.fetchNextPage()}>
-              Try again
-            </Button>
+          <div className="inbox__rows">
+            {list.isPending && (
+              <ul className="conversation-list" aria-busy="true" aria-label="Loading conversations">
+                {Array.from({ length: 6 }, (_, i) => (
+                  <li key={i} className="conversation-row conversation-row--skeleton">
+                    <span className="skeleton-line" />
+                  </li>
+                ))}
+              </ul>
+            )}
+            {list.isError && !list.data && (
+              <ErrorState
+                title="Couldn't load conversations"
+                action={
+                  <Button variant="secondary" onClick={() => void list.refetch()}>
+                    Try again
+                  </Button>
+                }
+              />
+            )}
+            {list.isSuccess && rows.length === 0 && (
+              <ListEmpty
+                filter={filter}
+                onClear={() => void navigate(to({ ...filter, channel: null, assignee: null }))}
+              />
+            )}
+            {rows.length > 0 && (
+              <ul
+                className="conversation-list"
+                aria-label="Conversations"
+                data-testid="conversation-list"
+              >
+                {rows.map((c) => (
+                  <Row
+                    key={c.id}
+                    c={c}
+                    qs={qs}
+                    selected={c.id === selected}
+                    meId={meId}
+                    now={now}
+                  />
+                ))}
+              </ul>
+            )}
+            {list.hasNextPage && (
+              <div className="load-more">
+                <Button
+                  variant="secondary"
+                  className="load-more__button"
+                  onClick={() => void list.fetchNextPage()}
+                  disabled={list.isFetchingNextPage}
+                >
+                  {list.isFetchingNextPage && <span className="spinner" aria-hidden="true" />}
+                  Load more
+                </Button>
+              </div>
+            )}
+            {list.isFetchNextPageError && (
+              <div className="alert alert--danger" role="alert">
+                Couldn't load more conversations.{' '}
+                <Button variant="ghost" onClick={() => void list.fetchNextPage()}>
+                  Try again
+                </Button>
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </>
+      )}
       <div className="sr-only" aria-live="polite">
         {announcement}
       </div>
@@ -318,61 +331,4 @@ function useMinuteNow(): Date {
     return () => clearInterval(timer);
   }, []);
   return now;
-}
-
-function Row({
-  c,
-  qs,
-  selected,
-  meId,
-  now,
-}: {
-  c: ConversationSummary;
-  qs: string;
-  selected: boolean;
-  meId: string | null;
-  now: Date;
-}) {
-  const owner = c.owner ? ownerText(c.owner, meId) : null;
-  const escalation = escalationText(c, meId, now);
-  return (
-    <li data-testid="conversation-row" data-id={c.id}>
-      <Link
-        to={`/inbox/${c.id}${qs}`}
-        className="conversation-row"
-        aria-current={selected ? 'true' : undefined}
-      >
-        <VisitorAvatar label="Website visitor" channel={c.channel} />
-        <span className="conversation-row__main">
-          <span className="conversation-row__title">Website visitor</span>
-          <span className="conversation-row__preview" data-testid="conversation-preview">
-            {c.lastMessage ?? 'No messages yet'}
-          </span>
-          {owner && (
-            <span className="conversation-row__owner" data-testid="conversation-owner">
-              <span className="avatar avatar--xs" aria-hidden="true">
-                {initials(owner).slice(0, 1)}
-              </span>
-              <span className="sr-only">Handled by </span>
-              {owner}
-            </span>
-          )}
-          {escalation && (
-            <span className="conversation-row__owner" data-testid="conversation-escalation">
-              <span className="sr-only">Escalated: </span>
-              {escalation}
-            </span>
-          )}
-        </span>
-        <span className="conversation-row__meta">
-          <time dateTime={c.lastMessageAt}>{rowTime(c.lastMessageAt)}</time>
-          <span className="conversation-row__chips">
-            {c.flaggedAt && <FlaggedChip />}
-            <StateChip status={c.status} />
-            {c.escalation?.urgent && <UrgentChip />}
-          </span>
-        </span>
-      </Link>
-    </li>
-  );
 }
