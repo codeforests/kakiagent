@@ -1,5 +1,5 @@
 # Handoff: FEAT-046 — Conversation search
-Branch: feat/FEAT-046-conversation-search · PR: (draft, see thread) · Updated: 2026-11-03 by build (UI)
+Branch: feat/FEAT-046-conversation-search · PR: https://github.com/codeforests/kakiagent/pull/52 (draft) · Updated: 2026-11-03 by build (UI)
 Stage done: build (T1–T7 of 7), status developer-done
 Next: verify — kickoff: "Verify FEAT-046 on branch feat/FEAT-046-conversation-search.
 Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
