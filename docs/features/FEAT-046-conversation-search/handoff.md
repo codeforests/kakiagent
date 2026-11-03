@@ -17,4 +17,4 @@ Then: build (UI, T5–T7) — kickoff: "Build FEAT-046 (UI) on branch feat/FEAT-
 - E2E (`inbox-search.e2e.ts`) and screen renders run in the verify stage's GitHub CI.
 
 ## Pending for Ken
-- Decision card: contact-field search now vs in FEAT-049 (recommended: message text now, contacts in FEAT-049). The design follows the recommendation; if Ken picks "Build FEAT-049 first", pause this build and redesign after FEAT-049. Also in /mnt/project-files/pending-actions.md.
+- None. D1 decided 2026-11-03: Ken chose message text now, contact fields in FEAT-049.
