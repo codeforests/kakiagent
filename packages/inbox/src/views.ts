@@ -21,8 +21,8 @@ import { escalationsOf, toOpenEscalation } from './escalation.js';
 export type OwnerNames = (userIds: string[]) => Promise<Map<string, string>>;
 const UNNAMED = 'A team member';
 
-/** Owners and open escalations of a page, named in one call (FEAT-043 §5.3, FEAT-044 §5.1). */
-async function namedPeople(
+/** Owners and open escalations of a page, named in one call (FEAT-043 §5.3, FEAT-044 §5.1; FEAT-046 search). */
+export async function namedPeople(
   tx: Tx,
   tenantId: string,
   ids: readonly string[],
