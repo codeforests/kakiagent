@@ -84,11 +84,11 @@ beforeAll(async () => {
   }
   await owner.query('vacuum analyze messages');
   await owner.query('vacuum analyze conversations');
-  console.log(`seeded in ${Date.now() - t} ms`);
+  console.warn(`seeded in ${Date.now() - t} ms`);
 }, 600_000);
 
 afterAll(async () => {
-  console.log(`search timings (worst of 3, ms): ${JSON.stringify(timings)}`);
+  console.warn(`search timings (worst of 3, ms): ${JSON.stringify(timings)}`);
   await owner?.end();
   await tdb?.stop();
 });
@@ -157,7 +157,7 @@ describe('search at A1 volume (AC-4)', () => {
       await owner.query('rollback');
       const plan = (r.rows as { 'QUERY PLAN': string }[]).map((x) => x['QUERY PLAN']);
       const lines = plan.filter((l) => /Index Cond|Bitmap Index|Seq Scan|Execution Time/.test(l));
-      console.log(`plan for ${q === RARE_EMAIL ? 'rare email' : q}:\n${lines.join('\n')}`);
+      console.warn(`plan for ${q === RARE_EMAIL ? 'rare email' : q}:\n${lines.join('\n')}`);
       // A 2-character query has no trigram to look up, so it reads the tenant's rows (still ≤ 2 s).
       if (q === '美玲') continue;
       expect(plan.some((l) => /messages_search_trgm_idx/.test(l))).toBe(true);
@@ -166,6 +166,6 @@ describe('search at A1 volume (AC-4)', () => {
     const lc = await owner.query(
       `select datctype from pg_database where datname = current_database()`,
     );
-    console.log(`lc_ctype: ${lc.rows[0].datctype}`);
+    console.warn(`lc_ctype: ${lc.rows[0].datctype}`);
   });
 });
