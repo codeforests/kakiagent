@@ -1,0 +1,13 @@
+{
+  "extraKnownMarketplaces": {
+    "context-mode": {
+      "source": {
+        "source": "git",
+        "url": "https://github.com/mksglu/context-mode.git"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "context-mode@context-mode": true
+  }
+}
