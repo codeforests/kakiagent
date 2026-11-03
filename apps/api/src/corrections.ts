@@ -25,7 +25,7 @@ import {
 } from '@kaki/contracts';
 import { withTenant, type Tx } from '@kaki/db';
 import { can } from '@kaki/identity';
-import { messagesUpTo } from '@kaki/inbox';
+import { getMessage, getSuggestion, messagesUpTo, suggestionQuestions } from '@kaki/inbox';
 import {
   acceptCorrection,
   correctionFactInput,
@@ -35,6 +35,7 @@ import {
   dashboardKb,
   dismissCorrection,
   editedChange,
+  factChips,
   FactNotFoundError,
   getCorrection,
   getFact,
@@ -77,6 +78,7 @@ export function toItem(
   c: CorrectionRecord,
   facts: CorrectionFactView[],
   gap: CorrectionItem['gap'] = null,
+  replyEdit: CorrectionItem['replyEdit'] = null,
 ): CorrectionItem {
   return {
     id: c.id,
@@ -92,6 +94,7 @@ export function toItem(
     decidedAt: iso(c.decidedAt),
     closedBySystem: c.status === 'dismissed' && c.decidedBy === null,
     gap,
+    replyEdit,
   };
 }
 
@@ -107,10 +110,55 @@ async function gapSummaries(tx: Tx, tenantId: string, items: CorrectionRecord[])
   );
 }
 
+/** The visitor question behind each staff-edit item, for the list row (FEAT-045); null when gone. */
+async function replyEditSummaries(tx: Tx, tenantId: string, items: CorrectionRecord[]) {
+  const edits = items.flatMap((c) =>
+    c.change.kind === 'reply_edit' ? [{ id: c.id, suggestionId: c.change.suggestionId }] : [],
+  );
+  const questions = await suggestionQuestions(
+    tx,
+    tenantId,
+    edits.map((e) => e.suggestionId),
+  );
+  return new Map<string, CorrectionItem['replyEdit']>(
+    edits.map((e) => {
+      const question = questions.get(e.suggestionId);
+      return [e.id, question === undefined ? null : { question }];
+    }),
+  );
+}
+
 async function itemOf(tx: Tx, tenantId: string, c: CorrectionRecord): Promise<CorrectionItem> {
   const facts = await correctionFacts({ tx, tenantId }, [c]);
   const gaps = await gapSummaries(tx, tenantId, [c]);
-  return toItem(c, facts.get(c.id) ?? [], gaps.get(c.id) ?? null);
+  const edits = await replyEditSummaries(tx, tenantId, [c]);
+  return toItem(c, facts.get(c.id) ?? [], gaps.get(c.id) ?? null, edits.get(c.id) ?? null);
+}
+
+/**
+ * A staff edit's question, draft and sent reply side by side (FEAT-045 §5.3); null when the
+ * suggestion, the sent message or the question is gone (the chat was deleted).
+ */
+async function replyEditContext(
+  tx: Tx,
+  tenantId: string,
+  suggestionId: string,
+): Promise<CorrectionContext['replyEdit']> {
+  const s = await getSuggestion(tx, tenantId, suggestionId);
+  if (!s || s.body === null || !s.sentMessageId || !s.usedAt) return null;
+  const [question, sent] = await Promise.all([
+    getMessage(tx, tenantId, s.forMessageId),
+    getMessage(tx, tenantId, s.sentMessageId),
+  ]);
+  if (!question || !sent) return null;
+  return {
+    question: question.body,
+    suggested: s.body,
+    sent: sent.body,
+    suggestedAt: s.createdAt.toISOString(),
+    sentAt: sent.createdAt.toISOString(),
+    facts: await factChips(tx, tenantId, s.factIds),
+  };
 }
 
 function toTurn(t: CorrectionReplayTurnRow, replayed: CorrectionReplayTurn['replayed']) {
@@ -160,7 +208,12 @@ async function contextOf(
   }
   // A coverage gap shows its asked questions instead of one conversation (FEAT-019 §3).
   if (c.sourceType === 'coverage_gap')
-    return { coaching, conversation: null, gap: await gapContext(tx, tenantId, c.id) };
+    return {
+      coaching,
+      conversation: null,
+      gap: await gapContext(tx, tenantId, c.id),
+      replyEdit: null,
+    };
   const conversation = c.conversationRef
     ? (
         await messagesUpTo(tx, {
@@ -176,7 +229,11 @@ async function contextOf(
         createdAt: m.createdAt.toISOString(),
       }))
     : null;
-  return { coaching, conversation, gap: null };
+  const replyEdit =
+    c.change.kind === 'reply_edit'
+      ? await replyEditContext(tx, tenantId, c.change.suggestionId)
+      : null;
+  return { coaching, conversation, gap: null, replyEdit };
 }
 
 /**
@@ -252,9 +309,10 @@ export function registerCorrectionRoutes(
       const page = await listCorrections({ tx, tenantId: s.tenantId }, q.data);
       const facts = await correctionFacts({ tx, tenantId: s.tenantId }, page.corrections);
       const gaps = await gapSummaries(tx, s.tenantId, page.corrections);
+      const edits = await replyEditSummaries(tx, s.tenantId, page.corrections);
       return CorrectionList.parse({
         corrections: page.corrections.map((c) =>
-          toItem(c, facts.get(c.id) ?? [], gaps.get(c.id) ?? null),
+          toItem(c, facts.get(c.id) ?? [], gaps.get(c.id) ?? null, edits.get(c.id) ?? null),
         ),
         nextCursor: page.nextCursor,
       });

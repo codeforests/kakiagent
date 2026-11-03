@@ -1,4 +1,10 @@
 import {
+  NothingToAnswerError,
+  suggestReply,
+  SuggestPausedError,
+  TooManySuggestionsError,
+} from '@kaki/agent';
+import {
   CloseConversationBody,
   CloseConversationResponse,
   ConversationList,
@@ -8,6 +14,8 @@ import {
   InboxMembers,
   StaffMessageBody,
   StaffMessageResponse,
+  SuggestionRequest,
+  SuggestionResponse,
   TakeOverBody,
   TakeoverResult,
   ThreadPage,
@@ -27,6 +35,7 @@ import {
   ConversationNotFoundError,
   conversationSummary,
   getConversation,
+  getMessage,
   getThread,
   handBack,
   IllegalTransitionError,
@@ -37,6 +46,7 @@ import {
   NotOwnedError,
   NotOwnerError,
   OwnedError,
+  recordSuggestionUse,
   requestHandover,
   sendStaffMessage,
   sidebarFacts,
@@ -49,10 +59,11 @@ import {
   type ConversationRow,
   type OwnerNames,
 } from '@kaki/inbox';
-import { factChips } from '@kaki/kb';
+import { dashboardKb, factChips, proposeReplyEdit } from '@kaki/kb';
 import { channels } from '@kaki/platform';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { TenantSession } from './auth.js';
+import { widgetLive } from './channels.js';
 import { ForbiddenError } from './facts.js';
 import type { App, Deps } from './server.js';
 
@@ -376,6 +387,24 @@ export function registerInboxRoutes(
           body: parsed.data.body,
           clientMessageId: parsed.data.clientMessageId,
         });
+        // FEAT-045 §5.4: a draft's use is recorded once, with the send; a retry does nothing.
+        const suggestionId = parsed.data.suggestionId;
+        if (r.created && suggestionId) {
+          const use = await recordSuggestionUse(tx, {
+            tenantId: t,
+            conversationId: id,
+            userId: s.userId,
+            suggestionId,
+            message: r.message,
+          });
+          if (use.used && use.edited)
+            await proposeReplyEdit(dashboardKb(tx, t, s.userId), {
+              conversationId: id,
+              suggestionId,
+              factIds: use.factIds,
+            });
+          else if (use.used) r.message = { ...r.message, factIds: use.factIds };
+        }
         return { ...r, summary: (await conversationSummary(tx, t, id, namesIn(t)))! };
       });
     } catch (err) {
@@ -435,6 +464,70 @@ export function registerInboxRoutes(
       if (summary)
         await notify([channels.inbox(t)], { type: 'conversation', conversation: summary });
       return reply.code(202).send({});
+    },
+  );
+
+  /**
+   * A suggested reply for the owner's composer (INB-03; FEAT-045 §5.4): synchronous, like
+   * replay (D1). Nothing is sent, published or stored as a message.
+   */
+  app.post<{ Params: { id: string } }>(
+    '/api/v1/conversations/:id/suggestion',
+    async (req, reply) => {
+      const s = await replier(req);
+      const id = conversationIdOf(req);
+      if (!SuggestionRequest.safeParse(req.body ?? {}).success)
+        return reply.code(422).send({ error: 'validation', message: 'Nothing to send here.' });
+      const t = s.tenantId;
+      let row;
+      try {
+        row = await suggestReply(
+          { zdb: dashboardDb, llm: deps.llm, channelLive: widgetLive(dashboardDb, t) },
+          { tenantId: t, conversationId: id, userId: s.userId },
+        );
+      } catch (err) {
+        if (err instanceof ConversationNotFoundError) throw new NotFoundError('not found');
+        if (err instanceof NotOwnerError)
+          return reply.code(409).send({
+            error: 'not_owner',
+            message: "You aren't handling this conversation.",
+            conversation: await summaryOf(t, id, err.conversation),
+          });
+        if (err instanceof SuggestPausedError)
+          return reply.code(409).send({
+            error: 'ai_paused',
+            message: "The assistant is paused, so it can't suggest replies.",
+          });
+        if (err instanceof NothingToAnswerError)
+          return reply.code(409).send({
+            error: 'nothing_to_answer',
+            message: "There's no customer message to answer yet.",
+          });
+        if (err instanceof TooManySuggestionsError)
+          return reply.code(429).header('Retry-After', String(err.retryAfterS)).send({
+            error: 'too_many_suggestions',
+            message: 'Too many suggestions for this conversation. Try again later.',
+          });
+        throw err;
+      }
+      const ready = row.outcome === 'ready' && row.body !== null;
+      const suggestion = ready
+        ? await withTenant(dashboardDb, t, async (tx) => ({
+            id: row.id,
+            text: row.body!,
+            facts: await factChips(tx, t, row.factIds),
+            forMessageId: row.forMessageId,
+            forSeq: (await getMessage(tx, t, row.forMessageId))!.seq,
+            language: row.language,
+            createdAt: row.createdAt.toISOString(),
+          }))
+        : null;
+      return reply.code(201).send(
+        SuggestionResponse.parse({
+          suggestion,
+          none: ready ? null : row.outcome,
+        }),
+      );
     },
   );
 

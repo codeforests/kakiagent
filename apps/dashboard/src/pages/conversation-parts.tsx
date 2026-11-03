@@ -35,6 +35,7 @@ const GLYPHS = {
   'more-horizontal': 'M12 12h.01M19 12h.01M5 12h.01',
   chat: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z',
   'chevron-down': 'M6 9l6 6 6-6',
+  spark: 'M12 3l1.9 5.8L20 11l-6.1 2.2L12 19l-1.9-5.8L4 11l6.1-2.2z',
 } as const;
 export type GlyphName = keyof typeof GLYPHS;
 
@@ -109,7 +110,7 @@ const FACT_STATUS_TEXT: Partial<Record<FactChip['status'], string>> = {
   needs_review: 'needs review',
 };
 
-function FactLink({ fact, uses }: { fact: FactChip; uses?: number }) {
+export function FactLink({ fact, uses }: { fact: FactChip; uses?: number }) {
   const status = FACT_STATUS_TEXT[fact.status];
   return (
     <Link className="fact-chip" to={`/knowledge/facts/${fact.id}`} data-testid="fact-chip">

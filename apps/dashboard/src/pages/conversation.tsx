@@ -25,6 +25,7 @@ import {
   StateChip,
   VisitorAvatar,
 } from './conversation-parts.tsx';
+import { latestVisitorSeq } from '../lib/suggestion.ts';
 import { useDockActions } from '../lib/takeover.ts';
 import { ThreadDock } from './takeover-dock.tsx';
 
@@ -242,7 +243,13 @@ export function ConversationPane({ id, backTo }: { id: string; backTo: string })
           onEarlier={() => messages[0] && loadEarlier.mutate(messages[0].seq)}
           meId={me.data?.user.id ?? null}
         />
-        <ThreadDock conversation={c} me={me.data} actions={dock} phone={phone} />
+        <ThreadDock
+          conversation={c}
+          me={me.data}
+          actions={dock}
+          phone={phone}
+          latestVisitorSeq={latestVisitorSeq(messages)}
+        />
       </div>
       {wide ? (
         <aside className="conversation__sidebar" aria-label="Conversation details">

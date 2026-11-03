@@ -49,6 +49,8 @@ import {
   InboxMembers,
   EscalationRouting,
   StaffMessageResponse,
+  type StaffMessageBody,
+  SuggestionResponse,
   TakeoverResult,
   type InboxView,
   CreateWorkspaceResponse,
@@ -161,11 +163,13 @@ async function send(
       message?: string;
     } & Record<string, unknown>;
     if (res.status === 401) throw new UnauthorizedError(err.error ?? 'unauthorized');
+    // A 429's wait (FEAT-045) rides along with the body's details.
+    const retryAfter = Number(res.headers.get('retry-after'));
     throw new ApiError(
       res.status,
       err.error ?? 'error',
       err.message ?? `${path}: ${res.status}`,
-      err,
+      retryAfter > 0 ? { ...err, retryAfterS: retryAfter } : err,
     );
   }
   return res;
@@ -294,12 +298,20 @@ export const api = {
     request('POST', `/api/v1/conversations/${encodeURIComponent(id)}/handback`, TakeoverResult, {
       version,
     }),
-  sendStaffMessage: (id: string, body: string, clientMessageId: string) =>
+  sendStaffMessage: (id: string, body: StaffMessageBody) =>
     request(
       'POST',
       `/api/v1/conversations/${encodeURIComponent(id)}/messages`,
       StaffMessageResponse,
-      { body, clientMessageId },
+      body,
+    ),
+  // Suggest a reply (FEAT-045 §3): a draft for the owner's composer, never sent.
+  suggestReply: (id: string) =>
+    request(
+      'POST',
+      `/api/v1/conversations/${encodeURIComponent(id)}/suggestion`,
+      SuggestionResponse,
+      {},
     ),
   requestHandover: async (id: string) =>
     void (await send('POST', `/api/v1/conversations/${encodeURIComponent(id)}/handover-request`)),

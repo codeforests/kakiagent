@@ -25,6 +25,7 @@ import {
   effectiveChange,
   factEdit,
   isGap,
+  isStaffEdit,
   itemSummary,
   matchedCaption,
   noReplayCaption,
@@ -239,13 +240,19 @@ export function CorrectionPage() {
   const change = effectiveChange(item);
   const reconfirm = item.change.kind === 'reconfirm';
   const gap = isGap(item);
+  // A staff edit (FEAT-045) is settled by an FAQ like a gap, prefilled with the sent reply.
+  const staff = isStaffEdit(item);
+  const replyEdit = data.context.replyEdit;
+  const asFaq = gap || staff;
   const busy = accept.isPending || close.isPending;
   const fact = factQuery.data?.fact;
 
   return (
     <div className="replay-page correction-page">
       <Back />
-      <h1 className="page-title">{itemSummary(item)}</h1>
+      <h1 className="page-title">
+        {staff && open ? 'Staff improved a suggested reply' : itemSummary(item)}
+      </h1>
       <p className="correction-page__meta">
         <span className={`chip chip--${sourceTone(item.source)}`}>{SOURCE_LABEL[item.source]}</span>
         <span>Suggested {relativeTime(item.createdAt)}</span>
@@ -294,7 +301,9 @@ export function CorrectionPage() {
 
       {open && <Origin item={item} detail={data} intervals={intervals.data?.intervals} />}
 
-      {!gap && (
+      {staff && open && <WhatChanged replyEdit={replyEdit} botName={botName} />}
+
+      {!asFaq && (
         <section className="correction-section" aria-labelledby="facts-involved">
           <h2 id="facts-involved" className="correction-section__title">
             Facts involved
@@ -337,17 +346,32 @@ export function CorrectionPage() {
         <h2 id="proposed-fix" className="correction-section__title">
           {open ? 'Proposed fix' : 'The fix'}
         </h2>
-        {item.status === 'edited_and_accepted' && !gap && (
+        {item.status === 'edited_and_accepted' && !asFaq && (
           <p className="field__help">Edited before accepting</p>
         )}
-        {gap && open ? (
+        {staff && open ? (
+          replyEdit ? (
+            <>
+              <p>Add an FAQ from the team's reply</p>
+              <FixDiff
+                change={{ kind: 'add_faq', question: replyEdit.question, answer: replyEdit.sent }}
+                current={null}
+              />
+              <p className="field__help">
+                Edit it before adding: keep the answer general, without names or order details.
+              </p>
+            </>
+          ) : (
+            <p className="field__help">Nothing to add: close this item.</p>
+          )
+        ) : gap && open ? (
           <p className="field__help">
             Write an answer to add as an FAQ. Nothing changes until you save it.
           </p>
         ) : (
           <FixDiff change={change} current={fact ? factValue(fact) : null} />
         )}
-        {item.acceptedChange && !gap && (
+        {item.acceptedChange && !asFaq && (
           <details className="correction-original">
             <summary>Show the original suggestion</summary>
             <FixDiff change={item.change} current={null} />
@@ -356,26 +380,30 @@ export function CorrectionPage() {
         {open && (
           <>
             <div className="coach-proposal__actions">
-              <Button
-                onClick={() => {
-                  if (!gap) return accept.mutate(null);
-                  accept.reset();
-                  setEditing(true);
-                }}
-                disabled={busy}
-                aria-busy={(accept.isPending && !editing && !gap) || undefined}
-              >
-                {gap
-                  ? 'Add an FAQ'
-                  : accept.isPending && !editing
-                    ? reconfirm
-                      ? 'Re-confirming…'
-                      : 'Accepting…'
-                    : reconfirm
-                      ? 'Re-confirm'
-                      : 'Accept'}
-              </Button>
-              {item.change.kind !== 'edit_hours' && !gap && (
+              {!(staff && !replyEdit) && (
+                <Button
+                  onClick={() => {
+                    if (!asFaq) return accept.mutate(null);
+                    accept.reset();
+                    setEditing(true);
+                  }}
+                  disabled={busy}
+                  aria-busy={(accept.isPending && !editing && !asFaq) || undefined}
+                >
+                  {staff
+                    ? 'Add as FAQ'
+                    : gap
+                      ? 'Add an FAQ'
+                      : accept.isPending && !editing
+                        ? reconfirm
+                          ? 'Re-confirming…'
+                          : 'Accepting…'
+                        : reconfirm
+                          ? 'Re-confirm'
+                          : 'Accept'}
+                </Button>
+              )}
+              {item.change.kind !== 'edit_hours' && !asFaq && (
                 <Button
                   variant="secondary"
                   onClick={() => {
@@ -417,10 +445,15 @@ export function CorrectionPage() {
         />
       )}
 
-      {gap ? (
+      {asFaq ? (
         <AddFaqDialog
           open={editing}
-          question={data.context.gap?.questions[0]?.body ?? item.gap?.question ?? ''}
+          question={
+            staff
+              ? (replyEdit?.question ?? item.replyEdit?.question ?? '')
+              : (data.context.gap?.questions[0]?.body ?? item.gap?.question ?? '')
+          }
+          answer={staff ? (replyEdit?.sent ?? '') : ''}
           caption={item.gap ? gapCaption(item.gap.asksTotal) : undefined}
           busy={accept.isPending}
           error={
@@ -469,7 +502,9 @@ function Origin({
   const botName = useBotName();
   const { coaching, conversation, gap } = detail.context;
   const change = item.change;
-  if (change.kind !== 'reconfirm' && !coaching && !conversation?.length && !gap) return null;
+  const openLink = change.kind === 'reply_edit' && item.conversationId;
+  if (change.kind !== 'reconfirm' && !coaching && !conversation?.length && !gap && !openLink)
+    return null;
   return (
     <section className="correction-section" aria-labelledby="came-from">
       <h2 id="came-from" className="correction-section__title">
@@ -533,6 +568,75 @@ function Origin({
             </div>
           ))}
         </div>
+      )}
+      {openLink && <Link to={`/inbox/${item.conversationId}`}>Open conversation</Link>}
+    </section>
+  );
+}
+
+/** A staff edit's question, the suggestion and the sent reply side by side (FEAT-045 ui-design). */
+function WhatChanged({
+  replyEdit,
+  botName,
+}: {
+  replyEdit: CorrectionDetail['context']['replyEdit'];
+  botName: string;
+}) {
+  return (
+    <section className="correction-section" aria-labelledby="what-changed">
+      <h2 id="what-changed" className="correction-section__title">
+        What changed
+      </h2>
+      {replyEdit ? (
+        <div className="answer-compare" data-testid="reply-edit">
+          <div className="coach-bubble coach-bubble--visitor">
+            <span className="coach-bubble__who">Customer</span>
+            <p className="coach-bubble__text">{replyEdit.question}</p>
+          </div>
+          <ul className="answer-compare__columns reply-edit__columns">
+            <li>
+              <article className="answer-compare__column" aria-labelledby="reply-edit-suggested">
+                <h3 id="reply-edit-suggested" className="answer-compare__heading">
+                  The assistant suggested · {relativeTime(replyEdit.suggestedAt)}
+                </h3>
+                <div
+                  className="coach-bubble reply-edit__suggested"
+                  data-testid="reply-edit-suggested"
+                >
+                  <span className="coach-bubble__who">{botName} · AI suggestion</span>
+                  <p className="coach-bubble__text">{replyEdit.suggested}</p>
+                </div>
+                {replyEdit.facts.length > 0 && (
+                  <ul className="fact-chips" aria-label="Facts the suggestion used">
+                    {replyEdit.facts.map((f) => (
+                      <li key={f.id}>
+                        <Link className="fact-chip" to={`/knowledge/facts/${f.id}`}>
+                          {f.label}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <p className="field__help">
+                  If a fact here is wrong, fix it from the fact, then close this item.
+                </p>
+              </article>
+            </li>
+            <li>
+              <article className="answer-compare__column" aria-labelledby="reply-edit-sent">
+                <h3 id="reply-edit-sent" className="answer-compare__heading">
+                  The team sent · {relativeTime(replyEdit.sentAt)}
+                </h3>
+                <div className="coach-bubble reply-edit__sent" data-testid="reply-edit-sent">
+                  <span className="coach-bubble__who">Staff</span>
+                  <p className="coach-bubble__text">{replyEdit.sent}</p>
+                </div>
+              </article>
+            </li>
+          </ul>
+        </div>
+      ) : (
+        <p className="field__help">The chat this came from was deleted.</p>
       )}
     </section>
   );

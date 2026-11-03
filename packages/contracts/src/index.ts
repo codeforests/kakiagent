@@ -1359,6 +1359,11 @@ export const ProposedChange = z.discriminatedUnion('kind', [
    * question text; accepting it needs an `add_faq` edit with the owner's FAQ.
    */
   z.object({ kind: z.literal('answer_gap') }),
+  /**
+   * A staff member edited an AI-suggested reply before sending it (KB-18, FEAT-045 D6): no
+   * text (it stays on the suggestion and the message); accepted only with an `add_faq` edit.
+   */
+  z.object({ kind: z.literal('reply_edit'), suggestionId: z.uuid() }),
   /** A stale fact (KB-17, FEAT-018): accepting it re-confirms the fact and changes no value. */
   z.object({
     kind: z.literal('reconfirm'),
@@ -1500,6 +1505,14 @@ export const CorrectionSource = z.enum([
 ]);
 export type CorrectionSource = z.infer<typeof CorrectionSource>;
 /** Each fact a correction refers to, as it is now. */
+/** A fact cited by a reply (FEAT-042; also a staff-edit item's facts, FEAT-045). */
+export const FactChip = z.object({
+  id: z.uuid(),
+  type: FactType,
+  label: z.string(),
+  status: FactStatus,
+});
+export type FactChip = z.infer<typeof FactChip>;
 export const CorrectionFact = z.object({
   id: z.uuid(),
   label: z.string(),
@@ -1537,6 +1550,8 @@ export const CorrectionItem = z.object({
   closedBySystem: z.boolean(),
   /** A coverage gap's newest ask (masked) and count, for the list row (FEAT-019). */
   gap: z.object({ question: z.string(), asksTotal: z.int().min(0) }).nullish(),
+  /** A staff edit's visitor question (masked), for the list row (FEAT-045). */
+  replyEdit: z.object({ question: z.string() }).nullish(),
 });
 export type CorrectionItem = z.infer<typeof CorrectionItem>;
 export const CorrectionContext = z.object({
@@ -1550,6 +1565,17 @@ export const CorrectionContext = z.object({
       asksTotal: z.int().min(0),
       lastAskedAt: z.iso.datetime({ offset: true }).nullable(),
       questions: z.array(GapQuestion).max(5),
+    })
+    .nullable(),
+  /** A staff edit: the question, the draft and the sent reply; null when either is gone (FEAT-045). */
+  replyEdit: z
+    .object({
+      question: z.string(),
+      suggested: z.string(),
+      sent: z.string(),
+      suggestedAt: z.iso.datetime({ offset: true }),
+      sentAt: z.iso.datetime({ offset: true }),
+      facts: z.array(FactChip),
     })
     .nullable(),
 });
@@ -2457,14 +2483,6 @@ export const ThreadEvent = z.object({
 });
 export type ThreadEvent = z.infer<typeof ThreadEvent>;
 
-export const FactChip = z.object({
-  id: z.uuid(),
-  type: FactType,
-  label: z.string(),
-  status: FactStatus,
-});
-export type FactChip = z.infer<typeof FactChip>;
-
 /** Intent signals, mapped from triage's task kinds (D4). */
 export const IntentSignal = z.enum([
   'asked_questions',
@@ -2534,6 +2552,8 @@ export const StaffMessageBody = z
   .object({
     body: z.string().trim().min(1).max(4000),
     clientMessageId: z.string().min(8).max(64),
+    /** The suggested reply this message started from (FEAT-045); a bad ID is ignored (D7). */
+    suggestionId: z.uuid().optional(),
   })
   .strict();
 export type StaffMessageBody = z.infer<typeof StaffMessageBody>;
@@ -2649,3 +2669,28 @@ export const EscalationRoutingBody = z
     message: 'person_required',
   });
 export type EscalationRoutingBody = z.infer<typeof EscalationRoutingBody>;
+
+// ---- Dashboard API: suggested replies (INB-03; FEAT-045 §3) ------------------------------
+
+/** Why there is no draft: it failed the checks, or nothing could be answered. */
+export const SuggestionNone = z.enum(['no_checked_answer', 'unavailable']);
+export type SuggestionNone = z.infer<typeof SuggestionNone>;
+export const Suggestion = z.object({
+  id: z.uuid(),
+  text: z.string(),
+  facts: z.array(FactChip),
+  /** The visitor message the draft answers. */
+  forMessageId: z.uuid(),
+  forSeq: z.int(),
+  language: z.enum(['en', 'zh']),
+  createdAt: z.iso.datetime({ offset: true }),
+});
+export type Suggestion = z.infer<typeof Suggestion>;
+export const SuggestionResponse = z
+  .object({ suggestion: Suggestion.nullable(), none: SuggestionNone.nullable() })
+  .refine((r) => (r.suggestion === null) !== (r.none === null), {
+    message: 'exactly one of suggestion and none',
+  });
+export type SuggestionResponse = z.infer<typeof SuggestionResponse>;
+export const SuggestionRequest = z.object({}).strict();
+export type SuggestionRequest = z.infer<typeof SuggestionRequest>;

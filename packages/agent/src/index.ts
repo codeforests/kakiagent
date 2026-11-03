@@ -183,3 +183,12 @@ export {
   type CorrectionReplayTurnRow,
   type CorrectionReplayView,
 } from './correction-replay.js';
+export {
+  NothingToAnswerError,
+  suggestionOutcome,
+  suggestReply,
+  SuggestPausedError,
+  TooManySuggestionsError,
+  type SuggestDeps,
+  type SuggestInput,
+} from './suggest.js';

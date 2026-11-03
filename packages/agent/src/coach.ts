@@ -19,7 +19,12 @@ import {
   type ProposalInput,
   type VisitorFact,
 } from '@kaki/kb';
-import { routeReply, type LlmGateway, type LogicalModel } from '@kaki/llm-gateway';
+import {
+  routeReply,
+  type GenerateRequest,
+  type LlmGateway,
+  type LogicalModel,
+} from '@kaki/llm-gateway';
 import { piiMask } from '@kaki/platform';
 import {
   getBusinessProfile,
@@ -253,13 +258,23 @@ interface Answered {
   plan: TurnPlan | null;
 }
 
+/** The gateway's IDs for a coaching or replay turn: metered on the session. */
+const coachMeta = (input: Pick<CoachTurnInput, 'tenantId' | 'sessionId'>): AnswerMeta => ({
+  tenantId: input.tenantId,
+  coachingSessionId: input.sessionId,
+});
+
+/** The gateway's IDs for one answer (usage ledger and cost governor, ADR-021). */
+export type AnswerMeta = GenerateRequest['meta'];
+
 /**
- * Step 4 of the turn: the verified answer on the coaching facts, given what the
- * dispatcher did with the plan (coaching's registry, or a replay's stubbed one).
+ * Step 4 of the turn: the verified answer on the given facts, given what the dispatcher did
+ * with the plan (coaching's registry, or a replay's or suggestion's stubbed one). `meta`
+ * comes from the caller (FEAT-045 D2): a coaching session, or a suggestion's conversation.
  */
 export async function answerStep(
   deps: CoachDeps,
-  input: Pick<CoachTurnInput, 'tenantId' | 'sessionId'>,
+  meta: AnswerMeta,
   prep: Pick<Prep, 'tenant' | 'hours' | 'rules'>,
   text: string,
   history: HistoryMessage[],
@@ -301,7 +316,7 @@ export async function answerStep(
       history,
       businessName: tenant.businessName,
       gstRegistered: tenant.gstRegistered,
-      meta: { tenantId: input.tenantId, coachingSessionId: input.sessionId },
+      meta,
       model: route,
       now: prep.hours?.now ?? (deps.clock ?? (() => new Date()))(),
       language,
@@ -521,7 +536,7 @@ export async function runCoachingTurn(
     };
   } else {
     const dispatch = p && facts ? await dispatchPlan(coachingRegistry, p, ctx) : null;
-    answer = await answerStep(deps, input, prep, text, history, p, facts, dispatch);
+    answer = await answerStep(deps, coachMeta(input), prep, text, history, p, facts, dispatch);
   }
 
   const unreviewedUsed = answer.explainer.reasons.includes('unreviewed_used');
@@ -630,7 +645,7 @@ export async function reanswer(
     answerPlan && facts ? await dispatchPlan(coachingRegistry, answerPlan, ctx) : null;
   const answer = await answerStep(
     deps,
-    turn,
+    coachMeta(turn),
     prep,
     turn.text,
     history,

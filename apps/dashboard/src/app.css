@@ -896,6 +896,39 @@ a {
 .dock-alert {
   margin: 0 var(--space-4) var(--space-2);
 }
+/* FEAT-045: Suggest a reply (ui-design SCR-APP-015). */
+.thread-dock .kaki-btn svg {
+  flex: none;
+}
+.suggestion-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-accent-default);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+  font-weight: var(--font-weight-medium);
+}
+.suggest-help {
+  flex-basis: 100%;
+  color: var(--color-text-secondary);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+}
+/* A2: five lines while holding a suggestion. */
+.composer__input--suggestion {
+  min-height: calc(var(--type-body-line) * 5 + var(--space-2) * 2);
+  max-height: calc(var(--type-body-line) * 8 + var(--space-2) * 2);
+}
+.composer__suggest-icon {
+  min-width: 44px;
+  min-height: 44px;
+}
+@media (max-width: 639px) {
+  .composer__input--suggestion {
+    max-height: 50vh;
+  }
+}
 .lost-draft {
   margin: 0 var(--space-4) var(--space-2);
   padding: var(--space-3);
@@ -3315,6 +3348,18 @@ a.settings-row:hover {
   .answer-compare__columns {
     grid-template-columns: 1fr 1fr;
   }
+}
+/* FEAT-045: a staff edit's suggestion and sent reply (ui-design SCR-APP-022). */
+.reply-edit__columns {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.reply-edit__suggested {
+  background: var(--color-accent-soft);
+}
+.reply-edit__sent {
+  background: var(--color-info-soft);
 }
 
 /* SCR-APP-021 Review · Corrections and SCR-APP-022 Correction (FEAT-018 ui-design). */

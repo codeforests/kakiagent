@@ -84,15 +84,25 @@ export function fixSummary(change: ProposedChange, now = new Date()): string {
       return `Re-confirm: ${change.label}, last confirmed ${agoLabel(change.lastConfirmedAt, now)}`;
     case 'answer_gap':
       return 'Customers asked something your assistant couldn’t answer';
+    case 'reply_edit':
+      return 'Staff improved a suggested reply';
   }
 }
 
 /** A coverage gap item reads as the customers' question while it is open (FEAT-019). */
 export const isGap = (c: CorrectionItem) => c.change.kind === 'answer_gap';
 
+/** A staff edit of a suggested reply (FEAT-045): accepted only as an FAQ, like a gap. */
+export const isStaffEdit = (c: CorrectionItem) => c.change.kind === 'reply_edit';
+
+/** Items an FAQ settles: the decision reads "FAQ added". */
+const settledByFaq = (c: CorrectionItem) => isGap(c) || isStaffEdit(c);
+
 /** The item's one-line summary: "Customers asked: “…”" for an open gap, else the fix. */
 export function itemSummary(c: CorrectionItem, now = new Date()): string {
   if (c.status === 'open' && isGap(c) && c.gap) return `Customers asked: “${c.gap.question}”`;
+  if (c.status === 'open' && isStaffEdit(c) && c.replyEdit)
+    return `Staff improved a suggested reply: “${c.replyEdit.question}”`;
   return fixSummary(effectiveChange(c), now);
 }
 
@@ -106,7 +116,7 @@ export function decisionLabel(c: CorrectionItem): string {
     case 'accepted':
       return 'Accepted';
     case 'edited_and_accepted':
-      return isGap(c) ? 'FAQ added' : 'Edited and accepted';
+      return settledByFaq(c) ? 'FAQ added' : 'Edited and accepted';
     case 'dismissed':
       return c.closedBySystem ? 'Closed automatically' : 'Closed';
     case 'open':
@@ -116,7 +126,7 @@ export function decisionLabel(c: CorrectionItem): string {
 
 /** The success banner after accepting; `original` is the item's proposal. */
 export const acceptedLine = (change: ProposedChange, original: ProposedChange = change) =>
-  original.kind === 'answer_gap'
+  original.kind === 'answer_gap' || original.kind === 'reply_edit'
     ? 'FAQ added. Your assistant now uses it.'
     : change.kind === 'reconfirm'
       ? 'Re-confirmed. The review clock restarts today.'
@@ -136,6 +146,7 @@ export function noReplayCaption(change: ProposedChange): string | null {
   switch (change.kind) {
     case 'add_faq':
     case 'answer_gap':
+    case 'reply_edit':
       return "No past answers used this yet, so there's nothing to compare.";
     case 'edit_hours':
       return "Opening-hours answers aren't linked to past chats, so there's nothing to compare.";

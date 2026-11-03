@@ -26,6 +26,7 @@ import {
   NotEditableError,
   prepareChunk,
   proposeCorrection,
+  proposeReplyEdit,
   reviewSummary,
   runStaleScan,
   searchVisitorFacts,
@@ -357,5 +358,88 @@ describe('re-confirm a stale fact (AC-5, AC-6)', () => {
     );
     expect(rows.length).toBeGreaterThan(0);
     for (const r of rows) expect(r.p).not.toMatch(/kueh|kuih|puff|tart|parking|ondeh/i);
+  });
+});
+
+describe('staff edits to suggested replies (KB-18; FEAT-045 §5.3, AC-4)', () => {
+  const SUGGESTION = '00000000-0000-4000-8000-0000000000d1';
+  const proposeEdit = (tenantId = TENANT_A, factIds: string[] = []) =>
+    withTenant(dash(), tenantId, (tx) =>
+      proposeReplyEdit(ctx(tenantId)(tx), {
+        conversationId: CONV,
+        suggestionId: SUGGESTION,
+        factIds,
+      }),
+    );
+
+  it('one open staff_edit item per suggestion, citing the draft facts; audited with IDs and codes', async () => {
+    const f = await create(TENANT_A, product('Chocolate cake', 4800));
+    const c = await proposeEdit(TENANT_A, [f.id]);
+    expect(c).toMatchObject({
+      status: 'open',
+      sourceType: 'staff_edit',
+      proposedBy: 'staff',
+      conversationRef: CONV,
+      factRefs: [f.id],
+      change: { kind: 'reply_edit', suggestionId: SUGGESTION },
+    });
+    expect(await proposeEdit(TENANT_A, [f.id])).toBeNull();
+    const rows = await owner.query(
+      `select count(*)::int as n from corrections where proposed_change->>'kind' = 'reply_edit'`,
+    );
+    expect(rows.rows[0].n).toBe(1);
+    const audit = await owner.query(
+      `select payload, subject_refs from audit_entries where event_type = 'correction.proposed' and $1 = any(subject_refs)`,
+      [`correction:${c!.id}`],
+    );
+    expect(audit.rows).toHaveLength(1);
+    expect(audit.rows[0].payload).toEqual({
+      kind: 'reply_edit',
+      sourceType: 'staff_edit',
+      factIds: [f.id],
+    });
+    expect(audit.rows[0].subject_refs).toContain(`suggestion:${SUGGESTION}`);
+  });
+
+  it("is accepted only as the owner's FAQ, or closed", async () => {
+    const c = (await proposeEdit())!;
+    await expect(accept(TENANT_A, c)).rejects.toThrow(InvalidCorrectionError);
+    await expect(
+      withTenant(dash(), TENANT_A, (tx) =>
+        editedChange({ tx, tenantId: TENANT_A, userId: USER }, c, {
+          kind: 'edit_fact',
+          factId: SUGGESTION,
+          patch: {},
+        } as unknown as CorrectionEdit),
+      ),
+    ).rejects.toThrow(NotEditableError);
+    const done = await accept(TENANT_A, c, {
+      kind: 'add_faq',
+      question: 'How much is the chocolate cake?',
+      answer: 'Our chocolate cake is $48, and we deliver.',
+    });
+    expect(done.status).toBe('edited_and_accepted');
+    expect(done.acceptedChange).toMatchObject({ kind: 'add_faq' });
+    const faq = await owner.query(
+      `select status, value->>'answer' as answer from facts where tenant_id = $1 and type = 'faq' and value->>'question' = $2`,
+      [TENANT_A, 'How much is the chocolate cake?'],
+    );
+    expect(faq.rows).toEqual([
+      { status: 'approved', answer: 'Our chocolate cake is $48, and we deliver.' },
+    ]);
+
+    await owner.query(`delete from corrections`);
+    const other = (await proposeEdit())!;
+    const closed = await withTenant(dash(), TENANT_A, (tx) =>
+      dismissCorrection(ctx(TENANT_A)(tx), other.id),
+    );
+    expect(closed.status).toBe('dismissed');
+  });
+
+  it("tenant B can't see tenant A's item", async () => {
+    const c = (await proposeEdit())!;
+    await expect(
+      withTenant(dash(), TENANT_B, (tx) => getCorrection(ctx(TENANT_B)(tx), c.id)),
+    ).rejects.toThrow();
   });
 });

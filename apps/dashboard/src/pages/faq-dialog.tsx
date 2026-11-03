@@ -10,11 +10,13 @@ export interface FaqAnswer {
 
 /**
  * The "Add an FAQ" `form-dialog` (FEAT-019 ui-design) for a coverage topic, a coverage gap
- * and a gap item in Corrections: FEAT-011's FAQ fields, the question prefilled.
+ * and a gap item in Corrections: FEAT-011's FAQ fields, the question prefilled; a staff
+ * edit item (FEAT-045) prefills the answer too.
  */
 export function AddFaqDialog({
   open,
   question,
+  answer = '',
   help,
   caption,
   busy,
@@ -24,6 +26,8 @@ export function AddFaqDialog({
 }: {
   open: boolean;
   question: string;
+  /** The answer's prefill: a staff edit's sent reply (FEAT-045). */
+  answer?: string;
   /** The answer field's help: the topic's hint. */
   help?: string | undefined;
   /** Above the fields: how often customers asked. */
@@ -44,6 +48,7 @@ export function AddFaqDialog({
       {open && (
         <FaqForm
           question={question}
+          answer={answer}
           help={help}
           caption={caption}
           busy={busy}
@@ -58,6 +63,7 @@ export function AddFaqDialog({
 
 function FaqForm({
   question: initial,
+  answer: initialAnswer,
   help,
   caption,
   busy,
@@ -66,6 +72,7 @@ function FaqForm({
   onSubmit,
 }: {
   question: string;
+  answer: string;
   help?: string | undefined;
   caption?: string | undefined;
   busy: boolean;
@@ -73,7 +80,7 @@ function FaqForm({
   onClose: () => void;
   onSubmit: (faq: FaqAnswer) => void;
 }) {
-  const [faq, setFaq] = useState({ question: initial, answer: '' });
+  const [faq, setFaq] = useState({ question: initial, answer: initialAnswer });
   const [touched, setTouched] = useState({ question: false, answer: false });
   const [submitted, setSubmitted] = useState(false);
   const errors = {

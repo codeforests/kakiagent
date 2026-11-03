@@ -423,7 +423,7 @@ export async function replayQuestion(
       channelLive: deps.channelLive ? await deps.channelLive() : true,
     });
   } else {
-    const a = await answerStep(deps, input, prep, text, prep.history, plan, facts, dispatch);
+    const a = await answerStep(deps, meta, prep, text, prep.history, plan, facts, dispatch);
     ({ body, outcome, factIds, explainer } = a);
   }
 

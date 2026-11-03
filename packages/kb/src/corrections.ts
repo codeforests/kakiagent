@@ -62,6 +62,11 @@ export type ProposedChange =
    * question text: the questions stay on their messages. Accepting needs an `add_faq` edit.
    */
   | { kind: 'answer_gap' }
+  /**
+   * A staff member edited an AI-suggested reply before sending it (KB-18, FEAT-045 D6). No
+   * text: the draft and the sent reply stay on the conversation. Accepting needs an `add_faq`.
+   */
+  | { kind: 'reply_edit'; suggestionId: string }
   /** A stale fact (KB-17, FEAT-018): accepting it re-confirms the fact, same value. */
   | {
       kind: 'reconfirm';
@@ -183,6 +188,7 @@ export function correctionFactInput(
     case 'edit_hours':
     case 'reconfirm':
     case 'answer_gap':
+    case 'reply_edit':
       return null;
   }
 }
@@ -307,6 +313,49 @@ export async function proposeCorrection(
   return toRecord(row!);
 }
 
+/**
+ * A staff member sent an edited AI-suggested reply (KB-18, UC-23 4a; FEAT-045 §5.3): one open
+ * `staff_edit` item per suggestion (`corrections_reply_edit_uq`; a retry adds nothing), citing
+ * the facts the draft used. Runs in the send transaction. Returns null when it already exists.
+ */
+export async function proposeReplyEdit(
+  ctx: DashboardKbContext,
+  input: { conversationId: string; suggestionId: string; factIds: string[] },
+): Promise<CorrectionRecord | null> {
+  const change: ProposedChange = { kind: 'reply_edit', suggestionId: input.suggestionId };
+  const [row] = await ctx.tx
+    .insert(schema.corrections)
+    .values({
+      tenantId: ctx.tenantId,
+      sourceType: 'staff_edit',
+      proposedBy: 'staff',
+      conversationRef: input.conversationId,
+      factRefs: input.factIds,
+      proposedChange: change,
+      createdBy: ctx.userId,
+    })
+    .onConflictDoNothing()
+    .returning();
+  if (!row) return null;
+  await audit.append(ctx.tx, ctx.tenantId, {
+    action: 'correction.proposed',
+    actorType: 'user',
+    actorId: ctx.userId,
+    subjectType: 'correction',
+    subjectId: row.id,
+    related: [
+      { type: 'conversation', id: input.conversationId },
+      { type: 'suggestion', id: input.suggestionId },
+    ],
+    payload: {
+      kind: auditCode('reply_edit'),
+      sourceType: auditCode('staff_edit'),
+      factIds: input.factIds.map(auditId),
+    },
+  });
+  return toRecord(row);
+}
+
 /** Links a correction to the chat message that shows it. */
 export async function attachCorrectionMessage(
   ctx: CoachingKbContext,
@@ -413,8 +462,8 @@ export async function editedChange(
     const next = faqChange(edit.question, edit.answer);
     return sameJson(next, change) ? null : next;
   }
-  // A coverage gap is answered with the owner's own FAQ (FEAT-019 §3).
-  if (edit.kind === 'add_faq' && change.kind === 'answer_gap')
+  // A coverage gap or a staff edit is answered with the owner's own FAQ (FEAT-019 §3, FEAT-045).
+  if (edit.kind === 'add_faq' && (change.kind === 'answer_gap' || change.kind === 'reply_edit'))
     return faqChange(edit.question, edit.answer);
   throw new NotEditableError(`a ${change.kind} item can't take a ${edit.kind} edit`);
 }
@@ -518,6 +567,7 @@ async function applyChange(
       await reconfirmFact(ctx, change.factId, change.factVersion);
       return;
     case 'answer_gap':
+    case 'reply_edit':
       throw new InvalidCorrectionError('an FAQ needs a question and an answer');
   }
 }
@@ -536,7 +586,7 @@ export async function acceptCorrection(
 ): Promise<CorrectionRecord> {
   const c = await getCorrection(ctx, id, true);
   if (c.status !== 'open') throw new CorrectionClosedError('already decided');
-  if (c.change.kind === 'answer_gap' && !opts.edit)
+  if ((c.change.kind === 'answer_gap' || c.change.kind === 'reply_edit') && !opts.edit)
     throw new InvalidCorrectionError('an FAQ needs a question and an answer');
   const edited = opts.edit ? await editedChange(ctx, c, opts.edit) : null;
   await applyChange(ctx, c, edited ?? c.change, opts);

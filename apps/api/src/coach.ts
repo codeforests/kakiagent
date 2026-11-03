@@ -124,6 +124,7 @@ export function changeView(c: CorrectionRecord['change']): ProposedChange {
       return c as ProposedChange;
     case 'reconfirm':
     case 'answer_gap':
+    case 'reply_edit':
       return c;
   }
 }
