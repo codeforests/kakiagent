@@ -246,6 +246,10 @@ export function registerInboxRoutes(
       events,
       sidebar: {
         contact: {
+          contactId: null,
+          name: null,
+          email: null,
+          phone: null,
           label: 'Website visitor',
           firstSeenAt: data.history.firstSeenAt.toISOString(),
           previousConversations: data.history.previousConversations,

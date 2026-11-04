@@ -5,7 +5,8 @@
   "type": "module",
   "description": "Zod schemas shared by the api, realtime, widget and dashboard: the single source of request, response and event types (ADR-002).",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./lead-check": "./src/lead-check.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

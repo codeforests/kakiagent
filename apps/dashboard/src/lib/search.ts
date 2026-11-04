@@ -38,13 +38,13 @@ export function highlightParts(excerpt: string, ranges: SearchMatch['ranges']): 
   return parts;
 }
 
-const AUTHOR_LABEL: Record<SearchMatch['author'], string> = {
+const AUTHOR_LABEL: Record<NonNullable<SearchMatch['author']>, string> = {
   visitor: 'Visitor',
   agent: 'Assistant',
   staff: 'Team',
   system: 'Update',
 };
-export const authorLabel = (a: SearchMatch['author']) => AUTHOR_LABEL[a];
+export const authorLabel = (a: SearchMatch['author']) => (a ? AUTHOR_LABEL[a] : 'Contact');
 
 /** The results region's status line once a search completes. */
 export function resultsStatus(n: number, more: boolean): string {

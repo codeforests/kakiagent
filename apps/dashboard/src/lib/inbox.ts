@@ -176,7 +176,13 @@ export function appendMessage(
 ): ConversationThread | undefined {
   if (!thread || message.conversationId !== thread.conversation.id) return thread;
   if (thread.messages.some((m) => m.id === message.id || m.seq === message.seq)) return thread;
-  const next: ThreadMessage = { factIds: [], authorUserId: null, ...message };
+  const card = message.card;
+  const next: ThreadMessage = {
+    factIds: [],
+    authorUserId: null,
+    ...message,
+    card: typeof card === 'object' && card ? card.kind : (card ?? null),
+  };
   const messages = [...thread.messages, next].sort((a, b) => a.seq - b.seq);
   return {
     ...thread,

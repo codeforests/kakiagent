@@ -190,6 +190,8 @@ export async function searchConversations(
         escalations.get(r.conversation.id) ?? null,
       ),
       match: {
+        source: 'message' as const,
+        field: null,
         messageId: r.hitMessageId,
         author: r.hitAuthor,
         at: r.hitAt,

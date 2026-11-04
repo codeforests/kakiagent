@@ -1,6 +1,24 @@
 import { z } from 'zod';
+import { isEmail, LEAD_FIELD_KEYS, normaliseSgPhone } from './lead-check.js';
+
+export * from './lead-check.js';
 
 // ---- Shared shapes ---------------------------------------------------------------
+
+/** Values triage read from the visitor's message, already validated; the form shows them for the visitor to confirm (FEAT-049 §3). */
+export const LeadPrefill = z.object({
+  name: z.string().optional(),
+  phone: z.string().optional(),
+  email: z.string().optional(),
+});
+export type LeadPrefill = z.infer<typeof LeadPrefill>;
+
+/** A widget card on an agent message (SCR-WGT-003; FEAT-049 §3, D1). */
+export const MessageCard = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('consent'), prefill: LeadPrefill }),
+  z.object({ kind: z.literal('lead_form'), consentId: z.uuid(), prefill: LeadPrefill }),
+]);
+export type MessageCard = z.infer<typeof MessageCard>;
 
 export const MessageAuthor = z.enum(['visitor', 'agent', 'staff', 'system']);
 
@@ -19,11 +37,14 @@ export const Message = z.object({
   /**
    * What the notice is (FEAT-025): `chat_ended` closes the widget's composer; `staff_joined`
    * and `staff_left` mark a take-over and hand-back (FEAT-043); `escalated` is the visitor's
-   * "I've asked the team to join" notice (FEAT-044).
+   * "I've asked the team to join" notice (FEAT-044); `lead_captured` confirms the visitor's
+   * details reached the team (FEAT-049).
    */
   noticeKind: z
-    .enum(['after_hours', 'chat_ended', 'staff_joined', 'staff_left', 'escalated'])
+    .enum(['after_hours', 'chat_ended', 'staff_joined', 'staff_left', 'escalated', 'lead_captured'])
     .nullable(),
+  /** A consent or lead-form card under an agent reply (FEAT-049); absent or null: none. */
+  card: MessageCard.nullable().optional(),
   /**
    * The visitor-facing name on staff messages and staff notices, snapshotted at take-over
    * (FEAT-043 D3): the display name only, never an email; null otherwise or without one.
@@ -83,6 +104,53 @@ export const ConversationSummary = z.object({
 export type ConversationSummary = z.infer<typeof ConversationSummary>;
 
 export const ErrorBody = z.object({ error: z.string(), message: z.string() });
+
+// ---- Lead capture shapes the widget config carries (FEAT-049 §3; routes at the end) -----
+
+export const LeadFieldKey = z.enum(LEAD_FIELD_KEYS);
+export const LeadFieldMode = z.enum(['off', 'optional', 'required']);
+export const LeadFieldSetting = z.object({ key: LeadFieldKey, mode: LeadFieldMode });
+export type LeadFieldSetting = z.infer<typeof LeadFieldSetting>;
+
+/** Every key once, in `LeadFieldKey` order; phone and email must not both be off (D6). */
+export const LeadFields = z
+  .array(LeadFieldSetting)
+  .length(LEAD_FIELD_KEYS.length)
+  .superRefine((fields, ctx) => {
+    if (fields.some((f, i) => f.key !== LEAD_FIELD_KEYS[i]))
+      ctx.addIssue({ code: 'custom', message: 'order' });
+    const off = (k: string) => fields.find((f) => f.key === k)?.mode === 'off';
+    if (off('phone') && off('email')) ctx.addIssue({ code: 'custom', message: 'phone_or_email' });
+  });
+export type LeadFields = z.infer<typeof LeadFields>;
+
+/**
+ * What the visitor typed; '' means left empty. Formats and required fields are checked by
+ * `checkLead` against the business's settings, so a 422 can name each field.
+ */
+export const LeadInput = z.strictObject({
+  name: z.string().max(1000).default(''),
+  phone: z.string().max(1000).default(''),
+  email: z.string().max(1000).default(''),
+  need: z.string().max(4000).default(''),
+  budget: z.string().max(1000).default(''),
+  preferredTime: z.string().max(1000).default(''),
+});
+export type LeadInput = z.infer<typeof LeadInput>;
+
+const VisitorText = z.object({ en: z.string(), zh: z.string() });
+
+/** In `WidgetConfigResponse`: null when no purpose statement is saved (fail closed, LED-02). */
+export const LeadCaptureConfig = z.object({
+  purpose: z.object({ wordingId: z.uuid(), text: VisitorText }),
+  /** CONSENT_PROMPT, resolved per locale. */
+  prompt: VisitorText,
+  /** Null: the business doesn't ask (D3). */
+  marketing: z.object({ wordingId: z.uuid(), text: VisitorText }).nullable(),
+  /** The enabled fields, in order. */
+  fields: z.array(LeadFieldSetting.extend({ mode: z.enum(['optional', 'required']) })),
+});
+export type LeadCaptureConfig = z.infer<typeof LeadCaptureConfig>;
 
 // ---- Widget API (api role; ADR-016 decision 6) -----------------------------------
 
@@ -168,6 +236,12 @@ export const WidgetConfigResponse = z.object({
       contact: z.object({ email: z.string().nullable(), phone: z.string().nullable() }),
     }),
   ]),
+  /**
+   * Lead capture (LED-01, LED-02; FEAT-049): the purpose and marketing wordings and fields for
+   * the consent card and form; null without a saved purpose statement. Also sent while not live
+   * or paused, for the fallback contact form.
+   */
+  leadCapture: LeadCaptureConfig.nullable().default(null),
   /** Kill switch (GOV-08; FEAT-057): null while the AI runs. Paused → the panel shows this notice above the composer. */
   aiPaused: z
     .object({
@@ -1093,12 +1167,11 @@ export const Uen = z
 export const SgPhone = z
   .string()
   .transform((s) => s.replace(/[\s-]/g, ''))
-  .transform((s) => (s.startsWith('+65') ? s.slice(3) : s.startsWith('0065') ? s.slice(4) : s))
   .refine(
-    (s) => s === '' || /^[3689][0-9]{7}$/.test(s),
+    (s) => normaliseSgPhone(s) !== null,
     'Enter a Singapore number with 8 digits, like 9123 4567',
   )
-  .transform((s) => (s ? `+65${s}` : null))
+  .transform((s) => normaliseSgPhone(s) || null)
   .nullable()
   .transform((s) => s ?? null);
 
@@ -1108,10 +1181,7 @@ export const formatSgPhone = (p: string) => `+65 ${p.slice(3, 7)} ${p.slice(7)}`
 export const ContactEmail = z
   .string()
   .trim()
-  .refine(
-    (s) => s === '' || (s.length <= 254 && z.email().safeParse(s).success),
-    'Enter an email address, like hello@example.com',
-  )
+  .refine((s) => s === '' || isEmail(s), 'Enter an email address, like hello@example.com')
   .nullable()
   .transform((s) => (s ? s : null));
 
@@ -2443,6 +2513,8 @@ export type ConversationList = z.infer<typeof ConversationList>;
 /** A message as staff see it: with the facts an AI answer used (the widget's `Message` has none). */
 export const ThreadMessage = Message.extend({
   factIds: z.array(z.uuid()),
+  /** The card's kind only, never its prefill (FEAT-049 §3). */
+  card: z.enum(['consent', 'lead_form']).nullable(),
   /** The team member behind a staff message or notice (FEAT-043): "You" on your own. */
   authorUserId: z.uuid().nullable(),
 });
@@ -2454,7 +2526,8 @@ export type ThreadMessage = z.infer<typeof ThreadMessage>;
  */
 export const ThreadEvent = z.object({
   at: z.iso.datetime({ offset: true }),
-  kind: z.enum(['state', 'flagged']),
+  /** FEAT-049 adds `consent` (agreed, declined) and `lead` (created, updated). */
+  kind: z.enum(['state', 'flagged', 'consent', 'lead']),
   to: ConversationStatus.nullable(),
   from: ConversationStatus.nullable(),
   reason: z
@@ -2469,6 +2542,10 @@ export const ThreadEvent = z.object({
         'taken_from',
         'handover_requested',
         'escalated',
+        'agreed',
+        'declined',
+        'created',
+        'updated',
       ]),
     ])
     .nullable(),
@@ -2497,11 +2574,29 @@ export const IntentSignal = z.enum([
 ]);
 export type IntentSignal = z.infer<typeof IntentSignal>;
 
-/** Placeholder until FEAT-049's leads replace it. */
-export const LeadSummary = z.object({ status: z.string() });
+export const LeadStatus = z.enum(['new', 'contacted', 'won', 'lost']);
+export type LeadStatus = z.infer<typeof LeadStatus>;
+
+/** The conversation's contact's lead and the consent it was captured under (FEAT-049 §3). */
+export const LeadSummary = z.object({
+  id: z.uuid(),
+  status: LeadStatus,
+  updatedAt: z.iso.datetime({ offset: true }),
+  consent: z.object({
+    enquiryAt: z.iso.datetime({ offset: true }),
+    marketing: z.object({ agreed: z.boolean(), at: z.iso.datetime({ offset: true }) }).nullable(),
+  }),
+});
+export type LeadSummary = z.infer<typeof LeadSummary>;
 
 export const ContextSidebar = z.object({
   contact: z.object({
+    /** The contact behind the conversation once they left details (FEAT-049); null fields otherwise. */
+    contactId: z.uuid().nullable(),
+    name: z.string().nullable(),
+    email: z.string().nullable(),
+    /** Formatted `+65 9123 4567`. */
+    phone: z.string().nullable(),
     label: z.string(),
     firstSeenAt: z.iso.datetime({ offset: true }),
     previousConversations: z.number().int().min(0),
@@ -2718,8 +2813,12 @@ export const ConversationSearchRequest = z.strictObject({
 export type ConversationSearchRequest = z.infer<typeof ConversationSearchRequest>;
 
 export const SearchMatch = z.object({
-  messageId: z.uuid(),
-  author: z.enum(['visitor', 'agent', 'staff', 'system']),
+  /** `contact`: the contact's name, email or phone matched, no message did (FEAT-049 §5.5). */
+  source: z.enum(['message', 'contact']).default('message'),
+  field: z.enum(['name', 'email', 'phone']).nullable().default(null),
+  /** Null for a contact hit. */
+  messageId: z.uuid().nullable(),
+  author: z.enum(['visitor', 'agent', 'staff', 'system']).nullable(),
   at: z.iso.datetime({ offset: true }),
   /** ≤ 160 characters of the message around the first hit; '…' marks a cut. */
   excerpt: z.string(),
@@ -2739,3 +2838,84 @@ export const ConversationSearchResults = z.object({
   nextCursor: z.string().nullable(),
 });
 export type ConversationSearchResults = z.infer<typeof ConversationSearchResults>;
+
+// ---- Leads and consent (LED-01, LED-02, LED-08, LED-09; FEAT-049 §3) ---------------------
+
+const MarketingAnswer = z.strictObject({ wordingId: z.uuid(), agreed: z.boolean() });
+
+/** `POST /widget/v1/conversations/:id/consent`. */
+export const ConsentBody = z.strictObject({
+  purposeWordingId: z.uuid(),
+  agreed: z.boolean(),
+  /** Present iff the card showed the opt-in; `agreed` false unless ticked. */
+  marketing: MarketingAnswer.optional(),
+});
+export type ConsentBody = z.infer<typeof ConsentBody>;
+/** Null when declined. */
+export const ConsentResponse = z.object({ consentId: z.uuid().nullable() });
+export type ConsentResponse = z.infer<typeof ConsentResponse>;
+
+/** `POST /widget/v1/conversations/:id/lead`. */
+export const LeadSubmitBody = z.strictObject({ consentId: z.uuid(), fields: LeadInput });
+export type LeadSubmitBody = z.infer<typeof LeadSubmitBody>;
+export const LeadSubmitResponse = z.object({
+  status: z.enum(['created', 'updated']),
+  notice: Message,
+});
+export type LeadSubmitResponse = z.infer<typeof LeadSubmitResponse>;
+
+/** `POST /widget/v1/contact`: the fallback contact form (SCR-WGT-005), consent and details in one. */
+export const ContactFormBody = z.strictObject({
+  conversationId: z.uuid().optional(),
+  purposeWordingId: z.uuid(),
+  agreed: z.literal(true),
+  marketing: MarketingAnswer.optional(),
+  fields: LeadInput,
+});
+export type ContactFormBody = z.infer<typeof ContactFormBody>;
+export const ContactFormResponse = z.object({ status: z.enum(['created', 'updated']) });
+export type ContactFormResponse = z.infer<typeof ContactFormResponse>;
+
+/** 422 for the three lead routes: per-field codes the widget renders inline. */
+export const LeadFieldErrors = z.object({
+  error: z.literal('invalid_fields'),
+  fields: z.partialRecord(LeadFieldKey, z.enum(['required', 'invalid'])),
+  /** True when neither phone nor email was given (D6). */
+  needsContact: z.boolean(),
+});
+export type LeadFieldErrors = z.infer<typeof LeadFieldErrors>;
+
+/** 409 on the lead routes; `wording_changed` carries the current config for the card to re-ask. */
+export const LeadConflict = z.object({
+  error: z.enum(['wording_changed', 'consent_required', 'not_capturing']),
+  leadCapture: LeadCaptureConfig.nullable().optional(),
+});
+export type LeadConflict = z.infer<typeof LeadConflict>;
+
+/** `GET`/`PUT /api/v1/settings/leads` (SCR-APP-043). */
+export const LeadSettings = z.object({
+  /** 0 = never saved (defaults shown). */
+  version: z.number().int().min(0),
+  fields: LeadFields,
+  marketing: z.object({
+    enabled: z.boolean(),
+    text: z.object({ en: z.string(), zh: z.string().nullable() }),
+    wording: WordingRef.nullable(),
+  }),
+  /** Read-only here; edited on Privacy and data (SCR-APP-047). */
+  purpose: z.object({
+    text: z.object({ en: z.string(), zh: z.string().nullable() }),
+    saved: z.boolean(),
+  }),
+});
+export type LeadSettings = z.infer<typeof LeadSettings>;
+
+export const LeadSettingsBody = z.strictObject({
+  version: z.number().int().min(0),
+  fields: LeadFields,
+  marketing: z.strictObject({
+    enabled: z.boolean(),
+    text: z.object({ en: z.string().trim().max(600), zh: z.string().trim().max(600).nullable() }),
+  }),
+});
+export type LeadSettingsBody = z.infer<typeof LeadSettingsBody>;

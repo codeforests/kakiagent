@@ -143,11 +143,15 @@ const message = (seq: number, over: Partial<Message> = {}): Message => ({
 });
 const thread = (messages: Message[]): ConversationThread => ({
   conversation: { ...summary(1), version: 1, createdAt: '2026-10-31T01:00:00.000Z' },
-  messages: messages.map((m) => ({ ...m, factIds: [], authorUserId: null })),
+  messages: messages.map((m) => ({ ...m, factIds: [], authorUserId: null, card: null })),
   hasEarlier: false,
   events: [],
   sidebar: {
     contact: {
+      contactId: null,
+      name: null,
+      email: null,
+      phone: null,
       label: 'Website visitor',
       firstSeenAt: '2026-10-31T01:00:00.000Z',
       previousConversations: 0,

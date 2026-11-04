@@ -9,7 +9,7 @@ import type {
 import { and, desc, eq, lt, schema, sql, type Tx } from '@kaki/db';
 
 type SQL = ReturnType<typeof eq>;
-import { toMessage, toSummary, type SummaryOwner } from './mappers.js';
+import { cardKind, toMessage, toSummary, type SummaryOwner } from './mappers.js';
 import { LIFECYCLE_ACTIONS } from './lifecycle.js';
 import { ownersOf } from './ownership.js';
 import { escalationsOf, toOpenEscalation } from './escalation.js';
@@ -268,6 +268,7 @@ export async function getThread(
       ...toMessage(r),
       factIds: r.factIds,
       authorUserId: r.authorUserId,
+      card: cardKind(r),
     })),
     hasEarlier: rows.length > limit,
   };
