@@ -5,7 +5,7 @@
 
 ## Verdict summary
 
-**Accepted** (2026-11-03). Every criterion AC-1..AC-7 has a test that asserts what it says (one AC-6 assertion was too weak and is corrected below), all local checks are green at `d08dca6`, one CI regression at 375 px was fixed (F2) (the only red is the LocalStack-only `uploads.int`, unrelated), no existing test was weakened, and build note B1 holds against ADR-005 (Direct verification). INB-11 is accepted **partial**: message text (which finds emails and phones typed in chat) now, contact name/email/phone fields with FEAT-049 (D1, Ken 2026-11-03). GitHub CI: see CI.
+**Accepted** (2026-11-03). Every criterion AC-1..AC-7 has a test that asserts what it says (one AC-6 assertion was too weak and is corrected below), all local checks are green at `d08dca6`, one CI regression at 375 px was fixed (F2) (the only red is the LocalStack-only `uploads.int`, unrelated), no existing test was weakened, and build note B1 holds against ADR-005 (Direct verification). INB-11 is accepted **partial**: message text (which finds emails and phones typed in chat) now, contact name/email/phone fields with FEAT-049 (D1, Ken 2026-11-03). GitHub CI run 100 is green in all 11 jobs (see CI).
 
 ## Audit standard
 
@@ -60,4 +60,4 @@ Test ref appended 2026-11-03: INB-11 (partial: message text; contact name, email
 
 ## CI
 
-CI_LINE
+GitHub CI run 100 (`workflow_dispatch`, https://github.com/codeforests/kakiagent/actions/runs/41653241236) at `991a180`: all 11 jobs green, including integration with coverage (Testcontainers, `uploads.int` with LocalStack), the eval, build and size, and E2E on Chromium, Firefox and WebKit (`inbox-search.e2e` with axe at 1280 and 375; `account.e2e` 375 px check passing after F2). Firefox E2E first failed on `two-step.e2e` (sign-in "Check your email" heading not shown within 15 s; untouched by this feature, passed on Firefox in run 99) and passed on its one re-run (attempt 2, 2026-11-04). Run 99 at `d08dca6` found F2 (Chromium and Firefox) and F3 (Chromium). Later commits change docs only.
