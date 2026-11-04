@@ -17,4 +17,4 @@ Next: build (backend, T1–T7) — kickoff: "Build FEAT-049 (backend) on branch 
 - Scoring and the hot-lead alert (UC-21 5–6) are FEAT-050 (D8).
 
 ## Pending for Ken
-- D3: marketing opt-in off until the owner turns it on (recommended) or on by default; decision card posted 2026-11-04. Affects T1 (`lead_settings.marketing_enabled` default) and T3. Also in pending-actions.
+- None. D3 decided 2026-11-04: marketing opt-in off until the owner turns it on.

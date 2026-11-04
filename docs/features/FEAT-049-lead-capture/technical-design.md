@@ -188,7 +188,7 @@ In `captureLead`'s transaction: match an existing contact of the tenant by norma
 
 - **D1 — Cards, not free-text collection.** The widget shows the consent card and a form card (design.md §4.9 `consent-card`, `lead-form-card`); the agent never extracts and stores fields from chat text. Triage's args only prefill the form for the visitor to confirm. Deterministic validation, no model writes (ADR-008, ADR-025). Text-only channels (FEAT-037 onward) render the cards through their adapter later.
 - **D2 — Consent is per conversation.** A granted enquiry consent covers lead capture in that conversation only; a new conversation asks again. Nothing is prefilled from an earlier conversation (a shared computer would show one person's details to another). A decline stops proactive offers in that conversation only.
-- **D3 — Marketing opt-in off until the owner turns it on** (asked on a decision card 2026-11-04; designed on the recommended option, pending Ken). The owner enables it on SCR-APP-043, with the default wording prefilled, and saving records a `marketing_consent` wording, so every marketing consent names a saved wording.
+- **D3 — Marketing opt-in off until the owner turns it on** (Ken chose this on 2026-11-04). The owner enables it on SCR-APP-043, with the default wording prefilled, and saving records a `marketing_consent` wording, so every marketing consent names a saved wording.
 - **D4 — Duplicates match on email, then phone.** Values are unverified, so a match only updates the open lead and fills empty contact fields; nothing from the existing contact is ever shown to the visitor. If phone and email match two different contacts, the email's contact wins and the phone stays off it (the unique index holds).
 - **D5 — Consent rows are append-only and carry no PII.** A declined or never-completed consent has no contact; `contact_id` is set once at submit. FEAT-051 adds withdrawal as a new row; FEAT-061 deletes by contact.
 - **D6 — Phone or email is always required.** The team needs one way back; the form says "Phone or email" when both are optional. Settings refuse turning both off.
@@ -198,7 +198,6 @@ In `captureLead`'s transaction: match an existing contact of the tenant by norma
 
 ## 8. Escalations and open items
 
-- D3 waits on Ken's answer (decision card); if he picks "on by default", the platform keeps a default marketing wording version per tenant, created at the tenant's first consent.
 - UC-21 step 5 (score) and step 6 (alert) and LED-03/LED-04 for leads are FEAT-050; the RTM's UC-21 trace stays partial.
 - Contact merge across channels and the Contact screen (SCR-APP-016, CHN-08) are later; this feature only resolves by email and phone.
 - The pre-live contact form's leads aren't visible to staff until FEAT-050's list lands; recorded in pending-actions.
