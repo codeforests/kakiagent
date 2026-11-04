@@ -8,8 +8,9 @@ import { expectNoSeriousA11yViolations, signIn } from './support.ts';
  * template notice on SCR-APP-047 and opens the hosted page, the widget config follows each
  * notice mode, a Chinese purpose statement is saved, both PDFs download, a stale save shows
  * the conflict, an Agent sees the permission state, and the setup step sits between review
- * and test. `afterEach` deletes the dev tenant's `privacy_settings` row so later specs (and
- * FEAT-033's stubbed privacy link) start from "no notice"; wording rows may stay.
+ * and test. `beforeAll` and `afterEach` delete the dev tenant's `privacy_settings` row so each
+ * test (and FEAT-033's stubbed privacy link) starts from "no notice"; `afterAll` puts the
+ * seeded row back (FEAT-049 seed). Wording rows may stay.
  */
 const BAKERY = '11111111-1111-4111-8111-111111111111';
 const API = 'http://localhost:3000';
@@ -26,11 +27,27 @@ function ownerUrl(): string {
 }
 
 let owner: pg.Client;
+/** The seeded row: FEAT-049's seed saves a notice and purpose so the widget captures leads. */
+let seeded: Record<string, unknown> | undefined;
 test.beforeAll(async () => {
   owner = new pg.Client({ connectionString: ownerUrl() });
   await owner.connect();
+  // These tests start from "never saved"; afterAll puts the seeded row back so later specs
+  // (lead capture, and the next browser project) keep their purpose statement.
+  seeded = (
+    await owner.query(`delete from privacy_settings where tenant_id = $1 returning *`, [BAKERY])
+  ).rows[0];
 });
 test.afterAll(async () => {
+  if (seeded) {
+    const cols = Object.keys(seeded);
+    await owner.query(`delete from privacy_settings where tenant_id = $1`, [BAKERY]);
+    await owner.query(
+      `insert into privacy_settings (${cols.map((c) => `"${c}"`).join(', ')})
+       values (${cols.map((_, i) => `$${i + 1}`).join(', ')})`,
+      cols.map((c) => seeded![c]),
+    );
+  }
   await owner?.end();
 });
 test.afterEach(async () => {

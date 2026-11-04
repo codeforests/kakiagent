@@ -28,12 +28,6 @@ export const DEFAULT_FIELDS: readonly FieldSetting[] = [
   { key: 'preferredTime', mode: 'off' },
 ];
 
-/** The opt-in label prefilled when the owner turns marketing on (D3). */
-export const DEFAULT_MARKETING = {
-  en: 'Also send me news and offers. I can stop these at any time.',
-  zh: '也请向我发送新闻和优惠。我可以随时取消。',
-} as const;
-
 const MODES = new Set<string>(['off', 'optional', 'required']);
 
 /** Saved fields if they are well formed (every key once, in order), else null. */
@@ -72,7 +66,9 @@ export async function getLeadSettings(tx: Tx, tenantId: string): Promise<LeadSet
     fields: [...fields],
     marketing: {
       enabled: row?.marketingEnabled ?? false,
-      text: marketing ?? { ...DEFAULT_MARKETING },
+      // Never saved: empty, so the dashboard prefills its default naming the business (ui-design
+      // SCR-APP-043; D3). The Chinese wording is optional and has no default.
+      text: marketing ?? { en: '', zh: null },
       wording: wording ? { seq: wording.seq, savedAt: wording.createdAt.toISOString() } : null,
     },
     purpose: { text: privacy.purpose.text, saved: privacy.purpose.wording !== null },

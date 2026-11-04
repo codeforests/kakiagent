@@ -6,7 +6,6 @@
 export * from './errors.js';
 export {
   DEFAULT_FIELDS,
-  DEFAULT_MARKETING,
   getLeadSettings,
   leadCaptureConfig,
   saveLeadSettings,

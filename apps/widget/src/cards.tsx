@@ -412,54 +412,56 @@ export function LeadCard(
   if (step === 'consent') {
     const prompt = localText(lead.prompt, locale);
     return (
-      <li class="lead-card" role="group" aria-labelledby={title} data-card="consent">
-        <span class="sr-only">{t.consentAsks(p.business)}</span>
-        <h3 id={title} lang={langOf(prompt)}>
-          {prompt}
-        </h3>
-        {changed && (
-          <p class="lead-info">
-            {INFO_ICON}
-            {t.wordingChanged}
-          </p>
-        )}
-        <Purpose {...p} />
-        <MarketingBox
-          {...p}
-          id={`${idp}-offers`}
-          checked={offers}
-          disabled={!!busy}
-          onChange={setOffers}
-        />
-        {failed && (
-          <p class="lead-err" role="alert">
-            {ERROR_ICON}
-            {t.consentFailed}
-          </p>
-        )}
-        <div class="row">
-          <button
-            type="button"
-            class="btn sec"
+      <li class="lead-item" data-card="consent">
+        <div class="lead-card" role="group" aria-labelledby={title}>
+          <span class="sr-only">{t.consentAsks(p.business)}</span>
+          <h3 id={title} lang={langOf(prompt)}>
+            {prompt}
+          </h3>
+          {changed && (
+            <p class="lead-info">
+              {INFO_ICON}
+              {t.wordingChanged}
+            </p>
+          )}
+          <Purpose {...p} />
+          <MarketingBox
+            {...p}
+            id={`${idp}-offers`}
+            checked={offers}
             disabled={!!busy}
-            aria-busy={busy === 'decline' || undefined}
-            onClick={() => void answer(false)}
-          >
-            {busy === 'decline' && SPINNER}
-            {t.notNow}
-          </button>
-          <button
-            type="button"
-            class="btn pri"
-            disabled={!!busy}
-            aria-busy={busy === 'agree' || undefined}
-            onClick={() => void answer(true)}
-          >
-            {busy === 'agree' && SPINNER}
-            {t.agree}
-          </button>
+            onChange={setOffers}
+          />
+          {failed && (
+            <p class="lead-err" role="alert">
+              {ERROR_ICON}
+              {t.consentFailed}
+            </p>
+          )}
+          <div class="row">
+            <button
+              type="button"
+              class="btn sec"
+              disabled={!!busy}
+              aria-busy={busy === 'decline' || undefined}
+              onClick={() => void answer(false)}
+            >
+              {busy === 'decline' && SPINNER}
+              {t.notNow}
+            </button>
+            <button
+              type="button"
+              class="btn pri"
+              disabled={!!busy}
+              aria-busy={busy === 'agree' || undefined}
+              onClick={() => void answer(true)}
+            >
+              {busy === 'agree' && SPINNER}
+              {t.agree}
+            </button>
+          </div>
+          <p class="cap">{t.withdrawCaption}</p>
         </div>
-        <p class="cap">{t.withdrawCaption}</p>
       </li>
     );
   }
@@ -467,35 +469,37 @@ export function LeadCard(
   return (
     <>
       {agreed && done()}
-      <li class="lead-card" role="group" aria-labelledby={title} data-card="lead_form">
-        <form noValidate onSubmit={(e) => void send(e)} ref={formRef}>
-          <h3 id={title}>{t.detailsTitle}</h3>
-          <p class="cap">{t.detailsIntro(p.business)}</p>
-          <LeadFields form={form} lead={lead} t={t} idp={idp} readOnly={busy === 'send'} />
-          {failed && (
-            <p class="lead-err" role="alert">
-              {ERROR_ICON}
-              {t.sendFailed}
-            </p>
-          )}
-          <div class="row">
-            <button
-              type="button"
-              class="btn ghost"
-              disabled={!!busy}
-              onClick={() => {
-                setStep('cancelled');
-                p.focusComposer();
-              }}
-            >
-              {t.cancel}
-            </button>
-            <button type="submit" class="btn pri" aria-busy={busy === 'send' || undefined}>
-              {busy === 'send' && SPINNER}
-              {busy === 'send' ? t.sending : t.sendDetails}
-            </button>
-          </div>
-        </form>
+      <li class="lead-item" data-card="lead_form">
+        <div class="lead-card" role="group" aria-labelledby={title}>
+          <form noValidate onSubmit={(e) => void send(e)} ref={formRef}>
+            <h3 id={title}>{t.detailsTitle}</h3>
+            <p class="cap">{t.detailsIntro(p.business)}</p>
+            <LeadFields form={form} lead={lead} t={t} idp={idp} readOnly={busy === 'send'} />
+            {failed && (
+              <p class="lead-err" role="alert">
+                {ERROR_ICON}
+                {t.sendFailed}
+              </p>
+            )}
+            <div class="row">
+              <button
+                type="button"
+                class="btn ghost"
+                disabled={!!busy}
+                onClick={() => {
+                  setStep('cancelled');
+                  p.focusComposer();
+                }}
+              >
+                {t.cancel}
+              </button>
+              <button type="submit" class="btn pri" aria-busy={busy === 'send' || undefined}>
+                {busy === 'send' && SPINNER}
+                {busy === 'send' ? t.sending : t.sendDetails}
+              </button>
+            </div>
+          </form>
+        </div>
       </li>
     </>
   );

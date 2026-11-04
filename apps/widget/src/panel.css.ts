@@ -74,6 +74,7 @@ export const PANEL_CSS = `
 .paused-text svg{flex:none;margin-top:2px;color:var(--kaki-muted)}
 .lead-card{align-self:stretch;display:flex;flex-direction:column;gap:8px;padding:16px;background:var(--kaki-surface);color:var(--kaki-text);
   border:1px solid var(--kaki-border);border-radius:var(--kaki-radius);font-size:14px}
+.lead-item{align-self:stretch;display:flex;flex-direction:column}
 .lead-card form{display:flex;flex-direction:column;gap:8px;margin:0}
 .lead-card h3{margin:0;font-size:16px;font-weight:600}
 .lead-card p{margin:0;white-space:pre-wrap;word-wrap:break-word}
