@@ -6,7 +6,7 @@
 import { withTenant } from '@kaki/db';
 import { startTestDatabase, TENANT_A, TENANT_B, type TestDatabase } from '@kaki/db/testing';
 import { savePurposeStatement } from '@kaki/governance';
-import { signToken } from '@kaki/platform';
+import { createLogger, signToken } from '@kaki/platform';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
@@ -24,11 +24,13 @@ const published: {
   channel: string;
   payload: { type: string; message?: { noticeKind?: string } };
 }[] = [];
+const logLines: string[] = [];
 
 beforeAll(async () => {
   tdb = await startTestDatabase();
   app = await testApp(tdb, {
     env: { VISITOR_TOKEN_SECRET: VISITOR_SECRET },
+    logger: createLogger('api-test', 'debug', { write: (l: string) => void logLines.push(l) }),
     publisher: {
       publish: async (channel: string, payload: unknown) =>
         void published.push({ channel, payload: payload as { type: string } }),
@@ -156,6 +158,11 @@ describe('consent and lead (AC-1–AC-6)', () => {
     });
     expect(again.statusCode).toBe(200);
     expect(again.json()).toMatchObject({ status: 'updated' });
+    // AC-11: logs carry IDs and codes, never a submitted field value.
+    const logs = logLines.join('\n');
+    expect(logs).toContain(`/widget/v1/conversations/${id}/lead`);
+    for (const value of ['Mei Ling', '9123 4567', '91234567', '+6591234567', 'Cake'])
+      expect(logs).not.toContain(value);
   });
 
   it("another visitor's or tenant's conversation is a 404, and a decline stores no contact", async () => {
