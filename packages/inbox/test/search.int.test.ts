@@ -186,3 +186,65 @@ describe('tenant isolation (AC-3)', () => {
       expect(await ids(TENANT_B, q), q).toEqual([fx.b!.id]);
   });
 });
+
+describe('contact fields (FEAT-049 §5.5; AC-10)', () => {
+  const withContact = async (
+    tenantId: string,
+    mins: number,
+    contact: { name: string; email: string | null; phone: string | null },
+    body = 'Do you have pandan chiffon?',
+  ) => {
+    const c = await conv(tenantId, mins, [{ author: 'visitor', body }]);
+    const { rows } = await owner.query<{ id: string }>(
+      `insert into contacts (tenant_id, name, email, phone) values ($1, $2, $3, $4) returning id`,
+      [tenantId, contact.name, contact.email, contact.phone],
+    );
+    await owner.query(`update conversations set contact_id = $2 where id = $1`, [
+      c.id,
+      rows[0]!.id,
+    ]);
+    return c;
+  };
+
+  it('finds a conversation by its contact’s name, email or phone, saying which field matched', async () => {
+    const a = await withContact(TENANT_A, 500, {
+      name: 'Tan Zebulon',
+      email: 'zebulon.tan@example.sg',
+      phone: '+6598765432',
+    });
+    const byName = await search(TENANT_A, 'n zebul');
+    expect(byName.results.map((r) => r.conversation.id)).toEqual([a.id]);
+    expect(byName.results[0]!.match).toMatchObject({
+      source: 'contact',
+      field: 'name',
+      messageId: null,
+      author: null,
+      excerpt: 'Tan Zebulon',
+    });
+    const byEmail = await search(TENANT_A, 'zebulon.tan@');
+    expect(byEmail.results[0]!.match).toMatchObject({
+      field: 'email',
+      excerpt: 'zebulon.tan@example.sg',
+    });
+    for (const q of ['98765432', '9876 5432', '+65-9876-5432']) {
+      const r = await search(TENANT_A, q);
+      expect(r.results.map((x) => x.conversation.id)).toEqual([a.id]);
+      expect(r.results[0]!.match).toMatchObject({ field: 'phone', excerpt: '+65 9876 5432' });
+      expect(r.results[0]!.match.ranges.length).toBe(1);
+    }
+    // Tenant B finds none of A's contacts.
+    expect(await ids(TENANT_B, 'zebulon')).toEqual([]);
+  });
+
+  it('a message hit wins over a contact hit in the same conversation', async () => {
+    const c = await withContact(
+      TENANT_A,
+      600,
+      { name: 'Quokka Lim', email: null, phone: null },
+      'my friend Quokka said hi',
+    );
+    const r = await search(TENANT_A, 'quokka');
+    expect(r.results.map((x) => x.conversation.id)).toEqual([c.id]);
+    expect(r.results[0]!.match).toMatchObject({ source: 'message', messageId: c.messageIds[0] });
+  });
+});

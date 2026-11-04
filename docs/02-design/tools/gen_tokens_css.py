@@ -105,6 +105,8 @@ PAIRS = [
 for s in ["success", "warning", "danger", "info", "pending"]:
     PAIRS += [(f"color.{s}.default", f"color.{s}.soft", 4.5), (f"color.{s}.default", "color.bg.surface", 4.5)]
 PAIRS += [("color.text.on-accent", "color.danger.default", 4.5)]
+# The widget panel shows errors and ticks on its subtle surfaces too (FEAT-049).
+PAIRS += [("color.danger.default", "color.bg.subtle", 4.5), ("color.success.default", "color.bg.subtle", 3.0)]
 fail = False
 report = []
 for mode in ("light", "dark"):

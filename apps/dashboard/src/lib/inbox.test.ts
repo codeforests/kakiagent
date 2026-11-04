@@ -11,7 +11,10 @@ import {
   applySummary,
   dockMode,
   dockText,
+  cardCaption,
   eventText,
+  leadLines,
+  LEAD_STATUS,
   escalationStrip,
   escalationText,
   keepAssigneeName,
@@ -143,11 +146,15 @@ const message = (seq: number, over: Partial<Message> = {}): Message => ({
 });
 const thread = (messages: Message[]): ConversationThread => ({
   conversation: { ...summary(1), version: 1, createdAt: '2026-10-31T01:00:00.000Z' },
-  messages: messages.map((m) => ({ ...m, factIds: [], authorUserId: null })),
+  messages: messages.map((m) => ({ ...m, factIds: [], authorUserId: null, card: null })),
   hasEarlier: false,
   events: [],
   sidebar: {
     contact: {
+      contactId: null,
+      name: null,
+      email: null,
+      phone: null,
       label: 'Website visitor',
       firstSeenAt: '2026-10-31T01:00:00.000Z',
       previousConversations: 0,
@@ -440,6 +447,55 @@ describe('escalations (FEAT-044 AC-7)', () => {
     expect(eventText(divider)).toBe('Escalated to Mei Ling · visitor asked for a person');
     expect(eventText({ ...divider, source: 'unverified' })).toBe(
       "Escalated to Mei Ling · reply couldn't be checked",
+    );
+  });
+});
+
+describe('consent and lead in the thread and sidebar (FEAT-049 AC-12)', () => {
+  const at = '2026-11-18T06:30:00.000Z';
+  const base = {
+    at,
+    from: null,
+    to: null,
+    actor: { type: 'system' as const, name: null },
+    subject: null,
+  };
+
+  it('words the consent and lead dividers', () => {
+    expect(eventText({ ...base, kind: 'consent', reason: 'agreed' })).toBe(
+      'Visitor agreed to share their details',
+    );
+    expect(eventText({ ...base, kind: 'consent', reason: 'declined' })).toBe(
+      'Visitor chose not to share their details',
+    );
+    expect(eventText({ ...base, kind: 'lead', reason: 'created' })).toBe(
+      'Visitor left their details',
+    );
+    expect(eventText({ ...base, kind: 'lead', reason: 'updated' })).toBe(
+      'Visitor updated their details',
+    );
+  });
+
+  it('captions agent bubbles that carried a card', () => {
+    expect(cardCaption('consent')).toBe('Asked for consent');
+    expect(cardCaption('lead_form')).toBe('Showed the details form');
+    expect(cardCaption(null)).toBeNull();
+  });
+
+  it("shows the lead's status, consent time and marketing answer in Singapore time", () => {
+    const lead = {
+      id: '00000000-0000-4000-8000-000000000001',
+      status: 'new' as const,
+      updatedAt: at,
+      consent: { enquiryAt: at, marketing: { agreed: true, at } },
+    };
+    expect(LEAD_STATUS.new).toEqual({ label: 'New', tone: 'info' });
+    expect(leadLines(lead)).toEqual({
+      consent: 'Consent · 18 Nov 2026, 2:30 pm',
+      offers: 'Offers · Yes, 2:30 pm',
+    });
+    expect(leadLines({ ...lead, consent: { enquiryAt: at, marketing: null } }).offers).toBe(
+      'Offers · No',
     );
   });
 });

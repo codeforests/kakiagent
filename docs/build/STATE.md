@@ -4,10 +4,10 @@ The one file a fresh build session reads first. Keep it under 80 lines. The veri
 
 ## Where the build is
 
-- **Next feature:** FEAT-049 (M3), design, only after Ken says go. FEAT-046 accepted 2026-11-03 (PR #52).
-- **M3 order (remaining):** 049 → 055 → 056 → 050 → 051 (plan §5). FEAT-049's design must add contact name, email and phone to `searchConversations` (FEAT-046 D1).
+- **Next feature:** FEAT-055 (M3), design, only after Ken says go. FEAT-049 accepted 2026-11-04 (PR #53).
+- **M3 order (remaining):** 055 → 056 → 050 → 051 (plan §5). FEAT-050 owns LED-08's CSV export, lead scoring and the hot-lead alert, and the list that shows pre-live contact-form leads (FEAT-049 D8, D9).
 - **Demos:** the interim demo after FEAT-027 (coaching) is due; it can now include replay (FEAT-028). M2 closes now with `pipeline-verify` and a live demo of J1, J8 and J11, signed off by Ken, before M3 starts.
-- **Merged:** 001 (skeleton), 002, 003, 004, 005, 009, 011, 012, 013, 014, 015, 016, 017, 022, 023, 024, 025, 027 (merged 2026-10-24 without a verify stage; accepted retrospectively 2026-11-02), 028 (accepted 2026-10-24), 018 (accepted and merged 2026-10-24), 019 (accepted and merged 2026-10-25), 032 (accepted and merged 2026-10-25), 033 (accepted and merged 2026-10-26), 058 (accepted and merged 2026-10-27), 034 (accepted 2026-10-27, merged 2026-10-28 after GitHub CI went green), 057 (accepted 2026-10-28; GOV-08 partial until FEAT-049), 006 (accepted 2026-10-30; AUTH-03 partial: operators FEAT-070, each sensitive action's re-auth with its feature), 054 (accepted 2026-10-30; discount and quote enforcement at dispatch with FEAT-055), 035 (accepted 2026-10-30; ONB-08 instrumented only, pilot median pending), 007 (accepted 2026-10-31; AUTH-02 revocation clause only; Google join not E2E-tested), 008 (accepted 2026-10-31; AUTH-02 still partial: operators FEAT-070), 042 (accepted 2026-10-31), 043 (accepted 2026-10-31; INB-01 complete; assignee = current owner until FEAT-044), 052 (accepted 2026-11-01; LED-04 and DSH-09 email only until FEAT-037/048; NFR-18 live at MD; producers call `notify` from FEAT-044/050/055), 044 (accepted 2026-11-01 after rework R1; INB-05 alerts email only until FEAT-037/048; after-hours lead capture FEAT-049), 045 (accepted 2026-11-02; KB-18 staff-edit producer only, `staff_reply` later; suggestions run in the API, ADR-026 note pending), 046 (accepted 2026-11-03; INB-11 partial: message text only, contact fields with FEAT-049). Each has `docs/features/FEAT-NNN-*/`.
+- **Merged:** 001 (skeleton), 002, 003, 004, 005, 009, 011, 012, 013, 014, 015, 016, 017, 022, 023, 024, 025, 027 (merged 2026-10-24 without a verify stage; accepted retrospectively 2026-11-02), 028 (accepted 2026-10-24), 018 (accepted and merged 2026-10-24), 019 (accepted and merged 2026-10-25), 032 (accepted and merged 2026-10-25), 033 (accepted and merged 2026-10-26), 058 (accepted and merged 2026-10-27), 034 (accepted 2026-10-27, merged 2026-10-28 after GitHub CI went green), 057 (accepted 2026-10-28; GOV-08 partial until FEAT-049), 006 (accepted 2026-10-30; AUTH-03 partial: operators FEAT-070, each sensitive action's re-auth with its feature), 054 (accepted 2026-10-30; discount and quote enforcement at dispatch with FEAT-055), 035 (accepted 2026-10-30; ONB-08 instrumented only, pilot median pending), 007 (accepted 2026-10-31; AUTH-02 revocation clause only; Google join not E2E-tested), 008 (accepted 2026-10-31; AUTH-02 still partial: operators FEAT-070), 042 (accepted 2026-10-31), 043 (accepted 2026-10-31; INB-01 complete; assignee = current owner until FEAT-044), 052 (accepted 2026-11-01; LED-04 and DSH-09 email only until FEAT-037/048; NFR-18 live at MD; producers call `notify` from FEAT-044/050/055), 044 (accepted 2026-11-01 after rework R1; INB-05 alerts email only until FEAT-037/048; after-hours lead capture FEAT-049), 045 (accepted 2026-11-02; KB-18 staff-edit producer only, `staff_reply` later; suggestions run in the API, ADR-026 note pending), 046 (accepted 2026-11-03), 049 (accepted 2026-11-04; INB-11 and GOV-08 complete; LED-08 CSV export with FEAT-050; AGT-06 `capture_lead` only). Each has `docs/features/FEAT-NNN-*/`.
 
 ## One feature = three fresh sessions
 
@@ -24,15 +24,15 @@ Each stage follows `.claude/skills/feature-stage/SKILL.md`. A stage never reads 
 ## Kickoff prompts (paste into a new thread)
 
 ```
-Design FEAT-049. Branch feat/FEAT-049-<slug> (create it from main).
+Design FEAT-055. Branch feat/FEAT-055-<slug> (create it from main).
 Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage design.
 ```
 ```
-Build FEAT-049 (backend) on branch feat/FEAT-049-<slug>.
+Build FEAT-055 (backend) on branch feat/FEAT-055-<slug>.
 Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage build.
 ```
 ```
-Verify FEAT-049 on branch feat/FEAT-049-<slug>.
+Verify FEAT-055 on branch feat/FEAT-055-<slug>.
 Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify.
 ```
 
@@ -54,7 +54,7 @@ The repo is public, so GitHub Actions minutes are free. CI (`.github/workflows/c
 - **Every feature:** the verify stage runs the full local checks through `scripts/test-env.sh scripts/check-summary.sh` (with no arguments it runs `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`; add `'pnpm --filter <pkg> test:coverage'` for each package the feature touches), then starts CI on the PR branch (`actions_run_trigger` `run_workflow`, `ci.yml`, ref = the branch), waits for the PR events (no polling), fixes anything red on the branch and re-runs until all jobs are green. The PR body lists both.
 - **E2E** runs in CI (Chromium, Firefox, WebKit). The acceptance report records the run number and commit.
 - Ken's local WSL run (`/mnt/project-files/guides/run-kakiagent-locally.md`) is only a fallback when GitHub CI is unavailable.
-- **Last CI run:** GitHub CI run 100 on FEAT-046 at `991a180`, 2026-11-04, green (Firefox E2E after one re-run).
+- **Last CI run:** GitHub CI run 103 on FEAT-049 at `dadda74`, 2026-11-04: all green except the `search-volume.int` 2-char Chinese timing (2.25–2.37 s vs 2 s in CI, 0.83 s locally; Ken: treat as CI noise, risk in pending-actions).
 
 ## Token tracking (Ken, 2026-10-24; every feature)
 

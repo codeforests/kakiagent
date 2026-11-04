@@ -22,9 +22,24 @@ export interface IndustryTemplate {
    * saved. Commitments and discounts stay at the safe defaults for every industry.
    */
   suggestedRules: { allowedTopics: readonly string[]; blockedTopics: readonly string[] };
+  /**
+   * The lead form's default fields (FEAT-049 §5.1), every key once in order; the widget labels
+   * `preferredTime` "Date needed" for F&B. In force until the owner saves their own.
+   */
+  leadFields?: readonly { key: LeadFieldKey; mode: 'off' | 'optional' | 'required' }[];
 }
 
+type LeadFieldKey = 'name' | 'phone' | 'email' | 'need' | 'budget' | 'preferredTime';
+
 const FNB: IndustryTemplate = {
+  leadFields: [
+    { key: 'name', mode: 'required' },
+    { key: 'phone', mode: 'optional' },
+    { key: 'email', mode: 'optional' },
+    { key: 'need', mode: 'optional' },
+    { key: 'budget', mode: 'off' },
+    { key: 'preferredTime', mode: 'optional' },
+  ],
   suggestedRules: {
     allowedTopics: [
       'Menu and prices',

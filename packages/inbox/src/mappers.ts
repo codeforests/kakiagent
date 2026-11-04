@@ -1,4 +1,4 @@
-import type { ConversationSummary, Message } from '@kaki/contracts';
+import type { ConversationSummary, Message, MessageCard } from '@kaki/contracts';
 import type { schema } from '@kaki/db';
 
 export type MessageRow = typeof schema.messages.$inferSelect;
@@ -19,9 +19,14 @@ export function toMessage(row: MessageRow): Message {
     noticeKind: row.noticeKind,
     authorName: row.authorName,
     language: row.language,
+    card: (row.card as MessageCard | null) ?? null,
     createdAt: row.createdAt.toISOString(),
   };
 }
+
+/** Staff see a card's kind only, never its prefill (FEAT-049 §3). */
+export const cardKind = (row: MessageRow) =>
+  ((row.card as MessageCard | null)?.kind ?? null) as MessageCard['kind'] | null;
 
 /** A conversation's owner as staff see it (FEAT-043): the API names it with `memberNames`. */
 export type SummaryOwner = ConversationSummary['owner'];

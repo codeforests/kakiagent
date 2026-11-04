@@ -168,6 +168,13 @@ describe('audit.append (AC-1, AC-2, AC-9)', () => {
 
 describe('audit PII (AC-6)', () => {
   const contact = U(42);
+  // audit_pii.contact_id references contacts (FEAT-049).
+  beforeAll(async () => {
+    await owner.query(`insert into contacts (tenant_id, id, name) values ($1, $2, 'Tan Ah Kow')`, [
+      TENANT_B,
+      contact,
+    ]);
+  });
 
   it('keeps personal data only in audit_pii, bound by a salted commitment', async () => {
     const vis = tdb.zone('visitor');

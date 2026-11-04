@@ -1,4 +1,4 @@
-import type { ConversationSearchResult, SearchMatch } from '@kaki/contracts';
+import { formatSgPhone, type ConversationSearchResult, type SearchMatch } from '@kaki/contracts';
 import { and, desc, eq, schema, sql, type Tx } from '@kaki/db';
 import { piiMask } from '@kaki/platform';
 import { toSummary } from './mappers.js';
@@ -132,19 +132,29 @@ export async function searchConversations(
     sql`, `,
   );
   // The latest matching message per conversation, through `inbox_search_hits` so the
-  // trigram index applies under RLS (0047, build note B1). FEAT-049 unions contact hits here (D1).
-  const fn = sql`inbox_search_hits(array[${patterns}]::text[])`;
+  // trigram index applies under RLS (0047, build note B1), joined with the conversations
+  // whose contact's name, email or phone matches (`inbox_contact_hits`, FEAT-049 §5.5, D1).
+  // A message hit wins; a contact-only conversation shows the field that matched.
+  const both = sql`(
+    select coalesce(m.tenant_id, k.tenant_id) as tenant_id,
+      coalesce(m.conversation_id, k.conversation_id) as conversation_id,
+      m.message_id, m.author, m.body, m.created_at, k.field, k.value
+    from inbox_search_hits(array[${patterns}]::text[]) m
+    full join inbox_contact_hits(array[${patterns}]::text[]) k
+      on k.conversation_id = m.conversation_id)`;
   const hits = tx.$with('hits').as(
     tx
       .select({
         tenantId: sql<string>`h.tenant_id`.as('hit_tenant_id'),
         conversationId: sql<string>`h.conversation_id`.as('hit_conversation_id'),
-        messageId: sql<string>`h.message_id`.as('hit_message_id'),
+        messageId: sql<string | null>`h.message_id`.as('hit_message_id'),
         author: sql<SearchMatch['author']>`h.author`.as('hit_author'),
-        body: sql<string>`h.body`.as('hit_body'),
-        at: sql<Date>`h.created_at`.as('hit_at'),
+        body: sql<string | null>`h.body`.as('hit_body'),
+        at: sql<Date | null>`h.created_at`.as('hit_at'),
+        field: sql<'name' | 'email' | 'phone' | null>`h.field`.as('hit_field'),
+        value: sql<string | null>`h.value`.as('hit_value'),
       })
-      .from(sql`${fn} h`),
+      .from(sql`${both} h`),
   );
   const rows = await tx
     .with(hits)
@@ -158,7 +168,9 @@ export async function searchConversations(
       hitMessageId: hits.messageId,
       hitAuthor: hits.author,
       hitBody: hits.body,
-      hitAt: sql<string>`to_char(${hits.at} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`,
+      hitAt: sql<string>`to_char(coalesce(${hits.at}, ${c.lastMessageAt}) at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`,
+      hitField: hits.field,
+      hitValue: hits.value,
     })
     .from(c)
     .innerJoin(hits, eq(hits.conversationId, c.id))
@@ -189,12 +201,29 @@ export async function searchConversations(
         owners.get(r.conversation.id) ?? null,
         escalations.get(r.conversation.id) ?? null,
       ),
-      match: {
-        messageId: r.hitMessageId,
-        author: r.hitAuthor,
-        at: r.hitAt,
-        ...excerptOf(r.hitBody, terms),
-      },
+      match:
+        r.hitMessageId !== null && r.hitBody !== null
+          ? {
+              source: 'message' as const,
+              field: null,
+              messageId: r.hitMessageId,
+              author: r.hitAuthor,
+              at: r.hitAt,
+              ...excerptOf(r.hitBody, terms),
+            }
+          : {
+              source: 'contact' as const,
+              field: r.hitField,
+              messageId: null,
+              author: null,
+              at: r.hitAt,
+              ...excerptOf(
+                r.hitField === 'phone' && r.hitValue
+                  ? formatSgPhone(r.hitValue)
+                  : (r.hitValue ?? ''),
+                terms,
+              ),
+            },
     })),
     nextCursor:
       rows.length > q.limit && last

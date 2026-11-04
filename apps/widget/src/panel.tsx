@@ -1,14 +1,16 @@
 /**
  * The lazy chat panel (ADR-016 `panel.js`, ≤ 35 KB gz): SCR-WGT-002. Replies arrive
  * over SSE (ADR-017) one verified sentence at a time (ADR-008), then as the stored
- * message. Consent, feedback and the other widget components arrive with their
- * features.
+ * message. Consent and details cards (FEAT-049) are in `cards.tsx`; feedback and the
+ * other widget components arrive with their features.
  */
-import type { Message } from '@kaki/contracts';
-import { render } from 'preact';
+import type { LeadCaptureConfig, Message } from '@kaki/contracts';
+import { render, type ComponentChildren } from 'preact';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { ChatEndedError, createApi } from './api.js';
+import { ContactForm, LeadCard, PrivacyLink } from './cards.js';
 import {
+  activeCard,
   awaitingTurn,
   chatEnded,
   chromeLocale,
@@ -69,38 +71,6 @@ const MENU_ICON = (
     <circle cx="19" cy="12" r="1.75" />
   </svg>
 );
-
-const EXTERNAL_ICON = (
-  <svg
-    viewBox="0 0 24 24"
-    width="12"
-    height="12"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="2"
-    aria-hidden="true"
-  >
-    <path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />
-  </svg>
-);
-
-/** A link to the tenant's privacy notice, in a new tab (FEAT-033 AC-5). */
-function PrivacyLink({ url, t, class: cls }: { url: string; t: Strings; class?: string }) {
-  return (
-    <a
-      class={cls}
-      href={url}
-      target="_blank"
-      rel="noopener noreferrer"
-      role={cls ? 'menuitem' : undefined}
-      tabIndex={cls ? -1 : undefined}
-    >
-      {t.privacyNotice}
-      <span class="sr-only"> {t.opensInNewTab}</span>
-      {cls && EXTERNAL_ICON}
-    </a>
-  );
-}
 
 /**
  * The header's menu button and menu (SCR-WGT-002, FEAT-033): the WAI-ARIA menu-button
@@ -293,20 +263,33 @@ function NotLiveCard({
   t,
   business,
   cardRef,
+  contact,
+  onLeave,
 }: {
   view: NotLiveView;
   t: Strings;
   business: string;
   cardRef: { current: HTMLDivElement | null };
+  /** The open contact form (FEAT-049 SCR-WGT-005), in place of the card. */
+  contact: ComponentChildren;
+  /** Null when the business doesn't capture leads. */
+  onLeave: (() => void) | null;
 }) {
   return (
     <div class="offline" role="region" aria-label={t.notLiveRegion(business)}>
-      <div class="offline-card">
-        <p tabIndex={-1} ref={cardRef} lang={langOf(view.text)}>
-          {view.text}
-        </p>
-        <ContactLines view={view} t={t} />
-      </div>
+      {contact || (
+        <div class="offline-card">
+          <p tabIndex={-1} ref={cardRef} lang={langOf(view.text)}>
+            {view.text}
+          </p>
+          <ContactLines view={view} t={t} />
+          {onLeave && (
+            <button type="button" class="btn sec" data-leave onClick={onLeave}>
+              {t.leaveDetails}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -329,16 +312,35 @@ const PAUSE_ICON = (
 );
 
 /** SCR-WGT-005 paused (FEAT-057): the fallback and contacts at the top of the log; the composer stays. */
-function PausedNotice({ view, t, business }: { view: NotLiveView; t: Strings; business: string }) {
+function PausedNotice({
+  view,
+  t,
+  business,
+  contact,
+  onLeave,
+}: {
+  view: NotLiveView;
+  t: Strings;
+  business: string;
+  contact: ComponentChildren;
+  onLeave: (() => void) | null;
+}) {
   return (
     <li class="paused">
-      <div class="offline-card" role="region" aria-label={t.notLiveRegion(business)}>
-        <p class="paused-text" lang={langOf(view.text)}>
-          {PAUSE_ICON}
-          <span>{view.text}</span>
-        </p>
-        <ContactLines view={view} t={t} />
-      </div>
+      {contact || (
+        <div class="offline-card" role="region" aria-label={t.notLiveRegion(business)}>
+          <p class="paused-text" lang={langOf(view.text)}>
+            {PAUSE_ICON}
+            <span>{view.text}</span>
+          </p>
+          <ContactLines view={view} t={t} />
+          {onLeave && (
+            <button type="button" class="btn sec" data-leave onClick={onLeave}>
+              {t.leaveDetails}
+            </button>
+          )}
+        </div>
+      )}
     </li>
   );
 }
@@ -378,12 +380,20 @@ function Panel({
   const [endState, setEndState] = useState<'open' | 'confirm' | 'ending' | 'ended'>('open');
   const [endError, setEndError] = useState(false);
   const cardTitleRef = useRef<HTMLHeadingElement>(null);
+  // Lead capture (FEAT-049): the config, replaced when a 409 brings new wording; the
+  // fallback contact form's open state.
+  const [lead, setLead] = useState<LeadCaptureConfig | null>(ctx.config.leadCapture ?? null);
+  const [contactOpen, setContactOpen] = useState(false);
   // Where focus goes after the next render (the target may not exist yet).
-  const focusNext = useRef<'title' | 'menu' | 'input' | null>(null);
+  const focusNext = useRef<'title' | 'menu' | 'input' | 'leave' | `notice:${string}` | null>(null);
   useEffect(() => {
     const target = focusNext.current;
     focusNext.current = null;
-    if (target === 'title') cardTitleRef.current?.focus();
+    if (target?.startsWith('notice:'))
+      logRef.current?.querySelector<HTMLElement>(`[data-notice="${target.slice(7)}"]`)?.focus();
+    else if (target === 'leave')
+      (ctx.mount.querySelector('[data-leave]') as HTMLElement | null)?.focus();
+    else if (target === 'title') cardTitleRef.current?.focus();
     // The menu button can be gone for a render (Talk to a person, before the chat exists).
     else if (target === 'menu') {
       if (menuRef.current) menuRef.current.focus();
@@ -437,6 +447,30 @@ function Panel({
   }, [ended]);
   const growing = waitingFor ? pendingText(chat, waitingFor) : null;
   const privacyUrl = ctx.config.privacyNoticeUrl;
+  const openCard = activeCard(chat);
+  const business = ctx.config.botName;
+  const leadCommon = lead && {
+    lead,
+    onLeadCapture: setLead,
+    locale,
+    t,
+    business,
+    privacyUrl,
+  };
+  // SCR-WGT-005: "Leave your details" and the contact form, only when capturing (AC-9).
+  const contactForm =
+    leadCommon && contactOpen && !preview ? (
+      <ContactForm
+        {...leadCommon}
+        api={api}
+        conversationId={conversationId}
+        onBack={() => {
+          setContactOpen(false);
+          focusNext.current = 'leave';
+        }}
+      />
+    ) : null;
+  const onLeave = lead && !preview ? () => setContactOpen(true) : null;
   const items = menuItems(ctx.config, {
     conversationId,
     // Not live: no chat to end or hand over, only the privacy notice.
@@ -569,11 +603,26 @@ function Panel({
         </button>
       </header>
       {notLive ? (
-        <NotLiveCard view={notLive} t={t} business={ctx.config.botName} cardRef={noticeRef} />
+        <NotLiveCard
+          view={notLive}
+          t={t}
+          business={business}
+          cardRef={noticeRef}
+          contact={contactForm}
+          onLeave={onLeave}
+        />
       ) : (
         <>
           <ol class="log" ref={logRef} tabIndex={0} aria-live="polite" aria-relevant="additions">
-            {paused && <PausedNotice view={paused} t={t} business={ctx.config.botName} />}
+            {paused && (
+              <PausedNotice
+                view={paused}
+                t={t}
+                business={business}
+                contact={contactForm}
+                onLeave={onLeave}
+              />
+            )}
             {!paused && chat.messages.length === 0 && (
               <li class="empty" lang={langOf(greeting)}>
                 {greeting}
@@ -586,7 +635,12 @@ function Panel({
                     {INFO_ICON} {r.text}
                   </li>
                 ) : r.kind === 'notice' ? (
-                  <li key={r.key} class="notice" lang={langOf(r.text)}>
+                  <li
+                    key={r.key}
+                    class="notice"
+                    lang={langOf(r.text)}
+                    {...(m.noticeKind === 'lead_captured' && { 'data-notice': m.id, tabIndex: -1 })}
+                  >
                     {r.text}
                   </li>
                 ) : (
@@ -606,6 +660,21 @@ function Panel({
                     {r.text}
                   </li>
                 ),
+              ),
+              m.card && leadCommon && (
+                <LeadCard
+                  key={`${m.id}-card`}
+                  {...leadCommon}
+                  m={{ ...m, card: m.card }}
+                  active={m.id === openCard}
+                  api={preview ? null : api}
+                  conversationId={conversationId}
+                  onNotice={(notice) => {
+                    setChat((c) => withMessage(c, notice));
+                    focusNext.current = `notice:${notice.id}`;
+                  }}
+                  focusComposer={() => inputRef.current?.focus()}
+                />
               ),
               m.id === waitingFor && growing && (
                 <li

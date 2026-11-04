@@ -34,6 +34,10 @@ export interface Texts {
   abuseEnded: string;
   /** The notice on the AI's last message of an ended conversation. */
   chatEnded: string;
+  /** FEAT-049: the reply that carries the consent card when the visitor offers their details. */
+  leadConsent: string;
+  /** FEAT-049: the reply that carries the lead form once they agreed. */
+  leadForm: string;
 }
 
 /**
@@ -109,7 +113,9 @@ type FixedKeys =
   | 'crisis'
   | 'abuseWarning'
   | 'abuseEnded'
-  | 'chatEnded';
+  | 'chatEnded'
+  | 'leadConsent'
+  | 'leadForm';
 
 const FIXED: Record<ReplyLanguage, Pick<Texts, FixedKeys>> = {
   en: {
@@ -136,6 +142,8 @@ const FIXED: Record<ReplyLanguage, Pick<Texts, FixedKeys>> = {
       `I'm here to help with questions about ${b}. Please keep the conversation respectful.`,
     abuseEnded: "I'm ending this chat now. Our team can see this conversation.",
     chatEnded: 'This chat has ended.',
+    leadConsent: 'I can pass your details to the team so they can get back to you.',
+    leadForm: 'Please fill in your details below.',
   },
   zh: {
     escalation: '我先跟团队确认一下，稍后回复您。',
@@ -154,6 +162,8 @@ const FIXED: Record<ReplyLanguage, Pick<Texts, FixedKeys>> = {
     abuseWarning: (b: string) => `我很乐意回答与 ${b} 有关的问题，请保持礼貌。`,
     abuseEnded: '我现在结束这次对话。我们的团队可以看到这段对话。',
     chatEnded: '本次对话已结束。',
+    leadConsent: '我可以把您的资料转给团队，让他们联系您。',
+    leadForm: '请在下方填写您的资料。',
   },
 };
 

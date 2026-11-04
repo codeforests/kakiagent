@@ -15,6 +15,8 @@ import {
   answerTurn,
   applyBoundary,
   buildVisitorPrompt,
+  cardForReply,
+  consentCardFor,
   dispatchPlan,
   escalationNotice,
   fakeAgentScript,
@@ -62,6 +64,7 @@ import {
 import { DEFAULT_PERSONA, openStatus, type Persona } from '@kaki/tenancy';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import type { MessageCard } from '@kaki/contracts';
 import { z } from 'zod';
 import {
   Fixture,
@@ -214,31 +217,45 @@ function fakeScript(c: Case): FakeScript {
 /**
  * ADR-025's dispatch check: every planned task other than `answer` is reported and
  * audited, in phase order, none dropped: `done` for kinds with a visitor handler
- * (FEAT-023: `out_of_scope`), `unhandled` for the rest.
+ * (FEAT-023: `out_of_scope`), `unhandled` for the rest; `capture_lead` is `refused`
+ * (consent) until the case's visitor agreed (FEAT-049 AC-7).
  */
 async function dispatchCheck(
   plan: TurnPlan,
   tenantId: string,
   conversation: ConversationPort,
   rules: BoundaryRules,
-): Promise<{ error: string | null; replies: ReplyKey[]; endTurn: SafetyKey | null }> {
+  consent: Case['consent'],
+): Promise<{
+  error: string | null;
+  replies: ReplyKey[];
+  endTurn: SafetyKey | null;
+  card: MessageCard | null;
+}> {
   const audited: string[] = [];
+  const agreed = consent === 'agreed';
   const ctx: DispatchContext = {
     scope: 'visitor',
     tenantId,
     conversationId: 'eval',
     turnId: 'eval',
     gateOpen: async () => true,
-    consentGiven: async () => false,
+    consentGiven: async () => agreed,
+    leadConsentId: async () => (agreed ? 'eval-consent' : null),
     boundaryRules: async () => rules,
     audit: async (e) => void audited.push(`${e.task}:${e.outcome}`),
     conversation,
   };
-  const { reports, replies, endTurn } = await dispatchPlan(visitorRegistry, plan, ctx);
+  const dispatched = await dispatchPlan(visitorRegistry, plan, ctx);
+  const { reports, endTurn } = dispatched;
   const planned = plan.tasks.filter((t) => t.kind !== 'answer').map((t) => t.kind);
   const reported = reports.map((r) => `${r.task}:${r.outcome}`);
   const expected = (kind: TaskKind) =>
-    kind !== 'answer' && visitorRegistry.byKind.has(kind) ? 'done' : 'unhandled';
+    kind === 'capture_lead' && !agreed
+      ? 'refused'
+      : kind !== 'answer' && visitorRegistry.byKind.has(kind)
+        ? 'done'
+        : 'unhandled';
   // A safety task ends the dispatch (ADR-025 decision 6): the rest are never run.
   const ok =
     (endTurn !== undefined || reports.length === planned.length) &&
@@ -250,10 +267,15 @@ async function dispatchCheck(
           .sort()
           .join()) &&
     audited.join() === reported.join();
+  // FEAT-049 §5.3, as turn.ts does: the lead form, or the consent card for a refusal.
+  const card = dispatched.card ?? consentCardFor(reports, plan.tasks);
+  const replies = [...dispatched.replies];
+  if (card?.kind === 'consent' && !replies.includes('lead_consent')) replies.push('lead_consent');
   return {
     error: ok ? null : `dispatch ${JSON.stringify(reported)} for ${JSON.stringify(planned)}`,
     replies,
     endTurn: endTurn?.key ?? null,
+    card,
   };
 }
 
@@ -313,7 +335,18 @@ async function runCase(c: Case) {
   const triaged = await triage(llm, { history: c.messages, meta, tail: triageTail(rules) });
   const { plan } = applyBoundary(triaged, rules, query);
   const conversation = memoryConversation(c.priorAbuse);
-  const dispatch = await dispatchCheck(plan, fixture.tenantId, conversation.port, rules);
+  const dispatch = await dispatchCheck(plan, fixture.tenantId, conversation.port, rules, c.consent);
+  // FEAT-049 AC-8: the card under the reply, as turn.ts picks it (a purpose statement saved).
+  const cardOf = (outcome: string, afterHoursNotice: boolean, escalatedAfterHours: boolean) =>
+    cardForReply({
+      card: dispatch.card,
+      outcome,
+      safety: dispatch.endTurn !== null,
+      capturing: true,
+      afterHoursNotice,
+      escalatedAfterHours,
+      state: { enquiry: c.consent ?? null, offered: c.offered, captured: false },
+    });
   const route = routeReply(routeSignals(plan, false), DEFAULT_ROUTE_POLICY);
   const language = replyLanguage(plan, query);
   const hours = hoursAt(fixture, c, at);
@@ -336,6 +369,7 @@ async function runCase(c: Case) {
       disclosure: texts.disclosure(fixture.businessName),
       retrieved: facts.map((f) => f.id),
       ...turnState,
+      card: cardOf('ended', false, false),
     };
     return { reply, plan, route: null, dispatchError: dispatch.error, facts, hours, llm, persona };
   }
@@ -353,6 +387,7 @@ async function runCase(c: Case) {
       disclosure: texts.disclosure(fixture.businessName),
       retrieved: facts.map((f) => f.id),
       ...turnState,
+      card: cardOf('escalated', false, closed),
     };
     return { reply, plan, route: null, dispatchError: dispatch.error, facts, hours, llm, persona };
   }
@@ -395,6 +430,7 @@ async function runCase(c: Case) {
     disclosure: texts.disclosure(fixture.businessName),
     retrieved: facts.map((f) => f.id),
     ...turnState,
+    card: cardOf(result.outcome, notice !== null, false),
   };
   return { reply, plan, route, dispatchError: dispatch.error, facts, hours, llm, persona };
 }

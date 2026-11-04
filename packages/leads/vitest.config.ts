@@ -1,4 +1,4 @@
 import { vitestConfig } from '../../vitest.shared.ts';
 
-// Coverage is report-only for this package (architecture §8.7).
-export default vitestConfig();
+// Core package: 70% line coverage enforced once it has code (architecture §8.7, NFR-12).
+export default vitestConfig({ thresholds: { lines: 70 } });

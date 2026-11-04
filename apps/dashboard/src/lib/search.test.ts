@@ -4,6 +4,7 @@ import {
   canSearch,
   commitSearch,
   highlightParts,
+  matchLabel,
   normaliseQuery,
   resetInboxSearch,
   resultsStatus,
@@ -101,5 +102,15 @@ describe('inbox search helpers (FEAT-046)', () => {
     resetInboxSearch();
     vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS);
     expect(read()).toMatchObject({ text: '', query: '', opened: null, active: false });
+  });
+});
+
+describe('contact matches (FEAT-049 AC-10)', () => {
+  it('labels a contact hit by the field that matched, a message hit by its author', () => {
+    expect(matchLabel({ source: 'contact', field: 'email', author: null })).toBe('Email matches ·');
+    expect(matchLabel({ source: 'contact', field: 'phone', author: null })).toBe('Phone matches ·');
+    expect(matchLabel({ source: 'message', field: null, author: 'visitor' })).toBe(
+      `${authorLabel('visitor')}:`,
+    );
   });
 });

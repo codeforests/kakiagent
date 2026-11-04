@@ -5,7 +5,7 @@ import { Fragment, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { api } from '../lib/api.ts';
 import {
-  authorLabel,
+  matchLabel,
   commitSearch,
   highlightParts,
   markOpened,
@@ -92,7 +92,7 @@ export function SearchField() {
 function Excerpt({ match }: { match: SearchMatch }) {
   return (
     <span className="conversation-row__preview search-excerpt" data-testid="search-excerpt">
-      <span className="search-excerpt__author">{authorLabel(match.author)}:</span>{' '}
+      <span className="search-excerpt__author">{matchLabel(match)}</span>{' '}
       {highlightParts(match.excerpt, match.ranges).map((p, i) =>
         p.hit ? (
           <mark key={i} className="search-hit">

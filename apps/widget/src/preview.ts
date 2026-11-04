@@ -99,6 +99,7 @@ function show(m: PreviewMessage) {
     controls: { talkToPerson: false },
     availability: { live: true },
     aiPaused: null,
+    leadCapture: null,
   } satisfies WidgetConfigResponse;
   mountPanel({
     shadow,

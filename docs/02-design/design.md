@@ -238,6 +238,8 @@ Rules: weight 500 is for buttons, tabs and table headers; 600 for titles only. N
   --kaki-border: #D9E0E7;
   --kaki-border-strong: #7D8C9B;
   --kaki-info-bg: #E8EEFC;
+  --kaki-danger: #B91C1C;
+  --kaki-success: #137333;
   --kaki-on-accent: #FFFFFF;
   --kaki-font: system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Noto Sans SC", sans-serif;
   --kaki-radius: 12px;
@@ -304,6 +306,8 @@ Rules: weight 500 is for buttons, tabs and table headers; 600 for titles only. N
     --kaki-border: #243241;
     --kaki-border-strong: #56697D;
     --kaki-info-bg: #18233F;
+    --kaki-danger: #F87171;
+    --kaki-success: #4ADE80;
     --kaki-on-accent: #0B1117;
   }
 }
@@ -364,6 +368,8 @@ Rules: weight 500 is for buttons, tabs and table headers; 600 for titles only. N
   --kaki-border: #243241;
   --kaki-border-strong: #56697D;
   --kaki-info-bg: #18233F;
+  --kaki-danger: #F87171;
+  --kaki-success: #4ADE80;
   --kaki-on-accent: #0B1117;
 }
 ```

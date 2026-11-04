@@ -16,9 +16,16 @@ import {
  * their visitor texts, and no flag, abuse count or AI state changes.
  */
 
-/** Each handler re-scoped to `coaching`, its checks and `run` unchanged. */
+/**
+ * Each handler re-scoped to `coaching`, its checks and `run` unchanged. `capture_lead` is left
+ * out: its cards exist only in the widget (FEAT-049 §5.3, AC-7), so a replay reports it unhandled.
+ */
 export function stubAll(reg: Registry): Registry {
-  return createRegistry([...reg.byKind.values()].map((h) => ({ ...h, scopes: ['coaching'] })));
+  return createRegistry(
+    [...reg.byKind.values()]
+      .filter((h) => h.kind !== 'capture_lead')
+      .map((h) => ({ ...h, scopes: ['coaching'] })),
+  );
 }
 
 /** The visitor handlers for a replay. No `propose_correction`: a replay never proposes. */

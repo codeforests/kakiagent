@@ -62,6 +62,13 @@ export { leakGuard, LEAK_MARKERS, ruleText, WINDOW, type LeakGuard } from './gua
 export { asData, buildVisitorPrompt } from './prompt.js';
 export { fakeTriage } from './fake-triage.js';
 export {
+  CaptureLeadArgs,
+  cardForReply,
+  consentCardFor,
+  prefillOf,
+  type LeadState,
+} from './lead.js';
+export {
   applyBoundary,
   blockedTopicHit,
   boundaryGuard,

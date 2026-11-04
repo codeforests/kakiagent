@@ -1,6 +1,18 @@
-import type { Message, WidgetConfigResponse } from '@kaki/contracts';
+import type {
+  LeadCaptureConfig,
+  LeadPrefill,
+  Message,
+  WidgetConfigResponse,
+} from '@kaki/contracts';
+import {
+  checkLead,
+  leadOk,
+  type LeadFieldError,
+  type LeadFieldKey,
+  type LeadValues,
+} from '@kaki/contracts/lead-check';
 import { mergeMessages } from './api.js';
-import { pickLocale, type Locale } from './strings.js';
+import { pickLocale, type Locale, type Strings } from './strings.js';
 
 /** A verified sentence of a reply still being written (FEAT-022 §3.4). */
 export interface Segment {
@@ -214,4 +226,123 @@ function noticeView(
     email: email ? { label: email, href: `mailto:${email}` } : null,
     phone: phone ? { label: phoneLabel(phone), href: `tel:${phone.replace(/[^+\d]/g, '')}` } : null,
   };
+}
+
+// ---- Consent and details (SCR-WGT-003, SCR-WGT-005; FEAT-049 §5.6) ------------------
+
+/**
+ * The message whose card is open: the latest card, unless the visitor wrote after it, the
+ * details were captured, or the chat ended. Earlier cards show as answered or "Not answered".
+ */
+export function activeCard(c: Chat): string | null {
+  for (let i = c.messages.length - 1; i >= 0; i--) {
+    const m = c.messages[i]!;
+    if (m.card) return m.id;
+    if (m.author === 'visitor' || m.noticeKind === 'lead_captured' || m.noticeKind === 'chat_ended')
+      return null;
+  }
+  return null;
+}
+
+/** A tenant text in the panel's locale; Chinese falls back to English when empty (ui-design). */
+export function localText(text: { en: string; zh: string }, locale: Locale): string {
+  return locale === 'zh-Hans' && text.zh.trim() ? text.zh : text.en;
+}
+
+export type LeadErrors = Partial<Record<LeadFieldKey, LeadFieldError>>;
+
+export interface LeadFieldView {
+  key: LeadFieldKey;
+  label: string;
+  required: boolean;
+  kind: 'text' | 'tel' | 'email' | 'textarea';
+  autocomplete: string | undefined;
+  help: string | undefined;
+}
+
+const LABEL: Record<LeadFieldKey, keyof Strings> = {
+  name: 'fieldName',
+  phone: 'fieldPhone',
+  email: 'fieldEmail',
+  need: 'fieldNeed',
+  budget: 'fieldBudget',
+  preferredTime: 'fieldPreferredTime',
+};
+const KIND: Partial<Record<LeadFieldKey, LeadFieldView['kind']>> = {
+  phone: 'tel',
+  email: 'email',
+  need: 'textarea',
+};
+const AUTOCOMPLETE: Partial<Record<LeadFieldKey, string>> = {
+  name: 'name',
+  phone: 'tel',
+  email: 'email',
+};
+
+/**
+ * The form's fields (SCR-WGT-003 form): the business's enabled fields in order, and whether
+ * to say that phone or email is needed (both shown, both optional; D6).
+ */
+export function leadFormView(
+  fields: LeadCaptureConfig['fields'],
+  t: Strings,
+): { fields: LeadFieldView[]; contactCaption: boolean } {
+  const view = fields.map((f) => ({
+    key: f.key,
+    label: t[LABEL[f.key]] as string,
+    required: f.mode === 'required',
+    kind: KIND[f.key] ?? 'text',
+    autocomplete: AUTOCOMPLETE[f.key],
+    help: f.key === 'phone' ? t.phoneHelp : undefined,
+  }));
+  const optional = (k: LeadFieldKey) => view.find((f) => f.key === k)?.required === false;
+  return { fields: view, contactCaption: optional('phone') && optional('email') };
+}
+
+/** The form's starting values: the prefill triage validated, only for fields shown. */
+export function leadValues(
+  fields: LeadCaptureConfig['fields'],
+  prefill: LeadPrefill,
+): Partial<Record<LeadFieldKey, string>> {
+  const values: Partial<Record<LeadFieldKey, string>> = {};
+  for (const f of fields)
+    values[f.key] = (prefill as Record<string, string | undefined>)[f.key] ?? '';
+  return values;
+}
+
+/** The client check before sending: the same rules as the server (`checkLead`, D7). */
+export function validateLead(
+  fields: LeadCaptureConfig['fields'],
+  values: Partial<Record<LeadFieldKey, string>>,
+): { errors: LeadErrors; needsContact: boolean; ok: boolean; value: LeadValues } {
+  const c = checkLead(fields, values);
+  return { errors: c.fields, needsContact: c.needsContact, ok: leadOk(c), value: c.value };
+}
+
+/** The text under a field in error (SCR-WGT-003 invalid). */
+export function fieldErrorText(key: LeadFieldKey, code: LeadFieldError, t: Strings): string {
+  if (key === 'phone' && code === 'invalid') return t.errPhone;
+  if (key === 'email' && code === 'invalid') return t.errEmail;
+  if (code === 'invalid') return t.errTooLong;
+  return key === 'name'
+    ? t.errName
+    : key === 'phone'
+      ? t.errPhone
+      : key === 'email'
+        ? t.errEmail
+        : t.errRequired;
+}
+
+/** The collapsed summary of sent details: "Mei Ling · +65 9123 4567". */
+export function sentSummary(value: LeadValues): string {
+  const phone = value.phone ? phoneLabel(value.phone) : '';
+  return [value.name, phone || value.email].filter(Boolean).join(' · ');
+}
+
+/** "2:31 pm" in the panel's locale. */
+export function timeLabel(at: Date, locale: Locale): string {
+  return at.toLocaleTimeString(locale === 'zh-Hans' ? 'zh-Hans-SG' : 'en-SG', {
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 }

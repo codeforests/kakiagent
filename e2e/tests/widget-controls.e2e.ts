@@ -39,16 +39,20 @@ function nextConversation(page: Page) {
     .then(async (r) => ((await r.json()) as { conversationId: string }).conversationId);
 }
 
-/** The config with a privacy URL, read through `route.fetch()` (code-map E2E pitfalls). */
-async function withPrivacyUrl(page: Page) {
+/**
+ * The config with a privacy URL (or none), read through `route.fetch()` (code-map E2E
+ * pitfalls), so the menu doesn't depend on whether the seed saved a notice (FEAT-049 does).
+ */
+async function withPrivacyUrl(page: Page, url: string | null = PRIVACY) {
   await page.route(/\/widget\/v1\/config/, async (route) => {
     const res = await route.fetch();
-    const body = { ...((await res.json()) as object), privacyNoticeUrl: PRIVACY };
+    const body = { ...((await res.json()) as object), privacyNoticeUrl: url };
     await route.fulfill({ response: res, body: JSON.stringify(body) });
   });
 }
 
 test('the visitor ends the chat by keyboard and starts a new one', async ({ page, browser }) => {
+  await withPrivacyUrl(page, null);
   const created = nextConversation(page);
   const panel = await openPanel(page);
   // No conversation yet: the menu offers only Talk to a person (FEAT-044: always while live).

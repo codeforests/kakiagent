@@ -41,6 +41,8 @@ import {
   type OnboardingStep,
   type StepOutcomeBody,
   PrivacySettingsResponse,
+  LeadSettings,
+  type LeadSettingsBody,
   type PrivacyNoticeBody,
   type PurposeStatementBody,
   ConversationList,
@@ -366,6 +368,10 @@ export const api = {
     request('PUT', '/api/v1/settings/privacy/notice', PrivacySettingsResponse, body),
   savePurposeStatement: (body: PurposeStatementBody) =>
     request('PUT', '/api/v1/settings/privacy/purpose', PrivacySettingsResponse, body),
+  // Leads and consent (SCR-APP-043, FEAT-049 §3).
+  leadSettings: () => getJson('/api/v1/settings/leads', LeadSettings),
+  saveLeadSettings: (body: LeadSettingsBody) =>
+    request('PUT', '/api/v1/settings/leads', LeadSettings, body),
   /** A plain link: the browser downloads it with the session cookie. */
   documentUrl: (doc: 'data-flow' | 'dpa') => `/api/v1/settings/privacy/documents/${doc}.pdf`,
   /** FEAT-012 §3: SCR-APP-023, SCR-APP-024 and the website form. */

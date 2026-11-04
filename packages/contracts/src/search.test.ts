@@ -17,6 +17,8 @@ const summary = {
   escalation: null,
 } as const;
 const match = {
+  source: 'message',
+  field: null,
   messageId: ID,
   author: 'visitor',
   at: AT,

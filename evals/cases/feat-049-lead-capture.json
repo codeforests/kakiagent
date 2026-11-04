@@ -1,0 +1,136 @@
+[
+  {
+    "id": "lead-details-en",
+    "subset": "multi-task",
+    "fast": true,
+    "messages": [{ "role": "user", "content": "Hi, my name is Mary Tan, my number is 9123 4567" }],
+    "expectTasks": ["capture_lead"],
+    "expect": [
+      {
+        "kind": "card",
+        "card": "consent",
+        "prefill": { "name": "Mary Tan", "phone": "+6591234567" }
+      },
+      { "kind": "outcome", "outcome": "answered" }
+    ]
+  },
+  {
+    "id": "lead-details-singlish",
+    "subset": "multi-task",
+    "fast": true,
+    "messages": [{ "role": "user", "content": "can call me back at 8123-4567 lah" }],
+    "expectTasks": ["capture_lead"],
+    "expect": [{ "kind": "card", "card": "consent", "prefill": { "phone": "+6581234567" } }]
+  },
+  {
+    "id": "lead-details-zh",
+    "subset": "multi-task",
+    "fast": true,
+    "messages": [{ "role": "user", "content": "我的电话是 9876 5432，请联系我" }],
+    "expectTasks": ["capture_lead"],
+    "expect": [
+      { "kind": "card", "card": "consent", "prefill": { "phone": "+6598765432" } },
+      { "kind": "language", "lang": "zh" }
+    ]
+  },
+  {
+    "id": "lead-call-me-back",
+    "subset": "multi-task",
+    "fast": true,
+    "messages": [{ "role": "user", "content": "can someone call me back" }],
+    "expectTasks": ["capture_lead"],
+    "expect": [{ "kind": "card", "card": "consent", "prefill": {} }]
+  },
+  {
+    "id": "lead-with-question",
+    "subset": "multi-task",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "how much is the chocolate fudge cake? my email is mary@example.com"
+      }
+    ],
+    "expectTasks": ["answer", "capture_lead"],
+    "expect": [
+      { "kind": "card", "card": "consent", "prefill": { "email": "mary@example.com" } },
+      { "kind": "outcome", "outcome": "answered" },
+      { "kind": "prices-from-facts" }
+    ]
+  },
+  {
+    "id": "lead-after-consent-form",
+    "subset": "multi-task",
+    "fast": true,
+    "consent": "agreed",
+    "messages": [
+      { "role": "user", "content": "my name is Mary Tan, my number is 1234 5678, call me back" }
+    ],
+    "expectTasks": ["capture_lead"],
+    "expect": [{ "kind": "card", "card": "lead_form", "prefill": { "name": "Mary Tan" } }]
+  },
+  {
+    "id": "lead-after-decline-asks-again",
+    "subset": "multi-task",
+    "fast": true,
+    "consent": "declined",
+    "messages": [
+      { "role": "user", "content": "actually please contact me, my number is 9123 4567" }
+    ],
+    "expectTasks": ["capture_lead"],
+    "expect": [{ "kind": "card", "card": "consent", "prefill": { "phone": "+6591234567" } }]
+  },
+  {
+    "id": "lead-offer-out-of-scope",
+    "subset": "multi-task",
+    "fast": true,
+    "messages": [{ "role": "user", "content": "write me a poem about the weather" }],
+    "expectTasks": ["out_of_scope"],
+    "expect": [
+      { "kind": "outcome", "outcome": "out_of_scope" },
+      { "kind": "card", "card": "consent", "prefill": {} }
+    ]
+  },
+  {
+    "id": "lead-offer-once",
+    "subset": "multi-task",
+    "fast": true,
+    "offered": true,
+    "messages": [{ "role": "user", "content": "tell me about politics" }],
+    "expectTasks": ["out_of_scope"],
+    "expect": [
+      { "kind": "outcome", "outcome": "out_of_scope" },
+      { "kind": "card", "card": null }
+    ]
+  },
+  {
+    "id": "lead-no-offer-after-decline",
+    "subset": "multi-task",
+    "fast": true,
+    "consent": "declined",
+    "messages": [{ "role": "user", "content": "write me a poem" }],
+    "expectTasks": ["out_of_scope"],
+    "expect": [{ "kind": "card", "card": null }]
+  },
+  {
+    "id": "lead-offer-unavailable",
+    "subset": "multi-task",
+    "fast": true,
+    "replyFails": true,
+    "messages": [{ "role": "user", "content": "do you have eggless cakes?" }],
+    "expect": [
+      { "kind": "outcome", "outcome": "unavailable" },
+      { "kind": "card", "card": "consent" }
+    ]
+  },
+  {
+    "id": "lead-no-card-answered",
+    "subset": "multi-task",
+    "fast": true,
+    "messages": [{ "role": "user", "content": "how much is the chocolate fudge cake?" }],
+    "expect": [
+      { "kind": "outcome", "outcome": "answered" },
+      { "kind": "card", "card": null }
+    ]
+  }
+]

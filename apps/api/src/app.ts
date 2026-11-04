@@ -67,6 +67,7 @@ import {
   SourceNotFoundError,
   VersionConflictError,
 } from '@kaki/kb';
+import { leadCaptureConfig } from '@kaki/leads';
 import { channels, signToken, TokenError, verifyToken } from '@kaki/platform';
 import {
   CoachingSessionNotFoundError,
@@ -126,6 +127,8 @@ import { registerAiRoutes } from './ai.js';
 import { registerTeamRoutes, teamErrorReply } from './team.js';
 import { notificationsErrorReply, registerNotificationRoutes } from './notifications.js';
 import { escalationErrorReply, registerEscalationRoutes } from './escalation.js';
+import { leadsErrorReply, registerLeadWidgetRoutes } from './leads-widget.js';
+import { leadSettingsErrorReply, registerLeadSettingsRoutes } from './leads.js';
 import {
   AttestationRequiredError,
   FileTooLargeError,
@@ -395,6 +398,8 @@ export async function buildApp(deps: Deps) {
     if (onboarding) return reply.code(onboarding.status).send(onboarding.body);
     const channel = channelErrorReply(err);
     if (channel) return reply.code(channel.status).send(channel.body);
+    const leads = leadsErrorReply(err) ?? leadSettingsErrorReply(err);
+    if (leads) return reply.code(leads.status).send(leads.body);
     const widget = widgetErrorReply(err, req.url);
     if (widget) return reply.code(widget.status).send(widget.body);
     req.log.error({ err }, 'unhandled error');
@@ -479,7 +484,7 @@ export async function buildApp(deps: Deps) {
       config.VISITOR_TOKEN_SECRET,
     );
     // FEAT-024: the tenant's name and greeting, through the visitor zone's function only.
-    const { tenantState, theme, privacy, channel } = await withTenant(
+    const { tenantState, theme, privacy, channel, leadCapture } = await withTenant(
       visitorDb,
       install.tenantId,
       async (tx) => {
@@ -496,6 +501,8 @@ export async function buildApp(deps: Deps) {
           privacy: await visitorPrivacy(tx),
           // ONB-10 (FEAT-034): an offline widget still loads, so the install check works.
           channel: await visitorChannel(tx, 'widget'),
+          // LED-01, LED-02 (FEAT-049): sent while not live and while paused too (the contact form).
+          leadCapture: await leadCaptureConfig(tx),
         };
       },
     );
@@ -529,6 +536,7 @@ export async function buildApp(deps: Deps) {
             contact: channel.contact,
           }
         : null,
+      leadCapture,
     });
   });
 
@@ -654,6 +662,9 @@ export async function buildApp(deps: Deps) {
     },
   );
 
+  // LED-01, LED-02 (FEAT-049 §5.4): the consent card, the lead form and the contact form.
+  registerLeadWidgetRoutes(app, deps, visitorFrom, notify, summaryFor);
+
   // ---- Dashboard API (dashboard trust zone) -------------------------------------------
   const { authFrom, sessionFrom, meOf } = registerAuth(app, deps);
   registerMfaRoutes(app, deps, { authFrom, sessionFrom });
@@ -678,6 +689,7 @@ export async function buildApp(deps: Deps) {
   registerAccountRoutes(app, deps, { authFrom });
   registerNotificationRoutes(app, deps, sessionFrom);
   registerEscalationRoutes(app, deps, sessionFrom);
+  registerLeadSettingsRoutes(app, deps, sessionFrom);
 
   return app;
 }

@@ -129,6 +129,9 @@ importers:
       '@kaki/kb':
         specifier: workspace:*
         version: link:../../packages/kb
+      '@kaki/leads':
+        specifier: workspace:*
+        version: link:../../packages/leads
       '@kaki/llm-gateway':
         specifier: workspace:*
         version: link:../../packages/llm-gateway
@@ -514,6 +517,9 @@ importers:
       '@kaki/approvals':
         specifier: workspace:*
         version: link:../packages/approvals
+      '@kaki/contracts':
+        specifier: workspace:*
+        version: link:../packages/contracts
       '@kaki/kb':
         specifier: workspace:*
         version: link:../packages/kb
@@ -548,6 +554,9 @@ importers:
       '@kaki/channels':
         specifier: workspace:*
         version: link:../channels
+      '@kaki/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@kaki/db':
         specifier: workspace:*
         version: link:../db
@@ -560,6 +569,9 @@ importers:
       '@kaki/kb':
         specifier: workspace:*
         version: link:../kb
+      '@kaki/leads':
+        specifier: workspace:*
+        version: link:../leads
       '@kaki/llm-gateway':
         specifier: workspace:*
         version: link:../llm-gateway
@@ -880,13 +892,35 @@ importers:
         version: 5.0.5(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(@vitest/coverage-v8@5.0.5)(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/leads:
+    dependencies:
+      '@kaki/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@kaki/db':
+        specifier: workspace:*
+        version: link:../db
+      '@kaki/governance':
+        specifier: workspace:*
+        version: link:../governance
+      '@kaki/inbox':
+        specifier: workspace:*
+        version: link:../inbox
+      '@kaki/tenancy':
+        specifier: workspace:*
+        version: link:../tenancy
     devDependencies:
       '@types/node':
         specifier: 22.20.5
         version: 22.20.5
+      '@types/pg':
+        specifier: 8.23.1
+        version: 8.23.1
       '@vitest/coverage-v8':
         specifier: 5.0.5
         version: 5.0.5(vitest@5.0.5)
+      pg:
+        specifier: 8.23.1
+        version: 8.23.1
       vitest:
         specifier: 5.0.5
         version: 5.0.5(@opentelemetry/api@1.9.1)(@types/node@22.20.5)(@vitest/coverage-v8@5.0.5)(vite@8.3.4(@types/node@22.20.5)(esbuild@0.28.2)(tsx@4.23.15)(yaml@2.9.1))

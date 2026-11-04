@@ -241,6 +241,7 @@ export const NOTICE_KINDS = [
   'staff_joined',
   'staff_left',
   'escalated',
+  'lead_captured',
 ] as const;
 /** Embedding dimensions: Cohere Embed Multilingual v3 (ADR-019). */
 export const EMBEDDING_DIMENSIONS = 1024;
@@ -303,9 +304,17 @@ export const conversations = pgTable(
       .array()
       .notNull()
       .default(sql`'{}'::uuid[]`),
+    /** The visitor's contact once they left their details (FEAT-049 §4). */
+    contactId: uuid('contact_id'),
   },
   (t) => [
     primaryKey({ columns: [t.tenantId, t.id] }),
+    foreignKey({
+      name: 'conversations_contact_fk',
+      columns: [t.tenantId, t.contactId],
+      foreignColumns: [contacts.tenantId, contacts.id],
+    }),
+    index('conversations_contact_idx').on(t.tenantId, t.contactId),
     index('conversations_tenant_last_message_idx').on(t.tenantId, t.lastMessageAt.desc()),
     index('conversations_tenant_flagged_idx')
       .on(t.tenantId, t.flaggedAt.desc())
@@ -380,6 +389,8 @@ export const messages = pgTable(
       .array()
       .notNull()
       .default(sql`'{}'::text[]`),
+    /** A widget card on an agent reply (`MessageCard`, FEAT-049 §3): consent or lead form. */
+    card: jsonb('card').$type<Record<string, unknown>>(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -388,6 +399,10 @@ export const messages = pgTable(
       columns: [t.tenantId, t.conversationId],
       foreignColumns: [conversations.tenantId, conversations.id],
     }),
+    check(
+      'messages_card_ck',
+      sql`${t.card} is null or (${t.author} in ('agent', 'system') and ${t.card}->>'kind' in ('consent', 'lead_form'))`,
+    ),
     index('messages_tenant_conversation_seq_idx').on(t.tenantId, t.conversationId, t.seq),
     uniqueIndex('messages_client_message_id_uq').on(
       t.tenantId,
@@ -930,7 +945,6 @@ export const auditPii = pgTable(
   {
     tenantId: uuid('tenant_id').notNull(),
     id: uuid('id').notNull().defaultRandom(),
-    // No FK yet: `contacts` arrives with FEAT-049.
     contactId: uuid('contact_id'),
     salt: bytea('salt').notNull(),
     data: jsonb('data').notNull(),
@@ -939,6 +953,11 @@ export const auditPii = pgTable(
   (t) => [
     primaryKey({ columns: [t.tenantId, t.id] }),
     index('audit_pii_contact_idx').on(t.tenantId, t.contactId),
+    foreignKey({
+      name: 'audit_pii_contact_fk',
+      columns: [t.tenantId, t.contactId],
+      foreignColumns: [contacts.tenantId, contacts.id],
+    }).onDelete('cascade'),
   ],
 );
 
@@ -1542,7 +1561,7 @@ export const widgetSettings = pgTable(
   ],
 );
 
-export const WORDING_KINDS = ['privacy_notice', 'purpose_statement'] as const;
+export const WORDING_KINDS = ['privacy_notice', 'purpose_statement', 'marketing_consent'] as const;
 
 /**
  * Privacy notice and purpose-statement wordings (GOV-14, LED-02; FEAT-058 §4, D3). Append-only:
@@ -1565,7 +1584,7 @@ export const wordingVersions = pgTable(
   (t) => [
     primaryKey({ columns: [t.tenantId, t.id] }),
     uniqueIndex('wording_versions_kind_seq_uq').on(t.tenantId, t.kind, t.seq),
-    check('wording_versions_kind_ck', sql`${t.kind} in ('privacy_notice', 'purpose_statement')`),
+    check('wording_versions_kind_ck', sql`${t.kind} in (${inList(WORDING_KINDS)})`),
     check('wording_versions_seq_ck', sql`${t.seq} >= 1`),
     check('wording_versions_content_ck', sql`jsonb_typeof(${t.content}) = 'object'`),
   ],
@@ -2003,6 +2022,176 @@ export const suggestions = pgTable(
   ],
 );
 
+// ---- Leads and consent (LED-01, LED-02, LED-08, LED-09; FEAT-049 §4) -------------------
+
+export const CONSENT_PURPOSES = ['enquiry', 'marketing'] as const;
+export const CONSENT_DECISIONS = ['agreed', 'declined'] as const;
+export const LEAD_STATUSES = ['new', 'contacted', 'won', 'lost'] as const;
+
+/**
+ * A person who left their details (ADR-015: personal data lives only in contact-keyed
+ * tables). Email lower-cased, phone `+65XXXXXXXX`; each unique per tenant (LED-09, D4).
+ */
+export const contacts = pgTable(
+  'contacts',
+  {
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id),
+    id: uuid('id').notNull().defaultRandom(),
+    name: text('name'),
+    email: text('email'),
+    phone: text('phone'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.id] }),
+    uniqueIndex('contacts_email_uq')
+      .on(t.tenantId, t.email)
+      .where(sql`${t.email} is not null`),
+    uniqueIndex('contacts_phone_uq')
+      .on(t.tenantId, t.phone)
+      .where(sql`${t.phone} is not null`),
+    /** Contact search (FEAT-049 §5.5), read through `inbox_contact_hits()`. */
+    index('contacts_name_trgm_idx').using('gin', t.tenantId, t.name.op('gin_trgm_ops')),
+    index('contacts_email_trgm_idx').using('gin', t.tenantId, t.email.op('gin_trgm_ops')),
+    index('contacts_phone_trgm_idx').using('gin', t.tenantId, t.phone.op('gin_trgm_ops')),
+    check('contacts_name_ck', sql`${t.name} is null or char_length(${t.name}) between 1 and 120`),
+    check('contacts_phone_ck', sql`${t.phone} is null or ${t.phone} ~ '^[+]65[3689][0-9]{7}$'`),
+    check(
+      'contacts_email_ck',
+      sql`${t.email} is null or (char_length(${t.email}) <= 254 and ${t.email} = lower(${t.email}) and ${t.email} ~ '^[^@[:space:]]+@[^@[:space:]]+$')`,
+    ),
+  ],
+);
+
+/**
+ * Consent decisions (LED-02, LED-08; FEAT-049 D5). Append-only, no PII: `contact_id` is set
+ * once when the visitor submits their details; a declined row never has one.
+ */
+export const consents = pgTable(
+  'consents',
+  {
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id),
+    id: uuid('id').notNull().defaultRandom(),
+    contactId: uuid('contact_id'),
+    conversationId: uuid('conversation_id'),
+    purpose: text('purpose', { enum: CONSENT_PURPOSES }).notNull(),
+    decision: text('decision', { enum: CONSENT_DECISIONS }).notNull(),
+    wordingId: uuid('wording_id').notNull(),
+    channel: text('channel', { enum: ['widget'] }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.id] }),
+    foreignKey({
+      name: 'consents_contact_fk',
+      columns: [t.tenantId, t.contactId],
+      foreignColumns: [contacts.tenantId, contacts.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'consents_conversation_fk',
+      columns: [t.tenantId, t.conversationId],
+      foreignColumns: [conversations.tenantId, conversations.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'consents_wording_fk',
+      columns: [t.tenantId, t.wordingId],
+      foreignColumns: [wordingVersions.tenantId, wordingVersions.id],
+    }),
+    index('consents_conversation_idx').on(t.tenantId, t.conversationId, t.createdAt),
+    index('consents_contact_idx').on(t.tenantId, t.contactId),
+    check('consents_purpose_ck', sql`${t.purpose} in (${inList(CONSENT_PURPOSES)})`),
+    check('consents_decision_ck', sql`${t.decision} in (${inList(CONSENT_DECISIONS)})`),
+    check('consents_channel_ck', sql`${t.channel} in ('widget')`),
+    check(
+      'consents_declined_ck',
+      sql`${t.decision} = 'agreed' or ${t.contactId} is null or ${t.purpose} = 'marketing'`,
+    ),
+  ],
+);
+
+/** A lead (LED-01, LED-09): one open lead per contact; every lead names its enquiry consent. */
+export const leads = pgTable(
+  'leads',
+  {
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id),
+    id: uuid('id').notNull().defaultRandom(),
+    contactId: uuid('contact_id').notNull(),
+    consentId: uuid('consent_id').notNull(),
+    conversationId: uuid('conversation_id'),
+    status: text('status', { enum: LEAD_STATUSES }).notNull().default('new'),
+    need: text('need'),
+    budget: text('budget'),
+    preferredTime: text('preferred_time'),
+    captures: integer('captures').notNull().default(1),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.id] }),
+    foreignKey({
+      name: 'leads_contact_fk',
+      columns: [t.tenantId, t.contactId],
+      foreignColumns: [contacts.tenantId, contacts.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'leads_consent_fk',
+      columns: [t.tenantId, t.consentId],
+      foreignColumns: [consents.tenantId, consents.id],
+    }),
+    foreignKey({
+      name: 'leads_conversation_fk',
+      columns: [t.tenantId, t.conversationId],
+      foreignColumns: [conversations.tenantId, conversations.id],
+    }).onDelete('set null'),
+    /** LED-09: at most one open lead per contact. */
+    uniqueIndex('leads_one_open_uq')
+      .on(t.tenantId, t.contactId)
+      .where(sql`${t.status} in ('new', 'contacted')`),
+    index('leads_conversation_idx').on(t.tenantId, t.conversationId),
+    index('leads_tenant_updated_idx').on(t.tenantId, t.updatedAt.desc()),
+    check('leads_status_ck', sql`${t.status} in (${inList(LEAD_STATUSES)})`),
+    check('leads_captures_ck', sql`${t.captures} >= 1`),
+    check(
+      'leads_text_ck',
+      sql`(${t.need} is null or char_length(${t.need}) <= 1000) and (${t.budget} is null or char_length(${t.budget}) <= 120) and (${t.preferredTime} is null or char_length(${t.preferredTime}) <= 120)`,
+    ),
+  ],
+);
+
+/** Lead fields and the marketing opt-in (SCR-APP-043; FEAT-049 §4, D3). Absent = defaults. */
+export const leadSettings = pgTable(
+  'lead_settings',
+  {
+    tenantId: uuid('tenant_id')
+      .primaryKey()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    version: integer('version').notNull().default(1),
+    fields: jsonb('fields').$type<{ key: string; mode: string }[]>().notNull(),
+    marketingEnabled: boolean('marketing_enabled').notNull().default(false),
+    marketingWordingId: uuid('marketing_wording_id'),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    foreignKey({
+      name: 'lead_settings_marketing_fk',
+      columns: [t.tenantId, t.marketingWordingId],
+      foreignColumns: [wordingVersions.tenantId, wordingVersions.id],
+    }),
+    check('lead_settings_fields_ck', sql`jsonb_typeof(${t.fields}) = 'array'`),
+    check(
+      'lead_settings_marketing_ck',
+      sql`not ${t.marketingEnabled} or ${t.marketingWordingId} is not null`,
+    ),
+  ],
+);
+
 /** Tables with `tenant_id` + forced RLS. The cross-tenant suite asserts this list is complete. */
 export const TENANT_SCOPED_TABLES = [
   'tenants',
@@ -2040,4 +2229,8 @@ export const TENANT_SCOPED_TABLES = [
   'escalations',
   'escalation_routing',
   'suggestions',
+  'contacts',
+  'consents',
+  'leads',
+  'lead_settings',
 ] as const;

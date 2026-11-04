@@ -3803,3 +3803,211 @@ describe('inbox_search_hits (FEAT-046)', () => {
     }
   });
 });
+
+describe('contacts, consents, leads and lead settings (FEAT-049)', () => {
+  const capture = async (t: string, email: string) => {
+    const conversationId = (
+      await owner.query<{ id: string }>(
+        `insert into conversations (tenant_id, channel, visitor_id) values ($1, 'widget', gen_random_uuid()) returning id`,
+        [t],
+      )
+    ).rows[0]!.id;
+    const wordingId = (
+      await owner.query<{ id: string }>(
+        `insert into wording_versions (tenant_id, kind, seq, content)
+         values ($1, 'purpose_statement', coalesce((select max(seq) from wording_versions where tenant_id = $1 and kind = 'purpose_statement'), 0) + 1, '{"en":"To reply."}') returning id`,
+        [t],
+      )
+    ).rows[0]!.id;
+    const contactId = (
+      await owner.query<{ id: string }>(
+        `insert into contacts (tenant_id, name, email, phone) values ($1, 'Mei', $2, null) returning id`,
+        [t, email],
+      )
+    ).rows[0]!.id;
+    const consentId = (
+      await owner.query<{ id: string }>(
+        `insert into consents (tenant_id, contact_id, conversation_id, purpose, decision, wording_id, channel)
+         values ($1, $2, $3, 'enquiry', 'agreed', $4, 'widget') returning id`,
+        [t, contactId, conversationId, wordingId],
+      )
+    ).rows[0]!.id;
+    await owner.query(
+      `insert into leads (tenant_id, contact_id, consent_id, conversation_id) values ($1, $2, $3, $4)`,
+      [t, contactId, consentId, conversationId],
+    );
+    await owner.query(`update conversations set contact_id = $2 where id = $1`, [
+      conversationId,
+      contactId,
+    ]);
+    return { conversationId, wordingId, contactId, consentId };
+  };
+
+  afterAll(async () => {
+    await owner.query(`delete from leads`);
+    await owner.query(`delete from consents`);
+    await owner.query(`update conversations set contact_id = null`);
+    await owner.query(`delete from contacts`);
+    await owner.query(`delete from lead_settings`);
+  });
+
+  it("tenant B reads and writes none of tenant A's rows, in either zone", async () => {
+    const a = await capture(TENANT_A, 'mei@a.test');
+    for (const role of ['app_dashboard', 'app_agent_visitor'] as const) {
+      const seen = await asRole(role, TENANT_B, async (c) => ({
+        contacts: (await c.query(`select id from contacts`)).rows,
+        consents: (await c.query(`select id from consents`)).rows,
+        leads: (await c.query(`select id from leads`)).rows,
+        settings: (await c.query(`select tenant_id from lead_settings`)).rows,
+      }));
+      expect(seen).toEqual({ contacts: [], consents: [], leads: [], settings: [] });
+    }
+    const updated = await asRole('app_agent_visitor', TENANT_B, async (c) => ({
+      contacts: (await c.query(`update contacts set name = 'x'`)).rowCount,
+      leads: (await c.query(`update leads set need = 'x'`)).rowCount,
+    }));
+    expect(updated).toEqual({ contacts: 0, leads: 0 });
+    await expect(
+      asRole('app_agent_visitor', TENANT_B, (c) =>
+        c.query(`insert into contacts (tenant_id, name) values ($1, 'x')`, [TENANT_A]),
+      ),
+    ).rejects.toThrow(/row-level security/);
+    const own = await asRole(
+      'app_dashboard',
+      TENANT_A,
+      async (c) => (await c.query(`select contact_id from leads`)).rows,
+    );
+    expect(own).toEqual([{ contact_id: a.contactId }]);
+  });
+
+  it('consents are append-only; the dashboard reads but never writes contacts or leads', async () => {
+    const a = await capture(TENANT_A, 'ah.kow@a.test');
+    for (const sql of [
+      `update consents set decision = 'declined'`,
+      `delete from consents`,
+      `update leads set status = 'won'`,
+      `delete from contacts`,
+    ])
+      await expect(asRole('app_agent_visitor', TENANT_A, (c) => c.query(sql))).rejects.toThrow(
+        /permission denied/,
+      );
+    for (const sql of [
+      `insert into contacts (tenant_id, name) values ('${TENANT_A}', 'x')`,
+      `update contacts set name = 'x'`,
+      `update leads set need = 'x'`,
+      `insert into consents (tenant_id, purpose, decision, wording_id, channel) values ('${TENANT_A}', 'enquiry', 'agreed', '${a.wordingId}', 'widget')`,
+    ])
+      await expect(asRole('app_dashboard', TENANT_A, (c) => c.query(sql))).rejects.toThrow(
+        /permission denied/,
+      );
+    // The visitor role reads lead_settings and may set only consents.contact_id.
+    const set = await asRole('app_agent_visitor', TENANT_A, async (c) => ({
+      contact: (
+        await c.query(`update consents set contact_id = contact_id where id = $1`, [a.consentId])
+      ).rowCount,
+      settings: (await c.query(`select tenant_id from lead_settings`)).rowCount,
+    }));
+    expect(set).toEqual({ contact: 1, settings: 0 });
+  });
+
+  it('one open lead per contact; checks hold for phone, email, decisions and cards', async () => {
+    const a = await capture(TENANT_A, 'one.open@a.test');
+    await expect(
+      owner.query(`insert into leads (tenant_id, contact_id, consent_id) values ($1, $2, $3)`, [
+        TENANT_A,
+        a.contactId,
+        a.consentId,
+      ]),
+    ).rejects.toThrow(/leads_one_open_uq/);
+    await owner.query(`update leads set status = 'won' where contact_id = $1`, [a.contactId]);
+    await owner.query(`insert into leads (tenant_id, contact_id, consent_id) values ($1, $2, $3)`, [
+      TENANT_A,
+      a.contactId,
+      a.consentId,
+    ]);
+    await expect(
+      owner.query(`insert into contacts (tenant_id, phone) values ($1, '91234567')`, [TENANT_A]),
+    ).rejects.toThrow(/contacts_phone_ck/);
+    await expect(
+      owner.query(`insert into contacts (tenant_id, email) values ($1, 'Mei@A.test')`, [TENANT_A]),
+    ).rejects.toThrow(/contacts_email_ck/);
+    await expect(
+      owner.query(`insert into contacts (tenant_id, email) values ($1, 'one.open@a.test')`, [
+        TENANT_A,
+      ]),
+    ).rejects.toThrow(/contacts_email_uq/);
+    await expect(
+      owner.query(
+        `insert into consents (tenant_id, contact_id, purpose, decision, wording_id, channel)
+         values ($1, $2, 'enquiry', 'declined', $3, 'widget')`,
+        [TENANT_A, a.contactId, a.wordingId],
+      ),
+    ).rejects.toThrow(/consents_declined_ck/);
+    await expect(
+      owner.query(
+        `insert into messages (tenant_id, conversation_id, author, body, card) values ($1, $2, 'visitor', 'hi', '{"kind":"consent"}')`,
+        [TENANT_A, a.conversationId],
+      ),
+    ).rejects.toThrow(/messages_card_ck/);
+    await expect(
+      owner.query(
+        `insert into lead_settings (tenant_id, fields, marketing_enabled) values ($1, '[]', true)`,
+        [TENANT_A],
+      ),
+    ).rejects.toThrow(/lead_settings_marketing_ck/);
+  });
+
+  it('visitor_privacy returns the marketing wording only while the opt-in is on', async () => {
+    const m = (
+      await owner.query<{ id: string }>(
+        `insert into wording_versions (tenant_id, kind, seq, content) values ($1, 'marketing_consent', 1, '{"en":"Send me offers"}') returning id`,
+        [TENANT_A],
+      )
+    ).rows[0]!.id;
+    await owner.query(
+      `insert into lead_settings (tenant_id, fields, marketing_enabled, marketing_wording_id) values ($1, '[{"key":"name","mode":"required"}]', true, $2)`,
+      [TENANT_A, m],
+    );
+    const read = (t: string) =>
+      asRole(
+        'app_agent_visitor',
+        t,
+        async (c) =>
+          (await c.query(`select marketing_wording_id, lead_fields from visitor_privacy()`)).rows,
+      );
+    expect(await read(TENANT_A)).toEqual([
+      { marketing_wording_id: m, lead_fields: [{ key: 'name', mode: 'required' }] },
+    ]);
+    expect(await read(TENANT_B)).toEqual([{ marketing_wording_id: null, lead_fields: null }]);
+    await owner.query(`update lead_settings set marketing_enabled = false where tenant_id = $1`, [
+      TENANT_A,
+    ]);
+    expect((await read(TENANT_A))[0]).toMatchObject({ marketing_wording_id: null });
+  });
+
+  it("inbox_contact_hits returns the current tenant's conversations by contact field only", async () => {
+    const a = await capture(TENANT_A, 'zebracontact@a.test');
+    await capture(TENANT_B, 'zebracontact@b.test');
+    const hits = (t: string | null, patterns: string[]) =>
+      asRole(
+        'app_dashboard',
+        t,
+        async (c) =>
+          (
+            await c.query<{ conversation_id: string; field: string; value: string }>(
+              `select conversation_id, field, value from inbox_contact_hits($1::text[])`,
+              [patterns],
+            )
+          ).rows,
+      );
+    expect(await hits(TENANT_A, ['%ZEBRACONTACT%'])).toEqual([
+      { conversation_id: a.conversationId, field: 'email', value: 'zebracontact@a.test' },
+    ]);
+    expect(await hits(null, ['%zebracontact%'])).toEqual([]);
+    await expect(
+      asRole('app_agent_visitor', TENANT_A, (c) =>
+        c.query(`select * from inbox_contact_hits(array['%a%'])`),
+      ),
+    ).rejects.toThrow(/permission denied/);
+  });
+});

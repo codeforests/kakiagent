@@ -229,6 +229,8 @@ describe('runVisitorTurn (UC-20)', () => {
       injection: false,
       impersonation: false,
       rulesVersion: null,
+      // FEAT-049: no card under the reply.
+      card: null,
     });
     expect((decision.payload.factIds as string[]).sort()).toEqual(result!.message.factIds.sort());
   });
@@ -538,7 +540,7 @@ describe('runVisitorTurn with triage, dispatch and routing (FEAT-004)', () => {
   const decisionOf = async (messageId: string) =>
     (await auditRows(messageId)).find((r) => r.event_type === 'agent.decision')!.payload;
 
-  it('answers a multi-task message and audits each task the empty registry cannot handle (AC-7, AC-8)', async () => {
+  it('answers a multi-task message and audits each task the registry cannot handle or refuses (AC-7, AC-8)', async () => {
     const c = await conversationWith(
       'how much for 50 kueh, can deliver Saturday? my number is 9123 4567',
     );
@@ -550,9 +552,10 @@ describe('runVisitorTurn with triage, dispatch and routing (FEAT-004)', () => {
       'request_commitment',
       'capture_lead',
     ]);
+    // FEAT-049: `capture_lead` is handled, and refused until the visitor consents.
     expect(result?.dispatched).toEqual([
       { task: 'request_commitment', index: 1, outcome: 'unhandled' },
-      { task: 'capture_lead', index: 2, outcome: 'unhandled' },
+      { task: 'capture_lead', index: 2, outcome: 'refused', reason: 'consent' },
     ]);
     expect(result?.route).toBe('reply.complex');
     expect(result?.timings?.triageMs).toEqual(expect.any(Number));
@@ -561,7 +564,7 @@ describe('runVisitorTurn with triage, dispatch and routing (FEAT-004)', () => {
     );
     expect(dispatches.map((r) => r.payload)).toEqual([
       { task: 'request_commitment', outcome: 'unhandled' },
-      { task: 'capture_lead', outcome: 'unhandled' },
+      { task: 'capture_lead', outcome: 'refused', reason: 'consent' },
     ]);
     expect(dispatches[0]!.subject_refs).toEqual([
       `message:${c.messageId}`,

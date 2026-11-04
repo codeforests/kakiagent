@@ -38,7 +38,39 @@ export interface SeedTenant {
     contactPhone: string;
     languages: string[];
   } | null;
+  /**
+   * Saved privacy wordings so the dev widget captures leads (FEAT-049 §5.9); `marketing` turns
+   * the opt-in on. The test database leaves it out: suites start with nothing saved.
+   */
+  privacy?: { marketing: boolean };
 }
+
+const SEED_PURPOSE = {
+  purpose: {
+    en: "We'll use your name and contact details to reply to your enquiry and follow up about it. We won't use them for anything else without asking.",
+    zh: '我们会使用您的姓名和联系方式回复您的询问并跟进。未经您同意，我们不会将其用于其他用途。',
+  },
+  consentPrompt: {
+    en: 'Is it OK for us to use your details for this?',
+    zh: '可以为此使用您的资料吗？',
+  },
+  wordingVersion: '2026-10-27',
+};
+const SEED_MARKETING = {
+  text: {
+    en: 'Also send me news and offers. I can stop these at any time.',
+    zh: '也请向我发送新闻和优惠。我可以随时取消。',
+  },
+};
+/** The F&B lead fields (FEAT-049 §5.1): `INDUSTRY_TEMPLATES.fnb.leadFields`. */
+const SEED_LEAD_FIELDS = [
+  { key: 'name', mode: 'required' },
+  { key: 'phone', mode: 'optional' },
+  { key: 'email', mode: 'optional' },
+  { key: 'need', mode: 'optional' },
+  { key: 'budget', mode: 'off' },
+  { key: 'preferredTime', mode: 'optional' },
+];
 
 const weekday = [{ open: '08:00', close: '19:00' }];
 /** The bakery's hours (FEAT-023 §5.8): Mon–Fri 8 am–7 pm, Sat 9 am–5 pm, Sun 9 am–1 pm. */
@@ -80,6 +112,7 @@ export function devTenants(allowedOrigins: string[]): SeedTenant[] {
         contactPhone: '+6591234567',
         languages: ['en', 'zh'],
       },
+      privacy: { marketing: true },
     },
     {
       id: '22222222-2222-4222-8222-222222222222',
@@ -92,6 +125,7 @@ export function devTenants(allowedOrigins: string[]): SeedTenant[] {
       hours: null,
       openOnPublicHolidays: false,
       profile: null,
+      privacy: { marketing: false },
     },
   ];
 }
@@ -191,6 +225,55 @@ export async function seed(client: pg.ClientBase, tenants: SeedTenant[]): Promis
        select $1, $2, d, $3 from unnest(array['tos', 'aup', 'dpa']) as d
        where not exists (select 1 from terms_acceptances where tenant_id = $1 and version = $3)`,
       [t.id, userId, SEED_TERMS_VERSION],
+    );
+    if (t.privacy) await seedPrivacy(client, t.id, userId, t.ownerEmail, t.privacy.marketing);
+  }
+}
+
+/** A saved notice and purpose statement, and lead settings, unless the owner saved their own. */
+async function seedPrivacy(
+  client: pg.ClientBase,
+  tenantId: string,
+  userId: string,
+  email: string,
+  marketing: boolean,
+): Promise<void> {
+  const wording = async (kind: string, content: unknown) =>
+    (
+      await client.query<{ id: string }>(
+        `insert into wording_versions (tenant_id, kind, seq, content, created_by)
+         values ($1, $2, coalesce((select max(seq) from wording_versions where tenant_id = $1 and kind = $2), 0) + 1, $3, $4)
+         returning id`,
+        [tenantId, kind, JSON.stringify(content), userId],
+      )
+    ).rows[0]!.id;
+  const saved = await client.query(`select 1 from privacy_settings where tenant_id = $1`, [
+    tenantId,
+  ]);
+  if (saved.rowCount === 0) {
+    const notice = await wording('privacy_notice', {
+      mode: 'template',
+      templateVersion: '2026-10-27',
+      fields: {
+        contactName: 'Data Protection Officer',
+        contactEmail: email,
+        contactPhone: null,
+        address: null,
+        extra: null,
+      },
+    });
+    const purpose = await wording('purpose_statement', SEED_PURPOSE);
+    await client.query(
+      `insert into privacy_settings (tenant_id, notice_wording_id, purpose_wording_id) values ($1, $2, $3)`,
+      [tenantId, notice, purpose],
+    );
+  }
+  const leads = await client.query(`select 1 from lead_settings where tenant_id = $1`, [tenantId]);
+  if (leads.rowCount === 0) {
+    const marketingId = marketing ? await wording('marketing_consent', SEED_MARKETING) : null;
+    await client.query(
+      `insert into lead_settings (tenant_id, fields, marketing_enabled, marketing_wording_id) values ($1, $2, $3, $4)`,
+      [tenantId, JSON.stringify(SEED_LEAD_FIELDS), marketing, marketingId],
     );
   }
 }

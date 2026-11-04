@@ -71,3 +71,45 @@ describe('widget api (FEAT-033)', () => {
     );
   });
 });
+
+describe('lead routes (FEAT-049 §3)', () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const reply = (status: number, body: unknown = {}) =>
+    vi.fn(async () => new Response(JSON.stringify(body), { status }));
+  const W = '00000000-0000-4000-8000-0000000000aa';
+
+  it('posts the consent answer and returns the body', async () => {
+    const fetch = reply(200, { consentId: null });
+    vi.stubGlobal('fetch', fetch);
+    const body = { purposeWordingId: W, agreed: false };
+    const r = await createApi('https://api.test', 'tok').consent('c1', body);
+    expect(r).toEqual({ ok: true, data: { consentId: null } });
+    expect(fetch).toHaveBeenCalledWith('https://api.test/widget/v1/conversations/c1/consent', {
+      method: 'POST',
+      headers: { authorization: 'Bearer tok', 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+      credentials: 'omit',
+    });
+  });
+
+  it('hands back 422 field codes and 409 conflicts, and throws on anything else', async () => {
+    const api = createApi('https://api.test', 'tok');
+    const fields = { name: '', phone: '1234', email: '', need: '', budget: '', preferredTime: '' };
+    const invalid = { error: 'invalid_fields', fields: { phone: 'invalid' }, needsContact: false };
+    vi.stubGlobal('fetch', reply(422, invalid));
+    expect(await api.submitLead('c1', { consentId: W, fields })).toEqual({
+      ok: false,
+      status: 422,
+      body: invalid,
+    });
+    vi.stubGlobal('fetch', reply(409, { error: 'not_capturing' }));
+    const contact = { purposeWordingId: W, agreed: true as const, fields };
+    expect(await api.submitContact(contact)).toEqual({
+      ok: false,
+      status: 409,
+      body: { error: 'not_capturing' },
+    });
+    vi.stubGlobal('fetch', reply(503));
+    await expect(api.submitContact(contact)).rejects.toThrow('contact: 503');
+  });
+});

@@ -72,4 +72,40 @@ export const PANEL_CSS = `
 .paused{display:flex;flex-direction:column}
 .paused-text{display:flex;align-items:flex-start;gap:8px}
 .paused-text svg{flex:none;margin-top:2px;color:var(--kaki-muted)}
+.lead-card{align-self:stretch;display:flex;flex-direction:column;gap:8px;padding:16px;background:var(--kaki-surface);color:var(--kaki-text);
+  border:1px solid var(--kaki-border);border-radius:var(--kaki-radius);font-size:14px}
+.lead-item{align-self:stretch;display:flex;flex-direction:column}
+.lead-card form{display:flex;flex-direction:column;gap:8px;margin:0}
+.lead-card h3{margin:0;font-size:16px;font-weight:600}
+.lead-card p{margin:0;white-space:pre-wrap;word-wrap:break-word}
+.lead-card a{color:var(--kaki-text);text-decoration:underline}
+.lead-card .row{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;margin-top:4px}
+.cap,.help{font-size:12px;line-height:16px;color:var(--kaki-muted)}
+.fld{display:flex;flex-direction:column;gap:4px}
+.fld label{font-size:14px;font-weight:600}
+.fld input,.fld textarea{width:100%;min-height:44px;padding:10px 12px;border:1px solid var(--kaki-border-strong);border-radius:var(--kaki-radius);
+  font-size:16px;color:var(--kaki-text);background:var(--kaki-surface)}
+.fld textarea{resize:vertical}
+.fld input[readonly],.fld textarea[readonly]{background:var(--kaki-subtle)}
+.fld [aria-invalid=true]{border:2px solid var(--kaki-danger)}
+.ferr,.lead-err{display:flex;gap:6px;align-items:flex-start;color:var(--kaki-danger);font-size:14px}
+.ferr svg,.lead-err svg,.lead-info svg,.lead-line svg,.lead-ok svg{flex:none;margin-top:2px}
+.lead-sum{padding:8px 12px;border-left:3px solid var(--kaki-danger);background:var(--kaki-subtle);outline:none}
+.lead-sum ul{margin:4px 0 0;padding-left:18px}
+.lnk{background:none;border:0;padding:0;min-height:24px;color:var(--kaki-text);text-decoration:underline;font-size:14px;text-align:left;cursor:pointer}
+.chk{display:flex;gap:8px;align-items:flex-start}
+.chk input{flex:none;width:20px;height:20px;margin:2px 0 0;accent-color:var(--kaki-accent)}
+.chk label{font-size:14px}
+.lead-info{display:flex;gap:6px;padding:8px 12px;background:var(--kaki-info-bg);border-radius:var(--kaki-radius)}
+.lead-done{align-self:stretch;display:flex;flex-direction:column;gap:4px}
+.lead-line{display:flex;gap:6px;align-items:flex-start;margin:0;font-size:14px;color:var(--kaki-muted)}
+.tick{color:var(--kaki-success)}
+.lead-ok{display:flex;gap:6px;padding:12px;border-left:3px solid var(--kaki-success);background:var(--kaki-subtle);color:var(--kaki-text);font-size:14px;outline:none}
+.btn.ghost{background:transparent;border:0;color:var(--kaki-text);text-decoration:underline}
+.offline-card .btn{align-self:flex-start}
+.notice[tabindex]:focus{outline:none}
+.fld input:focus-visible,.fld textarea:focus-visible,.chk input:focus-visible,.lnk:focus-visible,.lead-card a:focus-visible{outline:2px solid var(--kaki-accent);outline-offset:2px}
+.spin{display:inline-block;width:14px;height:14px;margin-right:6px;vertical-align:-2px;border:2px solid currentColor;border-right-color:transparent;border-radius:9999px;animation:k-spin .8s linear infinite}
+@keyframes k-spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation:none}}
 `;

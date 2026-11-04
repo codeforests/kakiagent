@@ -12,6 +12,7 @@ import {
   type DispatchContext,
   type TaskHandler,
 } from './dispatch.js';
+import { prefillOf } from './lead.js';
 import { parsePlan, type TaskKind, type TurnPlan } from './plan.js';
 
 function planOf(tasks: [TaskKind, Record<string, string>?][]): TurnPlan {
@@ -125,12 +126,12 @@ describe('dispatchPlan (ADR-025 decisions 2 and 6, AC-7)', () => {
     const { ctx, audits } = context();
     const { reports, endTurn } = await dispatchPlan(
       visitorRegistry,
-      planOf([['answer'], ['capture_lead', { phone: '9123 4567' }], ['request_commitment']]),
+      planOf([['answer'], ['data_request', { phone: '9123 4567' }], ['request_commitment']]),
       ctx,
     );
     expect(endTurn).toBeUndefined();
     expect(reports).toEqual([
-      { task: 'capture_lead', index: 1, outcome: 'unhandled' },
+      { task: 'data_request', index: 1, outcome: 'unhandled' },
       { task: 'request_commitment', index: 2, outcome: 'unhandled' },
     ]);
     // Codes only: the phone number in the args never reaches the audit entry.
@@ -339,10 +340,11 @@ describe('the safety handlers (FEAT-025 AC-6, AC-7; ADR-025 decision 6)', () => 
   });
 
   it('the visitor registry has no owner function (AC-5; ADR-009)', () => {
-    // `escalate` (FEAT-044) asks for a person for this conversation; it reads or changes no
-    // tenant data.
+    // `escalate` (FEAT-044) asks for a person for this conversation; `capture_lead` (FEAT-049)
+    // returns a card for the visitor's own details. Neither reads or changes tenant data.
     expect([...visitorRegistry.byKind.keys()].sort()).toEqual([
       'abuse',
+      'capture_lead',
       'crisis',
       'escalate',
       'out_of_scope',
@@ -400,5 +402,45 @@ describe('the escalate handler (FEAT-044 §5.4; AC-2)', () => {
     expect(r2.reports[0]).toMatchObject({ outcome: 'refused', reason: 'gate_closed' });
     expect(coaching.conversation.escalations).toEqual([]);
     expect(closed.conversation.escalations).toEqual([]);
+  });
+});
+
+describe('capture_lead (FEAT-049 §5.3; AC-7)', () => {
+  const CONSENT = '11111111-1111-4111-8111-111111111111';
+  const args = { name: ' Mei ', phone: '9123 4567', email: 'not-an-email' };
+
+  it('before consent: refused `consent`, nothing run, codes only in the audit', async () => {
+    const { ctx, audits } = context({ consentGiven: async () => false });
+    const out = await dispatchPlan(visitorRegistry, planOf([['capture_lead', args]]), ctx);
+    expect(out.reports).toEqual([
+      { task: 'capture_lead', index: 0, outcome: 'refused', reason: 'consent' },
+    ]);
+    expect(out.card).toBeUndefined();
+    expect(JSON.stringify(audits)).not.toMatch(/Mei|9123/);
+  });
+
+  it('after consent: a lead form card with the valid args only, and its reply text', async () => {
+    const { ctx } = context({ leadConsentId: async () => CONSENT });
+    const out = await dispatchPlan(visitorRegistry, planOf([['capture_lead', args]]), ctx);
+    expect(out.reports[0]).toMatchObject({ outcome: 'done' });
+    expect(out.card).toEqual({
+      kind: 'lead_form',
+      consentId: CONSENT,
+      prefill: { name: 'Mei', phone: '+6591234567' },
+    });
+    expect(out.replies).toEqual(['lead_form']);
+  });
+
+  it('coaching scope never handles it', async () => {
+    const { ctx } = context({ scope: 'coaching', leadConsentId: async () => CONSENT });
+    const out = await dispatchPlan(visitorRegistry, planOf([['capture_lead', args]]), ctx);
+    expect(out.reports[0]).toMatchObject({ outcome: 'refused', reason: 'scope' });
+  });
+
+  it('prefillOf drops what fails the form checks', () => {
+    expect(prefillOf({ phone: '1234', email: 'Mei@Example.com', name: 'x'.repeat(121) })).toEqual({
+      email: 'mei@example.com',
+    });
+    expect(prefillOf('nonsense')).toEqual({});
   });
 });
