@@ -55,7 +55,9 @@ const industryFields = (industry: string | null | undefined): readonly FieldSett
 };
 
 const fieldCodes = (fields: readonly FieldSetting[]) =>
-  fields.map((f) => auditCode(`${f.key.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)}.${f.mode}`));
+  fields.map((f) =>
+    auditCode(`${f.key.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)}.${f.mode}`),
+  );
 
 /** The tenant's lead settings for SCR-APP-043 (dashboard zone): the row, or the defaults at version 0. */
 export async function getLeadSettings(tx: Tx, tenantId: string): Promise<LeadSettings> {
