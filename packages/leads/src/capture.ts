@@ -9,11 +9,11 @@ import { leadCaptureConfig } from './settings.js';
 
 const { consents, contacts } = schema;
 
-/** The visitor's confirmation once their details reached the team (`lead_captured`). */
+/** The visitor's confirmation once their details reached the team (`lead_captured`; ui-design SCR-WGT-003). */
 export function leadCapturedNotice(language: 'en' | 'zh', businessName: string): string {
   return language === 'zh'
-    ? `谢谢！您的资料已发送给${businessName}，他们会尽快联系您。`
-    : `Thanks! Your details have been sent to ${businessName}. They'll get back to you soon.`;
+    ? `谢谢，${businessName}已收到您的资料，会尽快联系您。`
+    : `Thanks, ${businessName} has your details and will get back to you.`;
 }
 
 export interface CaptureInput {
