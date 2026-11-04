@@ -72,7 +72,7 @@ export async function startTestDatabase(): Promise<TestDatabase> {
   await setupDatabase({
     ownerUrl,
     passwords,
-    seedTenants: devTenants(['http://localhost:5175']).map(({ members: _members, ...t }) => t),
+    seedTenants: devTenants(['http://localhost:5175']).map(({ members: _members, privacy: _privacy, ...t }) => t),
   });
 
   const urlFor = (role: LoginRole) => {
