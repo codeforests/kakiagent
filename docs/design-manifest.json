@@ -277,7 +277,8 @@
         "spec": "features/FEAT-042-inbox/ui-design.md#scr-app-014--inbox",
         "extended_by": [
           "features/FEAT-043-takeover/ui-design.md#scr-app-014--inbox-partial",
-          "features/FEAT-044-escalation-routing/ui-design.md#scr-app-014--inbox-partial"
+          "features/FEAT-044-escalation-routing/ui-design.md#scr-app-014--inbox-partial",
+          "features/FEAT-046-conversation-search/ui-design.md#scr-app-014--inbox-partial-search"
         ]
       },
       "states": {
@@ -298,10 +299,18 @@
           "assignee filter",
           "owner on rows",
           "escalation assignee on rows",
-          "urgent chip"
+          "urgent chip",
+          "search idle",
+          "searching",
+          "search results",
+          "no results",
+          "search error",
+          "opened at match",
+          "back to results",
+          "top bar search entry"
         ],
         "gaps": [
-          "search (FEAT-046)"
+          "search by contact fields (FEAT-049)"
         ],
         "supplements": []
       },
@@ -312,7 +321,8 @@
         "POST /api/v1/conversations/:id/close",
         "WS /ws (message, conversation events)",
         "GET /api/v1/conversations?assignee=",
-        "GET /api/v1/inbox/members"
+        "GET /api/v1/inbox/members",
+        "POST /api/v1/conversations/search"
       ],
       "conformance": {
         "result": "pass",

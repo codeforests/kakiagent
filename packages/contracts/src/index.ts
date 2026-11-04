@@ -2694,3 +2694,48 @@ export const SuggestionResponse = z
 export type SuggestionResponse = z.infer<typeof SuggestionResponse>;
 export const SuggestionRequest = z.object({}).strict();
 export type SuggestionRequest = z.infer<typeof SuggestionRequest>;
+
+// ---- Dashboard API: conversation search (INB-11; FEAT-046 §3) ----------------------------
+
+/** Code points, so a Chinese name or an emoji counts as typed. */
+const codePoints = (s: string) => [...s].length;
+
+/**
+ * `POST /api/v1/conversations/search`. A POST so the text never lands in a URL, a request
+ * log or browser history (D3). The tenant comes from the session, never the body (strict).
+ */
+export const ConversationSearchRequest = z.strictObject({
+  /** Trimmed and whitespace-collapsed; 2–100 characters (code points). */
+  q: z
+    .string()
+    .max(1000)
+    .transform((s) => s.replace(/\s+/gu, ' ').trim())
+    .refine((s) => codePoints(s) >= 2, { message: 'at least 2 characters' })
+    .refine((s) => codePoints(s) <= 100, { message: 'at most 100 characters' }),
+  cursor: z.string().min(1).max(200).optional(),
+  limit: z.number().int().min(1).max(50).default(25),
+});
+export type ConversationSearchRequest = z.infer<typeof ConversationSearchRequest>;
+
+export const SearchMatch = z.object({
+  messageId: z.uuid(),
+  author: z.enum(['visitor', 'agent', 'staff', 'system']),
+  at: z.iso.datetime({ offset: true }),
+  /** ≤ 160 characters of the message around the first hit; '…' marks a cut. */
+  excerpt: z.string(),
+  /** Hits inside `excerpt`, UTF-16 offsets, sorted, non-overlapping; may be empty. */
+  ranges: z.array(z.object({ start: z.int().min(0), end: z.int().min(1) })).max(10),
+});
+export type SearchMatch = z.infer<typeof SearchMatch>;
+
+export const ConversationSearchResult = z.object({
+  conversation: ConversationSummary,
+  match: SearchMatch,
+});
+export type ConversationSearchResult = z.infer<typeof ConversationSearchResult>;
+
+export const ConversationSearchResults = z.object({
+  results: z.array(ConversationSearchResult),
+  nextCursor: z.string().nullable(),
+});
+export type ConversationSearchResults = z.infer<typeof ConversationSearchResults>;

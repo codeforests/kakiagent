@@ -13,6 +13,7 @@ const PATHS: Record<IconName, string> = {
   settings:
     'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19 12l2-1-1-3-2 .2-1.3-1.4.2-2-3-1-1 2h-2l-1-2-3 1 .2 2L6 8.2 4 8l-1 3 2 1v2l-2 1 1 3 2-.2 1.3 1.4-.2 2 3 1 1-2h2l1 2 3-1-.2-2 1.3-1.4 2 .2 1-3-2-1z',
   more: 'M5 12h.01M12 12h.01M19 12h.01',
+  search: 'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM21 21l-5-5',
 };
 
 export function Icon({ name, size = 20 }: { name: IconName; size?: number }) {

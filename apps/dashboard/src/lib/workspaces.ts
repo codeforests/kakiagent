@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
 import { api } from './api.ts';
+import { resetInboxSearch } from './search.ts';
 
 /** The top bar's tenant switcher (AUTH-04; FEAT-007 §5.4, ui-design "Tenant switcher"). */
 
@@ -23,6 +24,7 @@ export function useSwitchWorkspace() {
     mutationFn: (tenantId: string) => api.switchWorkspace(tenantId),
     onSuccess: (me) => {
       queryClient.clear();
+      resetInboxSearch();
       queryClient.setQueryData(['me'], me);
       void navigate('/', {
         state: { toast: `Switched to ${me.tenant?.name ?? 'your business'}.` },

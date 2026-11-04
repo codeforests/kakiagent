@@ -85,11 +85,12 @@ export async function testApp(
     uploads?: UploadSigner;
     llm?: LlmGateway;
     rateLimiter?: RateLimiter;
+    logger?: ReturnType<typeof createLogger>;
   } = {},
 ) {
   return buildApp({
     config: testConfig(tdb, opts.env),
-    logger: createLogger('api-test', 'silent'),
+    logger: opts.logger ?? createLogger('api-test', 'silent'),
     dashboardDb: tdb.zone('dashboard'),
     visitorDb: tdb.zone('visitor'),
     identityDb: tdb.zone('identity'),

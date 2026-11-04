@@ -9,6 +9,8 @@ import {
   CloseConversationResponse,
   ConversationList,
   ConversationListQuery,
+  ConversationSearchRequest,
+  ConversationSearchResults,
   ConversationThread,
   HandBackBody,
   InboxMembers,
@@ -46,8 +48,10 @@ import {
   NotOwnedError,
   NotOwnerError,
   OwnedError,
+  QueryTooShortError,
   recordSuggestionUse,
   requestHandover,
+  searchConversations,
   sendStaffMessage,
   sidebarFacts,
   StateChangedError,
@@ -165,6 +169,28 @@ export function registerInboxRoutes(
       return ConversationList.parse(out);
     } catch (err) {
       if (err instanceof BadCursorError) return badCursor(reply);
+      throw err;
+    }
+  });
+
+  /**
+   * Conversation search (INB-11; FEAT-046 §3, §5.2). A POST so the text stays out of URLs
+   * and request logs (D3); nothing about the query is logged or audited (D7).
+   */
+  app.post('/api/v1/conversations/search', async (req, reply) => {
+    const s = await reader(req);
+    const body = ConversationSearchRequest.parse(req.body);
+    try {
+      const out = await withTenant(dashboardDb, s.tenantId, (tx) =>
+        searchConversations(tx, s.tenantId, body, namesIn(s.tenantId)),
+      );
+      return ConversationSearchResults.parse(out);
+    } catch (err) {
+      if (err instanceof BadCursorError) return badCursor(reply);
+      if (err instanceof QueryTooShortError)
+        return reply
+          .code(400)
+          .send({ error: 'query_too_short', message: 'Type at least 2 characters.' });
       throw err;
     }
   });

@@ -15,7 +15,8 @@ export type IconName =
   | 'leads'
   | 'insights'
   | 'settings'
-  | 'more';
+  | 'more'
+  | 'search';
 
 export const SIDEBAR: NavItem[] = [
   { to: '/', label: 'Home', icon: 'home' },

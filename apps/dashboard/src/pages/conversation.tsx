@@ -3,7 +3,7 @@ import { Button, EmptyState, ErrorState, SlideOver } from '@kaki/ui';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useLocation } from 'react-router';
 import { api, ApiError } from '../lib/api.ts';
 import { useToast } from '../lib/form.ts';
 import {
@@ -68,6 +68,8 @@ export function ConversationPane({ id, backTo }: { id: string; backTo: string })
   const [changed, setChanged] = useState<ConversationStatus | null>(null);
   const [closeOwned, setCloseOwned] = useState<string | null>(null);
   const me = useQuery({ queryKey: ['me'], queryFn: api.me });
+  // Opened from a search result (FEAT-046): the message to scroll to and mark.
+  const matchId = (useLocation().state as { matchId?: string } | null)?.matchId ?? null;
   const [earlier, setEarlier] = useState<{ messages: ThreadMessage[]; hasEarlier: boolean } | null>(
     null,
   );
@@ -233,7 +235,7 @@ export function ConversationPane({ id, backTo }: { id: string; backTo: string })
           </div>
         )}
         <ThreadLog
-          key={c.id}
+          key={`${c.id}:${matchId ?? ''}`}
           messages={messages}
           events={t.events}
           facts={t.sidebar.facts}
@@ -242,6 +244,7 @@ export function ConversationPane({ id, backTo }: { id: string; backTo: string })
           earlierFailed={loadEarlier.isError}
           onEarlier={() => messages[0] && loadEarlier.mutate(messages[0].seq)}
           meId={me.data?.user.id ?? null}
+          matchId={matchId}
         />
         <ThreadDock
           conversation={c}
@@ -287,6 +290,7 @@ function ThreadLog({
   earlierFailed,
   onEarlier,
   meId,
+  matchId,
 }: {
   messages: ThreadMessage[];
   events: ThreadEvent[];
@@ -296,6 +300,7 @@ function ThreadLog({
   earlierFailed: boolean;
   onEarlier: () => void;
   meId: string | null;
+  matchId: string | null;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [pinned, setPinned] = useState(true);
@@ -314,12 +319,25 @@ function ThreadLog({
     const el = ref.current;
     if (!el) return;
     const before = prev.current;
-    if (before.height === 0 || (pinned && lastSeq !== before.lastSeq))
+    const target =
+      before.height === 0 && matchId
+        ? el.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(matchId)}"]`)
+        : null;
+    if (target) {
+      // Opened at a search match: centre it (no smooth scroll under reduced motion).
+      const top =
+        target.getBoundingClientRect().top -
+        el.getBoundingClientRect().top +
+        el.scrollTop -
+        (el.clientHeight - target.offsetHeight) / 2;
+      const smooth = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      el.scrollTo({ top: Math.max(0, top), behavior: smooth ? 'smooth' : 'auto' });
+    } else if (before.height === 0 || (pinned && lastSeq !== before.lastSeq))
       el.scrollTop = el.scrollHeight;
     else if (firstSeq < before.firstSeq) el.scrollTop += el.scrollHeight - before.height;
     else if (lastSeq !== before.lastSeq && !pinned) setUnseen(true);
     prev.current = { firstSeq, lastSeq, height: el.scrollHeight };
-  }, [firstSeq, lastSeq, pinned]);
+  }, [firstSeq, lastSeq, pinned, matchId]);
 
   const onScroll = () => {
     const el = ref.current;
@@ -357,7 +375,13 @@ function ThreadLog({
         <ol className="thread-log" data-testid="thread-log">
           {items.map((item) =>
             item.kind === 'message' ? (
-              <Bubble key={item.key} message={item.message} facts={factMap} meId={meId} />
+              <Bubble
+                key={item.key}
+                message={item.message}
+                facts={factMap}
+                meId={meId}
+                match={item.message.id === matchId}
+              />
             ) : (
               <Divider key={item.key} event={item.event} />
             ),
