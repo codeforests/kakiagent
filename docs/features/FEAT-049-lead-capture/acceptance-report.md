@@ -62,6 +62,12 @@ All run fresh in this session through `scripts/test-env.sh scripts/check-summary
 
 - F1 (fixed here, test artifact): AC-8 clauses untested; added `lead.test.ts`.
 - F2 (fixed here, test artifact): AC-11 logs clause untested; added the log capture.
+- F3 (fixed here, CI run 101, `8603ea1`): the consent and lead form cards were `<li role="group">` inside the message `<ol>`, which axe's `list` rule refuses (NFR-09); seen in `lead-capture.e2e` and in `language.e2e`'s after-hours turn, which now carries a consent offer. The `<li>` now wraps a `role="group"` div.
+- F4 (fixed here, `8603ea1`): never-saved lead settings returned a server default opt-in wording ("news and offers …"), so the dashboard never prefilled ui-design SCR-APP-043's default naming the business; `leads-settings.e2e` caught it. The server now returns empty text and the page prefills.
+- F5 (fixed here, `dadda74`): the `lead_captured` notice text differed from ui-design SCR-WGT-003; now "Thanks, {business} has your details and will get back to you." (EN and ZH).
+- F6 (test fixture, `8603ea1`, `dadda74`): the FEAT-049 seed saves a notice and purpose for the dev tenant, which broke two older specs that assumed none: `privacy.e2e` (FEAT-058) now clears the row in `beforeAll` and restores it in `afterAll`; `widget-controls.e2e` (FEAT-033) end-chat test stubs `privacyNoticeUrl: null` as its sibling stubs it on. No assertion changed.
+- F7 (accepted as CI noise, Ken 2026-11-04): `search-volume.int` "2-char Chinese" took 2,260 ms (run 101), passed (run 102), 2,370 ms (run 103) and 2,249 ms (run 103 re-run) in CI, limit 2,000; main's CI run 104 took 1,663 ms. Locally the same test takes 831 ms with this PR's `search.ts` and 832 ms with main's, so the contact union adds no measurable cost. A 2-character query can't use the trigram index and scans messages, so CI runner load puts it near the limit. Ken chose to treat it as CI noise; the margin is a FEAT-046 risk in pending-actions.
+- F8 (not this PR's): run 101's Firefox `kill-switch.e2e` 375 px test timed out waiting for the sign-in email page; it passed in later runs. Main's run 104 also failed `widget-controls.e2e` end-chat on Chromium (the test F6 now pins to no notice).
 - Note (build deviation, accepted): the widget config carries no field labels, so the F&B "Date needed" label isn't used; every tenant sees "Preferred date or time". Cosmetic; listed in pending-actions for FEAT-050's leads work.
 - Carried: FEAT-045's `suggest.int.test.ts:176` asserts no bare "55" in the audit JSON and flakes when a random UUID contains it (seen in build, not here); follow-up fix in pending-actions.
 - Carried: pre-live contact-form leads are invisible to staff until FEAT-050's list (§8); LED-08 CSV export with FEAT-050.
@@ -72,4 +78,4 @@ Test ref appended 2026-11-04: LED-01, LED-02, LED-09, INB-11 (completes it with 
 
 ## CI
 
-Pending: GitHub CI on the PR branch.
+GitHub CI run 103 (`workflow_dispatch`, https://github.com/codeforests/kakiagent/actions/runs/41786403754) at `dadda74`: 10 of 11 jobs green, including E2E on Chromium, Firefox and WebKit (`lead-capture.e2e`, `leads-settings.e2e`, `privacy.e2e`, `widget-controls.e2e`, `language.e2e`), build and size, the eval, unit tests and lint. Integration with coverage is red only on the `search-volume.int` 2-char Chinese timing (F7), also after one re-run; every other integration suite, including `uploads.int` and `anchors.int` with LocalStack, passed. Runs 101 and 102 found F3–F6.
