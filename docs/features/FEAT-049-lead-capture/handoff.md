@@ -1,5 +1,5 @@
 # Handoff: FEAT-049 — Consent and lead capture
-Branch: feat/FEAT-049-lead-capture · PR: (draft, see thread) · Updated: 2026-11-04 by build (UI)
+Branch: feat/FEAT-049-lead-capture · PR: https://github.com/codeforests/kakiagent/pull/53 (draft) · Updated: 2026-11-04 by build (UI)
 Stage done: build (T1–T13 of 13), status `developer-done`
 Next: verify — kickoff: "Verify FEAT-049 on branch feat/FEAT-049-lead-capture. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
 
