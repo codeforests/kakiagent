@@ -1,7 +1,7 @@
 # Tasks: FEAT-049 — Consent and lead capture
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: developer-done · Last updated: 2026-11-04 (build, UI)
+> Status: accepted · Last updated: 2026-11-04 (verify)
 
 - [x] T1 — Schema: `0048_leads.sql` and `schema.ts` (`contacts`, `consents`, `leads`, `lead_settings`; `conversations.contact_id`; `messages.card`; `NOTICE_KINDS` + `lead_captured`; `WORDING_KINDS` + `marketing_consent`; `audit_pii` FK; forced RLS, policies, grants; `visitor_privacy()` replaced with the marketing wording and lead fields; `inbox_contact_hits()`; trigram indexes), names in `TENANT_SCOPED_TABLES`, cases in `rls.int.test.ts`; seed purpose, notice and lead settings (design §4, §5.9; AC-1, AC-11)
       Done when: `drizzle-kit generate` reports no drift after 0048; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes with tenant-B-can't-see-A cases for the four tables, `app_visitor` refused an update of a consent's `wording_id` and of `leads.status`, a lead insert without `consent_id` refused, two open leads for one contact refused by `leads_one_open_uq`.
@@ -40,4 +40,4 @@
 
 ## Verification evidence
 
-- AC-1 … AC-12: filled by T13.
+- AC-1 … AC-12: see [acceptance-report.md](acceptance-report.md) (accepted 2026-11-04; tests added for AC-8 and AC-11).
