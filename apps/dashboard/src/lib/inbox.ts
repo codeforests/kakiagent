@@ -12,6 +12,7 @@ import type {
   Message,
   ThreadEvent,
   ThreadMessage,
+  LeadSummary,
 } from '@kaki/contracts';
 import type { InfiniteData } from '@tanstack/react-query';
 
@@ -257,6 +258,13 @@ export const intentLabel = (s: IntentSignal) => INTENT_LABEL[s];
 
 /** A thread divider's text, without its time (ui-design SCR-APP-015, Dividers). */
 export function eventText(e: ThreadEvent): string {
+  // Consent and lead dividers (FEAT-049 ui-design SCR-APP-014).
+  if (e.kind === 'consent')
+    return e.reason === 'declined'
+      ? 'Visitor chose not to share their details'
+      : 'Visitor agreed to share their details';
+  if (e.kind === 'lead')
+    return e.reason === 'updated' ? 'Visitor updated their details' : 'Visitor left their details';
   if (e.kind === 'flagged')
     return e.reason === 'crisis' ? 'Flagged: crisis message' : 'Flagged: abuse';
   const who = e.actor.name ?? 'A team member';
@@ -378,6 +386,12 @@ const clock = new Intl.DateTimeFormat('en-SG', {
 });
 const dayMonth = new Intl.DateTimeFormat('en-SG', { day: 'numeric', month: 'short', timeZone: TZ });
 const dayKey = new Intl.DateTimeFormat('en-CA', { timeZone: TZ });
+const dayMonthYear = new Intl.DateTimeFormat('en-SG', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  timeZone: TZ,
+});
 
 export const clockTime = (iso: string) => clock.format(new Date(iso));
 export const shortDate = (iso: string) => dayMonth.format(new Date(iso));
@@ -462,3 +476,32 @@ export function memberToastText(e: MemberEvent): { text: string; action: string 
     ? { text: `${by} asks you to hand over a conversation.`, action: 'Open conversation' }
     : { text: `${by} took over a conversation you were handling.`, action: 'Open' };
 }
+
+// ---- Contact and lead in the sidebar (FEAT-049 ui-design SCR-APP-014) ----------------
+
+export const LEAD_STATUS: Record<LeadSummary['status'], { label: string; tone: string }> = {
+  new: { label: 'New', tone: 'info' },
+  contacted: { label: 'Contacted', tone: 'accent' },
+  won: { label: 'Won', tone: 'success' },
+  lost: { label: 'Lost', tone: 'neutral' },
+};
+
+/** "18 Nov 2026, 2:30 pm" (Singapore time). */
+export const dateTime = (iso: string) => `${dayMonthYear.format(new Date(iso))}, ${clockTime(iso)}`;
+
+/** The lead section's lines: consent time and the marketing answer. */
+export function leadLines(lead: LeadSummary): { consent: string; offers: string } {
+  const m = lead.consent.marketing;
+  return {
+    consent: `Consent · ${dateTime(lead.consent.enquiryAt)}`,
+    offers: m?.agreed ? `Offers · Yes, ${clockTime(m.at)}` : 'Offers · No',
+  };
+}
+
+/** An agent bubble's caption when it carried a widget card. */
+export const cardCaption = (card: ThreadMessage['card']) =>
+  card === 'consent'
+    ? 'Asked for consent'
+    : card === 'lead_form'
+      ? 'Showed the details form'
+      : null;

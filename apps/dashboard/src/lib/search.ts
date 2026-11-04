@@ -46,6 +46,17 @@ const AUTHOR_LABEL: Record<NonNullable<SearchMatch['author']>, string> = {
 };
 export const authorLabel = (a: SearchMatch['author']) => (a ? AUTHOR_LABEL[a] : 'Contact');
 
+const FIELD_LABEL = { name: 'Name', email: 'Email', phone: 'Phone' } as const;
+
+/**
+ * The label before a result's excerpt: the message's author ("Visitor:"), or for a contact
+ * hit the field that matched ("Email matches ·", FEAT-049 ui-design SCR-APP-014).
+ */
+export function matchLabel(m: Pick<SearchMatch, 'source' | 'field' | 'author'>): string {
+  if (m.source === 'contact') return `${m.field ? FIELD_LABEL[m.field] : 'Contact'} matches ·`;
+  return `${authorLabel(m.author)}:`;
+}
+
 /** The results region's status line once a search completes. */
 export function resultsStatus(n: number, more: boolean): string {
   if (more) return `Showing ${n} conversation${n === 1 ? '' : 's'}`;

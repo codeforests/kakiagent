@@ -10,8 +10,11 @@ import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import {
   CHANNEL_LABEL,
+  cardCaption,
   clockTime,
   dockText,
+  LEAD_STATUS,
+  leadLines,
   eventText,
   initials,
   intentLabel,
@@ -36,6 +39,7 @@ const GLYPHS = {
   chat: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z',
   'chevron-down': 'M6 9l6 6 6-6',
   spark: 'M12 3l1.9 5.8L20 11l-6.1 2.2L12 19l-1.9-5.8L4 11l6.1-2.2z',
+  copy: 'M9 9h11v11H9zM5 15H4V4h11v1',
 } as const;
 export type GlyphName = keyof typeof GLYPHS;
 
@@ -196,6 +200,11 @@ export function Bubble({
         {message.body}
       </div>
       {message.notice && <p className="bubble-notice">{message.notice}</p>}
+      {cardCaption(message.card) && (
+        <p className="bubble-notice" data-testid="card-caption">
+          {cardCaption(message.card)}
+        </p>
+      )}
       {message.author === 'agent' && <FactChips ids={message.factIds} facts={facts} />}
     </li>
   );
@@ -220,6 +229,33 @@ export function Dock({ conversation }: { conversation: ConversationSummary }) {
   );
 }
 
+/** An email or phone with a copy button that says "Copied" (FEAT-049 ui-design SCR-APP-014). */
+function CopyRow({ label, value }: { label: 'email' | 'phone'; value: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <p className="sidebar-copy">
+      <span>{value}</span>
+      <button
+        type="button"
+        className="icon-button"
+        aria-label={`Copy ${label}`}
+        onClick={() =>
+          void navigator.clipboard
+            ?.writeText(value)
+            .then(() => setCopied(true))
+            .catch(() => setCopied(false))
+        }
+        onBlur={() => setCopied(false)}
+      >
+        <Glyph name="copy" />
+      </button>
+      <span className="sr-only" role="status">
+        {copied ? 'Copied' : ''}
+      </span>
+    </p>
+  );
+}
+
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <details className="sidebar-section" open>
@@ -234,21 +270,25 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 
 /** INB-04's context: contact, channel, intents, lead and the facts used (SCR-APP-015). */
 export function ContextSidebar({ thread }: { thread: ConversationThread }) {
-  const { contact, channel, intents, facts } = thread.sidebar;
+  const { contact, channel, intents, facts, lead } = thread.sidebar;
   const earlier = contact.previousConversations;
   return (
     <div className="context-sidebar" data-testid="context-sidebar">
       <Section title="Contact">
-        <p className="sidebar-strong">{contact.label}</p>
+        <p className="sidebar-strong">{contact.name ?? contact.label}</p>
+        {contact.email && <CopyRow label="email" value={contact.email} />}
+        {contact.phone && <CopyRow label="phone" value={contact.phone} />}
         <p>First seen {shortDate(contact.firstSeenAt)}</p>
         <p>
           {earlier === 0
             ? 'First conversation'
             : `${earlier} earlier conversation${earlier === 1 ? '' : 's'}`}
         </p>
-        <p className="sidebar-caption">
-          Names and contact details appear once the visitor shares them.
-        </p>
+        {!contact.contactId && (
+          <p className="sidebar-caption">
+            Names and contact details appear once the visitor shares them.
+          </p>
+        )}
       </Section>
       <Section title="Channel">
         <p>{CHANNEL_LABEL[channel]}</p>
@@ -268,7 +308,18 @@ export function ContextSidebar({ thread }: { thread: ConversationThread }) {
         )}
       </Section>
       <Section title="Lead">
-        <p className="sidebar-caption">No lead yet.</p>
+        {lead ? (
+          <div className="sidebar-lead" data-testid="sidebar-lead">
+            <span className={`chip chip--${LEAD_STATUS[lead.status].tone}`}>
+              {LEAD_STATUS[lead.status].label}
+            </span>
+            <p>Updated {clockTime(lead.updatedAt)}</p>
+            <p>{leadLines(lead).consent}</p>
+            <p>{leadLines(lead).offers}</p>
+          </div>
+        ) : (
+          <p className="sidebar-caption">No details left yet.</p>
+        )}
       </Section>
       <Section title="Facts used">
         {facts.length === 0 ? (

@@ -4961,3 +4961,19 @@ a.settings-row:hover {
 .leads-purpose .chip {
   align-self: flex-start;
 }
+/* Inbox sidebar contact and lead (SCR-APP-014; FEAT-049). */
+.sidebar-copy {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  overflow-wrap: anywhere;
+}
+.sidebar-lead {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+.sidebar-lead p {
+  margin: 0;
+}
