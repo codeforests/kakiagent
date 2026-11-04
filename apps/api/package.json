@@ -28,6 +28,7 @@
     "@kaki/identity": "workspace:*",
     "@kaki/inbox": "workspace:*",
     "@kaki/kb": "workspace:*",
+    "@kaki/leads": "workspace:*",
     "@kaki/llm-gateway": "workspace:*",
     "@kaki/platform": "workspace:*",
     "@kaki/tenancy": "workspace:*",
