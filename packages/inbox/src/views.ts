@@ -306,7 +306,14 @@ export async function threadEvents(
   conversationId: string,
 ): Promise<ThreadEventRow[]> {
   const a = schema.auditEntries;
-  const actions = [...LIFECYCLE_ACTIONS, 'conversation.flagged'];
+  // FEAT-049: the visitor's enquiry consent answer and the capture of their details.
+  const actions = [
+    ...LIFECYCLE_ACTIONS,
+    'conversation.flagged',
+    'consent.recorded',
+    'lead.created',
+    'lead.updated',
+  ];
   const rows = await tx
     .select({
       ts: a.ts,
@@ -336,6 +343,11 @@ export async function threadEvents(
         !(
           r.eventType === 'conversation.state_changed' &&
           (r.payload as { to?: unknown } | null)?.to === 'escalated'
+        ) &&
+        // One divider per consent answer: the marketing opt-in rides on the enquiry's.
+        !(
+          r.eventType === 'consent.recorded' &&
+          (r.payload as { purpose?: unknown } | null)?.purpose !== 'enquiry'
         ),
     )
     .map(toThreadEvent);
@@ -354,6 +366,25 @@ export interface AuditEventRow {
 /** Maps one lifecycle or flag audit entry to a thread divider (D7; FEAT-043 reasons). */
 export function toThreadEvent(r: AuditEventRow): ThreadEventRow {
   const p = (r.payload ?? {}) as Record<string, unknown>;
+  // FEAT-049 §3: consent (agreed, declined) and lead (created, updated) dividers, by the visitor.
+  if (r.eventType === 'consent.recorded' || r.eventType.startsWith('lead.')) {
+    const consent = r.eventType === 'consent.recorded';
+    return {
+      at: r.ts.toISOString(),
+      kind: consent ? 'consent' : 'lead',
+      from: null,
+      to: null,
+      reason: consent
+        ? p.decision === 'declined'
+          ? 'declined'
+          : 'agreed'
+        : r.eventType === 'lead.updated'
+          ? 'updated'
+          : 'created',
+      actor: { type: 'visitor', id: null },
+      subject: null,
+    } satisfies ThreadEventRow;
+  }
   const flagged = r.eventType === 'conversation.flagged';
   if (r.eventType === 'escalation.assigned') {
     const ref = r.subjectRefs.find((x) => x.startsWith(USER_REF));

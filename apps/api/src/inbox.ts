@@ -64,6 +64,7 @@ import {
   type OwnerNames,
 } from '@kaki/inbox';
 import { dashboardKb, factChips, proposeReplyEdit } from '@kaki/kb';
+import { contactOf, leadSummaryOf } from '@kaki/leads';
 import { channels } from '@kaki/platform';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { TenantSession } from './auth.js';
@@ -215,6 +216,10 @@ export function registerInboxRoutes(
         events: await threadEvents(tx, t, id),
         history: (await visitorHistory(tx, t, id))!,
         intents: await intentCounts(tx, t, id),
+        // FEAT-049 §5.4: the contact who left details here, and their lead (api-side: inbox
+        // never imports leads).
+        contact: await contactOf(tx, t, id),
+        lead: await leadSummaryOf(tx, t, id),
         facts: chips.map((chip) => ({
           ...chip,
           uses: used.find((u) => u.factId === chip.id)!.uses,
@@ -246,17 +251,17 @@ export function registerInboxRoutes(
       events,
       sidebar: {
         contact: {
-          contactId: null,
-          name: null,
-          email: null,
-          phone: null,
-          label: 'Website visitor',
+          contactId: data.contact?.contactId ?? null,
+          name: data.contact?.name ?? null,
+          email: data.contact?.email ?? null,
+          phone: data.contact?.phone ?? null,
+          label: data.contact?.name ?? 'Website visitor',
           firstSeenAt: data.history.firstSeenAt.toISOString(),
           previousConversations: data.history.previousConversations,
         },
         channel: data.row.channel,
         intents: data.intents,
-        lead: null,
+        lead: data.lead,
         facts: data.facts,
       },
     });

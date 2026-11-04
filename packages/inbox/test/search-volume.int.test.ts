@@ -64,6 +64,9 @@ const QUERIES: [label: string, q: string][] = [
   ['phone +65-9123-4567', '+65-9123-4567'],
   ['2-char Chinese', '美玲'],
   ['common word', COMMON],
+  // FEAT-049 §5.5: the contact's fields, with 5,000 contacts on tenant A.
+  ['contact name', 'Zephyrine'],
+  ['contact phone', '8765 4321'],
 ];
 
 const timings: Record<string, number> = {};
@@ -82,6 +85,21 @@ beforeAll(async () => {
     await plant(tenant, 'whatsapp 9123-4567', 1);
     await plant(tenant, `我是${NAME}`, 30);
   }
+  // FEAT-049 (AC-10): 5,000 contacts on tenant A, each on one conversation; one has the needles.
+  await owner.query(
+    `with picked as (select id, row_number() over () as n from conversations where tenant_id = $1 limit 5000),
+     made as (insert into contacts (tenant_id, name, email, phone)
+       select $1, 'Contact ' || n, 'person' || n || '@example.com', '+659' || lpad(n::text, 7, '0')
+       from picked returning id, (regexp_match(name, '[0-9]+'))[1]::int as n)
+     update conversations c set contact_id = made.id from picked, made
+     where c.tenant_id = $1 and c.id = picked.id and picked.n = made.n`,
+    [TENANT_A],
+  );
+  await owner.query(
+    `update contacts set name = 'Zephyrine Goh', phone = '+6587654321' where tenant_id = $1 and name = 'Contact 77'`,
+    [TENANT_A],
+  );
+  await owner.query('vacuum analyze contacts');
   await owner.query('vacuum analyze messages');
   await owner.query('vacuum analyze conversations');
   console.warn(`seeded in ${Date.now() - t} ms`);
@@ -102,6 +120,11 @@ describe('search at A1 volume (AC-4)', () => {
       [TENANT_A, TENANT_B],
     );
     expect(rows[0]).toEqual({ convs: 60_000, msgs: 480_000, b_msgs: 100_000 });
+    const linked = await owner.query(
+      `select count(*)::int as n from conversations where tenant_id = $1 and contact_id is not null`,
+      [TENANT_A],
+    );
+    expect(linked.rows[0].n).toBe(5_000);
   });
 
   it.each(QUERIES)('%s: first page ≤ 2,000 ms', async (label, q) => {
