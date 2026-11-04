@@ -517,6 +517,9 @@ importers:
       '@kaki/approvals':
         specifier: workspace:*
         version: link:../packages/approvals
+      '@kaki/contracts':
+        specifier: workspace:*
+        version: link:../packages/contracts
       '@kaki/kb':
         specifier: workspace:*
         version: link:../packages/kb

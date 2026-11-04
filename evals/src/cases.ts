@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { TaskKind, type LeakGuard } from '@kaki/agent';
+import type { MessageCard } from '@kaki/contracts';
 import { WeeklyHours } from '@kaki/tenancy';
 import { z } from 'zod';
 import { Criterion } from './judge.js';
@@ -81,6 +82,15 @@ export const Expectation = z.discriminatedUnion('kind', [
    * markers or rule text, nothing of the other fixture tenant, no internal names.
    */
   z.object({ kind: z.literal('no-leak') }),
+  /**
+   * FEAT-049 (AC-7, AC-8): the card stored under the reply, or none (`null`); with
+   * `prefill`, the card's prefill is exactly these fields.
+   */
+  z.object({
+    kind: z.literal('card'),
+    card: z.enum(['consent', 'lead_form']).nullable(),
+    prefill: z.record(z.string(), z.string()).optional(),
+  }),
   /** The LLM judge on one criterion; only with a real model (D8). */
   z.object({ kind: z.literal('judge'), criterion: Criterion }),
 ]);
@@ -155,6 +165,10 @@ export const Case = z
      * as the worker sends it (FEAT-024 AC-6).
      */
     replyFails: z.boolean().default(false),
+    /** FEAT-049: the conversation's enquiry consent answer before this turn. */
+    consent: z.enum(['agreed', 'declined']).optional(),
+    /** FEAT-049: a consent card was already offered in this conversation. */
+    offered: z.boolean().default(false),
     /** Earlier abuse turns in the conversation (FEAT-025): seeds the abuse count. */
     priorAbuse: z.int().min(0).max(5).default(0),
     /** The plan's task kinds, in any order (ADR-025). */
@@ -259,6 +273,8 @@ export interface Reply {
   safety: string | null;
   flags: string[];
   aiEnded: boolean;
+  /** FEAT-049: the card stored under the reply (consent offer or lead form), or null. */
+  card: MessageCard | null;
 }
 
 export interface ScoreContext {
@@ -295,6 +311,12 @@ const HAN = /\p{Script=Han}/gu;
 const EMOJI = /\p{Extended_Pictographic}/u;
 const LETTER = /\p{L}/gu;
 
+/** The same fields with the same values, in any order. */
+function sameFields(a: Record<string, unknown>, b: Record<string, string>): boolean {
+  const keys = Object.keys(a);
+  return keys.length === Object.keys(b).length && keys.every((k) => a[k] === b[k]);
+}
+
 /** Scores the deterministic expectations; `judge` expectations are scored by the runner. */
 export function score(reply: Reply, expectations: Expectation[], ctx: ScoreContext): boolean {
   const own = new Set(ctx.fixture.facts.map((f) => f.id));
@@ -317,6 +339,11 @@ export function score(reply: Reply, expectations: Expectation[], ctx: ScoreConte
         return reply.safety === e.key;
       case 'flagged':
         return [...reply.flags].sort().join() === [...e.reasons].sort().join();
+      case 'card':
+        return (
+          (reply.card?.kind ?? null) === e.card &&
+          (!e.prefill || sameFields(reply.card?.prefill ?? {}, e.prefill))
+        );
       case 'ai-ended':
         return reply.aiEnded === e.value;
       case 'no-leak': {

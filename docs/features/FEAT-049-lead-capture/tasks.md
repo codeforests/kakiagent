@@ -15,7 +15,7 @@
       Done when: `scripts/test-env.sh pnpm --filter @kaki/api test:integration` passes with `leads-widget.int.test.ts`: the full agree → submit path (201, notice published), decline, `consent_required`, `wording_changed`, 422 field codes, another visitor's conversation → 404, `/contact` while paused and while not live (message mode) and refused when live without a conversation, `not_capturing` without a purpose statement, tenant B's token can't use A's conversation; a captured log stream has no submitted email or phone.
 - [x] T6 — API, dashboard: `leads.ts` settings routes; sidebar contact and lead through the inbox port; `threadEvents` consent and lead dividers; `ThreadMessage.card`; `searchConversations` contact hits through `inbox_contact_hits` with the merge rule; the volume test with 5,000 contacts (design §5.4, §5.5; AC-10, AC-12)
       Done when: `scripts/test-env.sh pnpm --filter @kaki/inbox test:integration` passes (contact name, email part, phone in each spelling found with no message hit; message hit preferred; paging over the union with no duplicates; tenant B none; volume ≤ 2,000 ms) and `scripts/test-env.sh pnpm --filter @kaki/api test:integration` passes with `leads-settings.int.test.ts` (get defaults, save, stale 409, both contact fields off 400, marketing wording versioned, Agent role 403, tenant isolation) and the thread's sidebar and dividers after a capture.
-- [ ] T7 — Evals: `evals/cases/feat-049-lead-capture.json` (design §5.8; AC-7, AC-8)
+- [x] T7 — Evals: `evals/cases/feat-049-lead-capture.json` (design §5.8; AC-7, AC-8)
       Done when: `pnpm eval --fast` passes with the new cases counted in the multi-task and dispatch subset and `evals/thresholds.json` unchanged.
 
 ## Build session 2 (UI)

@@ -24,7 +24,7 @@ import { routeReply, type LlmGateway, type LogicalModel } from '@kaki/llm-gatewa
 import { openStatus } from '@kaki/tenancy';
 import { answerTurn, type AnswerOutcome, type AnswerResult } from './answer.js';
 import { applyBoundary, triageTail } from './boundary.js';
-import { prefillOf } from './lead.js';
+import { cardForReply, consentCardFor } from './lead.js';
 import {
   dispatchPlan,
   visitorRegistry,
@@ -96,13 +96,6 @@ const GUARDRAIL_ACTION: Partial<Record<Violation['kind'], string>> = {
   commitment: 'guardrail.boundary_commitment',
   discount_offer: 'guardrail.boundary_discount',
 };
-
-/**
- * Replies that offer to pass the visitor's details on (UC-21 1; FEAT-049 §5.3, AC-8): the AI
- * couldn't help. Paused, not-live, safety and gate-closed replies never carry a card.
- */
-const OFFER_OUTCOMES = new Set<TurnOutcome>(['unavailable', 'unsure', 'out_of_scope']);
-const NO_CARD_OUTCOMES = new Set<TurnOutcome>(['paused', 'not_live', 'ended', 'gate_closed']);
 
 const GAP_OUTCOMES = new Map<TurnOutcome, GapReason>([
   ['unavailable', 'unavailable'],
@@ -210,20 +203,16 @@ export async function runVisitorTurn(
     const stored = await withTenant(zdb, tenantId, async (tx) => {
       // FEAT-049 §5.3: a card needs a saved purpose statement (LED-02, fail closed); an offer
       // goes once per conversation, never after a decline or a capture (AC-8).
-      let attached: MessageCard | null = null;
-      if (safety === null && !NO_CARD_OUTCOMES.has(outcome)) {
-        const offerable =
-          OFFER_OUTCOMES.has(outcome) ||
-          notice?.kind === 'after_hours' ||
-          (outcome === 'escalated' && !!escalated()?.escalation?.afterHours);
-        if (card || offerable) {
-          const config = await leadCaptureConfig(tx);
-          const state = config && !card ? await consentState(tx, tenantId, conversationId) : null;
-          if (config && card) attached = card;
-          else if (config && state && !state.enquiry && !state.offered && !state.captured)
-            attached = { kind: 'consent', prefill: {} };
-        }
-      }
+      const capturing = (await leadCaptureConfig(tx)) !== null;
+      const attached = cardForReply({
+        card,
+        outcome,
+        safety: safety !== null,
+        capturing,
+        afterHoursNotice: notice?.kind === 'after_hours',
+        escalatedAfterHours: !!escalated()?.escalation?.afterHours,
+        state: capturing && !card ? await consentState(tx, tenantId, conversationId) : null,
+      });
       const reply = await appendAgentReply(tx, {
         tenantId,
         conversationId,
@@ -461,15 +450,9 @@ export async function runVisitorTurn(
   dispatched = dispatch.reports;
   // FEAT-049 §5.3: the lead form after consent; before it, the dispatcher's `consent` refusal
   // becomes the consent card, prefilled with triage's valid args only.
-  card = dispatch.card ?? null;
+  card = dispatch.card ?? consentCardFor(dispatch.reports, plan.tasks);
   const replies = [...dispatch.replies];
-  const unconsented = dispatch.reports.find(
-    (r) => r.task === 'capture_lead' && r.outcome === 'refused' && r.reason === 'consent',
-  );
-  if (!card && unconsented) {
-    card = { kind: 'consent', prefill: prefillOf(plan.tasks[unconsented.index]?.args) };
-    if (!replies.includes('lead_consent')) replies.push('lead_consent');
-  }
+  if (card?.kind === 'consent' && !replies.includes('lead_consent')) replies.push('lead_consent');
   if (dispatch.endTurn) {
     const key = dispatch.endTurn.key;
     return store('ended', 'agent', safetyText(t, key, businessName), null, key);

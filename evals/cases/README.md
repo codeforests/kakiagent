@@ -87,3 +87,12 @@ turn's answer path (`answerStep` → `answerTurn`), so its cases run here unchan
 score what the suggestion maps from the outcome: `answered` → a draft; `escalated`
 (failed checks twice), `out_of_scope`, `ended` and the rest → no draft
 (`no_checked_answer`/`unavailable`, FEAT-045 §5.1 step 4). No new subset or threshold.
+
+FEAT-049 adds `feat-049-lead-capture.json` to the multi-task subset (AC-7, AC-8). A case
+may set `consent` (`agreed` or `declined`, the visitor's enquiry answer before the turn)
+and `offered` (a consent card was already shown). The dispatch check expects
+`capture_lead` to be `refused` (consent) until `consent` is `agreed`, then `done`. The
+`card` expectation scores the card stored under the reply as `turn.ts` picks it
+(`consentCardFor`, `cardForReply`, with a purpose statement saved): `consent`,
+`lead_form` or `null`, and with `prefill` exactly those fields (an invalid phone or email
+is dropped). No new subset or threshold.
