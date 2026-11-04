@@ -1,11 +1,19 @@
 import type { Message } from '@kaki/contracts';
 import { describe, expect, it } from 'vitest';
+import { strings } from './strings.js';
 import {
+  activeCard,
   awaitingTurn,
   chatEnded,
   chromeLocale,
   escalationPending,
   emptyChat,
+  fieldErrorText,
+  leadFormView,
+  leadValues,
+  localText,
+  sentSummary,
+  validateLead,
   greetingFor,
   langOf,
   menuItems,
@@ -361,5 +369,106 @@ describe('talk to a person (SCR-WGT-002, FEAT-044 AC-1)', () => {
     c = withMessage(c, { ...n });
     expect(c.messages.filter((m) => m.noticeKind === 'escalated')).toHaveLength(1);
     expect(rowsOf(n)).toEqual([{ kind: 'notice', key: 'e1-notice', text: n.notice }]);
+  });
+});
+
+describe('consent and details (SCR-WGT-003; FEAT-049 AC-1, AC-3, AC-5)', () => {
+  const t = strings('en');
+  const card = (id: string, seq: number) => ({
+    ...msg(id, seq, 'agent'),
+    card: { kind: 'consent' as const, prefill: {} },
+  });
+  const notice = (id: string, seq: number) => ({
+    ...msg(id, seq, 'system'),
+    body: '',
+    notice: 'Thanks',
+    noticeKind: 'lead_captured' as const,
+  });
+  const chatOf = (...ms: Message[]) => ms.reduce(withMessage, emptyChat);
+
+  it('keeps the latest card open until the visitor writes or the details are captured', () => {
+    expect(activeCard(chatOf(msg('a', 1, 'agent')))).toBeNull();
+    expect(activeCard(chatOf(card('c1', 1)))).toBe('c1');
+    expect(activeCard(chatOf(card('c1', 1), card('c2', 2)))).toBe('c2');
+    expect(activeCard(chatOf(card('c1', 1), msg('v', 2, 'visitor')))).toBeNull();
+    expect(activeCard(chatOf(card('c1', 1), notice('n', 2)))).toBeNull();
+    // A staff joined notice doesn't answer the card.
+    expect(
+      activeCard(chatOf(card('c1', 1), { ...msg('s', 2, 'system'), noticeKind: 'staff_joined' })),
+    ).toBe('c1');
+  });
+
+  it('shows tenant texts in the panel locale, Chinese falling back to English', () => {
+    expect(localText({ en: 'Hi', zh: '你好' }, 'zh-Hans')).toBe('你好');
+    expect(localText({ en: 'Hi', zh: ' ' }, 'zh-Hans')).toBe('Hi');
+    expect(localText({ en: 'Hi', zh: '你好' }, 'en')).toBe('Hi');
+  });
+
+  const fields = [
+    { key: 'name' as const, mode: 'required' as const },
+    { key: 'phone' as const, mode: 'optional' as const },
+    { key: 'email' as const, mode: 'optional' as const },
+    { key: 'need' as const, mode: 'optional' as const },
+  ];
+
+  it('lists the enabled fields in order with labels, kinds and the phone-or-email caption', () => {
+    const v = leadFormView(fields, t);
+    expect(v.fields.map((f) => [f.key, f.label, f.required, f.kind])).toEqual([
+      ['name', 'Name', true, 'text'],
+      ['phone', 'Phone', false, 'tel'],
+      ['email', 'Email', false, 'email'],
+      ['need', 'What do you need?', false, 'textarea'],
+    ]);
+    expect(v.fields[1]!.help).toBe('Singapore number, like 9123 4567');
+    expect(v.contactCaption).toBe(true);
+    const phoneRequired = fields.map((f) =>
+      f.key === 'phone' ? { ...f, mode: 'required' as const } : f,
+    );
+    expect(leadFormView(phoneRequired, t).contactCaption).toBe(false);
+    expect(leadFormView([fields[0]!, fields[2]!], t).contactCaption).toBe(false);
+    expect(leadFormView(fields, strings('zh-Hans')).fields[0]!.label).toBe('姓名');
+  });
+
+  it('prefills only the fields shown', () => {
+    expect(leadValues(fields.slice(0, 2), { name: 'Mei', email: 'a@b.co' })).toEqual({
+      name: 'Mei',
+      phone: '',
+    });
+  });
+
+  it('checks like the server: required, SG phone, email, phone or email', () => {
+    const ok = validateLead(fields, { name: 'Mei Ling', phone: '9123-4567' });
+    expect(ok.ok).toBe(true);
+    expect(ok.value.phone).toBe('+6591234567');
+    const bad = validateLead(fields, { name: '', phone: '1234 5678', email: 'nope' });
+    expect(bad.ok).toBe(false);
+    expect(bad.errors).toEqual({ name: 'required', phone: 'invalid', email: 'invalid' });
+    const none = validateLead(fields, { name: 'Mei' });
+    expect(none).toMatchObject({ ok: false, needsContact: true, errors: {} });
+  });
+
+  it('words each field error as the ui design says', () => {
+    expect(fieldErrorText('name', 'required', t)).toBe('Enter your name');
+    expect(fieldErrorText('phone', 'invalid', t)).toBe(
+      'Enter a Singapore number with 8 digits, like 9123 4567',
+    );
+    expect(fieldErrorText('email', 'invalid', t)).toBe(
+      'Enter an email address, like hello@example.com',
+    );
+    expect(fieldErrorText('budget', 'required', t)).toBe('Fill in this field');
+    expect(fieldErrorText('need', 'invalid', t)).toBe(t.errTooLong);
+  });
+
+  it('summarises sent details with the formatted phone, else the email', () => {
+    const base = {
+      name: 'Mei Ling',
+      phone: '',
+      email: '',
+      need: '',
+      budget: '',
+      preferredTime: '',
+    };
+    expect(sentSummary({ ...base, phone: '+6591234567' })).toBe('Mei Ling · +65 9123 4567');
+    expect(sentSummary({ ...base, email: 'mei@example.com' })).toBe('Mei Ling · mei@example.com');
   });
 });
