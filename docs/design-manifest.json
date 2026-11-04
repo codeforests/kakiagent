@@ -278,7 +278,8 @@
         "extended_by": [
           "features/FEAT-043-takeover/ui-design.md#scr-app-014--inbox-partial",
           "features/FEAT-044-escalation-routing/ui-design.md#scr-app-014--inbox-partial",
-          "features/FEAT-046-conversation-search/ui-design.md#scr-app-014--inbox-partial-search"
+          "features/FEAT-046-conversation-search/ui-design.md#scr-app-014--inbox-partial-search",
+          "features/FEAT-049-lead-capture/ui-design.md#scr-app-014--inbox-partial-contact-lead-consent"
         ]
       },
       "states": {
@@ -307,11 +308,14 @@
           "search error",
           "opened at match",
           "back to results",
-          "top bar search entry"
+          "top bar search entry",
+          "sidebar contact",
+          "sidebar lead",
+          "consent and lead dividers",
+          "card captions",
+          "contact search hit"
         ],
-        "gaps": [
-          "search by contact fields (FEAT-049)"
-        ],
+        "gaps": [],
         "supplements": []
       },
       "contract_bindings": [
@@ -322,7 +326,8 @@
         "WS /ws (message, conversation events)",
         "GET /api/v1/conversations?assignee=",
         "GET /api/v1/inbox/members",
-        "POST /api/v1/conversations/search"
+        "POST /api/v1/conversations/search",
+        "GET /api/v1/conversations/:id (sidebar.contact, sidebar.lead, events)"
       ],
       "conformance": {
         "result": "pass",
@@ -1591,18 +1596,24 @@
         "covered": [
           "not live (hidden)",
           "not live (message)",
-          "AI paused (FEAT-057)"
+          "AI paused (FEAT-057)",
+          "contact form (FEAT-049)",
+          "contact form invalid",
+          "contact form sending",
+          "contact form sent",
+          "contact form failed"
         ],
-        "gaps": [
-          "Contact form (FEAT-049)"
-        ],
+        "gaps": [],
         "supplements": [
-          "AI paused state (features/FEAT-057-kill-switch/ui-design.md#scr-wgt-005--fallback-adds-ai-paused)"
+          "AI paused state (features/FEAT-057-kill-switch/ui-design.md#scr-wgt-005--fallback-adds-ai-paused)",
+          "Contact form (features/FEAT-049-lead-capture/ui-design.md#scr-wgt-005--fallback-adds-the-contact-form)"
         ]
       },
       "contract_bindings": [
         "GET /widget/v1/config (availability)",
-        "GET /widget/v1/config (aiPaused)"
+        "GET /widget/v1/config (aiPaused)",
+        "GET /widget/v1/config (leadCapture)",
+        "POST /widget/v1/contact"
       ],
       "conformance": {
         "result": "pass",
@@ -1941,6 +1952,88 @@
       },
       "status": "designed",
       "designed_at": "2026-10-31"
+    },
+    "SCR-WGT-003": {
+      "name": "Consent and details",
+      "surface": "WGT",
+      "feature": "FEAT-049",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-049-lead-capture/ui-design.md#scr-wgt-003--consent-and-details"
+      },
+      "states": {
+        "covered": [
+          "consent asked",
+          "consent sending",
+          "agreed",
+          "declined",
+          "consent failed",
+          "wording changed",
+          "form",
+          "invalid field",
+          "submitting",
+          "submitted",
+          "submit failed",
+          "consent required"
+        ],
+        "gaps": [
+          "withdrawn (FEAT-051)"
+        ],
+        "supplements": []
+      },
+      "contract_bindings": [
+        "SSE message (Message.card)",
+        "GET /widget/v1/config (leadCapture)",
+        "POST /widget/v1/conversations/:id/consent",
+        "POST /widget/v1/conversations/:id/lead"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-11-04"
+    },
+    "SCR-APP-043": {
+      "name": "Leads and consent",
+      "surface": "APP",
+      "feature": "FEAT-049",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-049-lead-capture/ui-design.md#scr-app-043--leads-and-consent-partial-lead-fields-marketing-wording"
+      },
+      "states": {
+        "covered": [
+          "loading",
+          "error",
+          "never saved",
+          "saving",
+          "saved",
+          "validation errors",
+          "conflict",
+          "save failed",
+          "permission",
+          "marketing on",
+          "marketing off"
+        ],
+        "gaps": [
+          "Qualification criteria (FEAT-050)",
+          "Outbound webhooks, plan-locked (FEAT-053)"
+        ],
+        "supplements": []
+      },
+      "contract_bindings": [
+        "GET /api/v1/settings/leads",
+        "PUT /api/v1/settings/leads"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-11-04"
     }
   }
 }
