@@ -4913,3 +4913,51 @@ a.settings-row:hover {
     flex-direction: column;
   }
 }
+
+/* ---- Leads and consent (SCR-APP-043; FEAT-049) ---------------------------------------- */
+.leads-page {
+  max-width: var(--size-reading-max);
+}
+.leads-form > .alert {
+  margin-bottom: 0;
+}
+.leads-rows {
+  display: flex;
+  flex-direction: column;
+}
+.leads-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  padding: var(--space-3) 0;
+  border: 0;
+  border-top: 1px solid var(--color-border-default);
+}
+.leads-row:first-child {
+  border-top: 0;
+}
+.leads-row__label {
+  float: left;
+  padding: 0;
+  font-weight: var(--font-weight-medium);
+}
+.leads-row__error {
+  flex-basis: 100%;
+  margin: 0;
+}
+.leads-subtitle {
+  margin: 0;
+  font-size: var(--type-body-size);
+  font-weight: var(--font-weight-semibold);
+}
+.leads-quote {
+  margin: 0;
+  white-space: pre-wrap;
+  color: var(--color-text-secondary);
+}
+.leads-purpose .chip {
+  align-self: flex-start;
+}
