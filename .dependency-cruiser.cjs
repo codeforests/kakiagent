@@ -25,6 +25,7 @@ module.exports = {
           '^packages/kb/src/(stale|gap-cluster)\\.ts$',
           '^packages/channels/src/(theme/index|contract-suite)\\.ts$',
           '^packages/ui/src/styles\\.css$',
+          '^packages/contracts/src/lead-check\\.ts$',
         ],
       },
     },
