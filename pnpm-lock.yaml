@@ -548,6 +548,9 @@ importers:
       '@kaki/channels':
         specifier: workspace:*
         version: link:../channels
+      '@kaki/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@kaki/db':
         specifier: workspace:*
         version: link:../db
@@ -560,6 +563,9 @@ importers:
       '@kaki/kb':
         specifier: workspace:*
         version: link:../kb
+      '@kaki/leads':
+        specifier: workspace:*
+        version: link:../leads
       '@kaki/llm-gateway':
         specifier: workspace:*
         version: link:../llm-gateway

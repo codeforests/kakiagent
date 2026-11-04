@@ -17,11 +17,14 @@ import {
   type MessageRow,
   type RequestEscalationResult,
 } from '@kaki/inbox';
+import type { MessageCard } from '@kaki/contracts';
 import { searchVisitorFacts, visitorKb, type VisitorFact } from '@kaki/kb';
+import { consentState, leadCaptureConfig } from '@kaki/leads';
 import { routeReply, type LlmGateway, type LogicalModel } from '@kaki/llm-gateway';
 import { openStatus } from '@kaki/tenancy';
 import { answerTurn, type AnswerOutcome, type AnswerResult } from './answer.js';
 import { applyBoundary, triageTail } from './boundary.js';
+import { prefillOf } from './lead.js';
 import {
   dispatchPlan,
   visitorRegistry,
@@ -93,6 +96,13 @@ const GUARDRAIL_ACTION: Partial<Record<Violation['kind'], string>> = {
   commitment: 'guardrail.boundary_commitment',
   discount_offer: 'guardrail.boundary_discount',
 };
+
+/**
+ * Replies that offer to pass the visitor's details on (UC-21 1; FEAT-049 §5.3, AC-8): the AI
+ * couldn't help. Paused, not-live, safety and gate-closed replies never carry a card.
+ */
+const OFFER_OUTCOMES = new Set<TurnOutcome>(['unavailable', 'unsure', 'out_of_scope']);
+const NO_CARD_OUTCOMES = new Set<TurnOutcome>(['paused', 'not_live', 'ended', 'gate_closed']);
 
 const GAP_OUTCOMES = new Map<TurnOutcome, GapReason>([
   ['unavailable', 'unavailable'],
@@ -168,6 +178,8 @@ export async function runVisitorTurn(
   let escalateOnly = false;
   // Set inside the port's closure, so read through this (TS narrows the `let` to null).
   const escalated = () => escalation as RequestEscalationResult | null;
+  // FEAT-049: the card the dispatch asked for (consent or lead form); `store()` may add an offer.
+  let card: MessageCard | null = null;
 
   async function store(
     outcome: TurnOutcome,
@@ -196,6 +208,22 @@ export async function runVisitorTurn(
               }
             : null;
     const stored = await withTenant(zdb, tenantId, async (tx) => {
+      // FEAT-049 §5.3: a card needs a saved purpose statement (LED-02, fail closed); an offer
+      // goes once per conversation, never after a decline or a capture (AC-8).
+      let attached: MessageCard | null = null;
+      if (safety === null && !NO_CARD_OUTCOMES.has(outcome)) {
+        const offerable =
+          OFFER_OUTCOMES.has(outcome) ||
+          notice?.kind === 'after_hours' ||
+          (outcome === 'escalated' && !!escalated()?.escalation?.afterHours);
+        if (card || offerable) {
+          const config = await leadCaptureConfig(tx);
+          const state = config && !card ? await consentState(tx, tenantId, conversationId) : null;
+          if (config && card) attached = card;
+          else if (config && state && !state.enquiry && !state.offered && !state.captured)
+            attached = { kind: 'consent', prefill: {} };
+        }
+      }
       const reply = await appendAgentReply(tx, {
         tenantId,
         conversationId,
@@ -208,6 +236,7 @@ export async function runVisitorTurn(
         language,
         // The sidebar's intent signals (FEAT-042 D4).
         taskKinds: plan?.tasks.map((task) => task.kind) ?? [],
+        card: attached,
       });
       if (!reply) return null;
       // KB-09 (FEAT-019 §5.2): a question the turn tried to answer and couldn't is a gap.
@@ -266,6 +295,8 @@ export async function runVisitorTurn(
         impersonation: plan?.flags.impersonation ?? false,
         // FEAT-054: which boundary rules applied (null: the safe defaults, never saved).
         rulesVersion: rules.version,
+        // FEAT-049: the card shown under the reply (its kind only, never the prefill).
+        card: attached ? auditCode(attached.kind) : null,
       });
       return reply;
     });
@@ -364,8 +395,13 @@ export async function runVisitorTurn(
     turnId: message.id,
     gateOpen: async () =>
       (await withTenant(zdb, tenantId, (tx) => aiAllowed(tx, tenantId, conversationId))).open,
-    // Consent (LED-02) arrives with FEAT-049/058.
-    consentGiven: async () => false,
+    // LED-02 (FEAT-049 D2): the conversation's latest enquiry answer is "agreed".
+    consentGiven: async () =>
+      (await withTenant(zdb, tenantId, (tx) => consentState(tx, tenantId, conversationId)))
+        .enquiry === 'agreed',
+    leadConsentId: async () =>
+      (await withTenant(zdb, tenantId, (tx) => consentState(tx, tenantId, conversationId)))
+        .consentId,
     boundaryRules: async () => rules.rules,
     audit: async (e) => {
       await withTenant(zdb, tenantId, (tx) =>
@@ -423,6 +459,17 @@ export async function runVisitorTurn(
   };
   const dispatch = await dispatchPlan(deps.registry ?? visitorRegistry, plan, ctx);
   dispatched = dispatch.reports;
+  // FEAT-049 §5.3: the lead form after consent; before it, the dispatcher's `consent` refusal
+  // becomes the consent card, prefilled with triage's valid args only.
+  card = dispatch.card ?? null;
+  const replies = [...dispatch.replies];
+  const unconsented = dispatch.reports.find(
+    (r) => r.task === 'capture_lead' && r.outcome === 'refused' && r.reason === 'consent',
+  );
+  if (!card && unconsented) {
+    card = { kind: 'consent', prefill: prefillOf(plan.tasks[unconsented.index]?.args) };
+    if (!replies.includes('lead_consent')) replies.push('lead_consent');
+  }
   if (dispatch.endTurn) {
     const key = dispatch.endTurn.key;
     return store('ended', 'agent', safetyText(t, key, businessName), null, key);
@@ -466,7 +513,7 @@ export async function runVisitorTurn(
       hours,
       systemSlots: slotValues,
       plan,
-      replies: dispatch.replies,
+      replies,
       minConfidence: gate.tenant.routePolicy.minConfidence,
       persona,
       rules: rules.rules,

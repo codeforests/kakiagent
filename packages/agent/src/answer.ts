@@ -65,6 +65,8 @@ export function replyPlan(input: {
 function leadOutcome(lead: ReplyKey | 'unsure'): AnswerOutcome {
   // A blocked topic (FEAT-054) is a business's own out-of-scope line.
   if (lead === 'blocked_topic') return 'out_of_scope';
+  // Lead capture's texts carry a card (FEAT-049): the turn answered the visitor's ask.
+  if (lead === 'lead_consent' || lead === 'lead_form') return 'answered';
   return lead === 'out_of_scope' || lead === 'unsure' ? lead : 'refused';
 }
 
@@ -98,6 +100,10 @@ function render(key: ReplyKey | 'unsure', input: AnswerInput): string {
       return t.injection(b);
     case 'impersonation':
       return t.impersonation(b);
+    case 'lead_consent':
+      return t.leadConsent;
+    case 'lead_form':
+      return t.leadForm;
   }
 }
 
@@ -133,7 +139,10 @@ export async function answerTurn(input: AnswerInput, deps: ComposeDeps): Promise
   const composed = await composeReply(
     {
       ...input,
-      outOfScope: input.replies.some((k) => k !== 'injection' && k !== 'impersonation'),
+      outOfScope: input.replies.some(
+        (k) =>
+          k !== 'injection' && k !== 'impersonation' && k !== 'lead_consent' && k !== 'lead_form',
+      ),
       injection: input.plan.flags.injection,
       impersonation: input.plan.flags.impersonation,
     },

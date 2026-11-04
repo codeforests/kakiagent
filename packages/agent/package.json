@@ -17,10 +17,12 @@
   "dependencies": {
     "@kaki/approvals": "workspace:*",
     "@kaki/channels": "workspace:*",
+    "@kaki/contracts": "workspace:*",
     "@kaki/db": "workspace:*",
     "@kaki/governance": "workspace:*",
     "@kaki/inbox": "workspace:*",
     "@kaki/kb": "workspace:*",
+    "@kaki/leads": "workspace:*",
     "@kaki/llm-gateway": "workspace:*",
     "@kaki/platform": "workspace:*",
     "@kaki/tenancy": "workspace:*",

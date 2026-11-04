@@ -30,7 +30,7 @@ const RULES: [Exclude<TaskKind, 'answer'>, RegExp][] = [
   ],
   [
     'capture_lead',
-    /\b(my (number|phone|email|contact) is|call me at|whatsapp me)\b|我的电话|我的号码/i,
+    /\b(my (number|phone|email|contact|hp) is|call me (at|back)|whatsapp me|contact me|get back to me|leave my (details|number|contact))\b|我的电话|我的号码|我的邮箱|联系我/i,
   ],
   ['handoff_channel', /\b(on|via|through) (telegram|whatsapp|email)\b/i],
   [
@@ -89,6 +89,18 @@ function blockedByTail(req: GenerateRequest, text: string): boolean {
  * deterministic plan from keywords, in the wire shape the real model writes. It is not
  * a classifier; the M1.5 gate measures the real one on the eval set.
  */
+/** `capture_lead`'s args as a model would read them: unchecked (FEAT-049 drops the invalid). */
+function leadArgs(text: string): { name: string; value: string }[] {
+  const args: { name: string; value: string }[] = [];
+  const name = /\b(?:my name is|i am|i'm|this is)\s+([A-Z][a-z]+(?: [A-Z][a-z]+)?)/.exec(text)?.[1];
+  if (name) args.push({ name: 'name', value: name });
+  const phone = /(\+?\d[\d -]{5,14}\d)/.exec(text)?.[1];
+  if (phone) args.push({ name: 'phone', value: phone.trim() });
+  const email = /([^\s@]+@[^\s@]+)/.exec(text)?.[1]?.replace(/[.,]$/, '');
+  if (email) args.push({ name: 'email', value: email });
+  return args;
+}
+
 export function fakeTriage(req: GenerateRequest): string {
   const text = [...req.messages].reverse().find((m) => m.role === 'user')?.content ?? '';
   const tasks: { kind: TaskKind; args: { name: string; value: string }[] }[] = [];
@@ -104,7 +116,12 @@ export function fakeTriage(req: GenerateRequest): string {
   for (const kind of kinds)
     tasks.push({
       kind,
-      args: kind === 'out_of_scope' && topic ? [{ name: 'topic', value: topic }] : [],
+      args:
+        kind === 'out_of_scope' && topic
+          ? [{ name: 'topic', value: topic }]
+          : kind === 'capture_lead'
+            ? leadArgs(text)
+            : [],
     });
   if (!tasks.length) tasks.push({ kind: 'answer', args: [] });
   const complex = kinds.includes('request_commitment') || (text.match(/\d+/g)?.length ?? 0) >= 3;

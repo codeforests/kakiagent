@@ -1,7 +1,9 @@
 import type { BoundaryRules } from '@kaki/approvals';
+import type { MessageCard } from '@kaki/contracts';
 import type { ToolCall } from '@kaki/llm-gateway';
 import { z } from 'zod';
 import type { TaskKind, TurnPlan } from './plan.js';
+import { CaptureLeadArgs, prefillOf } from './lead.js';
 import type { SafetyKey } from './texts.js';
 
 /**
@@ -80,8 +82,10 @@ export interface DispatchContext {
   turnId: string;
   /** The AI send gate (ADR-013). */
   gateOpen(): Promise<boolean>;
-  /** LED-02. False until consent is recorded (FEAT-049, FEAT-058): fail closed. */
+  /** LED-02. The conversation's latest enquiry consent is granted (FEAT-049 D2); fail closed. */
   consentGiven(): Promise<boolean>;
+  /** The granted enquiry consent's ID, for the lead form card (FEAT-049); absent: none. */
+  leadConsentId?(): Promise<string | null>;
   /** APR-01: the rules in force for this turn (the safe defaults when none are saved). */
   boundaryRules(): Promise<BoundaryRules>;
   /** One entry per dispatched task: kinds and codes, never arguments or text (ADR-014). */
@@ -98,7 +102,14 @@ export interface DispatchContext {
  * declines from `out_of_scope`'s topic, and the triage flags' refusals.
  */
 export type ReplyKey =
-  'out_of_scope' | 'advice' | 'illegal' | 'injection' | 'impersonation' | 'blocked_topic';
+  | 'out_of_scope'
+  | 'advice'
+  | 'illegal'
+  | 'injection'
+  | 'impersonation'
+  | 'blocked_topic'
+  | 'lead_consent'
+  | 'lead_form';
 
 export type { SafetyKey };
 
@@ -119,6 +130,8 @@ export interface TaskResult {
   proposal?: { correctionId: string };
   /** What an escalation request did (FEAT-044). */
   escalation?: { status: 'escalated' | 'already_escalated' | 'with_person' };
+  /** A widget card under the reply (FEAT-049 §5.3): data, never a side effect. */
+  card?: MessageCard;
 }
 
 export interface TaskHandler<A = unknown> {
@@ -237,12 +250,33 @@ export const escalateHandler: TaskHandler<Record<string, unknown>> = {
   },
 };
 
+/**
+ * `capture_lead` (FEAT-049 §5.3): needs the conversation's consent, so before it the
+ * dispatcher refuses `consent` and the turn shows the consent card. After consent: the lead
+ * form card, prefilled with the valid args only. Writes nothing; the widget's submit does.
+ */
+export const captureLeadHandler: TaskHandler<z.infer<typeof CaptureLeadArgs>> = {
+  kind: 'capture_lead',
+  scopes: ['visitor'],
+  args: CaptureLeadArgs,
+  needsConsent: true,
+  async run(ctx, args) {
+    const consentId = (await ctx.leadConsentId?.()) ?? null;
+    if (!consentId) throw new Error('capture_lead: no granted consent');
+    return {
+      card: { kind: 'lead_form', consentId, prefill: prefillOf(args) },
+      reply: { key: 'lead_form' },
+    };
+  },
+};
+
 /** The visitor scope's handlers (ADR-025). Kinds without one are reported `unhandled`. */
 export const visitorRegistry: Registry = createRegistry([
   crisisHandler,
   abuseHandler,
   outOfScopeHandler,
   escalateHandler,
+  captureLeadHandler,
 ]);
 
 type Checked = { ok: true; args: unknown } | { ok: false; reason: RefusalReason };
@@ -284,7 +318,13 @@ export async function dispatchPlan(
   reg: Registry,
   plan: TurnPlan,
   ctx: DispatchContext,
-): Promise<{ reports: DispatchReport[]; replies: ReplyKey[]; endTurn?: { key: SafetyKey } }> {
+): Promise<{
+  reports: DispatchReport[];
+  replies: ReplyKey[];
+  endTurn?: { key: SafetyKey };
+  /** The first card a handler returned (FEAT-049). */
+  card?: MessageCard;
+}> {
   const queue = plan.tasks
     .flatMap((task, index) =>
       task.kind === 'answer' ? [] : [{ kind: task.kind, args: task.args as unknown, index }],
@@ -294,6 +334,7 @@ export async function dispatchPlan(
     );
   const reports: DispatchReport[] = [];
   const replies: ReplyKey[] = [];
+  let card: MessageCard | undefined;
   for (const { kind, args, index } of queue) {
     const h = reg.byKind.get(kind);
     const r = h ? await runOne(h, args, index, ctx) : { outcome: 'unhandled' as const };
@@ -314,8 +355,9 @@ export async function dispatchPlan(
       return { reports, replies, endTurn: result.endTurn };
     if (result?.reply && PHASE[kind] === 'state' && !replies.includes(result.reply.key))
       replies.push(result.reply.key);
+    if (result?.card && !card) card = result.card;
   }
-  return { reports, replies };
+  return { reports, replies, ...(card ? { card } : {}) };
 }
 
 /**

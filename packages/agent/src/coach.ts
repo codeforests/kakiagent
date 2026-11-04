@@ -147,7 +147,8 @@ const asVisitorFact = (f: FactRecord): VisitorFact =>
     ...(f.type === 'promotion' ? { validUntil: f.validity.validUntil } : {}),
   }) as VisitorFact;
 
-const REPLY_REASONS: Record<ReplyKey, ReasonCode> = {
+/** Lead capture's texts have no reason code: coaching and replay register no handler for it. */
+const REPLY_REASONS: Partial<Record<ReplyKey, ReasonCode>> = {
   out_of_scope: 'out_of_scope',
   advice: 'advice',
   illegal: 'illegal',
@@ -187,7 +188,10 @@ export function explain(input: {
   if (!input.facts.length) reasons.add('no_matching_fact');
   if (plan && (plan.fallback || plan.confidence < input.minConfidence))
     reasons.add('low_confidence');
-  for (const k of input.replies) reasons.add(REPLY_REASONS[k]);
+  for (const k of input.replies) {
+    const reason = REPLY_REASONS[k];
+    if (reason) reasons.add(reason);
+  }
   if (plan?.flags.injection) reasons.add('injection');
   if (plan?.flags.impersonation) reasons.add('impersonation');
   if ((input.answer?.attempts ?? 0) > 1) reasons.add('regenerated');

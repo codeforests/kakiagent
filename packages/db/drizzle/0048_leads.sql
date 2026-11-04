@@ -87,7 +87,7 @@ CREATE INDEX "leads_tenant_updated_idx" ON "leads" USING btree ("tenant_id","upd
 ALTER TABLE "audit_pii" ADD CONSTRAINT "audit_pii_contact_fk" FOREIGN KEY ("tenant_id","contact_id") REFERENCES "public"."contacts"("tenant_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "conversations" ADD CONSTRAINT "conversations_contact_fk" FOREIGN KEY ("tenant_id","contact_id") REFERENCES "public"."contacts"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "conversations_contact_idx" ON "conversations" USING btree ("tenant_id","contact_id");--> statement-breakpoint
-ALTER TABLE "messages" ADD CONSTRAINT "messages_card_ck" CHECK ("messages"."card" is null or ("messages"."author" = 'agent' and "messages"."card"->>'kind' in ('consent', 'lead_form')));--> statement-breakpoint
+ALTER TABLE "messages" ADD CONSTRAINT "messages_card_ck" CHECK ("messages"."card" is null or ("messages"."author" in ('agent', 'system') and "messages"."card"->>'kind' in ('consent', 'lead_form')));--> statement-breakpoint
 ALTER TABLE "messages" ADD CONSTRAINT "messages_notice_ck" CHECK (("messages"."notice" is null) = ("messages"."notice_kind" is null) and ("messages"."notice_kind" is null or "messages"."notice_kind" in ('after_hours', 'chat_ended', 'staff_joined', 'staff_left', 'escalated', 'lead_captured')));--> statement-breakpoint
 ALTER TABLE "wording_versions" ADD CONSTRAINT "wording_versions_kind_ck" CHECK ("wording_versions"."kind" in ('privacy_notice', 'purpose_statement', 'marketing_consent'));--> statement-breakpoint
 
