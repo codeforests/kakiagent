@@ -31,9 +31,10 @@
 - [x] T11 — Dashboard: inbox sidebar Contact and Lead sections, consent and lead dividers, card captions in the thread, contact-match rows in search results (ui-design SCR-APP-014; AC-10, AC-12)
       Done when: dashboard tests pass; the stubbed check shows a sidebar with contact and lead, the dividers, and a search row reading "Email matches".
       Note (2026-11-04): helpers `cardCaption`, `leadLines`, `LEAD_STATUS`, consent/lead `eventText` in `lib/inbox.ts`, `matchLabel` in `lib/search.ts`, with tests (dashboard 213 pass). Stubbed-API check at 1440: sidebar "Mei Ling", email and phone with Copy buttons, lead "New · Updated 2:30 pm · Consent · 4 Nov 2026, 2:30 pm · Offers · Yes, 2:30 pm"; dividers "Visitor agreed to share their details", "Visitor left their details"; captions "Asked for consent", "Showed the details form"; search row "Email matches · mei@example.com" with `mark`.
-- [ ] T12 — E2E `e2e/tests/lead-capture.e2e.ts` (widget: offer → agree → form → submit → staff sidebar and search by phone; decline; paused contact form) and `e2e/tests/leads-settings.e2e.ts` (design §6; AC-1, AC-3, AC-9, AC-10, AC-12)
+- [x] T12 — E2E `e2e/tests/lead-capture.e2e.ts` (widget: offer → agree → form → submit → staff sidebar and search by phone; decline; paused contact form) and `e2e/tests/leads-settings.e2e.ts` (design §6; AC-1, AC-3, AC-9, AC-10, AC-12)
       Done when: the specs are written and lint; they run in the verify stage's GitHub CI.
       Note: no Docker in cloud sessions, so E2E and screen renders run in CI (STATE.md).
+      Note (2026-11-04): written and lint clean. `lead-capture.e2e.ts` types the details in the form (not the message), so the phone search hits the contact, not a message; a fresh mobile per run. The paused test pauses through `POST /api/v1/ai/pause` and `afterEach` resumes. `leads-settings.e2e.ts` runs on the second tenant and restores what it changed. Not run here: verify's GitHub CI.
 - [ ] T13 — Verify: full `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `test:coverage` for db, leads, agent, inbox, api through `scripts/test-env.sh scripts/check-summary.sh`; tick tasks; status `developer-done`.
 
 ## Verification evidence
