@@ -1,7 +1,7 @@
 # Tasks: FEAT-049 — Consent and lead capture
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: designed · Last updated: 2026-11-04 (design)
+> Status: developer-done · Last updated: 2026-11-04 (build, UI)
 
 - [x] T1 — Schema: `0048_leads.sql` and `schema.ts` (`contacts`, `consents`, `leads`, `lead_settings`; `conversations.contact_id`; `messages.card`; `NOTICE_KINDS` + `lead_captured`; `WORDING_KINDS` + `marketing_consent`; `audit_pii` FK; forced RLS, policies, grants; `visitor_privacy()` replaced with the marketing wording and lead fields; `inbox_contact_hits()`; trigram indexes), names in `TENANT_SCOPED_TABLES`, cases in `rls.int.test.ts`; seed purpose, notice and lead settings (design §4, §5.9; AC-1, AC-11)
       Done when: `drizzle-kit generate` reports no drift after 0048; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes with tenant-B-can't-see-A cases for the four tables, `app_visitor` refused an update of a consent's `wording_id` and of `leads.status`, a lead insert without `consent_id` refused, two open leads for one contact refused by `leads_one_open_uq`.
@@ -35,7 +35,8 @@
       Done when: the specs are written and lint; they run in the verify stage's GitHub CI.
       Note: no Docker in cloud sessions, so E2E and screen renders run in CI (STATE.md).
       Note (2026-11-04): written and lint clean. `lead-capture.e2e.ts` types the details in the form (not the message), so the phone search hits the contact, not a message; a fresh mobile per run. The paused test pauses through `POST /api/v1/ai/pause` and `afterEach` resumes. `leads-settings.e2e.ts` runs on the second tenant and restores what it changed. Not run here: verify's GitHub CI.
-- [ ] T13 — Verify: full `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `test:coverage` for db, leads, agent, inbox, api through `scripts/test-env.sh scripts/check-summary.sh`; tick tasks; status `developer-done`.
+- [x] T13 — Verify: full `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `test:coverage` for db, leads, agent, inbox, api through `scripts/test-env.sh scripts/check-summary.sh`; tick tasks; status `developer-done`.
+      Note (2026-11-04): format, lint, typecheck PASS; `pnpm test` PASS (126 files, 1524 tests). Coverage: db 195, leads 11, inbox 124 PASS; agent PASS on re-run (492) — first run failed `suggest.int.test.ts:176` (FEAT-045) because a random UUID in the audit payload contained "55": a pre-existing flake, not this feature; api 37/38 files PASS, `uploads.int.test.ts` is the known env-only S3 failure (CI).
 
 ## Verification evidence
 
