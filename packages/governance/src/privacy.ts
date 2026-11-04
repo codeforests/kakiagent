@@ -61,6 +61,10 @@ export const PurposeContent = z.object({
 });
 export type PurposeContent = z.infer<typeof PurposeContent>;
 
+/** A marketing opt-in wording (LED-08; FEAT-049 D3): the checkbox label the visitor sees. */
+export const MarketingContent = z.object({ text: LocalTextContent });
+export type MarketingContent = z.infer<typeof MarketingContent>;
+
 /** What a save takes: a notice without the template version, which this module stamps. */
 export type NoticeInput =
   { mode: 'link'; url: string } | { mode: 'template'; fields: NoticeTemplateFields };
@@ -208,6 +212,43 @@ async function saveWording(
   return getPrivacySettings(tx, tenantId);
 }
 
+/**
+ * Appends a `marketing_consent` wording (FEAT-049 §5.1): the next `seq`, immutable like the
+ * others. The caller points its settings at the returned ID in the same transaction and
+ * audits the save. Identical to `current`'s content → returns `current` and writes nothing.
+ */
+export async function saveMarketingWording(
+  tx: Tx,
+  input: { tenantId: string; userId: string; text: LocalText; currentId: string | null },
+): Promise<{ id: string; seq: number; createdAt: Date }> {
+  const { tenantId, userId } = input;
+  const content: MarketingContent = { text: { en: input.text.en, zh: input.text.zh || null } };
+  const current = await loadWording(tx, tenantId, input.currentId);
+  if (current && canonicalJson(current.content) === canonicalJson(content)) return current;
+  const kind: Kind = 'marketing_consent';
+  const [{ next }] = (
+    await tx.execute<{ next: number }>(
+      sql`select coalesce(max(seq), 0)::int + 1 as next from wording_versions
+          where tenant_id = ${tenantId} and kind = ${kind}`,
+    )
+  ).rows as [{ next: number }];
+  const [wording] = await tx
+    .insert(wordingVersions)
+    .values({ tenantId, kind, seq: next, content, createdBy: userId })
+    .returning();
+  if (!wording) throw new Error('privacy: wording not inserted');
+  return wording;
+}
+
+/** A tenant's wording by ID, any kind (FEAT-049: lead settings read the marketing one). */
+export async function wordingById(
+  tx: Tx,
+  tenantId: string,
+  id: string | null,
+): Promise<{ id: string; seq: number; createdAt: Date; content: Record<string, unknown> } | null> {
+  return loadWording(tx, tenantId, id);
+}
+
 export function savePrivacyNotice(
   tx: Tx,
   input: { tenantId: string; userId: string; version: number; notice: NoticeInput },
@@ -267,6 +308,12 @@ export interface VisitorPrivacy {
   purposeWordingId: string | null;
   businessName: string;
   uen: string | null;
+  /** The marketing opt-in wording while the business asks for it (FEAT-049 D3), else null. */
+  marketing: MarketingContent | null;
+  marketingWordingId: string | null;
+  /** `lead_settings.fields` as saved, or null (the industry default applies). */
+  leadFields: unknown;
+  industry: string | null;
 }
 
 interface VisitorPrivacyRow extends Record<string, unknown> {
@@ -277,6 +324,10 @@ interface VisitorPrivacyRow extends Record<string, unknown> {
   purpose_wording_id: string | null;
   business_name: string;
   uen: string | null;
+  marketing: unknown;
+  marketing_wording_id: string | null;
+  lead_fields: unknown;
+  industry: string | null;
 }
 
 /** The current wordings for the visitor zone, via `visitor_privacy()` (no table grants). */
@@ -292,6 +343,10 @@ export async function visitorPrivacy(tx: Tx): Promise<VisitorPrivacy | null> {
     purposeWordingId: r.purpose_wording_id,
     businessName: r.business_name,
     uen: r.uen,
+    marketing: r.marketing ? MarketingContent.parse(r.marketing) : null,
+    marketingWordingId: r.marketing_wording_id,
+    leadFields: r.lead_fields,
+    industry: r.industry,
   };
 }
 

@@ -2,7 +2,9 @@ import { and, asc, desc, eq, gt, gte, lt, lte, or, schema, sql, type Tx } from '
 import { audit, auditCode } from '@kaki/governance';
 import { piiMask } from '@kaki/platform';
 import { enqueue } from '@kaki/platform/outbox';
+import type { MessageCard } from '@kaki/contracts';
 import { ConversationClosedError, reopenable, transition } from './lifecycle.js';
+import { conversationLanguage } from './ownership.js';
 
 export * from './lifecycle.js';
 export * from './views.js';
@@ -192,6 +194,8 @@ export async function appendAgentReply(
     language?: 'en' | 'zh' | null;
     /** Triage's task kinds for the turn (FEAT-042 D4): the sidebar's intent signals. */
     taskKinds?: readonly (typeof schema.MESSAGE_TASK_KINDS)[number][];
+    /** A consent or lead-form card under the reply (FEAT-049 §5.3). */
+    card?: MessageCard | null;
   },
 ): Promise<{ message: MessageRow; conversation: ConversationRow } | null> {
   const [inserted] = await tx
@@ -208,6 +212,7 @@ export async function appendAgentReply(
       noticeKind: input.notice?.kind ?? null,
       language: input.language ?? null,
       taskKinds: [...new Set(input.taskKinds ?? [])],
+      card: input.card ?? null,
     })
     .onConflictDoNothing()
     .returning();
@@ -230,6 +235,59 @@ export async function appendAgentReply(
     related: [{ type: 'conversation', id: input.conversationId }],
   });
   return { message: inserted, conversation: conversation! };
+}
+
+/**
+ * A system notice in the conversation's language (FEAT-049: `lead_captured`), bumping
+ * `last_message_at`. `text` renders it for that language.
+ */
+export async function appendSystemNotice(
+  tx: Tx,
+  input: {
+    tenantId: string;
+    conversationId: string;
+    kind: NoticeKind;
+    text: (language: 'en' | 'zh') => string;
+  },
+): Promise<MessageRow> {
+  const language = await conversationLanguage(tx, input.tenantId, input.conversationId);
+  const [row] = await tx
+    .insert(schema.messages)
+    .values({
+      tenantId: input.tenantId,
+      conversationId: input.conversationId,
+      author: 'system',
+      body: '',
+      notice: input.text(language),
+      noticeKind: input.kind,
+      language,
+    })
+    .returning();
+  await tx
+    .update(schema.conversations)
+    .set({ lastMessageAt: row!.createdAt })
+    .where(
+      and(
+        eq(schema.conversations.tenantId, input.tenantId),
+        eq(schema.conversations.id, input.conversationId),
+      ),
+    );
+  return row!;
+}
+
+/** Links the conversation to the contact who left their details there (FEAT-049 §5.1). */
+export async function setConversationContact(
+  tx: Tx,
+  tenantId: string,
+  conversationId: string,
+  contactId: string,
+): Promise<void> {
+  await tx
+    .update(schema.conversations)
+    .set({ contactId })
+    .where(
+      and(eq(schema.conversations.tenantId, tenantId), eq(schema.conversations.id, conversationId)),
+    );
 }
 
 export async function getConversation(

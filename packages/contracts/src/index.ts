@@ -108,7 +108,9 @@ export const ErrorBody = z.object({ error: z.string(), message: z.string() });
 // ---- Lead capture shapes the widget config carries (FEAT-049 §3; routes at the end) -----
 
 export const LeadFieldKey = z.enum(LEAD_FIELD_KEYS);
+export type LeadFieldKey = z.infer<typeof LeadFieldKey>;
 export const LeadFieldMode = z.enum(['off', 'optional', 'required']);
+export type LeadFieldMode = z.infer<typeof LeadFieldMode>;
 export const LeadFieldSetting = z.object({ key: LeadFieldKey, mode: LeadFieldMode });
 export type LeadFieldSetting = z.infer<typeof LeadFieldSetting>;
 

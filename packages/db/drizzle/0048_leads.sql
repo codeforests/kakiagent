@@ -122,13 +122,13 @@ CREATE FUNCTION visitor_privacy()
   RETURNS TABLE (
     notice jsonb, notice_wording_id uuid, notice_saved_at timestamptz,
     purpose jsonb, purpose_wording_id uuid, business_name text, uen text,
-    marketing jsonb, marketing_wording_id uuid, lead_fields jsonb
+    marketing jsonb, marketing_wording_id uuid, lead_fields jsonb, industry text
   )
   LANGUAGE sql STABLE SECURITY DEFINER
   SET search_path = public, pg_temp
   AS $$
     SELECT n.content, n.id, n.created_at, p.content, p.id, t.name, bp.uen,
-      m.content, m.id, ls.fields
+      m.content, m.id, ls.fields, bp.industry
     FROM tenants t
       LEFT JOIN business_profiles bp ON bp.tenant_id = t.id
       LEFT JOIN privacy_settings ps ON ps.tenant_id = t.id

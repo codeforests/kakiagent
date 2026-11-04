@@ -13,6 +13,11 @@ beforeAll(async () => {
   tdb = await startTestDatabase();
   owner = new pg.Client({ connectionString: tdb.ownerUrl });
   await owner.connect();
+  // audit_pii.contact_id references contacts (FEAT-049).
+  await owner.query(`insert into contacts (tenant_id, id, name) values ($1, $2, 'Tan Ah Kow')`, [
+    TENANT_A,
+    CONTACT,
+  ]);
   for (let i = 1; i <= N; i++)
     await withTenant(tdb.zone('dashboard'), TENANT_A, (tx) =>
       audit.append(tx, TENANT_A, {
