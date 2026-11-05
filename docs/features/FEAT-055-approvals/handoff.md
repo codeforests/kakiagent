@@ -5,7 +5,7 @@ Next: build (backend, T1–T6) — kickoff: "Build FEAT-055 (backend) on branch 
 
 ## What the next stage needs
 - Split: backend T1–T6 (FEAT-049 lesson: stop after T3 and resume T4–T6 in a fresh Build thread if it runs long), then `## Build session 2 (UI)` T7–T11 (widget quote card, queue, detail, rules SLA, sidebar, E2E, verify).
-- D1 (discount above the maximum → approval, flagged `aboveMax`) follows the recommended option of Ken's decision card. If Ken picks "refuse", only T3 (`commitmentDecision` keeps `refuse`) and T4 (handler refused `boundary`, fixed decline text) change; see design D1.
+- D1 decided (Ken, 2026-11-05): a discount above the maximum goes to approval, flagged `aboveMax`; `commitmentDecision` returns `needs_approval` there.
 - Quotes are built in code (D2): `draftLines` matches triage `items` to this turn's retrieved product facts; no extra model call. FEAT-054's always-on discount guard stays.
 - Timers follow 0045's pattern (D10): due columns + `approvals_queue_due()` owned by NOLOGIN `kaki_approvals_timer`, outbox `conversation-turns` job `approval_timer`, re-checked `pending` in the worker.
 - Inbox must not import approvals: `handBack` takes a `hasPendingApproval` callback; the api fills `ContextSidebar.approval`.
@@ -17,4 +17,4 @@ Next: build (backend, T1–T6) — kickoff: "Build FEAT-055 (backend) on branch 
 - Signed links FEAT-056; analytics FEAT-066; non-widget delivery FEAT-036+.
 
 ## Pending for Ken
-- D1 decision card (discount above the maximum: approval vs refuse). Build can start on the recommended option.
+- None.

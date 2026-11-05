@@ -151,7 +151,7 @@ No re-auth: deciding isn't in AUTH-03's list. Realtime: the api publishes `{ typ
 
 ## 7. Decisions
 
-- **D1 — A discount above the maximum goes to approval, flagged (pending Ken's card).** UC-22's precondition names "the discount exceeds the maximum" as a reason for approval, which FEAT-054's `refuse` contradicts. The draft carries `aboveMax`, the queue and detail say "Above your 10% maximum", and the approver decides. If Ken picks "refuse", `commitmentDecision` keeps `refuse`, the handler is refused `boundary` and the turn stores a fixed "we can't offer that discount; the team can tell you about our prices" reply: tasks T3 and T4 change only there.
+- **D1 — A discount above the maximum goes to approval, flagged (Ken, 2026-11-05).** UC-22's precondition names "the discount exceeds the maximum" as a reason for approval, which FEAT-054's `refuse` contradicts. The draft carries `aboveMax`, the queue and detail say "Above your 10% maximum", and the approver decides.
 - **D2 — Quotes are built in code, not by a model.** The draft's lines come from this turn's retrieved product facts matched to triage's `items`, totals are integer arithmetic (ADR-008: totals go into `draft_approval` quotes, computed in code), and the delivered text is a fixed template with the approver's values. No extra model call (cost, and nothing to verify). The approver fixes a wrong match. FEAT-054 D4's guard stays: model text never offers a discount; the approved quote doesn't pass through the composer.
 - **D3 — `allowed` sends at once, but only a plain quote.** When the owner turned quote approval off and the discount is within the maximum, a request whose lines all matched and that names no date or free commitment is sent immediately as an approved quote with no decider. Anything else (no match, a date, a custom request) is a `commitment` and always drafted, because AGT-06 forbids an irreversible commitment without approval.
 - **D4 — One pending approval per conversation.** A partial unique index; a second request while one is pending tells the visitor the team is still checking. Staff can add to the pending draft by editing it. Keeps the queue one row per conversation and the state machine simple.
@@ -164,7 +164,7 @@ No re-auth: deciding isn't in AUTH-03's list. Realtime: the api publishes `{ typ
 
 ## 8. Escalations and open items
 
-- D1 waits for Ken's answer (decision card); the design follows the recommended option until then.
+- D1 decided by Ken on 2026-11-05: send it to approval.
 - FEAT-056: signed single-use link in the alert (`linkFor('approval_pending')`), link-expired and reused states on SCR-APP-018. FEAT-066: approval analytics (APR-05) from `approvals` rows. FEAT-036+: delivery on email/Telegram/Meta through the outbox. FEAT-048/037: push and Telegram alerts.
 - Architecture §6.2 shows "lead + consent" in the draft transaction; the lead stays FEAT-049's flow (consent first), so a draft doesn't create a lead. Noted here, not an amendment.
 
