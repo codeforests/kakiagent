@@ -242,6 +242,9 @@ export const NOTICE_KINDS = [
   'staff_left',
   'escalated',
   'lead_captured',
+  'approval_waiting',
+  'approval_rejected',
+  'approval_expired',
 ] as const;
 /** Embedding dimensions: Cohere Embed Multilingual v3 (ADR-019). */
 export const EMBEDDING_DIMENSIONS = 1024;
@@ -1733,6 +1736,8 @@ export const boundaryRules = pgTable(
       .array()
       .notNull()
       .default(sql`'{}'`),
+    /** Business minutes an approval may wait before it escalates (APR-04; FEAT-055 §4). */
+    approvalSlaMinutes: smallint('approval_sla_minutes').notNull().default(120),
     createdBy: uuid('created_by').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -1744,6 +1749,7 @@ export const boundaryRules = pgTable(
       'boundary_rules_commitments_ck',
       sql`${t.forbiddenCommitments} <@ array['delivery_guarantee','refund','legal_advice','medical_advice']::text[] and ${t.forbiddenCommitments} @> array['legal_advice','medical_advice']::text[]`,
     ),
+    check('boundary_rules_sla_ck', sql`${t.approvalSlaMinutes} between 15 and 2880`),
     check(
       'boundary_rules_sizes_ck',
       sql`cardinality(${t.allowedTopics}) <= 25 and cardinality(${t.blockedTopics}) <= 25 and cardinality(${t.customCommitments}) <= 10`,
@@ -1783,8 +1789,16 @@ export const onboardingProgress = pgTable(
 );
 
 export const ALERT_EVENTS = ['escalation', 'approval_pending', 'hot_lead'] as const;
-/** `escalation_reminder` is muted with `escalation` (FEAT-044 D6), so it is not an alert event. */
-export const NOTIFICATION_KINDS = [...ALERT_EVENTS, 'escalation_reminder', 'test'] as const;
+/**
+ * `escalation_reminder` is muted with `escalation` (FEAT-044 D6) and `approval_undeliverable`
+ * with `approval_pending` (FEAT-055 §4), so neither is an alert event.
+ */
+export const NOTIFICATION_KINDS = [
+  ...ALERT_EVENTS,
+  'escalation_reminder',
+  'approval_undeliverable',
+  'test',
+] as const;
 export const NOTIFICATION_STATUSES = [
   'pending',
   'held',
@@ -1868,10 +1882,7 @@ export const notifications = pgTable(
       columns: [t.tenantId, t.userId],
       foreignColumns: [memberships.tenantId, memberships.userId],
     }).onDelete('cascade'),
-    check(
-      'notifications_kind_ck',
-      sql`${t.kind} in ('escalation', 'approval_pending', 'hot_lead', 'escalation_reminder', 'test')`,
-    ),
+    check('notifications_kind_ck', sql`${t.kind} in (${inList(NOTIFICATION_KINDS)})`),
     check(
       'notifications_subject_ck',
       sql`${t.subjectType} in ('conversation', 'approval', 'lead', 'user')`,
@@ -1887,7 +1898,12 @@ export const notifications = pgTable(
   ],
 );
 
-export const ESCALATION_SOURCES = ['visitor_button', 'visitor_asked', 'unverified'] as const;
+export const ESCALATION_SOURCES = [
+  'visitor_button',
+  'visitor_asked',
+  'unverified',
+  'approval_sla',
+] as const;
 export const ESCALATION_RESOLUTIONS = ['claimed', 'closed', 'returned'] as const;
 export const ESCALATION_MODES = ['round_robin', 'person'] as const;
 
@@ -1928,10 +1944,7 @@ export const escalations = pgTable(
     index('escalations_assignee_idx')
       .on(t.tenantId, t.assigneeUserId)
       .where(sql`${t.resolvedAt} is null`),
-    check(
-      'escalations_source_ck',
-      sql`${t.source} in ('visitor_button', 'visitor_asked', 'unverified')`,
-    ),
+    check('escalations_source_ck', sql`${t.source} in (${inList(ESCALATION_SOURCES)})`),
     check(
       'escalations_resolution_ck',
       sql`(${t.resolution} is null or ${t.resolution} in ('claimed', 'closed', 'returned')) and (${t.resolvedAt} is null) = (${t.resolution} is null)`,
@@ -2192,6 +2205,85 @@ export const leadSettings = pgTable(
   ],
 );
 
+export const APPROVAL_KINDS = ['quote', 'discount', 'commitment'] as const;
+export const APPROVAL_STATUSES = [
+  'pending',
+  'approved',
+  'edited_approved',
+  'rejected',
+  'expired',
+  'undeliverable',
+] as const;
+
+/**
+ * A drafted quote, discount or commitment waiting for a person (APR-02, APR-04, APR-06;
+ * FEAT-055 §4). At most one pending approval per conversation (D4). The due columns are the
+ * timers (D10): `approvals_queue_due()` clears `urgent_at`, sets `escalated_at` and queues
+ * the expiry. `decided_by` has no FK into the identity zone (as the audit's actor IDs); it is
+ * null on an `approved` row sent at once with no decider (D3). The visitor zone inserts and
+ * reads; the dashboard decides; nobody else updates (expiry goes through `approval_expire`).
+ */
+export const approvals = pgTable(
+  'approvals',
+  {
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id),
+    id: uuid('id').notNull().defaultRandom(),
+    conversationId: uuid('conversation_id').notNull(),
+    kind: text('kind', { enum: APPROVAL_KINDS }).notNull(),
+    status: text('status', { enum: APPROVAL_STATUSES }).notNull().default('pending'),
+    /** Triage's `items`/`quantity`/`date` strings and the parsed `discountPct`. */
+    request: jsonb('request').$type<Record<string, unknown>>().notNull(),
+    /** `ApprovalTerms`. */
+    draft: jsonb('draft').$type<Record<string, unknown>>().notNull(),
+    final: jsonb('final').$type<Record<string, unknown>>(),
+    /** The product facts used, at draft time: id, version, name, price, unit, GST. */
+    prices: jsonb('prices').$type<Record<string, unknown>[]>().notNull(),
+    rulesVersion: integer('rules_version'),
+    aboveMax: boolean('above_max').notNull().default(false),
+    afterHours: boolean('after_hours').notNull().default(false),
+    slaDueAt: timestamp('sla_due_at', { withTimezone: true }).notNull(),
+    urgentAt: timestamp('urgent_at', { withTimezone: true }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    escalatedAt: timestamp('escalated_at', { withTimezone: true }),
+    decidedBy: uuid('decided_by'),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    reason: text('reason'),
+    deliveredMessageId: uuid('delivered_message_id'),
+    version: integer('version').notNull().default(1),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.id] }),
+    foreignKey({
+      name: 'approvals_conversation_fk',
+      columns: [t.tenantId, t.conversationId],
+      foreignColumns: [conversations.tenantId, conversations.id],
+    }),
+    /** D4: one pending approval per conversation. */
+    uniqueIndex('approvals_one_pending_uq')
+      .on(t.tenantId, t.conversationId)
+      .where(sql`${t.status} = 'pending'`),
+    index('approvals_queue_idx').on(t.tenantId, t.status, t.slaDueAt),
+    check('approvals_kind_ck', sql`${t.kind} in (${inList(APPROVAL_KINDS)})`),
+    check('approvals_status_ck', sql`${t.status} in (${inList(APPROVAL_STATUSES)})`),
+    check(
+      'approvals_decided_ck',
+      sql`(${t.decidedAt} is null) = (${t.status} in ('pending', 'expired')) and (${t.decidedBy} is null or ${t.decidedAt} is not null)`,
+    ),
+    check(
+      'approvals_reason_ck',
+      sql`(${t.status} <> 'rejected' or char_length(btrim(coalesce(${t.reason}, ''))) > 0) and (${t.reason} is null or char_length(${t.reason}) <= 500)`,
+    ),
+    check(
+      'approvals_json_ck',
+      sql`jsonb_typeof(${t.request}) = 'object' and jsonb_typeof(${t.draft}) = 'object' and jsonb_typeof(${t.prices}) = 'array' and (${t.final} is null or jsonb_typeof(${t.final}) = 'object')`,
+    ),
+    check('approvals_version_ck', sql`${t.version} > 0`),
+  ],
+);
+
 /** Tables with `tenant_id` + forced RLS. The cross-tenant suite asserts this list is complete. */
 export const TENANT_SCOPED_TABLES = [
   'tenants',
@@ -2233,4 +2325,5 @@ export const TENANT_SCOPED_TABLES = [
   'consents',
   'leads',
   'lead_settings',
+  'approvals',
 ] as const;

@@ -24,6 +24,7 @@ const SUBJECT: Record<NotificationKind, string> = {
   approval_pending: 'A reply is waiting for your approval',
   hot_lead: 'New hot lead',
   escalation_reminder: 'Reminder: a customer is still waiting for a person',
+  approval_undeliverable: "An approved reply couldn't reach the customer",
   test: 'Test alert from KakiAgent',
 };
 
@@ -32,6 +33,8 @@ const LINE: Record<NotificationKind, string> = {
   approval_pending: 'A reply is waiting for your approval before it is sent.',
   hot_lead: 'A new hot lead came in.',
   escalation_reminder: 'A customer who asked for a person is still waiting.',
+  approval_undeliverable:
+    'A decision was made after the chat closed, and the customer left no email or phone. Contact them another way if you can.',
   test: 'This is a test alert. Your alert emails are working.',
 };
 

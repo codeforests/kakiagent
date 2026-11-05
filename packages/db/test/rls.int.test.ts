@@ -4011,3 +4011,255 @@ describe('contacts, consents, leads and lead settings (FEAT-049)', () => {
     ).rejects.toThrow(/permission denied/);
   });
 });
+
+// ---- FEAT-055: approvals (FEAT-055 §4; AC-11, AC-12) ------------------------------------
+describe('approvals (FEAT-055)', () => {
+  const conversation = async (t: string, status = 'waiting_approval', idle = '0 minutes') =>
+    (
+      await owner.query<{ id: string }>(
+        `insert into conversations (tenant_id, channel, visitor_id, status, last_message_at)
+         values ($1, 'widget', gen_random_uuid(), $2, now() - $3::interval) returning id`,
+        [t, status, idle],
+      )
+    ).rows[0]!.id;
+  const draft = (
+    c: pg.Client | pg.Client,
+    tenantId: string,
+    conversationId: string,
+    due: { sla?: string; urgent?: string | null; expires?: string } = {},
+  ) =>
+    c.query<{ id: string }>(
+      `insert into approvals (tenant_id, conversation_id, kind, request, draft, prices, sla_due_at, urgent_at, expires_at)
+       values ($1, $2, 'quote', '{}', '{"lines":[],"discountPct":0,"note":""}', '[]',
+               now() + $3::interval, now() + $4::interval, now() + $5::interval) returning id`,
+      [
+        tenantId,
+        conversationId,
+        due.sla ?? '2 hours',
+        due.urgent === null ? null : (due.urgent ?? '90 minutes'),
+        due.expires ?? '7 days',
+      ],
+    );
+  const queued = (c: pg.Client, approvalId: string) =>
+    c
+      .query<{ timer: string }>(
+        `select payload->>'timer' as timer from outbox where payload->>'approvalId' = $1 order by id`,
+        [approvalId],
+      )
+      .then((r) => r.rows.map((x) => x.timer));
+
+  afterAll(async () => {
+    await owner.query(`delete from outbox where payload->>'kind' = 'approval_timer'`);
+    await owner.query(`delete from approvals`);
+  });
+
+  it("tenant B can't read or decide tenant A's approvals; no context reads nothing", async () => {
+    const conv = await conversation(TENANT_A);
+    const id = (await draft(owner, TENANT_A, conv)).rows[0]!.id;
+    for (const role of ['app_dashboard', 'app_agent_visitor'] as const) {
+      const seen = await asRole(role, TENANT_B, async (c) => ({
+        rows: (await c.query(`select id from approvals where id = $1`, [id])).rows,
+      }));
+      expect(seen.rows).toEqual([]);
+      const none = await asRole(
+        role,
+        null,
+        async (c) => (await c.query(`select id from approvals`)).rows,
+      );
+      expect(none).toEqual([]);
+    }
+    const updated = await asRole('app_dashboard', TENANT_B, async (c) =>
+      c.query(
+        `update approvals set status = 'rejected', reason = 'x', decided_at = now() where id = $1`,
+        [id],
+      ),
+    );
+    expect(updated.rowCount).toBe(0);
+    await expect(
+      asRole('app_agent_visitor', TENANT_B, (c) => draft(c, TENANT_A, conv)),
+    ).rejects.toThrow(/row-level security|violates/);
+  });
+
+  it('one pending approval per conversation', async () => {
+    const conv = await conversation(TENANT_A);
+    await asRole('app_agent_visitor', TENANT_A, async (c) => {
+      await draft(c, TENANT_A, conv);
+      await expect(draft(c, TENANT_A, conv)).rejects.toThrow(/approvals_one_pending_uq/);
+    });
+  });
+
+  it('the visitor zone inserts and reads but never updates; the dashboard updates decision columns only', async () => {
+    const conv = await conversation(TENANT_A);
+    const id = (await draft(owner, TENANT_A, conv)).rows[0]!.id;
+    await expect(
+      asRole('app_agent_visitor', TENANT_A, (c) =>
+        c.query(`update approvals set status = 'expired' where id = $1`, [id]),
+      ),
+    ).rejects.toThrow(/permission denied/);
+    await expect(
+      asRole('app_dashboard', TENANT_A, (c) =>
+        c.query(`update approvals set draft = '{}' where id = $1`, [id]),
+      ),
+    ).rejects.toThrow(/permission denied/);
+    await expect(
+      asRole('app_dashboard', TENANT_A, (c) =>
+        c.query(
+          `insert into approvals (tenant_id, conversation_id, kind, request, draft, prices, sla_due_at, expires_at) values ($1, $2, 'quote', '{}', '{}', '[]', now(), now())`,
+          [TENANT_A, conv],
+        ),
+      ),
+    ).rejects.toThrow(/permission denied/);
+    const ok = await asRole('app_dashboard', TENANT_A, (c) =>
+      c.query(
+        `update approvals set status = 'approved', final = draft, decided_by = gen_random_uuid(), decided_at = now(), version = version + 1 where id = $1`,
+        [id],
+      ),
+    );
+    expect(ok.rowCount).toBe(1);
+  });
+
+  it('checks: a rejection needs a reason; a decision needs a time; unknown kinds fail', async () => {
+    const conv = await conversation(TENANT_A);
+    const id = (await draft(owner, TENANT_A, conv)).rows[0]!.id;
+    await expect(
+      asRole('app_dashboard', TENANT_A, (c) =>
+        c.query(
+          `update approvals set status = 'rejected', decided_at = now(), reason = '  ' where id = $1`,
+          [id],
+        ),
+      ),
+    ).rejects.toThrow(/approvals_reason_ck/);
+    await expect(
+      asRole('app_dashboard', TENANT_A, (c) =>
+        c.query(`update approvals set status = 'approved' where id = $1`, [id]),
+      ),
+    ).rejects.toThrow(/approvals_decided_ck/);
+    await expect(
+      owner.query(
+        `insert into approvals (tenant_id, conversation_id, kind, request, draft, prices, sla_due_at, expires_at) values ($1, $2, 'gift', '{}', '{}', '[]', now(), now())`,
+        [TENANT_A, await conversation(TENANT_A)],
+      ),
+    ).rejects.toThrow(/approvals_kind_ck/);
+    await expect(
+      owner.query(
+        `insert into boundary_rules (tenant_id, version, created_by, approval_sla_minutes) values ($1, 999, gen_random_uuid(), 10)`,
+        [TENANT_A],
+      ),
+    ).rejects.toThrow(/boundary_rules_sla_ck/);
+  });
+
+  it('approvals_queue_due() queues urgent, sla and expire once each and marks the expiry', async () => {
+    const [c1, c2, c3, c4] = [
+      await conversation(TENANT_A),
+      await conversation(TENANT_A),
+      await conversation(TENANT_B),
+      await conversation(TENANT_A),
+    ];
+    const urgent = (await draft(owner, TENANT_A, c1, { urgent: '-1 minute' })).rows[0]!.id;
+    const sla = (await draft(owner, TENANT_A, c2, { sla: '-1 minute', urgent: null })).rows[0]!.id;
+    const expire = (
+      await draft(owner, TENANT_B, c3, { sla: '-7 days', urgent: null, expires: '-1 minute' })
+    ).rows[0]!.id;
+    const quiet = (await draft(owner, TENANT_A, c4)).rows[0]!.id;
+    const out = await asRole('app_outbox', null, async (c) => {
+      await c.query(`select * from approvals_queue_due()`);
+      await c.query(`select * from approvals_queue_due()`);
+      return {
+        urgent: await queued(c, urgent),
+        sla: await queued(c, sla),
+        expire: await queued(c, expire),
+        quiet: await queued(c, quiet),
+        payload: (
+          await c.query(
+            `select tenant_id, topic, group_key, payload from outbox where payload->>'approvalId' = $1`,
+            [expire],
+          )
+        ).rows,
+      };
+    });
+    expect(out).toMatchObject({ urgent: ['urgent'], sla: ['sla'], expire: ['expire'], quiet: [] });
+    expect(out.payload).toEqual([
+      {
+        tenant_id: TENANT_B,
+        topic: 'conversation-turns',
+        group_key: c3,
+        payload: {
+          kind: 'approval_timer',
+          tenantId: TENANT_B,
+          approvalId: expire,
+          timer: 'expire',
+        },
+      },
+    ]);
+    // Rolled back above; run it for real to check the marks.
+    await owner.query(`set role app_outbox`);
+    try {
+      await owner.query(`select * from approvals_queue_due()`);
+    } finally {
+      await owner.query(`reset role`);
+    }
+    const rows = await owner.query<{
+      id: string;
+      status: string;
+      urgent_at: Date | null;
+      escalated_at: Date | null;
+    }>(`select id, status, urgent_at, escalated_at from approvals where id = any($1)`, [
+      [urgent, sla, expire],
+    ]);
+    const by = Object.fromEntries(rows.rows.map((r) => [r.id, r]));
+    expect(by[urgent]).toMatchObject({ status: 'pending', urgent_at: null, escalated_at: null });
+    expect(by[sla]!.escalated_at).not.toBeNull();
+    expect(by[expire]!.status).toBe('expired');
+  });
+
+  it('only the outbox zone runs the sweep, and its owner cannot sign in', async () => {
+    for (const role of [
+      'app_agent_visitor',
+      'app_dashboard',
+      'app_identity',
+      'app_ingest',
+    ] as const)
+      await expect(
+        asRole(role, TENANT_A, (c) => c.query(`select * from approvals_queue_due()`)),
+      ).rejects.toThrow(/permission denied/);
+    const login = await owner.query(
+      `select rolcanlogin from pg_roles where rolname = 'kaki_approvals_timer'`,
+    );
+    expect(login.rows).toEqual([{ rolcanlogin: false }]);
+  });
+
+  it('approval_candidates() returns active owners, admins and agents with rights, IDs only', async () => {
+    const expected = await owner.query<{ user_id: string }>(
+      `select user_id from memberships where tenant_id = $1 and status = 'active'
+         and (role in ('owner', 'admin') or approval_rights) order by user_id`,
+      [TENANT_A],
+    );
+    const rows = await asRole(
+      'app_agent_visitor',
+      TENANT_A,
+      async (c) => (await c.query<{ user_id: string }>(`select * from approval_candidates()`)).rows,
+    );
+    expect(rows).toEqual(expected.rows);
+    expect(rows.length).toBeGreaterThan(0);
+    const none = await asRole(
+      'app_agent_visitor',
+      null,
+      async (c) => (await c.query(`select * from approval_candidates()`)).rows,
+    );
+    expect(none).toEqual([]);
+  });
+
+  it('auto-close leaves a quiet waiting_approval conversation open', async () => {
+    const waiting = await conversation(TENANT_A, 'waiting_approval', '45 minutes');
+    const idle = await conversation(TENANT_A, 'ai', '45 minutes');
+    const n = await asRole('app_outbox', null, async (c) => {
+      await c.query(`select * from inbox_queue_auto_close()`);
+      const count = async (id: string) =>
+        Number(
+          (await c.query(`select count(*) from outbox where group_key = $1`, [id])).rows[0].count,
+        );
+      return [await count(waiting), await count(idle)];
+    });
+    expect(n).toEqual([0, 1]);
+  });
+});

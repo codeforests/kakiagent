@@ -13,6 +13,7 @@ export function linkFor(kind: NotificationKind, subject: Subject, appUrl: string
     case 'escalation_reminder':
       return `${base}/inbox/${subject.id}`;
     case 'approval_pending':
+    case 'approval_undeliverable':
       return `${base}/approvals/${subject.id}`;
     case 'hot_lead':
       return `${base}/leads/${subject.id}`;
