@@ -316,7 +316,13 @@
           "contact search hit"
         ],
         "gaps": [],
-        "supplements": []
+        "supplements": [
+          {
+            "state": "approval sidebar and dividers",
+            "strategy": "code-native",
+            "source": "features/FEAT-055-approvals/ui-design.md#scr-app-014--inbox-partial"
+          }
+        ]
       },
       "contract_bindings": [
         "GET /api/v1/conversations",
@@ -327,7 +333,8 @@
         "GET /api/v1/conversations?assignee=",
         "GET /api/v1/inbox/members",
         "POST /api/v1/conversations/search",
-        "GET /api/v1/conversations/:id (sidebar.contact, sidebar.lead, events)"
+        "GET /api/v1/conversations/:id (sidebar.contact, sidebar.lead, events)",
+        "GET /api/v1/conversations/:id (sidebar.approval, approval events)"
       ],
       "conformance": {
         "result": "pass",
@@ -1081,12 +1088,18 @@
           "re-auth",
           "validation errors",
           "conflict",
-          "permission"
+          "permission",
+          "approval SLA",
+          "approvers list"
         ],
-        "gaps": [
-          "Approval SLA and approver rights (FEAT-055)"
-        ],
-        "supplements": []
+        "gaps": [],
+        "supplements": [
+          {
+            "state": "approvals section",
+            "strategy": "code-native",
+            "source": "features/FEAT-055-approvals/ui-design.md#scr-app-042--rules-and-approvals-partial-approvals-section"
+          }
+        ]
       },
       "contract_bindings": [
         "GET /api/v1/settings/rules",
@@ -1195,11 +1208,14 @@
           "asking the team",
           "escalation notice",
           "escalation notice after hours",
-          "escalate failed"
+          "escalate failed",
+          "waiting-for-approval",
+          "quote card",
+          "approval rejected",
+          "approval expired"
         ],
         "gaps": [
           "rate-limited",
-          "waiting-for-approval",
           "attachment",
           "talk-to-person (built behind controls.talkToPerson; visible from FEAT-044)"
         ],
@@ -1268,6 +1284,11 @@
             "state": "escalation (talk to a person)",
             "strategy": "code-native",
             "source": "features/FEAT-044-escalation-routing/ui-design.md#scr-wgt-002--chat-panel-partial"
+          },
+          {
+            "state": "waiting-for-approval",
+            "strategy": "code-native",
+            "source": "features/FEAT-055-approvals/ui-design.md#scr-wgt-002--chat-panel-partial"
           }
         ]
       },
@@ -2034,6 +2055,87 @@
       },
       "status": "designed",
       "designed_at": "2026-11-04"
+    },
+    "SCR-APP-017": {
+      "name": "Approvals",
+      "surface": "APP",
+      "feature": "FEAT-055",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-055-approvals/ui-design.md#scr-app-017--approvals"
+      },
+      "states": {
+        "covered": [
+          "loading",
+          "error",
+          "empty pending",
+          "empty decided",
+          "pending",
+          "decided",
+          "urgent",
+          "overdue",
+          "after hours",
+          "above maximum",
+          "read-only (no rights)",
+          "live update"
+        ],
+        "gaps": [],
+        "supplements": []
+      },
+      "contract_bindings": [
+        "GET /api/v1/approvals?view=",
+        "WS /ws (approval events)"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-11-05"
+    },
+    "SCR-APP-018": {
+      "name": "Approval",
+      "surface": "APP",
+      "feature": "FEAT-055",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-055-approvals/ui-design.md#scr-app-018--approval"
+      },
+      "states": {
+        "covered": [
+          "loading",
+          "error",
+          "not found",
+          "pending",
+          "editing",
+          "validation errors",
+          "deciding",
+          "decided",
+          "decided by someone else",
+          "rejected",
+          "expired",
+          "not delivered",
+          "cannot decide",
+          "price changed"
+        ],
+        "gaps": [
+          "link expired, link already used (FEAT-056)"
+        ],
+        "supplements": []
+      },
+      "contract_bindings": [
+        "GET /api/v1/approvals/:id",
+        "POST /api/v1/approvals/:id/decision",
+        "WS /ws (approval events)"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-11-05"
     }
   }
 }
