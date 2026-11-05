@@ -4,7 +4,7 @@ Stage done: design
 Next: build (backend, T1–T6) — kickoff: "Build FEAT-055 (backend) on branch feat/FEAT-055-approvals. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage build."
 
 ## What the next stage needs
-- Split: backend T1–T6, then `## Build session 2 (UI)` T7–T11 (widget quote card, queue, detail, rules SLA, sidebar, E2E, verify).
+- Split: backend T1–T6 (FEAT-049 lesson: stop after T3 and resume T4–T6 in a fresh Build thread if it runs long), then `## Build session 2 (UI)` T7–T11 (widget quote card, queue, detail, rules SLA, sidebar, E2E, verify).
 - D1 (discount above the maximum → approval, flagged `aboveMax`) follows the recommended option of Ken's decision card. If Ken picks "refuse", only T3 (`commitmentDecision` keeps `refuse`) and T4 (handler refused `boundary`, fixed decline text) change; see design D1.
 - Quotes are built in code (D2): `draftLines` matches triage `items` to this turn's retrieved product facts; no extra model call. FEAT-054's always-on discount guard stays.
 - Timers follow 0045's pattern (D10): due columns + `approvals_queue_due()` owned by NOLOGIN `kaki_approvals_timer`, outbox `conversation-turns` job `approval_timer`, re-checked `pending` in the worker.
