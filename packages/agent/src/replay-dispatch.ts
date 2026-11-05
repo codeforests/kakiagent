@@ -18,12 +18,13 @@ import {
 
 /**
  * Each handler re-scoped to `coaching`, its checks and `run` unchanged. `capture_lead` is left
- * out: its cards exist only in the widget (FEAT-049 §5.3, AC-7), so a replay reports it unhandled.
+ * out: its cards exist only in the widget (FEAT-049 §5.3, AC-7), so a replay reports it unhandled;
+ * so is `request_commitment` (FEAT-055 §5.2): a replay drafts no approval.
  */
 export function stubAll(reg: Registry): Registry {
   return createRegistry(
     [...reg.byKind.values()]
-      .filter((h) => h.kind !== 'capture_lead')
+      .filter((h) => h.kind !== 'capture_lead' && h.kind !== 'request_commitment')
       .map((h) => ({ ...h, scopes: ['coaching'] })),
   );
 }
@@ -59,6 +60,10 @@ export class ReplayPorts implements ConversationPort {
   /** A replay escalates nobody (FEAT-044); in coaching scope the handler is refused anyway. */
   async escalate(): Promise<{ status: 'escalated' }> {
     return { status: 'escalated' };
+  }
+  /** Never called: `request_commitment` isn't in the replay registry (FEAT-055). */
+  async draftApproval(): Promise<never> {
+    throw new Error('a replay drafts no approval');
   }
 }
 

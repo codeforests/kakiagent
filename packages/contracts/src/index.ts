@@ -1439,6 +1439,7 @@ export const VisitorsWouldGet = z.enum([
   'without_unreviewed',
   'fallback_paused',
   'not_live',
+  'approval',
 ]);
 export const Explainer = z.object({
   outcome: CoachOutcome,

@@ -148,7 +148,7 @@ export const TRIAGE_SYSTEM = [
   '- tasks, in the order the visitor asked, each with arguments as name/value strings:',
   '  answer: a question the business can answer from its facts.',
   '  capture_lead: the visitor gives or offers contact details (args: name, phone, email).',
-  '  request_commitment: a quote, a discount, a custom order or a delivery promise (args: items, quantity, date).',
+  '  request_commitment: a quote, a discount, a custom order or a delivery promise (args: items, quantity, date, discount as a percentage).',
   '  escalate: the visitor asks for a person.',
   '  handoff_channel: the visitor wants to continue on another channel (args: channel).',
   '  withdraw_consent: the visitor asks to stop being contacted or to stop using their details.',

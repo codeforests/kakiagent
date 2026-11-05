@@ -101,6 +101,25 @@ function leadArgs(text: string): { name: string; value: string }[] {
   return args;
 }
 
+/**
+ * `request_commitment`'s args (FEAT-055): the request text as `items` (approvals matches product
+ * names in it), the first number as `quantity`, a percentage as `discount`, a day as `date`.
+ */
+function commitmentArgs(text: string): { name: string; value: string }[] {
+  const args = [{ name: 'items', value: text.slice(0, 200) }];
+  const pct = /(\d{1,3})\s*(%|percent|巴仙)|(\d)\s*折/i.exec(text);
+  const discount = pct ? (pct[1] ?? String(100 - Number(pct[3]) * 10)) : null;
+  const quantity = /\d[\d,]*/.exec(pct ? text.replace(pct[0], ' ') : text)?.[0]?.replace(/,/g, '');
+  if (quantity) args.push({ name: 'quantity', value: quantity });
+  if (discount) args.push({ name: 'discount', value: discount });
+  const date =
+    /\b(today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|\d{1,2} (jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*)\b|今天|明天|后天|星期.|周[一二三四五六日天]/i.exec(
+      text,
+    )?.[0];
+  if (date) args.push({ name: 'date', value: date });
+  return args;
+}
+
 export function fakeTriage(req: GenerateRequest): string {
   const text = [...req.messages].reverse().find((m) => m.role === 'user')?.content ?? '';
   const tasks: { kind: TaskKind; args: { name: string; value: string }[] }[] = [];
@@ -121,7 +140,9 @@ export function fakeTriage(req: GenerateRequest): string {
           ? [{ name: 'topic', value: topic }]
           : kind === 'capture_lead'
             ? leadArgs(text)
-            : [],
+            : kind === 'request_commitment'
+              ? commitmentArgs(text)
+              : [],
     });
   if (!tasks.length) tasks.push({ kind: 'answer', args: [] });
   const complex = kinds.includes('request_commitment') || (text.match(/\d+/g)?.length ?? 0) >= 3;
