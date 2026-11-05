@@ -163,6 +163,7 @@ const thread = (messages: Message[]): ConversationThread => ({
     intents: [],
     lead: null,
     facts: [],
+    approval: null,
   },
 });
 

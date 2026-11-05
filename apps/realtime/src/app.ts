@@ -105,11 +105,12 @@ export async function buildApp(deps: Deps) {
       channels.conversation(claims.t, conversationId),
       (e) => {
         const parsedEvent = RealtimeEvent.safeParse(e);
-        // Dashboard-only events (the inbox list, the kill-switch nudge) never reach visitors.
+        // Dashboard-only events (the inbox list, the kill-switch nudge, approvals) never reach visitors.
         if (
           !parsedEvent.success ||
           parsedEvent.data.type === 'conversation' ||
-          parsedEvent.data.type === 'ai_status'
+          parsedEvent.data.type === 'ai_status' ||
+          parsedEvent.data.type === 'approval'
         )
           return;
         if (replaying) buffered.push(parsedEvent.data);

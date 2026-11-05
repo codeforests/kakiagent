@@ -4,6 +4,9 @@
  * answers go to the api, which records consent and the lead (LED-01, LED-02, LED-08).
  */
 import type { LeadCaptureConfig, Message, MessageCard } from '@kaki/contracts';
+
+/** The consent and lead-form cards; the quote card (FEAT-055) renders on its own. */
+export type LeadMessageCard = Exclude<MessageCard, { kind: 'quote' }>;
 import type { LeadFieldKey } from '@kaki/contracts/lead-check';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { createApi } from './api.js';
@@ -89,7 +92,7 @@ interface Common {
 }
 
 /** The lead form's values and errors; focus goes to the error summary when it is shown. */
-function useLeadForm(lead: LeadCaptureConfig, prefill: MessageCard['prefill']) {
+function useLeadForm(lead: LeadCaptureConfig, prefill: LeadMessageCard['prefill']) {
   const [values, setValues] = useState(() => leadValues(lead.fields, prefill));
   const [errors, setErrors] = useState<LeadErrors>({});
   const [needsContact, setNeedsContact] = useState(false);
@@ -284,7 +287,7 @@ type Step = 'consent' | 'form' | 'declined' | 'sent' | 'cancelled';
  */
 export function LeadCard(
   p: Common & {
-    m: Message & { card: MessageCard };
+    m: Message & { card: LeadMessageCard };
     active: boolean;
     conversationId: string | null;
     onNotice(notice: Message): void;

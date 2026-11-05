@@ -661,7 +661,7 @@ function Panel({
                   </li>
                 ),
               ),
-              m.card && leadCommon && (
+              m.card && m.card.kind !== 'quote' && leadCommon && (
                 <LeadCard
                   key={`${m.id}-card`}
                   {...leadCommon}

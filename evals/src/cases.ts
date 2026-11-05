@@ -342,7 +342,8 @@ export function score(reply: Reply, expectations: Expectation[], ctx: ScoreConte
       case 'card':
         return (
           (reply.card?.kind ?? null) === e.card &&
-          (!e.prefill || sameFields(reply.card?.prefill ?? {}, e.prefill))
+          (!e.prefill ||
+            sameFields(reply.card && 'prefill' in reply.card ? reply.card.prefill : {}, e.prefill))
         );
       case 'ai-ended':
         return reply.aiEnded === e.value;

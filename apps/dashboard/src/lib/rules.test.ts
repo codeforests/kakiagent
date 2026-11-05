@@ -9,6 +9,7 @@ const base: BoundaryRules = {
   quotesNeedApproval: true,
   forbiddenCommitments: ['delivery_guarantee', 'refund', 'legal_advice', 'medical_advice'],
   customCommitments: [],
+  approvalSlaMinutes: 120,
 };
 
 describe('diffRules', () => {
@@ -25,6 +26,7 @@ describe('diffRules', () => {
       quotesNeedApproval: false,
       forbiddenCommitments: ['delivery_guarantee', 'legal_advice', 'medical_advice'],
       customCommitments: ['Same-day delivery'],
+      approvalSlaMinutes: 120,
     };
     expect(diffRules(base, after)).toEqual([
       'Helps with: added Wedding cakes',

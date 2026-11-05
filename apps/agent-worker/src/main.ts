@@ -85,6 +85,11 @@ const consuming = queue.consume<unknown>(
     // An escalation reminder (INB-05; FEAT-044 §5.5) rides the conversation's FIFO group. The
     // escalation's lock and its resolved check make a duplicate job a no-op; the dedupe key
     // keeps a redelivered one from alerting twice.
+    if ('kind' in parsed && parsed.kind === 'approval_timer') {
+      // FEAT-055 T5 runs it (`runApprovalTimer`); until then the sweep's job is a no-op.
+      logger.info({ outboxId: msg.id, approvalId: parsed.approvalId }, 'approval timer pending T5');
+      return;
+    }
     if ('kind' in parsed && parsed.kind === 'escalation_reminder') {
       const t = parsed.tenantId;
       const log = logger.child({

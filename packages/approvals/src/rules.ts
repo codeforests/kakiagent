@@ -26,6 +26,8 @@ export interface BoundaryRules {
   quotesNeedApproval: boolean;
   forbiddenCommitments: CommitmentKey[];
   customCommitments: string[];
+  /** Business minutes before an undecided approval escalates (APR-04; FEAT-055 §5.1). */
+  approvalSlaMinutes: number;
 }
 
 export const SAFE_DEFAULTS: Readonly<BoundaryRules> = Object.freeze({
@@ -35,6 +37,7 @@ export const SAFE_DEFAULTS: Readonly<BoundaryRules> = Object.freeze({
   quotesNeedApproval: true,
   forbiddenCommitments: [...COMMITMENT_KEYS],
   customCommitments: [],
+  approvalSlaMinutes: 120,
 });
 
 export interface SavedRules {
@@ -56,6 +59,7 @@ const toRules = (r: Row): BoundaryRules => ({
   quotesNeedApproval: r.quotesNeedApproval,
   forbiddenCommitments: r.forbiddenCommitments as CommitmentKey[],
   customCommitments: r.customCommitments,
+  approvalSlaMinutes: r.approvalSlaMinutes,
 });
 
 /** The newest saved version, or null when the tenant never saved rules. */
@@ -108,6 +112,7 @@ export function normaliseRules(rules: BoundaryRules): BoundaryRules {
     quotesNeedApproval: rules.quotesNeedApproval,
     forbiddenCommitments: COMMITMENT_KEYS.filter((k) => forbidden.has(k)),
     customCommitments: normaliseList(rules.customCommitments),
+    approvalSlaMinutes: rules.approvalSlaMinutes,
   };
 }
 
@@ -124,6 +129,7 @@ export function changedFields(before: BoundaryRules, after: BoundaryRules): stri
   if (!sameList(before.forbiddenCommitments, after.forbiddenCommitments))
     out.push('forbidden_commitments');
   if (!sameList(before.customCommitments, after.customCommitments)) out.push('custom_commitments');
+  if (before.approvalSlaMinutes !== after.approvalSlaMinutes) out.push('approval_sla');
   return out;
 }
 

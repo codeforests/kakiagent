@@ -14,6 +14,7 @@ const rules = {
   quotesNeedApproval: true,
   forbiddenCommitments: ['delivery_guarantee', 'legal_advice', 'medical_advice'],
   customCommitments: ['same-day delivery'],
+  approvalSlaMinutes: 120,
 };
 const issues = (r: unknown) => {
   const p = BoundaryRules.safeParse(r);
@@ -29,7 +30,13 @@ describe('boundary rules contract (FEAT-054 §3)', () => {
 
   it('parses a request and a response', () => {
     expect(SaveBoundaryRulesRequest.parse({ version: null, rules }).rules).toEqual(rules);
-    const res = { rules, version: 3, savedAt: '2026-10-30T04:00:00.000Z', source: 'saved' };
+    const res = {
+      rules,
+      version: 3,
+      savedAt: '2026-10-30T04:00:00.000Z',
+      source: 'saved',
+      approvers: [{ userId: '00000000-0000-4000-8000-000000000001', name: 'Mei', role: 'owner' }],
+    };
     expect(BoundaryRulesResponse.parse(res)).toEqual(res);
   });
 
@@ -45,6 +52,10 @@ describe('boundary rules contract (FEAT-054 §3)', () => {
     ]);
     expect(issues({ ...rules, maxDiscountPct: 101 })[0]?.[0]).toBe('maxDiscountPct');
     expect(issues({ ...rules, maxDiscountPct: 2.5 })[0]?.[0]).toBe('maxDiscountPct');
+    // FEAT-055: the approval SLA is 15 minutes to 2 days.
+    expect(issues({ ...rules, approvalSlaMinutes: 14 })[0]?.[0]).toBe('approvalSlaMinutes');
+    expect(issues({ ...rules, approvalSlaMinutes: 2_881 })[0]?.[0]).toBe('approvalSlaMinutes');
+    expect(issues({ ...rules, approvalSlaMinutes: 2_880 })).toEqual([]);
     expect(issues({ ...rules, allowedTopics: ['x'] })[0]?.[0]).toBe('allowedTopics.0');
     expect(
       issues({ ...rules, forbiddenCommitments: [...rules.forbiddenCommitments, 'free'] }),

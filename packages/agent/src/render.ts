@@ -1,3 +1,4 @@
+import { formatSgd } from '@kaki/contracts/quote';
 import { sgDayLabel, sgLastDayOf, type GstTreatment, type VisitorFact } from '@kaki/kb';
 import { SLOT_FIELDS, SLOT_RE, type TurnFacts } from './slots.js';
 import type { Violation } from './verify.js';
@@ -5,12 +6,8 @@ import type { Violation } from './verify.js';
 /** Singapore GST rate since 1 Jan 2024. KB-15 quotes GST-inclusive prices. */
 export const SG_GST_PERCENT = 9;
 
-/** `S$1,234.50` (NFR-10, design.md §6). */
-export function formatSgd(cents: number): string {
-  const dollars = Math.floor(cents / 100);
-  const rest = String(cents % 100).padStart(2, '0');
-  return `S$${String(dollars).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${rest}`;
-}
+/** `S$1,234.50` (NFR-10, design.md §6); shared with approvals' quotes (FEAT-055). */
+export { formatSgd };
 
 /** Adds GST to an exclusive amount, rounding half up to the cent. */
 export function withGst(cents: number): number {
