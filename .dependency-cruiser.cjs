@@ -26,6 +26,7 @@ module.exports = {
           '^packages/channels/src/(theme/index|contract-suite)\\.ts$',
           '^packages/ui/src/styles\\.css$',
           '^packages/contracts/src/lead-check\\.ts$',
+          '^packages/contracts/src/quote\\.ts$',
         ],
       },
     },

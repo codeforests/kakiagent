@@ -169,7 +169,7 @@ export async function requestEscalation(
     return { status: 'with_person', escalation: null, notice: null, conversation: conv };
 
   const { open, nextOpen } = hoursAt(input.hours, now);
-  const visitorAsked = source !== 'unverified';
+  const visitorAsked = source === 'visitor_button' || source === 'visitor_asked';
   const [current] = await tx
     .select()
     .from(e)
@@ -206,7 +206,8 @@ export async function requestEscalation(
   }
 
   const afterHours = !open;
-  const urgent = visitorAsked && !afterHours;
+  // An approval past its SLA (FEAT-055 §5.1) is as urgent as a visitor asking.
+  const urgent = (visitorAsked || source === 'approval_sla') && !afterHours;
   const assignee = await route(tx, tenantId, input.log);
   const [escalation] = await tx
     .insert(e)
@@ -222,7 +223,9 @@ export async function requestEscalation(
     .returning();
   const actor: LifecycleActor = visitorAsked
     ? { type: 'visitor', id: conv.visitorId }
-    : { type: 'agent' };
+    : source === 'approval_sla'
+      ? { type: 'system' }
+      : { type: 'agent' };
   const conversation = await transition(tx, { tenantId, conversationId, to: 'escalated', actor });
   await audit.append(tx, tenantId, {
     action: 'escalation.assigned',

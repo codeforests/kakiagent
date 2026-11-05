@@ -27,6 +27,7 @@ describe('the INB-08 edge table', () => {
       'escalated→human',
       'escalated→closed',
       'human→ai',
+      'human→waiting_approval',
       'human→closed',
       'waiting_approval→ai',
       'waiting_approval→escalated',

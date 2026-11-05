@@ -313,6 +313,8 @@ export async function threadEvents(
     'consent.recorded',
     'lead.created',
     'lead.updated',
+    // FEAT-055 §5.3: an approval drafted, decided (or sent at once) and expired.
+    ...APPROVAL_ACTIONS,
   ];
   const rows = await tx
     .select({
@@ -363,9 +365,42 @@ export interface AuditEventRow {
   subjectRefs: string[];
 }
 
+/** The approvals module's audit actions the thread shows (FEAT-055 §5.3). */
+export const APPROVAL_ACTIONS = [
+  'approval.drafted',
+  'approval.decided',
+  'approval.auto',
+  'approval.expired',
+] as const;
+const OUTCOMES = new Set(['approved', 'edited_approved', 'rejected', 'undeliverable']);
+
 /** Maps one lifecycle or flag audit entry to a thread divider (D7; FEAT-043 reasons). */
 export function toThreadEvent(r: AuditEventRow): ThreadEventRow {
   const p = (r.payload ?? {}) as Record<string, unknown>;
+  if (r.eventType.startsWith('approval.')) {
+    const decided = r.eventType === 'approval.decided' || r.eventType === 'approval.auto';
+    return {
+      at: r.ts.toISOString(),
+      kind: decided
+        ? 'approval_decided'
+        : r.eventType === 'approval.expired'
+          ? 'approval_expired'
+          : 'approval_drafted',
+      from: null,
+      to: null,
+      reason:
+        r.eventType === 'approval.auto'
+          ? 'auto'
+          : typeof p.outcome === 'string' && OUTCOMES.has(p.outcome)
+            ? (p.outcome as ThreadEventRow['reason'])
+            : null,
+      actor: {
+        type: r.actorType === 'operator' ? 'system' : r.actorType,
+        id: r.actorType === 'user' ? r.actorRef : null,
+      },
+      subject: null,
+    } satisfies ThreadEventRow;
+  }
   // FEAT-049 §3: consent (agreed, declined) and lead (created, updated) dividers, by the visitor.
   if (r.eventType === 'consent.recorded' || r.eventType.startsWith('lead.')) {
     const consent = r.eventType === 'consent.recorded';

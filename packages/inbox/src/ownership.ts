@@ -254,7 +254,17 @@ export async function takeOver(tx: Tx, input: TakeOverInput): Promise<TakeOverRe
 /** The owner hands back to the AI (UC-23 5): no owner, status `ai`, the left notice. */
 export async function handBack(
   tx: Tx,
-  input: { tenantId: string; conversationId: string; userId: string; version: number },
+  input: {
+    tenantId: string;
+    conversationId: string;
+    userId: string;
+    version: number;
+    /**
+     * Whether the conversation has a pending approval (FEAT-055 D5): then the hand-back
+     * lands in `waiting_approval`. The api passes approvals' check; inbox never imports it.
+     */
+    hasPendingApproval?: (tx: Tx) => Promise<boolean>;
+  },
 ): Promise<{ conversation: ConversationRow; notice: MessageRow }> {
   const { tenantId, conversationId, userId } = input;
   const [mine] = await tx
@@ -264,10 +274,11 @@ export async function handBack(
     )
     .returning();
   if (!mine) throw new NotOwnerError(await lockConversation(tx, tenantId, conversationId));
+  const waiting = (await input.hasPendingApproval?.(tx)) ?? false;
   const conversation = await transition(tx, {
     tenantId,
     conversationId,
-    to: 'ai',
+    to: waiting ? 'waiting_approval' : 'ai',
     actor: { type: 'user', id: userId },
     expectedVersion: input.version,
   });

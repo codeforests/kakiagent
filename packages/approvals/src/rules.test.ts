@@ -1,12 +1,27 @@
+import {
+  BoundaryRules as BoundaryRulesContract,
+  COMMITMENT_KEYS as CONTRACT_KEYS,
+} from '@kaki/contracts';
 import { describe, expect, it } from 'vitest';
 import {
   changedFields,
+  COMMITMENT_KEYS,
   commitmentDecision,
   normaliseList,
   normaliseRules,
   SAFE_DEFAULTS,
   type BoundaryRules,
 } from './rules.js';
+
+describe('the contract (FEAT-054 §3; moved here in FEAT-055)', () => {
+  it('has the same keys and commitment codes as the contracts', () => {
+    expect(Object.keys(BoundaryRulesContract.shape).sort()).toEqual(
+      Object.keys(SAFE_DEFAULTS).sort(),
+    );
+    expect([...COMMITMENT_KEYS]).toEqual([...CONTRACT_KEYS]);
+    expect(BoundaryRulesContract.parse(SAFE_DEFAULTS)).toEqual(SAFE_DEFAULTS);
+  });
+});
 
 describe('normalisation (FEAT-054 §5.1)', () => {
   it('trims, collapses spaces and dedupes without case, keeping the first spelling', () => {
@@ -35,8 +50,10 @@ describe('changedFields', () => {
 
 describe('commitmentDecision (AC-8)', () => {
   it.each([
-    [{ maxDiscountPct: 0, quotesNeedApproval: true }, { discountPct: 5 }, 'refuse'],
-    [{ maxDiscountPct: 10, quotesNeedApproval: true }, { discountPct: 11 }, 'refuse'],
+    // FEAT-055 D1: above the maximum goes to approval (flagged), never refused or allowed.
+    [{ maxDiscountPct: 0, quotesNeedApproval: true }, { discountPct: 5 }, 'needs_approval'],
+    [{ maxDiscountPct: 10, quotesNeedApproval: true }, { discountPct: 11 }, 'needs_approval'],
+    [{ maxDiscountPct: 10, quotesNeedApproval: false }, { discountPct: 11 }, 'needs_approval'],
     [{ maxDiscountPct: 10, quotesNeedApproval: true }, { discountPct: 10 }, 'needs_approval'],
     [{ maxDiscountPct: 10, quotesNeedApproval: false }, { discountPct: 5 }, 'allowed'],
     [{ maxDiscountPct: 0, quotesNeedApproval: true }, {}, 'needs_approval'],

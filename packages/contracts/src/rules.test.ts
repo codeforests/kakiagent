@@ -1,11 +1,5 @@
-import { COMMITMENT_KEYS as DOMAIN_KEYS, SAFE_DEFAULTS } from '@kaki/approvals';
 import { describe, expect, it } from 'vitest';
-import {
-  BoundaryRules,
-  BoundaryRulesResponse,
-  COMMITMENT_KEYS,
-  SaveBoundaryRulesRequest,
-} from './index.js';
+import { BoundaryRules, BoundaryRulesResponse, SaveBoundaryRulesRequest } from './index.js';
 
 const rules = {
   allowedTopics: ['Menu and prices'],
@@ -22,11 +16,8 @@ const issues = (r: unknown) => {
 };
 
 describe('boundary rules contract (FEAT-054 §3)', () => {
-  it('has the same keys and commitment codes as the approvals module', () => {
-    expect(Object.keys(BoundaryRules.shape).sort()).toEqual(Object.keys(SAFE_DEFAULTS).sort());
-    expect([...COMMITMENT_KEYS]).toEqual([...DOMAIN_KEYS]);
-    expect(BoundaryRules.parse(SAFE_DEFAULTS)).toEqual(SAFE_DEFAULTS);
-  });
+  // The key and code match with the approvals module lives in approvals' `rules.test.ts`
+  // (FEAT-055: approvals imports `@kaki/contracts/quote`, so contracts can't import approvals).
 
   it('parses a request and a response', () => {
     expect(SaveBoundaryRulesRequest.parse({ version: null, rules }).rules).toEqual(rules);

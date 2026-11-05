@@ -42,6 +42,8 @@ ALTER TABLE "boundary_rules" ADD CONSTRAINT "boundary_rules_sla_ck" CHECK ("boun
 ALTER TABLE "escalations" ADD CONSTRAINT "escalations_source_ck" CHECK ("escalations"."source" in ('visitor_button', 'visitor_asked', 'unverified', 'approval_sla'));--> statement-breakpoint
 ALTER TABLE "messages" ADD CONSTRAINT "messages_notice_ck" CHECK (("messages"."notice" is null) = ("messages"."notice_kind" is null) and ("messages"."notice_kind" is null or "messages"."notice_kind" in ('after_hours', 'chat_ended', 'staff_joined', 'staff_left', 'escalated', 'lead_captured', 'approval_waiting', 'approval_rejected', 'approval_expired')));--> statement-breakpoint
 ALTER TABLE "notifications" ADD CONSTRAINT "notifications_kind_ck" CHECK ("notifications"."kind" in ('escalation', 'approval_pending', 'hot_lead', 'escalation_reminder', 'approval_undeliverable', 'test'));--> statement-breakpoint
+ALTER TABLE "messages" DROP CONSTRAINT "messages_card_ck";--> statement-breakpoint
+ALTER TABLE "messages" ADD CONSTRAINT "messages_card_ck" CHECK ("messages"."card" is null or ("messages"."author" in ('agent', 'system') and "messages"."card"->>'kind' in ('consent', 'lead_form', 'quote')));--> statement-breakpoint
 
 -- FEAT-055 §4, hand-written: RLS, grants, the approver list, the timers and auto-close.
 ALTER TABLE approvals ENABLE ROW LEVEL SECURITY;--> statement-breakpoint

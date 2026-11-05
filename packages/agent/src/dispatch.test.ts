@@ -1,4 +1,4 @@
-import { commitmentDecision, SAFE_DEFAULTS, type BoundaryRules } from '@kaki/approvals';
+import { isAboveMax, SAFE_DEFAULTS, type BoundaryRules } from '@kaki/approvals';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import {
@@ -146,10 +146,10 @@ describe('dispatchPlan (ADR-025 decisions 2 and 6, AC-7)', () => {
     ['boundary', { checkBoundary: () => false }, {}],
     [
       'boundary',
-      // FEAT-054: the handler decides from the rules in force (a 20% discount above 10%).
+      // FEAT-054: the handler decides from the rules in force (here: a 20% discount above
+      // the 0% maximum; since FEAT-055 D1 `commitmentDecision` sends that to approval).
       {
-        checkBoundary: (rules: BoundaryRules) =>
-          commitmentDecision(rules, { discountPct: 20 }) !== 'refuse',
+        checkBoundary: (rules: BoundaryRules) => !isAboveMax(rules, { discountPct: 20 }),
       },
       {},
     ],

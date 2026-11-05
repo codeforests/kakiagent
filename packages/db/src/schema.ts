@@ -404,7 +404,7 @@ export const messages = pgTable(
     }),
     check(
       'messages_card_ck',
-      sql`${t.card} is null or (${t.author} in ('agent', 'system') and ${t.card}->>'kind' in ('consent', 'lead_form'))`,
+      sql`${t.card} is null or (${t.author} in ('agent', 'system') and ${t.card}->>'kind' in ('consent', 'lead_form', 'quote'))`,
     ),
     index('messages_tenant_conversation_seq_idx').on(t.tenantId, t.conversationId, t.seq),
     uniqueIndex('messages_client_message_id_uq').on(

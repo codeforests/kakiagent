@@ -16,7 +16,8 @@ type Row = typeof schema.conversations.$inferSelect;
 export const TRANSITIONS: Readonly<Record<ConversationStatus, readonly ConversationStatus[]>> = {
   ai: ['escalated', 'human', 'waiting_approval', 'closed'],
   escalated: ['ai', 'human', 'closed'],
-  human: ['ai', 'closed'],
+  /** Hand-back during a pending approval lands in `waiting_approval` (FEAT-055 D5). */
+  human: ['ai', 'waiting_approval', 'closed'],
   waiting_approval: ['ai', 'escalated', 'human', 'closed'],
   closed: ['ai'],
 };
@@ -168,7 +169,7 @@ export async function transition(tx: Tx, input: TransitionInput): Promise<Row> {
     .returning();
   if (!row) throw new StateChangedError(await lockRow(tx, input.tenantId, input.conversationId));
   // A close or a hand-back leaves no owner (FEAT-043 §5.1): every close path runs through here.
-  if (closing || (from === 'human' && input.to === 'ai')) {
+  if (closing || (from === 'human' && (input.to === 'ai' || input.to === 'waiting_approval'))) {
     const o = schema.conversationOwners;
     await tx
       .delete(o)

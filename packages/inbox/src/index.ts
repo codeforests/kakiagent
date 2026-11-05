@@ -275,6 +275,43 @@ export async function appendSystemNotice(
   return row!;
 }
 
+/**
+ * A system message with a body and a card (FEAT-055 §5.3: the approved quote): stored even on
+ * a closed conversation, which it doesn't reopen. The caller publishes it after commit.
+ */
+export async function appendSystemMessage(
+  tx: Tx,
+  input: {
+    tenantId: string;
+    conversationId: string;
+    body: (language: 'en' | 'zh') => string;
+    card: Record<string, unknown> | null;
+  },
+): Promise<MessageRow> {
+  const language = await conversationLanguage(tx, input.tenantId, input.conversationId);
+  const [row] = await tx
+    .insert(schema.messages)
+    .values({
+      tenantId: input.tenantId,
+      conversationId: input.conversationId,
+      author: 'system',
+      body: input.body(language),
+      card: input.card,
+      language,
+    })
+    .returning();
+  await tx
+    .update(schema.conversations)
+    .set({ lastMessageAt: row!.createdAt })
+    .where(
+      and(
+        eq(schema.conversations.tenantId, input.tenantId),
+        eq(schema.conversations.id, input.conversationId),
+      ),
+    );
+  return row!;
+}
+
 /** Links the conversation to the contact who left their details there (FEAT-049 §5.1). */
 export async function setConversationContact(
   tx: Tx,

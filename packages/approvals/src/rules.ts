@@ -169,14 +169,21 @@ export async function saveRules(
 export type CommitmentDecision = 'refuse' | 'needs_approval' | 'allowed';
 
 /**
- * FEAT-055's `request_commitment` boundary check (ADR-025 decision 2), built and tested
- * here: a discount above the maximum is refused; otherwise it needs approval when quotes
- * do, else it's allowed.
+ * `request_commitment`'s boundary check (ADR-025 decision 2). FEAT-055 D1 (Ken,
+ * 2026-11-05): a discount above the maximum goes to approval, flagged `aboveMax`, instead of
+ * being refused; otherwise it needs approval when quotes do, else it's allowed. `refuse`
+ * stays in the type as the ADR-025 hook and is never returned today.
  */
 export function commitmentDecision(
   rules: Pick<BoundaryRules, 'maxDiscountPct' | 'quotesNeedApproval'>,
   input: { discountPct?: number },
 ): CommitmentDecision {
-  if (input.discountPct !== undefined && input.discountPct > rules.maxDiscountPct) return 'refuse';
+  if (isAboveMax(rules, input)) return 'needs_approval';
   return rules.quotesNeedApproval ? 'needs_approval' : 'allowed';
 }
+
+/** A discount above the tenant's maximum (D1): drafted, and the queue says so. */
+export const isAboveMax = (
+  rules: Pick<BoundaryRules, 'maxDiscountPct'>,
+  input: { discountPct?: number },
+) => input.discountPct !== undefined && input.discountPct > rules.maxDiscountPct;

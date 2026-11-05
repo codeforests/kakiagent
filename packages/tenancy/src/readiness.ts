@@ -1,4 +1,3 @@
-import { rulesSaved } from '@kaki/approvals';
 import { setChannelState } from '@kaki/channels';
 import { and, eq, schema, sql, type Tx } from '@kaki/db';
 import { audit, auditId, privacyReadiness } from '@kaki/governance';
@@ -6,6 +5,19 @@ import { termsAccepted } from '@kaki/identity';
 import { dashboardKb, reviewSummary } from '@kaki/kb';
 import { getAssistantSettings } from './assistant.js';
 import { getBusinessProfile, type BusinessProfile } from './profile.js';
+
+/**
+ * ONB-09's "saved boundary rules" item: any saved version (approvals' `rulesSaved`, read here
+ * directly so tenancy doesn't import approvals, which needs tenancy's hours: FEAT-055).
+ */
+async function rulesSaved(tx: Tx, tenantId: string): Promise<boolean> {
+  const [row] = await tx
+    .select({ v: schema.boundaryRules.version })
+    .from(schema.boundaryRules)
+    .where(eq(schema.boundaryRules.tenantId, tenantId))
+    .limit(1);
+  return row !== undefined;
+}
 
 const { onboardingProgress: op, tenants } = schema;
 

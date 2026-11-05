@@ -5546,7 +5546,7 @@
       "checkConstraints": {
         "messages_card_ck": {
           "name": "messages_card_ck",
-          "value": "\"messages\".\"card\" is null or (\"messages\".\"author\" in ('agent', 'system') and \"messages\".\"card\"->>'kind' in ('consent', 'lead_form'))"
+          "value": "\"messages\".\"card\" is null or (\"messages\".\"author\" in ('agent', 'system') and \"messages\".\"card\"->>'kind' in ('consent', 'lead_form', 'quote'))"
         },
         "messages_notice_ck": {
           "name": "messages_notice_ck",
