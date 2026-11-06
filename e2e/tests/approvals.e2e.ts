@@ -134,12 +134,25 @@ test('a rejected request tells the visitor the team will follow up (AC-1, AC-5, 
     await openRow(page, tag);
     await expectNoSeriousA11yViolations(page);
 
-    await page.getByRole('button', { name: 'Reject' }).click();
+    // AC-13 "work by keyboard": the whole rejection is done with the keyboard.
+    const rejectButton = page.getByRole('button', { name: 'Reject' });
     const dialog = page.getByRole('dialog', { name: 'Reject this request?' });
-    await dialog.getByRole('button', { name: 'Reject' }).click();
+    await rejectButton.focus();
+    await page.keyboard.press('Enter');
+    await expect(dialog).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    await rejectButton.focus();
+    await page.keyboard.press('Enter');
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('button', { name: 'Reject' }).focus();
+    await page.keyboard.press('Enter');
     await expect(dialog.getByText('Enter a reason')).toBeVisible();
-    await dialog.getByLabel('Reason (only your team sees this)').fill('We are fully booked');
-    await dialog.getByRole('button', { name: 'Reject' }).click();
+    const reason = dialog.getByLabel('Reason (only your team sees this)');
+    await expect(reason).toBeFocused();
+    await page.keyboard.type('We are fully booked');
+    await dialog.getByRole('button', { name: 'Reject' }).focus();
+    await page.keyboard.press('Enter');
     await expect(
       page.getByRole('status').filter({ hasText: 'Request rejected. The visitor was told.' }),
     ).toBeVisible();
