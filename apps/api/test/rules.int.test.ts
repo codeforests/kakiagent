@@ -101,7 +101,9 @@ describe('approval SLA and approvers on the rules page (FEAT-055 §3; AC-4)', ()
     expect(res.statusCode).toBe(200);
     const body = BoundaryRulesResponse.parse(res.json());
     expect(body.rules.approvalSlaMinutes).toBe(60);
-    expect(body.approvers).toContainEqual(expect.objectContaining({ userId: ownerA, role: 'owner' }));
+    expect(body.approvers).toContainEqual(
+      expect.objectContaining({ userId: ownerA, role: 'owner' }),
+    );
     const second = await put(asA, { version: 1, rules: { ...RULES, approvalSlaMinutes: 90 } });
     expect(second.statusCode).toBe(200);
     const entries = (await rulesEntries()).slice(before);
