@@ -57,6 +57,7 @@ A new logical model goes in `LogicalModel` and both registries, and the fake pro
 - Thin wiring and config; every variable in the role's `.env.example`.
 - Cross-tenant scheduler jobs call a SECURITY DEFINER function owned by a NOLOGIN role (`cost_governor_evaluate` 0009, `kb_stale_scan` 0029, `kb_gap_cluster` 0030 from FEAT-019, `inbox_queue_auto_close` 0042 from FEAT-042: scheduler `auto-close.ts` queues an `AutoCloseJob` the agent-worker runs through `autoCloseIdle` and publishes).
 - Alert email: the scheduler's `NOTIFY_SWEEP_MS` tick (FEAT-052).
+- Approval timers (FEAT-055): scheduler `approval-timers.ts` (`APPROVAL_SWEEP_MS`) calls approvals `queueApprovalTimers` (`approvals_queue_due()`); agent-worker runs each `approval_timer` job with `runApprovalTimer` and publishes the notice, the conversation and (on expiry) an `approval` event. Turns publish `TurnResult.approvalMessage` before the reply, `approvalNotice` after it, and an `approval` event on `channels.inbox`.
 
 ### API
 
@@ -66,6 +67,7 @@ A new logical model goes in `LogicalModel` and both registries, and the fake pro
 - FEAT-043 adds there the takeover routes (`/takeover`, `/handback`, `POST /messages`, `/handover-request`, `GET /api/v1/inbox/members`), `namesIn(t)` (owner names via `memberNames`, passed to the inbox views) and `notifyMember` (`MemberEvent`s on `channels.member`, which `/ws` forwards to that member).
 - Routes a pending session may use take `authFrom(req, { allow: [...] })`: `registerMfaRoutes(app, deps, { authFrom, sessionFrom })` in `mfa.ts`.
 - FEAT-007: `team.ts` (`registerTeamRoutes`, the same shape) holds team, invitation and workspace routes; its error codes are `INVITATION_ERRORS`/`TEAM_ERRORS` there.
+- FEAT-055: `approvals.ts` (`registerApprovalRoutes`: list, detail via `detailOf` (excerpt from `getThread`, prices' `current` from kb `factVersions`, contact from leads `contactOf`, decider name from identity), decision → 403/409 `already_decided`/`expired`/422, publishes message, conversation and `approval` events). `rules.ts` returns `approvers` (identity `listTeam`); the inbox sidebar's `approval` and hand-back's `hasPendingApproval` use approvals `pendingApprovalOf`.
 - FEAT-008: `apps/api/src/account.ts` (`registerAccountRoutes`: `/me/account`, `/me/profile`, `/me/email-change`, `/me/sessions`, public `/email-change/confirm`; all `authFrom`, so they work without a workspace).
 
 ### Dashboard
