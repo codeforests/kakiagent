@@ -2046,6 +2046,19 @@ export const suggestions = pgTable(
 export const CONSENT_PURPOSES = ['enquiry', 'marketing'] as const;
 export const CONSENT_DECISIONS = ['agreed', 'declined'] as const;
 export const LEAD_STATUSES = ['new', 'contacted', 'won', 'lost'] as const;
+/** Lead score bands (LED-03; FEAT-050 §5.1, D2). */
+export const LEAD_SCORES = ['hot', 'warm', 'cold'] as const;
+/** Why a lead scored as it did (FEAT-050 §5.1); stored in `leads.score_reasons`. */
+export const SCORE_REASON_CODES = [
+  'keyword',
+  'budget_met',
+  'budget_below',
+  'wants_to_order',
+  'both_contacts',
+  'need_given',
+  'timing_given',
+  'returning',
+] as const;
 
 /**
  * A person who left their details (ADR-015: personal data lives only in contact-keyed
@@ -2149,6 +2162,19 @@ export const leads = pgTable(
     budget: text('budget'),
     preferredTime: text('preferred_time'),
     captures: integer('captures').notNull().default(1),
+    /** FEAT-050 §4: the score, its points and reasons, all set or all null (not scored yet). */
+    score: text('score', { enum: LEAD_SCORES }),
+    scorePoints: integer('score_points'),
+    scoreReasons:
+      jsonb('score_reasons').$type<
+        { code: (typeof SCORE_REASON_CODES)[number]; points: number; detail: string | null }[]
+      >(),
+    scoredAt: timestamp('scored_at', { withTimezone: true }),
+    /** Set once the hot-lead alert was written (D3: one alert per lead, ever). */
+    hotAlertedAt: timestamp('hot_alerted_at', { withTimezone: true }),
+    /** Compare-and-set for status changes (D4). */
+    version: integer('version').notNull().default(1),
+    statusChangedAt: timestamp('status_changed_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -2175,8 +2201,20 @@ export const leads = pgTable(
       .where(sql`${t.status} in ('new', 'contacted')`),
     index('leads_conversation_idx').on(t.tenantId, t.conversationId),
     index('leads_tenant_updated_idx').on(t.tenantId, t.updatedAt.desc()),
+    /** The leads list (FEAT-050 §5.3): status tab, newest first, keyset on (updated_at, id). */
+    index('leads_tenant_status_updated_idx').on(t.tenantId, t.status, t.updatedAt.desc(), t.id),
     check('leads_status_ck', sql`${t.status} in (${inList(LEAD_STATUSES)})`),
     check('leads_captures_ck', sql`${t.captures} >= 1`),
+    check('leads_score_ck', sql`${t.score} is null or ${t.score} in (${inList(LEAD_SCORES)})`),
+    check(
+      'leads_score_reasons_ck',
+      sql`${t.scoreReasons} is null or jsonb_typeof(${t.scoreReasons}) = 'array'`,
+    ),
+    check(
+      'leads_scored_ck',
+      sql`(${t.score} is null and ${t.scorePoints} is null and ${t.scoreReasons} is null and ${t.scoredAt} is null) or (${t.score} is not null and ${t.scorePoints} is not null and ${t.scoreReasons} is not null and ${t.scoredAt} is not null)`,
+    ),
+    check('leads_version_ck', sql`${t.version} >= 1`),
     check(
       'leads_text_ck',
       sql`(${t.need} is null or char_length(${t.need}) <= 1000) and (${t.budget} is null or char_length(${t.budget}) <= 120) and (${t.preferredTime} is null or char_length(${t.preferredTime}) <= 120)`,
@@ -2195,6 +2233,11 @@ export const leadSettings = pgTable(
     fields: jsonb('fields').$type<{ key: string; mode: string }[]>().notNull(),
     marketingEnabled: boolean('marketing_enabled').notNull().default(false),
     marketingWordingId: uuid('marketing_wording_id'),
+    /** Owner-set scoring criteria (LED-03; FEAT-050 §4, D2). */
+    qualification: jsonb('qualification')
+      .$type<{ keywords: string[]; minBudget: number | null }>()
+      .notNull()
+      .default({ keywords: [], minBudget: null }),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -2204,6 +2247,7 @@ export const leadSettings = pgTable(
       foreignColumns: [wordingVersions.tenantId, wordingVersions.id],
     }),
     check('lead_settings_fields_ck', sql`jsonb_typeof(${t.fields}) = 'array'`),
+    check('lead_settings_qualification_ck', sql`jsonb_typeof(${t.qualification}) = 'object'`),
     check(
       'lead_settings_marketing_ck',
       sql`not ${t.marketingEnabled} or ${t.marketingWordingId} is not null`,

@@ -4370,3 +4370,131 @@ describe('used_link_nonces and magic_links.approval_link (FEAT-056)', () => {
     await owner.query(`delete from sessions where id = $1`, [session]);
   });
 });
+
+describe('lead scoring and status (FEAT-050)', () => {
+  const lead = async (t: string, email: string) => {
+    const conversationId = (
+      await owner.query<{ id: string }>(
+        `insert into conversations (tenant_id, channel, visitor_id) values ($1, 'widget', gen_random_uuid()) returning id`,
+        [t],
+      )
+    ).rows[0]!.id;
+    const wordingId = (
+      await owner.query<{ id: string }>(
+        `insert into wording_versions (tenant_id, kind, seq, content)
+         values ($1, 'purpose_statement', coalesce((select max(seq) from wording_versions where tenant_id = $1 and kind = 'purpose_statement'), 0) + 1, '{"en":"To reply."}') returning id`,
+        [t],
+      )
+    ).rows[0]!.id;
+    const contactId = (
+      await owner.query<{ id: string }>(
+        `insert into contacts (tenant_id, name, email) values ($1, 'Mei', $2) returning id`,
+        [t, email],
+      )
+    ).rows[0]!.id;
+    const consentId = (
+      await owner.query<{ id: string }>(
+        `insert into consents (tenant_id, contact_id, conversation_id, purpose, decision, wording_id, channel)
+         values ($1, $2, $3, 'enquiry', 'agreed', $4, 'widget') returning id`,
+        [t, contactId, conversationId, wordingId],
+      )
+    ).rows[0]!.id;
+    return (
+      await owner.query<{ id: string }>(
+        `insert into leads (tenant_id, contact_id, consent_id, conversation_id) values ($1, $2, $3, $4) returning id`,
+        [t, contactId, consentId, conversationId],
+      )
+    ).rows[0]!.id;
+  };
+  const score = `score = 'hot', score_points = 5, score_reasons = '[]', scored_at = now()`;
+
+  afterAll(async () => {
+    await owner.query(`delete from leads`);
+    await owner.query(`delete from consents`);
+    await owner.query(`delete from contacts`);
+    await owner.query(`delete from lead_settings`);
+  });
+
+  it('the visitor zone sets the score columns but never status or version', async () => {
+    const id = await lead(TENANT_A, 'score.visitor@a.test');
+    const n = await asRole(
+      'app_agent_visitor',
+      TENANT_A,
+      async (c) =>
+        (await c.query(`update leads set ${score}, hot_alerted_at = now() where id = $1`, [id]))
+          .rowCount,
+    );
+    expect(n).toBe(1);
+    for (const sql of [
+      `update leads set status = 'contacted'`,
+      `update leads set version = 2`,
+      `update leads set status_changed_at = now()`,
+      `update lead_settings set qualification = '{}'`,
+    ])
+      await expect(asRole('app_agent_visitor', TENANT_A, (c) => c.query(sql))).rejects.toThrow(
+        /permission denied/,
+      );
+  });
+
+  it('the dashboard zone moves status and rescores but never touches captured fields', async () => {
+    const id = await lead(TENANT_A, 'score.dashboard@a.test');
+    const n = await asRole(
+      'app_dashboard',
+      TENANT_A,
+      async (c) =>
+        (
+          await c.query(
+            `update leads set status = 'contacted', version = version + 1, status_changed_at = now(),
+               updated_at = now(), ${score} where id = $1`,
+            [id],
+          )
+        ).rowCount,
+    );
+    expect(n).toBe(1);
+    for (const sql of [
+      `update leads set need = 'x'`,
+      `update leads set contact_id = contact_id`,
+      `update leads set hot_alerted_at = now()`,
+      `delete from leads`,
+    ])
+      await expect(asRole('app_dashboard', TENANT_A, (c) => c.query(sql))).rejects.toThrow(
+        /permission denied/,
+      );
+  });
+
+  it('a half-set score and a non-object qualification are refused', async () => {
+    const id = await lead(TENANT_A, 'score.check@a.test');
+    await expect(owner.query(`update leads set score = 'hot' where id = $1`, [id])).rejects.toThrow(
+      /leads_scored_ck/,
+    );
+    await expect(
+      owner.query(`update leads set ${score.replace("'hot'", "'boiling'")} where id = $1`, [id]),
+    ).rejects.toThrow(/leads_score_ck/);
+    await expect(
+      owner.query(
+        `insert into lead_settings (tenant_id, fields, qualification) values ($1, '[]', '[]')`,
+        [TENANT_A],
+      ),
+    ).rejects.toThrow(/lead_settings_qualification_ck/);
+  });
+
+  it("tenant B can't score or move tenant A's lead", async () => {
+    const id = await lead(TENANT_A, 'score.cross@a.test');
+    const counts = {
+      visitor: await asRole(
+        'app_agent_visitor',
+        TENANT_B,
+        async (c) => (await c.query(`update leads set ${score} where id = $1`, [id])).rowCount,
+      ),
+      dashboard: await asRole(
+        'app_dashboard',
+        TENANT_B,
+        async (c) =>
+          (await c.query(`update leads set status = 'won', ${score} where id = $1`, [id])).rowCount,
+      ),
+    };
+    expect(counts).toEqual({ visitor: 0, dashboard: 0 });
+    const { rows } = await owner.query(`select status, score from leads where id = $1`, [id]);
+    expect(rows[0]).toEqual({ status: 'new', score: null });
+  });
+});
