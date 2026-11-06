@@ -321,6 +321,11 @@
             "state": "approval sidebar and dividers",
             "strategy": "code-native",
             "source": "features/FEAT-055-approvals/ui-design.md#scr-app-014--inbox-partial"
+          },
+          {
+            "state": "lead score and Open lead link",
+            "strategy": "code-native",
+            "source": "features/FEAT-050-leads-pipeline/ui-design.md#scr-app-014--inbox-partial"
           }
         ]
       },
@@ -2039,10 +2044,15 @@
           "marketing off"
         ],
         "gaps": [
-          "Qualification criteria (FEAT-050)",
           "Outbound webhooks, plan-locked (FEAT-053)"
         ],
-        "supplements": []
+        "supplements": [
+          {
+            "state": "qualification criteria",
+            "strategy": "code-native",
+            "source": "features/FEAT-050-leads-pipeline/ui-design.md#scr-app-043--leads-and-consent-partial-qualification-card"
+          }
+        ]
       },
       "contract_bindings": [
         "GET /api/v1/settings/leads",
@@ -2146,6 +2156,82 @@
       },
       "status": "designed",
       "designed_at": "2026-11-05"
+    },
+    "SCR-APP-032": {
+      "name": "Leads",
+      "surface": "APP",
+      "feature": "FEAT-050",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-050-leads-pipeline/ui-design.md#scr-app-032--leads"
+      },
+      "states": {
+        "covered": [
+          "loading",
+          "empty",
+          "filtered-empty",
+          "error",
+          "populated",
+          "load more",
+          "status tabs",
+          "score filter",
+          "exporting",
+          "export too many",
+          "export failed",
+          "permission (Agent: no export)"
+        ],
+        "gaps": [],
+        "supplements": []
+      },
+      "contract_bindings": [
+        "GET /api/v1/leads",
+        "POST /api/v1/leads/export"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-11-06"
+    },
+    "SCR-APP-033": {
+      "name": "Lead",
+      "surface": "APP",
+      "feature": "FEAT-050",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-050-leads-pipeline/ui-design.md#scr-app-033--lead"
+      },
+      "states": {
+        "covered": [
+          "loading",
+          "not found",
+          "error",
+          "populated",
+          "not scored",
+          "saving status",
+          "stale (409)",
+          "open lead exists (409)",
+          "permission (Agent: view)",
+          "contact form (no conversation)"
+        ],
+        "gaps": [
+          "Consent withdrawn (FEAT-051)"
+        ],
+        "supplements": []
+      },
+      "contract_bindings": [
+        "GET /api/v1/leads/:id",
+        "POST /api/v1/leads/:id/status"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-11-06"
     }
   }
 }
