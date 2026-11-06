@@ -51,8 +51,16 @@ const footerHtml = (ctx: EmailContext) =>
   `<p><small>You get this because of your ` +
   `<a href="${escapeHtml(ctx.settingsLink)}">notification settings</a> for ${escapeHtml(ctx.businessName)}.</small></p>`;
 
-const button = (link: string) =>
-  `<p><a href="${escapeHtml(link)}"><strong>Open in KakiAgent</strong></a></p>`;
+/** `approval_pending` carries a signed single-use link (FEAT-056 §5.2), so it says so. */
+export const APPROVAL_LINK_NOTE = "This link works once, for 24 hours. You'll be asked to sign in.";
+const buttonText = (kind: NotificationKind) =>
+  kind === 'approval_pending' ? 'Review and approve' : 'Open in KakiAgent';
+
+const button = (item: AlertItem) =>
+  `<p><a href="${escapeHtml(item.link)}"><strong>${buttonText(item.kind)}</strong></a></p>` +
+  (item.kind === 'approval_pending'
+    ? `<p><small>${escapeHtml(APPROVAL_LINK_NOTE)}</small></p>`
+    : '');
 
 export function alertSubject(kind: NotificationKind, urgent: boolean, businessName: string) {
   return `${urgent ? 'Urgent: ' : ''}[${businessName}] ${SUBJECT[kind]}`;
@@ -63,8 +71,11 @@ export function alertEmail(item: AlertItem, ctx: EmailContext): Email {
   return {
     to: ctx.to,
     subject: alertSubject(item.kind, item.urgent, ctx.businessName),
-    text: `${line}\n\nOpen in KakiAgent: ${item.link}\n\n${footerText(ctx)}\n`,
-    html: `<p>${escapeHtml(line)}</p>${button(item.link)}${footerHtml(ctx)}`,
+    text:
+      `${line}\n\n${buttonText(item.kind)}: ${item.link}\n` +
+      (item.kind === 'approval_pending' ? `${APPROVAL_LINK_NOTE}\n` : '') +
+      `\n${footerText(ctx)}\n`,
+    html: `<p>${escapeHtml(line)}</p>${button(item)}${footerHtml(ctx)}`,
   };
 }
 
@@ -75,18 +86,22 @@ export function digestEmail(items: AlertItem[], ctx: EmailContext): Email {
   const intro = `${n} ${n === 1 ? 'alert' : 'alerts'} came in while your quiet hours were on.`;
   const label = (i: AlertItem) =>
     `${sgTimeOfDay(i.at)}: ${i.urgent ? 'Urgent: ' : ''}${LINE[i.kind]}`;
+  const note = sorted.some((i) => i.kind === 'approval_pending');
   return {
     to: ctx.to,
     subject: `[${ctx.businessName}] ${n} ${n === 1 ? 'alert' : 'alerts'} while your quiet hours were on`,
     text:
       `${intro}\n\n` +
       sorted.map((i) => `- ${label(i)} ${i.link}`).join('\n') +
+      (note ? `\n\nApproval links: ${APPROVAL_LINK_NOTE}` : '') +
       `\n\n${footerText(ctx)}\n`,
     html:
       `<p>${escapeHtml(intro)}</p><ul>` +
       sorted
         .map((i) => `<li>${escapeHtml(label(i))} <a href="${escapeHtml(i.link)}">Open</a></li>`)
         .join('') +
-      `</ul>${footerHtml(ctx)}`,
+      `</ul>` +
+      (note ? `<p><small>Approval links: ${escapeHtml(APPROVAL_LINK_NOTE)}</small></p>` : '') +
+      footerHtml(ctx),
   };
 }

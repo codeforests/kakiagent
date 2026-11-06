@@ -9,6 +9,7 @@ import {
   Me,
   type SessionEndedEvent,
 } from '@kaki/contracts';
+import { approvalLinkKey, readApprovalLink } from '@kaki/approvals';
 import { eq, schema, withTenant } from '@kaki/db';
 import {
   authenticate,
@@ -103,7 +104,15 @@ const GOOGLE_NEXT = {
   'create-workspace': '/welcome',
 } as const;
 
-/** The only `next` the Google start accepts (FEAT-007 §3): back to the invitation page. */
+/** Back to the approval link's landing (FEAT-056 §3), after two-step when it is owed. */
+const APPROVE_NEXT = {
+  mfa: '/two-step?next=%2Fapprove',
+  'mfa-enrol': '/two-step/setup?next=%2Fapprove',
+  app: '/approve',
+  'create-workspace': '/approve',
+} as const;
+
+/** The `next` values the Google start accepts: the invitation page or the approval landing. */
 const OAUTH_NEXT_COOKIE = 'kaki_oauth_next';
 
 /**
@@ -115,6 +124,7 @@ export function registerAuth(app: App, deps: Deps) {
   const { config, identityDb, dashboardDb, mailer, rateLimiter, google, publisher } = deps;
   const appOrigin = new URL(config.PUBLIC_APP_URL).origin;
   const secure = config.COOKIE_SECURE === 'true';
+  const approvalKey = approvalLinkKey(config.MAGIC_LINK_SECRET);
   const links: MagicLinkConfig = {
     secret: config.MAGIC_LINK_SECRET,
     appUrl: config.PUBLIC_APP_URL,
@@ -175,7 +185,16 @@ export function registerAuth(app: App, deps: Deps) {
   );
 
   app.post('/api/v1/auth/magic-link', async (req, reply) => {
-    const { email, invitation } = MagicLinkRequest.parse(req.body);
+    const { email, invitation, approvalLink } = MagicLinkRequest.parse(req.body);
+    // The landing sends its approval link's token (FEAT-056 D1); only a signed one rides along,
+    // and never with an invitation. Expiry is ignored: the landing already refused an expired one.
+    if (approvalLink !== undefined) {
+      const read = readApprovalLink(approvalKey, approvalLink, new Date());
+      if (invitation !== undefined || (!read.ok && read.error === 'link_invalid'))
+        return reply
+          .code(400)
+          .send({ error: 'link_invalid', message: "This approval link isn't valid." });
+    }
     // Counted per request, so the answer is the same for registered and unknown addresses.
     let allowed: boolean;
     try {
@@ -191,7 +210,7 @@ export function registerAuth(app: App, deps: Deps) {
     if (!allowed) throw new RateLimitedError();
     let link: { id: string };
     try {
-      link = await requestMagicLink(identityDb, links, email, undefined, invitation);
+      link = await requestMagicLink(identityDb, links, email, undefined, invitation, approvalLink);
     } catch (err) {
       // The page sends only the invited address, so this is a bug or tampering: 400 (§3).
       if (err instanceof InvitationError)
@@ -215,8 +234,12 @@ export function registerAuth(app: App, deps: Deps) {
       current.ok ? current.auth.sessionId : null,
       req.headers['user-agent'],
     );
-    if (result.next !== 'reauthed') setSession(reply, result.token);
-    return MagicLinkVerifyResponse.parse({ next: result.next });
+    if (result.next === 'reauthed') return MagicLinkVerifyResponse.parse({ next: result.next });
+    setSession(reply, result.token);
+    return MagicLinkVerifyResponse.parse({
+      next: result.next,
+      ...(result.approvalLink ? { approvalLink: result.approvalLink } : {}),
+    });
   });
 
   app.get('/api/v1/auth/google/start', async (req, reply) => {
@@ -229,9 +252,11 @@ export function registerAuth(app: App, deps: Deps) {
       secure,
       maxAge: OAUTH_COOKIE_TTL_S,
     } as const;
-    // `next` is allow-listed: only `invite` (FEAT-007 D4); anything else is ignored.
+    // `next` is allow-listed: `invite` (FEAT-007 D4) and `approve` (FEAT-056 §3); anything
+    // else is ignored.
     const next = (req.query as { next?: unknown }).next;
-    if (next === 'invite') reply.setCookie(OAUTH_NEXT_COOKIE, 'invite', oauthCookie);
+    if (next === 'invite' || next === 'approve')
+      reply.setCookie(OAUTH_NEXT_COOKIE, next, oauthCookie);
     else reply.clearCookie(OAUTH_NEXT_COOKIE, { path: '/api/v1/auth/google' });
     return reply.setCookie(OAUTH_COOKIE, cookie, oauthCookie).redirect(url, 302);
   });
@@ -239,14 +264,18 @@ export function registerAuth(app: App, deps: Deps) {
   app.get('/api/v1/auth/google/callback', async (req, reply) => {
     if (!google) return reply.code(404).send({ error: 'not_found', message: 'Not found' });
     reply.clearCookie(OAUTH_COOKIE, { path: '/api/v1/auth/google' });
-    const toInvite = req.cookies[OAUTH_NEXT_COOKIE] === 'invite';
-    if (toInvite) reply.clearCookie(OAUTH_NEXT_COOKIE, { path: '/api/v1/auth/google' });
+    const back = req.cookies[OAUTH_NEXT_COOKIE];
+    const toInvite = back === 'invite';
+    const toApprove = back === 'approve';
+    if (toInvite || toApprove)
+      reply.clearCookie(OAUTH_NEXT_COOKIE, { path: '/api/v1/auth/google' });
     try {
       const who = await google.finish(new URL(req.url, appOrigin), req.cookies[OAUTH_COOKIE]);
       const signedIn = await signInWithGoogle(identityDb, who, req.headers['user-agent']);
       setSession(reply, signedIn.token);
       // Back to the invitation, which joins (FEAT-007 D4); two-step comes first if owed.
       const invite = toInvite && (signedIn.next === 'app' || signedIn.next === 'create-workspace');
+      if (toApprove) return reply.redirect(APPROVE_NEXT[signedIn.next], 302);
       return reply.redirect(invite ? '/invite' : GOOGLE_NEXT[signedIn.next], 302);
     } catch (err) {
       req.log.warn({ err }, 'google sign-in refused');

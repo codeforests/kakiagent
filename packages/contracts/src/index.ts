@@ -354,6 +354,8 @@ export const MagicLinkRequest = z.object({
   email: z.string().trim().toLowerCase().max(254).pipe(z.email()),
   /** An invitation token from SCR-APP-004: the link then joins it on verify (FEAT-007 D4). */
   invitation: z.string().max(100).optional(),
+  /** An approval link's token from the `/approve` landing: verify hands it back (FEAT-056 D1). */
+  approvalLink: z.string().max(1000).optional(),
 });
 /** The same for every well-formed address (AUTH-01); `delayed` when email is slow (UC-01 2c). */
 export const MagicLinkResponse = z.object({ delayed: z.boolean() });
@@ -365,6 +367,8 @@ export const MagicLinkVerifyBody = z.object({ token: z.string().max(100) });
  */
 export const MagicLinkVerifyResponse = z.object({
   next: z.enum(['app', 'create-workspace', 'mfa', 'mfa-enrol', 'reauthed']),
+  /** Only for a sign-in link requested from an approval link's landing (FEAT-056 D1). */
+  approvalLink: z.string().optional(),
 });
 export type MagicLinkVerifyResponse = z.infer<typeof MagicLinkVerifyResponse>;
 
@@ -3149,3 +3153,33 @@ export const AlreadyDecided = z.object({
   approval: ApprovalDetail,
 });
 export type AlreadyDecided = z.infer<typeof AlreadyDecided>;
+
+// ---- Approval links (APR-03; FEAT-056 §3) ----------------------------------------------
+
+/** `POST /api/v1/approval-links/open`. The token is `@kaki/approvals`' format (FEAT-056 §3). */
+export const ApprovalLinkBody = z.object({ token: z.string().min(1).max(1000) });
+export type ApprovalLinkBody = z.infer<typeof ApprovalLinkBody>;
+
+/** Not signed in, or two-step owed, is a state, never a 401 (the dashboard routes 401s itself). */
+export const ApprovalLinkOpened = z.discriminatedUnion('state', [
+  z.object({ state: z.literal('opened'), approvalId: z.uuid(), switched: z.boolean() }),
+  z.object({ state: z.literal('sign_in') }),
+  z.object({ state: z.literal('two_step') }),
+  z.object({ state: z.literal('two_step_setup') }),
+]);
+export type ApprovalLinkOpened = z.infer<typeof ApprovalLinkOpened>;
+
+/** Error codes of the open route, with their HTTP status. */
+export const APPROVAL_LINK_ERRORS = {
+  /** Malformed, bad signature or unknown version. */
+  link_invalid: 400,
+  /** Past its expiry (checked before sign-in, D6). */
+  link_expired: 410,
+  /** The nonce was already consumed (also the loser of a race). */
+  link_used: 409,
+  /** Signed in as someone other than the link's recipient (D7: nothing consumed). */
+  wrong_account: 403,
+  /** The recipient is no longer an active member of that business. */
+  not_member: 403,
+} as const;
+export type ApprovalLinkError = keyof typeof APPROVAL_LINK_ERRORS;

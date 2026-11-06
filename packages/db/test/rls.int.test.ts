@@ -3,6 +3,7 @@
  * table must have forced RLS, a policy, and an entry in TENANT_SCOPED_TABLES; tenant
  * B's context can never read or write tenant A's rows, even with hand-written SQL.
  */
+import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -4261,5 +4262,111 @@ describe('approvals (FEAT-055)', () => {
       return [await count(waiting), await count(idle)];
     });
     expect(n).toEqual([0, 1]);
+  });
+});
+
+// ---- FEAT-056: approval links (FEAT-056 §4; AC-8) ----------------------------------------
+describe('used_link_nonces and magic_links.approval_link (FEAT-056)', () => {
+  const approvalIn = async (t: string) => {
+    const conv = (
+      await owner.query<{ id: string }>(
+        `insert into conversations (tenant_id, channel, visitor_id, status, last_message_at)
+         values ($1, 'widget', gen_random_uuid(), 'waiting_approval', now()) returning id`,
+        [t],
+      )
+    ).rows[0]!.id;
+    return (
+      await owner.query<{ id: string }>(
+        `insert into approvals (tenant_id, conversation_id, kind, request, draft, prices, sla_due_at, expires_at)
+         values ($1, $2, 'quote', '{}', '{}', '[]', now() + interval '2 hours', now() + interval '7 days') returning id`,
+        [t, conv],
+      )
+    ).rows[0]!.id;
+  };
+  const use = (c: pg.Client, t: string, approvalId: string, nonce: string) =>
+    c.query(
+      `insert into used_link_nonces (tenant_id, nonce, approval_id, user_id, expires_at)
+       values ($1, $2, $3, gen_random_uuid(), now() + interval '1 day')`,
+      [t, nonce, approvalId],
+    );
+
+  afterAll(async () => {
+    await owner.query(`delete from used_link_nonces`);
+    await owner.query(`delete from approvals`);
+  });
+
+  it("tenant B can't see or insert tenant A's used nonces; a nonce is used once", async () => {
+    const a = await approvalIn(TENANT_A);
+    await asRole('app_dashboard', TENANT_A, async (c) => {
+      await use(c, TENANT_A, a, 'nonce-cccccccccccc');
+      await expect(use(c, TENANT_A, a, 'nonce-cccccccccccc')).rejects.toThrow(
+        /used_link_nonces_tenant_id_nonce_pk/,
+      );
+    });
+    await use(owner, TENANT_A, a, 'nonce-aaaaaaaaaaaa');
+    const seen = await asRole(
+      'app_dashboard',
+      TENANT_B,
+      async (c) => (await c.query(`select nonce from used_link_nonces`)).rows,
+    );
+    expect(seen).toEqual([]);
+    const none = await asRole(
+      'app_dashboard',
+      null,
+      async (c) => (await c.query(`select nonce from used_link_nonces`)).rows,
+    );
+    expect(none).toEqual([]);
+    await expect(
+      asRole('app_dashboard', TENANT_B, (c) => use(c, TENANT_A, a, 'nonce-bbbbbbbbbbbb')),
+    ).rejects.toThrow(/row-level security|violates/);
+    const own = await asRole(
+      'app_dashboard',
+      TENANT_A,
+      async (c) => (await c.query(`select nonce from used_link_nonces`)).rows,
+    );
+    expect(own).toEqual([{ nonce: 'nonce-aaaaaaaaaaaa' }]);
+    await expect(
+      asRole('app_dashboard', TENANT_A, (c) => use(c, TENANT_A, a, 'short')),
+    ).rejects.toThrow(/used_link_nonces_nonce_ck/);
+    const deleted = await asRole('app_dashboard', TENANT_B, (c) =>
+      c.query(`delete from used_link_nonces`),
+    );
+    expect(deleted.rowCount).toBe(0);
+  });
+
+  it('only the dashboard zone touches used nonces', async () => {
+    for (const role of ['app_agent_visitor', 'app_outbox'] as const) {
+      await expect(
+        asRole(role, TENANT_A, (c) => c.query(`select nonce from used_link_nonces`)),
+      ).rejects.toThrow(/permission denied/);
+    }
+    await expect(
+      asRole('app_dashboard', TENANT_A, (c) =>
+        c.query(`update used_link_nonces set used_at = now()`),
+      ),
+    ).rejects.toThrow(/permission denied/);
+  });
+
+  it('an approval link rides only on a sign-in link without an invitation', async () => {
+    const s = await owner.query<{ id: string }>(
+      `insert into sessions (user_id, token_hash, auth_method, expires_at)
+       select id, sha256(random()::text::bytea), 'magic_link', now() + interval '1 day'
+         from users limit 1 returning id`,
+    );
+    const session = s.rows[0]!.id;
+    const link = (purpose: string, invitation: string | null, approvalLink: string | null) =>
+      owner.query(
+        `insert into magic_links (email, token_hash, expires_at, purpose, session_id, invitation_id, approval_link)
+         values ('x@y.test', sha256(random()::text::bytea), now() + interval '15 minutes', $1, $2, $3, $4)
+         returning id`,
+        [purpose, purpose === 'reauth' ? session : null, invitation, approvalLink],
+      );
+    await expect(link('reauth', null, 'tok')).rejects.toThrow(/magic_links_approval_link_ck/);
+    await expect(link('sign_in', randomUUID(), 'tok')).rejects.toThrow(
+      /magic_links_approval_link_ck/,
+    );
+    const ok = await link('sign_in', null, 'tok');
+    await owner.query(`delete from magic_links where id = $1`, [ok.rows[0].id]);
+    await owner.query(`delete from sessions where id = $1`, [session]);
   });
 });

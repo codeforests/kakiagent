@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { linkFor, settingsLink } from './links.js';
+import { alertLink, linkFor, settingsLink } from './links.js';
 import { muteEvent } from './kinds.js';
-import { alertEmail, digestEmail, type AlertItem } from './templates.js';
+import { APPROVAL_LINK_NOTE, alertEmail, digestEmail, type AlertItem } from './templates.js';
 
 const ctx = {
   to: 'owner@kaki-bakery.test',
@@ -88,5 +88,48 @@ describe('links', () => {
     );
     expect(linkFor('hot_lead', s, 'https://app.test')).toBe('https://app.test/leads/x1');
     expect(linkFor('test', s, 'https://app.test')).toBe('https://app.test/account/notifications');
+  });
+
+  it('an injected linkOf goes first; null falls back to the dashboard page (FEAT-056)', () => {
+    const it0 = {
+      tenantId: 't1',
+      userId: 'u1',
+      kind: 'approval_pending' as const,
+      subject: { type: 'approval' as const, id: 'a1' },
+    };
+    expect(alertLink(() => 'https://app.test/approve#token=x', it0, 'https://app.test')).toBe(
+      'https://app.test/approve#token=x',
+    );
+    expect(alertLink(() => null, it0, 'https://app.test')).toBe('https://app.test/approvals/a1');
+    expect(alertLink(undefined, it0, 'https://app.test')).toBe('https://app.test/approvals/a1');
+  });
+});
+
+describe('approval link copy (FEAT-056 §5.2)', () => {
+  const approval = item({ kind: 'approval_pending', link: 'https://app.test/approve#token=t' });
+
+  it('approval_pending says "Review and approve" and that the link works once, for 24 hours', () => {
+    const e = alertEmail(approval, ctx);
+    expect(e.text).toContain('Review and approve: https://app.test/approve#token=t');
+    expect(e.text).toContain(APPROVAL_LINK_NOTE);
+    expect(e.html).toContain('<strong>Review and approve</strong>');
+    expect(e.html).toContain('This link works once, for 24 hours. You&#39;ll be asked to sign in.');
+    const other = alertEmail(item(), ctx);
+    expect(other.text).toContain('Open in KakiAgent:');
+    expect(other.text).not.toContain(APPROVAL_LINK_NOTE);
+    const undeliverable = alertEmail(item({ kind: 'approval_undeliverable' }), ctx);
+    expect(undeliverable.html).toContain('Open in KakiAgent');
+    expect(undeliverable.text).not.toContain(APPROVAL_LINK_NOTE);
+  });
+
+  it('a digest says it once, under the list, only when an item is an approval', () => {
+    const d = digestEmail(
+      [approval, item(), { ...approval, link: 'https://app.test/approve#token=u' }],
+      ctx,
+    );
+    expect(d.text.split(APPROVAL_LINK_NOTE)).toHaveLength(2);
+    expect(d.text.indexOf(APPROVAL_LINK_NOTE)).toBeGreaterThan(d.text.lastIndexOf('- '));
+    expect(d.html.split('This link works once')).toHaveLength(2);
+    expect(digestEmail([item()], ctx).text).not.toContain(APPROVAL_LINK_NOTE);
   });
 });

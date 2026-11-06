@@ -62,6 +62,7 @@ import {
   type InboxView,
   CreateWorkspaceResponse,
   MagicLinkResponse,
+  ApprovalLinkOpened,
   MagicLinkVerifyResponse,
   MfaEnrolmentStart,
   MfaStatus,
@@ -204,12 +205,19 @@ function query(params: Record<string, string | number | undefined>) {
 export const api = {
   me: () => getJson('/api/v1/me', Me),
   authOptions: () => getJson('/api/v1/auth/options', AuthOptions),
-  /** `invitation`: the invite token, so the link also joins (FEAT-007 §3, SCR-APP-004). */
-  requestMagicLink: (email: string, invitation?: string) =>
+  /**
+   * `invitation`: the invite token, so the link also joins (FEAT-007 §3, SCR-APP-004).
+   * `approvalLink`: the approval link's token, handed back on verify (FEAT-056 D1).
+   */
+  requestMagicLink: (email: string, invitation?: string, approvalLink?: string) =>
     request('POST', '/api/v1/auth/magic-link', MagicLinkResponse, {
       email,
       ...(invitation ? { invitation } : {}),
+      ...(approvalLink ? { approvalLink } : {}),
     }),
+  /** A signed approval link (FEAT-056 §3): never a 401, sign-in is a state. */
+  openApprovalLink: (token: string) =>
+    request('POST', '/api/v1/approval-links/open', ApprovalLinkOpened, { token }),
   verifyMagicLink: (token: string) =>
     request('POST', '/api/v1/auth/magic-link/verify', MagicLinkVerifyResponse, { token }),
   signOut: async () => void (await send('POST', '/api/v1/auth/sign-out')),

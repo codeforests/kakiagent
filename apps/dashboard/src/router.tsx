@@ -7,6 +7,7 @@ import { AssistantPage } from './pages/assistant.tsx';
 import { BusinessProfilePage, SetupProfilePage } from './pages/business-profile.tsx';
 import { AddWebsitePage, SetupSourcesPage } from './pages/add-website.tsx';
 import { InvitePage } from './pages/invite.tsx';
+import { ApprovalLinkPage } from './pages/approval-link.tsx';
 import { Placeholder } from './pages/placeholder.tsx';
 import { CoachPage, SetupTestPage } from './pages/coach.tsx';
 import { ConflictsPage } from './pages/conflicts.tsx';
@@ -55,6 +56,8 @@ export const router = createBrowserRouter([
   { path: '/session-expired', element: <SessionExpired /> },
   // Accept an invitation (FEAT-007, SCR-APP-004): signed in or not.
   { path: '/invite', element: <InvitePage /> },
+  // FEAT-056: the signed approval link's landing, outside the shell.
+  { path: '/approve', element: <ApprovalLinkPage /> },
   // Confirm a new email address (FEAT-008, SCR-APP-055): signed in or not.
   { path: '/verify-email', element: <VerifyEmailPage /> },
   // Two-step verification (FEAT-006, SCR-APP-005): the challenge and enrolment.

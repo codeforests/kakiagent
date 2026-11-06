@@ -28,6 +28,8 @@ export async function requestMagicLink(
   rawEmail: string,
   reauthSessionId?: string,
   invitationToken?: string,
+  /** An approval link's token (FEAT-056 D1): verify hands it back. The caller checked it. */
+  approvalLink?: string,
 ): Promise<{ id: string }> {
   const id = randomUUID();
   const invitationId =
@@ -43,6 +45,7 @@ export async function requestMagicLink(
     // A re-auth link confirms one session (FEAT-006 §5.2), with the same limits and expiry.
     ...(reauthSessionId ? { purpose: 'reauth' as const, sessionId: reauthSessionId } : {}),
     ...(invitationId ? { invitationId } : {}),
+    ...(approvalLink && !reauthSessionId && !invitationId ? { approvalLink } : {}),
   });
   return { id };
 }
@@ -146,19 +149,22 @@ export interface Reauthed {
  * anywhere else it is `link_other_session` and stays unclaimed, so the right browser can
  * still use it.
  */
-export async function consumeMagicLink(idDb: ZoneDb, token: unknown): Promise<SignedIn>;
+/** A sign-in link requested from an approval link's landing carries its token (FEAT-056 D1). */
+export type SignedInByLink = SignedIn & { approvalLink?: string };
+
+export async function consumeMagicLink(idDb: ZoneDb, token: unknown): Promise<SignedInByLink>;
 export async function consumeMagicLink(
   idDb: ZoneDb,
   token: unknown,
   currentSessionId: string | null,
   userAgent?: string,
-): Promise<SignedIn | Reauthed>;
+): Promise<SignedInByLink | Reauthed>;
 export async function consumeMagicLink(
   idDb: ZoneDb,
   token: unknown,
   currentSessionId: string | null = null,
   userAgent?: string,
-): Promise<SignedIn | Reauthed> {
+): Promise<SignedInByLink | Reauthed> {
   if (!isTokenShaped(token)) throw new LinkError('link_invalid');
   const h = hashToken(token);
   return idDb.db.transaction(async (tx) => {
@@ -166,7 +172,10 @@ export async function consumeMagicLink(
       purpose: LinkPurpose;
       session_id: string | null;
       invitation_id: string | null;
-    }>(sql`select purpose, session_id, invitation_id from magic_links where token_hash = ${h}`);
+      approval_link: string | null;
+    }>(
+      sql`select purpose, session_id, invitation_id, approval_link from magic_links where token_hash = ${h}`,
+    );
     const link = found.rows[0];
     if (link?.purpose === 'reauth' && link.session_id !== currentSessionId)
       throw new LinkError('link_other_session');
@@ -212,6 +221,7 @@ export async function consumeMagicLink(
           throw e;
         });
     }
-    return startSession(tx, user.id, 'magic_link', joined, userAgent);
+    const signedIn = await startSession(tx, user.id, 'magic_link', joined, userAgent);
+    return link?.approval_link ? { ...signedIn, approvalLink: link.approval_link } : signedIn;
   });
 }

@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { api, ApiError } from '../lib/api.ts';
+import { afterSignIn, linkStore } from '../lib/approval-link.ts';
 import { AuthLayout, Spinner } from './auth-layout.tsx';
 import { CircleCheckIcon } from './two-step-parts.tsx';
 
@@ -43,11 +44,14 @@ export function VerifyPage() {
   const posted = useRef(false);
   const verify = useMutation({
     mutationFn: (t: string) => api.verifyMagicLink(t),
-    onSuccess: ({ next }) => {
+    onSuccess: ({ next, approvalLink }) => {
       // A re-auth link (FEAT-006): the tab that asked carries on; this one just says so.
       if (next === 'reauthed') return;
       queryClient.clear();
-      void navigate(NEXT_PATH[next], { replace: true });
+      // Asked for from an approval link's landing: back to it, in whichever browser this is
+      // (FEAT-056 D1).
+      if (approvalLink) linkStore.set(approvalLink);
+      void navigate(approvalLink ? afterSignIn(next) : NEXT_PATH[next], { replace: true });
     },
   });
 

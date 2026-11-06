@@ -1105,6 +1105,8 @@ export const magicLinks = pgTable(
     sessionId: uuid('session_id').references(() => sessions.id),
     /** A sign-in link that also joins this invitation on verify (FEAT-007 D4). No FK: tenant-scoped. */
     invitationId: uuid('invitation_id'),
+    /** A sign-in link that continues to this approval link's landing on verify (FEAT-056 D1). */
+    approvalLink: text('approval_link'),
   },
   (t) => [
     index('magic_links_unsent_idx')
@@ -1114,6 +1116,10 @@ export const magicLinks = pgTable(
     check('magic_links_purpose_ck', sql`${t.purpose} in ('sign_in', 'reauth')`),
     check('magic_links_session_ck', sql`(${t.purpose} = 'reauth') = (${t.sessionId} is not null)`),
     check('magic_links_invitation_ck', sql`${t.purpose} = 'sign_in' or ${t.invitationId} is null`),
+    check(
+      'magic_links_approval_link_ck',
+      sql`(${t.purpose} = 'sign_in' or ${t.approvalLink} is null) and (${t.invitationId} is null or ${t.approvalLink} is null)`,
+    ),
   ],
 );
 
@@ -2284,6 +2290,36 @@ export const approvals = pgTable(
   ],
 );
 
+/**
+ * The nonce of a used approval link (APR-03; FEAT-056 §4, ADR-013 §5). The token is stateless;
+ * its nonce is stored only on first use, so the primary key decides a race. Rows are deleted
+ * lazily after `expires_at` (the token's own expiry) by the next open in that tenant (D5).
+ * `user_id` has no FK into the identity zone (as `approvals.decided_by`).
+ */
+export const usedLinkNonces = pgTable(
+  'used_link_nonces',
+  {
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id),
+    nonce: text('nonce').notNull(),
+    approvalId: uuid('approval_id').notNull(),
+    userId: uuid('user_id').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    usedAt: timestamp('used_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.nonce] }),
+    foreignKey({
+      name: 'used_link_nonces_approval_fk',
+      columns: [t.tenantId, t.approvalId],
+      foreignColumns: [approvals.tenantId, approvals.id],
+    }).onDelete('cascade'),
+    index('used_link_nonces_expiry_idx').on(t.tenantId, t.expiresAt),
+    check('used_link_nonces_nonce_ck', sql`length(${t.nonce}) between 16 and 64`),
+  ],
+);
+
 /** Tables with `tenant_id` + forced RLS. The cross-tenant suite asserts this list is complete. */
 export const TENANT_SCOPED_TABLES = [
   'tenants',
@@ -2326,4 +2362,5 @@ export const TENANT_SCOPED_TABLES = [
   'leads',
   'lead_settings',
   'approvals',
+  'used_link_nonces',
 ] as const;
