@@ -18,13 +18,16 @@
 
 ## Build session 2 (UI)
 
-- [ ] T6 — Dashboard: `/approve` route outside the shell, `pages/approval-link.tsx` (every state in ui-design), `lib/approval-link.ts` (`takeLinkToken`, `linkState`, `afterSignIn`) with `lib/approval-link.test.ts`; `verify.tsx` continuation; `lib/api.ts` calls (design §5.4; ui-design SCR-APP-018 link landing; AC-4, AC-9)
+- [x] T6 — Dashboard: `/approve` route outside the shell, `pages/approval-link.tsx` (every state in ui-design), `lib/approval-link.ts` (`takeLinkToken`, `linkState`, `afterSignIn`) with `lib/approval-link.test.ts`; `verify.tsx` continuation; `lib/api.ts` calls (design §5.4; ui-design SCR-APP-018 link landing; AC-4, AC-9)
       Done when: `pnpm --filter @kaki/dashboard test` passes (`linkState` per response and error code, `afterSignIn` per `next`, `takeLinkToken` fragment-then-storage and storage throwing); `pnpm --filter @kaki/dashboard typecheck` passes; a stubbed-API Playwright check of `/approve` (routes for `/api/v1/approval-links/open` per state) logs each state's `h1` and focus target.
-- [ ] T7 — E2E `e2e/tests/approval-link.e2e.ts`: from an `approval_pending` alert in Mailpit (as `approvals.e2e.ts` raises one) open the link signed out at phone width (tall viewport), sign in by the Mailpit sign-in link, land on the approval, approve, see "Quote sent to the visitor"; open the same link again → "This link has already been used"; a tampered token → "This link isn't valid"; axe on the sign-in and used states (AC-1, AC-4, AC-5, AC-7, AC-9)
+- [x] T7 — E2E `e2e/tests/approval-link.e2e.ts`: from an `approval_pending` alert in Mailpit (as `approvals.e2e.ts` raises one) open the link signed out at phone width (tall viewport), sign in by the Mailpit sign-in link, land on the approval, approve, see "Quote sent to the visitor"; open the same link again → "This link has already been used"; a tampered token → "This link isn't valid"; axe on the sign-in and used states (AC-1, AC-4, AC-5, AC-7, AC-9)
       Done when: the spec type-checks (`pnpm --filter @kaki/e2e typecheck` or `pnpm typecheck`); it runs in the verify stage's GitHub CI (no Docker here).
       Note: E2E run tags must have no digits (fake triage reads the first number as quantity); use the per-run tag pattern from `approvals.e2e.ts`.
 - [ ] T8 — Verify: full `pnpm format:check`, `pnpm lint` (includes `check-rtm`), `pnpm typecheck`, `pnpm test`; the integration suites of db, approvals, platform, api; tick the evidence below; status `developer-done`; draft PR (AC-1–AC-9)
       Done when: `scripts/test-env.sh scripts/check-summary.sh` all PASS plus `'pnpm --filter @kaki/approvals test:coverage'`; draft PR open.
+
+T6 evidence (2026-11-06): dashboard unit 232 passed (incl. `approval-link.test.ts`), typecheck and eslint pass. Stubbed Playwright at 390 px: sign_in, check email (request body carries `approvalLink`), expired, used, invalid, wrong account, not member, can't check each show their `h1` and focus it; one open per load; `two_step` and `opened` leave `/approve`. `AuthLayout` gained `focusOnMount` (sign-in and wrong-account states mount their own layout).
+T7 evidence: `e2e/tests/approval-link.e2e.ts` type-checks; `support.ts` exports `resetSignInLimits` and `magicLinkFor(…, 'approve')`. Runs in the verify stage's GitHub CI.
 
 ## Verification evidence
 

@@ -39,7 +39,7 @@ const MAILPIT = 'http://localhost:8025/api/v1';
  * The sign-in links rate limit (AUTH-01: 5 per address, 20 per IP in 15 minutes) would
  * stop repeated local runs. Tests clear its counters; nothing else is touched.
  */
-async function resetSignInLimits() {
+export async function resetSignInLimits() {
   const valkey = new Redis(process.env.VALKEY_URL ?? 'redis://localhost:6379', {
     lazyConnect: true,
   });
@@ -52,14 +52,16 @@ async function resetSignInLimits() {
 /**
  * Waits for the newest email to `email` sent after `since` holding a link to `path`
  * (a sign-in link by default, `invite` for an invitation, FEAT-007, `verify-email` for an
- * email change, FEAT-008), and returns it.
+ * email change, FEAT-008, `approve` for an `approval_pending` alert's signed link, FEAT-056),
+ * and returns it.
  */
 export async function magicLinkFor(
   email: string,
   since: Date,
-  path: 'auth/verify' | 'invite' | 'verify-email' = 'auth/verify',
+  path: 'auth/verify' | 'invite' | 'verify-email' | 'approve' = 'auth/verify',
 ): Promise<string> {
-  const pattern = new RegExp(`https?://\\S+/${path}#token=[\\w-]+`);
+  // An approval link's token is two base64url parts joined by a dot.
+  const pattern = new RegExp(`https?://\\S+/${path}#token=[\\w.-]+`);
   for (let i = 0; i < 60; i++) {
     const query = encodeURIComponent(`to:"${email}"`);
     const list = (await (await fetch(`${MAILPIT}/search?query=${query}`)).json()) as {
