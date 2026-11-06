@@ -201,6 +201,45 @@ describe('CSV export (AC-5, AC-7)', () => {
   });
 });
 
+describe('acceptance AC-7: the export cap', () => {
+  it('above 10,000 rows is 413 too_many and writes no audit entry', async () => {
+    await owner.query(`update sessions set reauth_at = now() where user_id = $1`, [ownerId]);
+    const before = (
+      await owner.query<{ n: number }>(
+        `select count(*)::int n from audit_entries where tenant_id = $1 and event_type = 'lead.exported'`,
+        [TENANT_A],
+      )
+    ).rows[0]!.n;
+    const total = (
+      await owner.query<{ n: number }>(`select count(*)::int n from leads where tenant_id = $1`, [
+        TENANT_A,
+      ])
+    ).rows[0]!.n;
+    // Closed copies of an existing lead, so the one-open-lead rule doesn't apply.
+    await owner.query(
+      `insert into leads (tenant_id, contact_id, consent_id, status, need)
+       select tenant_id, contact_id, consent_id, 'lost', 'filler'
+         from leads, generate_series(1, $2::int)
+        where id = $1`,
+      [leadIds[0], 10_001 - total],
+    );
+    try {
+      const res = await call('POST', '/api/v1/leads/export', asA, { status: 'all' });
+      expect(res.statusCode).toBe(413);
+      expect(res.json()).toMatchObject({ error: 'too_many' });
+      const after = (
+        await owner.query<{ n: number }>(
+          `select count(*)::int n from audit_entries where tenant_id = $1 and event_type = 'lead.exported'`,
+          [TENANT_A],
+        )
+      ).rows[0]!.n;
+      expect(after).toBe(before);
+    } finally {
+      await owner.query(`delete from leads where tenant_id = $1 and need = 'filler'`, [TENANT_A]);
+    }
+  });
+});
+
 describe('qualification on lead settings (AC-1)', () => {
   it('a changed qualification returns how many open leads were rescored', async () => {
     const current = (await call('GET', '/api/v1/settings/leads', asA)).json();

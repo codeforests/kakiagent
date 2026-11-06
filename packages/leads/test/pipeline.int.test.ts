@@ -6,6 +6,8 @@
 import { sql, withTenant, type Tx } from '@kaki/db';
 import { startTestDatabase, TENANT_A, TENANT_B, type TestDatabase } from '@kaki/db/testing';
 import { savePurposeStatement, verifyChain } from '@kaki/governance';
+import type { Mailer } from '@kaki/platform';
+import { sendDueNotifications } from '@kaki/platform/notifications';
 import type { Qualification } from '@kaki/contracts';
 import pg from 'pg';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
@@ -204,6 +206,51 @@ describe('scoring at capture and the hot-lead alert (AC-1–AC-3)', () => {
     );
     expect(saved.rescored).toBe(2);
     expect(await hotAlerts(hot.leadId)).toBe(members);
+
+    // Acceptance (AC-3): a won lead reopened later doesn't alert again.
+    await status(hot.leadId, 'won', 1);
+    await status(hot.leadId, 'new', 2);
+    expect(await hotAlerts(hot.leadId)).toBe(members);
+  });
+
+  it('acceptance AC-3: the hot-lead alert is not urgent, so quiet hours hold it', async () => {
+    await setup();
+    const hot = await capture({
+      phone: '91234567',
+      email: 'quiet@example.com',
+      need: 'A wedding cake',
+      budget: 'S$500',
+    });
+    expect(hot.scoring).toMatchObject({ score: 'hot', alerted: true });
+    const rows = await owner.query<{ urgent: boolean; status: string }>(
+      `select urgent, status from notifications where kind = 'hot_lead' and subject_id = $1`,
+      [hot.leadId],
+    );
+    expect(rows.rows.length).toBeGreaterThan(0);
+    expect(rows.rows.every((r) => !r.urgent && r.status === 'pending')).toBe(true);
+    // 23:00 in Singapore is inside the default quiet hours (22:00–08:00).
+    const lateNight = new Date('2026-11-01T15:00:00Z');
+    await owner.query(
+      `update notifications set created_at = $1, next_attempt_at = $1 where subject_id = $2`,
+      [lateNight, hot.leadId],
+    );
+    const sent: unknown[] = [];
+    const mailer: Mailer = {
+      async send(e) {
+        sent.push(e);
+      },
+    };
+    const r = await sendDueNotifications(tdb.zone('identity'), mailer, {
+      appUrl: 'https://app.test',
+      now: lateNight,
+    });
+    expect(r.held).toBe(rows.rows.length);
+    expect(sent).toHaveLength(0);
+    const after = await owner.query<{ status: string }>(
+      `select distinct status from notifications where kind = 'hot_lead' and subject_id = $1`,
+      [hot.leadId],
+    );
+    expect(after.rows).toEqual([{ status: 'held' }]);
   });
 
   it('wants_to_order and returning come from the contact conversations', async () => {
