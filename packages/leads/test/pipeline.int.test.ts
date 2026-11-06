@@ -239,6 +239,7 @@ describe('scoring at capture and the hot-lead alert (AC-1–AC-3)', () => {
       async send(e) {
         sent.push(e);
       },
+      async close() {},
     };
     const r = await sendDueNotifications(tdb.zone('identity'), mailer, {
       appUrl: 'https://app.test',
