@@ -124,7 +124,10 @@ export function decisionText(
     return "Approved, but we couldn't reach the visitor: their chat has ended and they left no email or phone.";
   const verb = VERB[d.status] ?? 'decided';
   const at = d.decision ? ` at ${timeOf(d.decision.at)}` : '';
-  if (d.decision?.by && d.decision.by.userId === meId) return `You ${verb} this${at}.`;
+  if (d.decision?.by && d.decision.by.userId === meId)
+    return d.status === 'edited_approved'
+      ? `You approved this with edits${at}.`
+      : `You ${verb} this${at}.`;
   return `Already ${verb} by ${d.decision?.by?.name || 'a team member'}${at}.`;
 }
 

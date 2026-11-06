@@ -161,6 +161,9 @@ describe('decisionText (SCR-APP-018 decided states; FEAT-055 AC-8, AC-9)', () =>
     expect(decisionText({ ...base, status: 'edited_approved' }, null)).toBe(
       'Already approved with edits by Mei Ling at 2:02 pm.',
     );
+    expect(decisionText({ ...base, status: 'edited_approved' }, by.userId)).toBe(
+      'You approved this with edits at 2:02 pm.',
+    );
     expect(decisionText({ ...base, status: 'rejected' }, by.userId)).toBe(
       'You rejected this at 2:02 pm.',
     );
