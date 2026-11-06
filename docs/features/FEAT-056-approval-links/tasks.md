@@ -1,7 +1,7 @@
 # Tasks: FEAT-056 — Signed mobile approval links
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: developer-done · Last updated: 2026-11-06 (build, UI)
+> Status: accepted · Last updated: 2026-11-06 (verify)
 
 - [x] T1 — Schema: `0050_approval_links.sql` and `schema.ts` (`used_link_nonces` with composite FK to `approvals`, primary key `(tenant_id, nonce)`, forced RLS, `app_dashboard` select/insert/delete only; `magic_links.approval_link` with its two checks), name in `TENANT_SCOPED_TABLES`, cases in `rls.int.test.ts` (design §4; AC-8)
       Done when: `drizzle-kit generate` reports no drift after 0050; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes with tenant-B-can't-see-or-insert-A for `used_link_nonces`, a duplicate nonce refused, `app_visitor` refused a select, and a `reauth` magic link with `approval_link` refused.
