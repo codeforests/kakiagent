@@ -500,3 +500,35 @@ describe('consent and lead in the thread and sidebar (FEAT-049 AC-12)', () => {
     );
   });
 });
+
+describe('approvals in the thread (FEAT-055 ui-design SCR-APP-014)', () => {
+  const base = {
+    at: '2026-11-18T06:30:00.000Z',
+    from: null,
+    to: null,
+    actor: { type: 'user' as const, name: 'Mei Ling' },
+    subject: null,
+  };
+  it('words the approval dividers and the quote caption', () => {
+    const agent = { ...base, actor: { type: 'agent' as const, name: null } };
+    expect(eventText({ ...agent, kind: 'approval_drafted', reason: null })).toBe(
+      'Assistant asked the team to approve a quote',
+    );
+    expect(eventText({ ...agent, kind: 'approval_drafted', reason: 'auto' })).toBe(
+      'Assistant sent a quote within your rules',
+    );
+    expect(eventText({ ...base, kind: 'approval_decided', reason: 'approved' })).toBe(
+      'Mei Ling approved the quote',
+    );
+    expect(eventText({ ...base, kind: 'approval_decided', reason: 'edited_approved' })).toBe(
+      'Mei Ling approved the quote with edits',
+    );
+    expect(eventText({ ...base, kind: 'approval_decided', reason: 'rejected' })).toBe(
+      'Mei Ling rejected the request',
+    );
+    expect(eventText({ ...agent, kind: 'approval_expired', reason: null })).toBe(
+      'The approval expired',
+    );
+    expect(cardCaption('quote')).toBe('Sent after approval');
+  });
+});

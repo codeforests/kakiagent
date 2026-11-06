@@ -74,6 +74,10 @@ export function diffRules(before: BoundaryRules, after: BoundaryRules): string[]
     lines.push(
       after.quotesNeedApproval ? 'Quotes: now need approval' : 'Quotes: no longer need approval',
     );
+  if (before.approvalSlaMinutes !== after.approvalSlaMinutes)
+    lines.push(
+      `Reply within: ${slaText(before.approvalSlaMinutes)} → ${slaText(after.approvalSlaMinutes)}`,
+    );
   for (const key of Object.keys(COMMITMENT_SHORT) as CommitmentKey[]) {
     const was = before.forbiddenCommitments.includes(key);
     const now = after.forbiddenCommitments.includes(key);
@@ -107,7 +111,39 @@ export function discountError(value: string): string | undefined {
   return undefined;
 }
 
-export type RulesErrorField = ListField | 'maxDiscountPct' | 'forbiddenCommitments';
+export type SlaUnit = 'minutes' | 'hours';
+
+/** The SLA field's value and unit for stored minutes: whole hours show as hours. */
+export function slaInputOf(minutes: number): { value: string; unit: SlaUnit } {
+  return minutes % 60 === 0
+    ? { value: String(minutes / 60), unit: 'hours' }
+    : { value: String(minutes), unit: 'minutes' };
+}
+
+/** Business minutes from the field (APR-04, FEAT-055 §3: 15 minutes to 48 hours), or null. */
+export function slaMinutesOf(value: string, unit: SlaUnit): number | null {
+  const v = value.trim();
+  if (!/^\d{1,4}$/.test(v)) return null;
+  const minutes = Number(v) * (unit === 'hours' ? 60 : 1);
+  return minutes >= 15 && minutes <= 2_880 ? minutes : null;
+}
+
+export const SLA_ERROR = 'Enter a time from 15 minutes to 48 hours';
+
+/** "2 hours", "90 minutes", "1 hour". */
+export function slaText(minutes: number): string {
+  const { value, unit } = slaInputOf(minutes);
+  return `${value} ${value === '1' ? unit.slice(0, -1) : unit}`;
+}
+
+/** "Kim Tan · Owner", "Mei Ling · Agent with approval rights" (ui-design SCR-APP-042). */
+export const approverLine = (a: { name: string; role: 'owner' | 'admin' | 'agent' }) =>
+  `${a.name || 'A team member'} · ${
+    a.role === 'owner' ? 'Owner' : a.role === 'admin' ? 'Admin' : 'Agent with approval rights'
+  }`;
+
+export type RulesErrorField =
+  ListField | 'maxDiscountPct' | 'forbiddenCommitments' | 'approvalSlaMinutes';
 
 const MESSAGES: Record<RulesErrorField, (code: string) => string> = {
   allowedTopics: (c) => listMessage(c, BOUNDARY_LIMITS.topics),
@@ -118,6 +154,7 @@ const MESSAGES: Record<RulesErrorField, (code: string) => string> = {
   customCommitments: (c) => listMessage(c, BOUNDARY_LIMITS.customCommitments),
   maxDiscountPct: () => 'Enter a whole number from 0 to 100',
   forbiddenCommitments: () => 'Legal and medical advice are always on',
+  approvalSlaMinutes: () => SLA_ERROR,
 };
 
 function listMessage(code: string, max: number) {

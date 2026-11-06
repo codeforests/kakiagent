@@ -270,7 +270,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 
 /** INB-04's context: contact, channel, intents, lead and the facts used (SCR-APP-015). */
 export function ContextSidebar({ thread }: { thread: ConversationThread }) {
-  const { contact, channel, intents, facts, lead } = thread.sidebar;
+  const { contact, channel, intents, facts, lead, approval } = thread.sidebar;
   const earlier = contact.previousConversations;
   return (
     <div className="context-sidebar" data-testid="context-sidebar">
@@ -307,6 +307,15 @@ export function ContextSidebar({ thread }: { thread: ConversationThread }) {
           </ul>
         )}
       </Section>
+      {approval && (
+        <Section title="Approval">
+          <div className="sidebar-lead" data-testid="sidebar-approval">
+            <span className="chip chip--pending">Waiting for approval</span>
+            <p>Due {clockTime(approval.slaDueAt)}</p>
+            <Link to={`/approvals/${approval.id}`}>Open approval</Link>
+          </div>
+        </Section>
+      )}
       <Section title="Lead">
         {lead ? (
           <div className="sidebar-lead" data-testid="sidebar-lead">

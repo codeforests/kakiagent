@@ -5214,3 +5214,13 @@ a.settings-row:hover {
 .approval-excerpt {
   margin: 0;
 }
+.rules-sla-unit {
+  width: auto;
+}
+.rules-approvers ul {
+  margin: var(--space-2) 0;
+  padding-left: var(--space-5);
+}
+.rules-approvers .subsection-title {
+  margin: 0;
+}

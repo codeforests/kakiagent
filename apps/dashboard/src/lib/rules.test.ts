@@ -1,6 +1,16 @@
 import type { BoundaryRules } from '@kaki/contracts';
 import { describe, expect, it } from 'vitest';
-import { diffRules, discountError, rulesFieldErrors, savedCaption, topicError } from './rules.ts';
+import {
+  approverLine,
+  diffRules,
+  discountError,
+  rulesFieldErrors,
+  savedCaption,
+  slaInputOf,
+  slaMinutesOf,
+  slaText,
+  topicError,
+} from './rules.ts';
 
 const base: BoundaryRules = {
   allowedTopics: ['Cakes'],
@@ -107,5 +117,41 @@ describe('savedCaption', () => {
       /^Saved 30 Oct 2026, 2:05\s?pm$/i,
     );
     expect(savedCaption({ savedAt: null })).toBe('Not saved yet');
+  });
+});
+
+describe('approval SLA and approvers (SCR-APP-042; FEAT-055 AC-4)', () => {
+  it('takes 15 minutes to 48 hours, in minutes or hours', () => {
+    expect(slaMinutesOf('15', 'minutes')).toBe(15);
+    expect(slaMinutesOf(' 2 ', 'hours')).toBe(120);
+    expect(slaMinutesOf('48', 'hours')).toBe(2880);
+    for (const [v, u] of [
+      ['14', 'minutes'],
+      ['49', 'hours'],
+      ['0', 'hours'],
+      ['1.5', 'hours'],
+      ['', 'minutes'],
+      ['abc', 'minutes'],
+    ] as const)
+      expect(slaMinutesOf(v, u)).toBeNull();
+  });
+
+  it('shows whole hours as hours, lists the change and the server error', () => {
+    expect(slaInputOf(120)).toEqual({ value: '2', unit: 'hours' });
+    expect(slaInputOf(90)).toEqual({ value: '90', unit: 'minutes' });
+    expect(slaText(60)).toBe('1 hour');
+    expect(diffRules(base, { ...base, approvalSlaMinutes: 90 })).toEqual([
+      'Reply within: 2 hours → 90 minutes',
+    ]);
+    expect(rulesFieldErrors({ 'rules.approvalSlaMinutes': 'too_small' })).toEqual({
+      approvalSlaMinutes: 'Enter a time from 15 minutes to 48 hours',
+    });
+  });
+
+  it('names each approver with their role', () => {
+    expect(approverLine({ name: 'Kim Tan', role: 'owner' })).toBe('Kim Tan · Owner');
+    expect(approverLine({ name: 'Mei Ling', role: 'agent' })).toBe(
+      'Mei Ling · Agent with approval rights',
+    );
   });
 });
