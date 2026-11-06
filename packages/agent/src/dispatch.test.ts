@@ -1,4 +1,4 @@
-import { commitmentDecision, SAFE_DEFAULTS, type BoundaryRules } from '@kaki/approvals';
+import { isAboveMax, SAFE_DEFAULTS, type BoundaryRules } from '@kaki/approvals';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import {
@@ -13,6 +13,7 @@ import {
   type TaskHandler,
 } from './dispatch.js';
 import { prefillOf } from './lead.js';
+import { replayRegistry } from './replay-dispatch.js';
 import { parsePlan, type TaskKind, type TurnPlan } from './plan.js';
 
 function planOf(tasks: [TaskKind, Record<string, string>?][]): TurnPlan {
@@ -36,6 +37,7 @@ function memoryConversation(failFlag = false) {
     abuseTurns: new Set<string>(),
     ended: false,
     escalations: [] as string[],
+    requests: [] as unknown[],
   };
   const port: ConversationPort = {
     async flag(reason) {
@@ -52,6 +54,15 @@ function memoryConversation(failFlag = false) {
     async escalate(source) {
       state.escalations.push(source);
       return { status: 'escalated' as const };
+    },
+    async draftApproval(request) {
+      state.requests.push(request);
+      return {
+        status: state.requests.length > 1 ? ('already_pending' as const) : ('drafted' as const),
+        approvalId: 'apr-1',
+        slaDueAt: new Date('2026-11-05T06:30:00Z'),
+        afterHours: false,
+      };
     },
   };
   return { state, port };
@@ -126,13 +137,13 @@ describe('dispatchPlan (ADR-025 decisions 2 and 6, AC-7)', () => {
     const { ctx, audits } = context();
     const { reports, endTurn } = await dispatchPlan(
       visitorRegistry,
-      planOf([['answer'], ['data_request', { phone: '9123 4567' }], ['request_commitment']]),
+      planOf([['answer'], ['data_request', { phone: '9123 4567' }], ['handoff_channel']]),
       ctx,
     );
     expect(endTurn).toBeUndefined();
     expect(reports).toEqual([
       { task: 'data_request', index: 1, outcome: 'unhandled' },
-      { task: 'request_commitment', index: 2, outcome: 'unhandled' },
+      { task: 'handoff_channel', index: 2, outcome: 'unhandled' },
     ]);
     // Codes only: the phone number in the args never reaches the audit entry.
     expect(JSON.stringify(audits)).not.toContain('9123');
@@ -146,10 +157,10 @@ describe('dispatchPlan (ADR-025 decisions 2 and 6, AC-7)', () => {
     ['boundary', { checkBoundary: () => false }, {}],
     [
       'boundary',
-      // FEAT-054: the handler decides from the rules in force (a 20% discount above 10%).
+      // FEAT-054: the handler decides from the rules in force (here: a 20% discount above
+      // the 0% maximum; since FEAT-055 D1 `commitmentDecision` sends that to approval).
       {
-        checkBoundary: (rules: BoundaryRules) =>
-          commitmentDecision(rules, { discountPct: 20 }) !== 'refuse',
+        checkBoundary: (rules: BoundaryRules) => !isAboveMax(rules, { discountPct: 20 }),
       },
       {},
     ],
@@ -341,15 +352,17 @@ describe('the safety handlers (FEAT-025 AC-6, AC-7; ADR-025 decision 6)', () => 
 
   it('the visitor registry has no owner function (AC-5; ADR-009)', () => {
     // `escalate` (FEAT-044) asks for a person for this conversation; `capture_lead` (FEAT-049)
-    // returns a card for the visitor's own details. Neither reads or changes tenant data.
+    // returns a card for the visitor's own details; `request_commitment` (FEAT-055) drafts an
+    // approval for this conversation. None reads or changes other tenant data.
     expect([...visitorRegistry.byKind.keys()].sort()).toEqual([
       'abuse',
       'capture_lead',
       'crisis',
       'escalate',
       'out_of_scope',
+      'request_commitment',
     ]);
-    expect([...visitorRegistry.byTool.keys()]).toEqual([]);
+    expect([...visitorRegistry.byTool.keys()]).toEqual(['draft_approval']);
   });
 });
 
@@ -402,6 +415,82 @@ describe('the escalate handler (FEAT-044 §5.4; AC-2)', () => {
     expect(r2.reports[0]).toMatchObject({ outcome: 'refused', reason: 'gate_closed' });
     expect(coaching.conversation.escalations).toEqual([]);
     expect(closed.conversation.escalations).toEqual([]);
+  });
+});
+
+describe('request_commitment (FEAT-055 §5.2; AC-1, AC-11)', () => {
+  it('drafts through the port with the parsed args, audited with the tool, no reply key', async () => {
+    const { ctx, audits, conversation } = context();
+    const { reports, replies } = await dispatchPlan(
+      visitorRegistry,
+      planOf([
+        ['answer'],
+        ['request_commitment', { items: 'vanilla cupcakes', quantity: '200', discount: '15%' }],
+      ]),
+      ctx,
+    );
+    expect(reports).toEqual([{ task: 'request_commitment', index: 1, outcome: 'done' }]);
+    expect(replies).toEqual([]);
+    expect(conversation.requests).toEqual([
+      { items: 'vanilla cupcakes', quantity: '200', discount: '15%' },
+    ]);
+    // Codes only: never the request or the amounts.
+    expect(audits).toEqual([
+      { task: 'request_commitment', tool: 'draft_approval', outcome: 'done' },
+    ]);
+  });
+
+  it('an above-maximum discount still goes to approval (D1); a number quantity is a string', async () => {
+    const { ctx, conversation } = context();
+    const { reports } = await dispatchPlan(
+      visitorRegistry,
+      parsePlan(
+        JSON.stringify({
+          language: 'en',
+          register: 'standard',
+          complexity: 0.8,
+          confidence: 0.9,
+          flags: { complaint: false, injection: false },
+          tasks: [{ kind: 'request_commitment', args: { quantity: 50, discount: 40 } }],
+        }),
+      ),
+      ctx,
+    );
+    expect(reports[0]).toMatchObject({ outcome: 'done' });
+    expect(conversation.requests).toEqual([{ quantity: '50', discount: 40 }]);
+  });
+
+  it('refuses args of the wrong type, coaching scope and a closed gate; nothing is drafted', async () => {
+    const bad = context();
+    const r = await dispatchPlan(
+      visitorRegistry,
+      parsePlan(
+        JSON.stringify({
+          language: 'en',
+          register: 'standard',
+          complexity: 0.8,
+          confidence: 0.9,
+          flags: { complaint: false, injection: false },
+          tasks: [{ kind: 'request_commitment', args: { items: true } }],
+        }),
+      ),
+      bad.ctx,
+    );
+    expect(r.reports[0]).toMatchObject({ outcome: 'refused', reason: 'invalid_args' });
+    const coaching = context();
+    const c = await dispatchPlan(visitorRegistry, planOf([['request_commitment']]), {
+      ...coaching.ctx,
+      scope: 'coaching',
+    });
+    expect(c.reports[0]).toMatchObject({ outcome: 'refused', reason: 'scope' });
+    const closed = context({ gateOpen: async () => false });
+    const g = await dispatchPlan(visitorRegistry, planOf([['request_commitment']]), closed.ctx);
+    expect(g.reports[0]).toMatchObject({ outcome: 'refused', reason: 'gate_closed' });
+    expect([bad, coaching, closed].flatMap((x) => x.conversation.requests)).toEqual([]);
+  });
+
+  it('replay leaves it out (no draft from a replay)', () => {
+    expect(replayRegistry.byKind.has('request_commitment')).toBe(false);
   });
 });
 

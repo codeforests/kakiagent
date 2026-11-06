@@ -80,6 +80,13 @@ const STRINGS = {
     errAgree: 'Tick the box to agree before sending',
     contactSent: (business: string) => `Thanks. ${business} will get back to you.`,
     back: 'Back',
+    // Quote card (SCR-WGT-002; FEAT-055)
+    quoteTitle: 'Your quote',
+    quoteEach: (price: string) => `${price} each`,
+    quoteOff: (pct: number) => `${pct}% off`,
+    quoteTotal: 'Total',
+    gstInclusive: 'Prices include GST',
+    gstExclusive: 'Prices before GST',
   },
   'zh-Hans': {
     aiLabel: 'AI 助手',
@@ -156,6 +163,13 @@ const STRINGS = {
     errAgree: '请先勾选同意再发送',
     contactSent: (business: string) => `谢谢。${business}会联系您。`,
     back: '返回',
+    // Quote card (SCR-WGT-002; FEAT-055)
+    quoteTitle: '您的报价',
+    quoteEach: (price: string) => `每件 ${price}`,
+    quoteOff: (pct: number) => `优惠 ${pct}%`,
+    quoteTotal: '总计',
+    gstInclusive: '价格已含消费税',
+    gstExclusive: '价格未含消费税',
   },
 } as const;
 

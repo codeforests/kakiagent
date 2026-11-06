@@ -97,6 +97,18 @@ export const PANEL_CSS = `
 .chk input{flex:none;width:20px;height:20px;margin:2px 0 0;accent-color:var(--kaki-accent)}
 .chk label{font-size:14px}
 .lead-info{display:flex;gap:6px;padding:8px 12px;background:var(--kaki-info-bg);border-radius:var(--kaki-radius)}
+.quote-item{align-self:stretch;display:flex;flex-direction:column}
+.quote-card{display:flex;flex-direction:column;gap:8px;padding:16px;background:var(--kaki-surface);color:var(--kaki-text);
+  border:1px solid var(--kaki-border);border-radius:var(--kaki-radius);font-size:14px}
+.quote-card h3{margin:0;font-size:16px;font-weight:600}
+.quote-lines{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.quote-lines li,.quote-row{display:grid;grid-template-columns:1fr auto;column-gap:12px;margin:0}
+.quote-card .ql{min-width:0;word-wrap:break-word}
+.quote-card .qa{white-space:nowrap;font-variant-numeric:tabular-nums;text-align:right}
+.quote-card .qe{grid-column:1/-1;font-size:12px;line-height:16px;color:var(--kaki-muted)}
+.quote-total{border-top:1px solid var(--kaki-border);padding-top:8px;font-weight:600}
+.quote-card .cap{margin:0}
+.quote-note{margin:0;white-space:pre-wrap;word-wrap:break-word}
 .lead-done{align-self:stretch;display:flex;flex-direction:column;gap:4px}
 .lead-line{display:flex;gap:6px;align-items:flex-start;margin:0;font-size:14px;color:var(--kaki-muted)}
 .tick{color:var(--kaki-success)}

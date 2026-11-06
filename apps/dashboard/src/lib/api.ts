@@ -1,5 +1,9 @@
 import {
   Account,
+  ApprovalDetail,
+  ApprovalList,
+  type ApprovalDecision,
+  type ApprovalListQuery,
   ConversationSearchResults,
   AiStatusResponse,
   DeviceSessionList,
@@ -465,6 +469,12 @@ export const api = {
       CoverageTopicResponse,
       { skipped },
     ),
+  // Approvals (FEAT-055 §3): queue, detail, decision (409 `already_decided` carries the row).
+  approvals: (q: Partial<ApprovalListQuery>) =>
+    getJson(`/api/v1/approvals${query(q)}`, ApprovalList),
+  approval: (id: string) => getJson(`/api/v1/approvals/${encodeURIComponent(id)}`, ApprovalDetail),
+  decideApproval: (id: string, body: ApprovalDecision) =>
+    request('POST', `/api/v1/approvals/${encodeURIComponent(id)}/decision`, ApprovalDetail, body),
   corrections: (q: Partial<CorrectionListQuery>) =>
     getJson(`/api/v1/corrections${query(q)}`, CorrectionList),
   correction: (id: string) =>

@@ -6,7 +6,8 @@
   "description": "Zod schemas shared by the api, realtime, widget and dashboard: the single source of request, response and event types (ADR-002).",
   "exports": {
     ".": "./src/index.ts",
-    "./lead-check": "./src/lead-check.ts"
+    "./lead-check": "./src/lead-check.ts",
+    "./quote": "./src/quote.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -17,7 +18,6 @@
     "zod": "4.6.7"
   },
   "devDependencies": {
-    "@kaki/approvals": "workspace:*",
     "vitest": "5.0.5"
   }
 }

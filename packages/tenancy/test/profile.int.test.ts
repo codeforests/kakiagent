@@ -26,6 +26,16 @@ const USER = 'user-owner-1';
 const TODAY = sgDay(new Date());
 /** A Singapore day `n` days from today. */
 const day = (n: number) => sgDay(new Date(Date.now() + n * 86_400_000));
+/**
+ * The staff day off: 3 days out, or the next day that isn't a public holiday. A closed day on
+ * a holiday is already the rule's result and is dropped (D4), which made these cases fail
+ * whenever day 3 was a holiday (5–6 Nov 2026, Deepavali).
+ */
+const OFF_DAY = (() => {
+  let n = 3;
+  while (isSgPublicHoliday(day(n))) n++;
+  return day(n);
+})();
 
 beforeAll(async () => {
   tdb = await startTestDatabase();
@@ -66,7 +76,7 @@ const PROFILE: ProfileInput = {
   gstRegistered: true,
   hours: HOURS,
   openOnPublicHolidays: false,
-  exceptions: [{ day: day(3), kind: 'closed', label: 'Staff day off' }],
+  exceptions: [{ day: OFF_DAY, kind: 'closed', label: 'Staff day off' }],
 };
 
 const auditRows = async (tenantId: string) =>
@@ -101,7 +111,7 @@ describe('business profile (FEAT-009)', () => {
     const state = await withTenant(tdb.zone('visitor'), TENANT_B, (tx) => visitorTenantState(tx));
     expect(state?.businessName).toBe('Second Tenant Cakes');
     expect(state?.gstRegistered).toBe(true);
-    expect(state?.holidays).toEqual({ [day(3)]: 'closed' });
+    expect(state?.holidays).toEqual({ [OFF_DAY]: 'closed' });
   });
 
   it('refuses a stale version and changes nothing (AC-1)', async () => {

@@ -26,6 +26,8 @@ export interface BoundaryRules {
   quotesNeedApproval: boolean;
   forbiddenCommitments: CommitmentKey[];
   customCommitments: string[];
+  /** Business minutes before an undecided approval escalates (APR-04; FEAT-055 §5.1). */
+  approvalSlaMinutes: number;
 }
 
 export const SAFE_DEFAULTS: Readonly<BoundaryRules> = Object.freeze({
@@ -35,6 +37,7 @@ export const SAFE_DEFAULTS: Readonly<BoundaryRules> = Object.freeze({
   quotesNeedApproval: true,
   forbiddenCommitments: [...COMMITMENT_KEYS],
   customCommitments: [],
+  approvalSlaMinutes: 120,
 });
 
 export interface SavedRules {
@@ -56,6 +59,7 @@ const toRules = (r: Row): BoundaryRules => ({
   quotesNeedApproval: r.quotesNeedApproval,
   forbiddenCommitments: r.forbiddenCommitments as CommitmentKey[],
   customCommitments: r.customCommitments,
+  approvalSlaMinutes: r.approvalSlaMinutes,
 });
 
 /** The newest saved version, or null when the tenant never saved rules. */
@@ -108,6 +112,7 @@ export function normaliseRules(rules: BoundaryRules): BoundaryRules {
     quotesNeedApproval: rules.quotesNeedApproval,
     forbiddenCommitments: COMMITMENT_KEYS.filter((k) => forbidden.has(k)),
     customCommitments: normaliseList(rules.customCommitments),
+    approvalSlaMinutes: rules.approvalSlaMinutes,
   };
 }
 
@@ -124,6 +129,7 @@ export function changedFields(before: BoundaryRules, after: BoundaryRules): stri
   if (!sameList(before.forbiddenCommitments, after.forbiddenCommitments))
     out.push('forbidden_commitments');
   if (!sameList(before.customCommitments, after.customCommitments)) out.push('custom_commitments');
+  if (before.approvalSlaMinutes !== after.approvalSlaMinutes) out.push('approval_sla');
   return out;
 }
 
@@ -163,14 +169,21 @@ export async function saveRules(
 export type CommitmentDecision = 'refuse' | 'needs_approval' | 'allowed';
 
 /**
- * FEAT-055's `request_commitment` boundary check (ADR-025 decision 2), built and tested
- * here: a discount above the maximum is refused; otherwise it needs approval when quotes
- * do, else it's allowed.
+ * `request_commitment`'s boundary check (ADR-025 decision 2). FEAT-055 D1 (Ken,
+ * 2026-11-05): a discount above the maximum goes to approval, flagged `aboveMax`, instead of
+ * being refused; otherwise it needs approval when quotes do, else it's allowed. `refuse`
+ * stays in the type as the ADR-025 hook and is never returned today.
  */
 export function commitmentDecision(
   rules: Pick<BoundaryRules, 'maxDiscountPct' | 'quotesNeedApproval'>,
   input: { discountPct?: number },
 ): CommitmentDecision {
-  if (input.discountPct !== undefined && input.discountPct > rules.maxDiscountPct) return 'refuse';
+  if (isAboveMax(rules, input)) return 'needs_approval';
   return rules.quotesNeedApproval ? 'needs_approval' : 'allowed';
 }
+
+/** A discount above the tenant's maximum (D1): drafted, and the queue says so. */
+export const isAboveMax = (
+  rules: Pick<BoundaryRules, 'maxDiscountPct'>,
+  input: { discountPct?: number },
+) => input.discountPct !== undefined && input.discountPct > rules.maxDiscountPct;

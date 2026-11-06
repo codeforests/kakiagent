@@ -40,3 +40,23 @@ export async function factChips(
   );
   return [...new Set(ids)].flatMap((id) => byId.get(id) ?? []);
 }
+
+/**
+ * Each fact's current version and whether it is approved (FEAT-055: an approval's price
+ * snapshot is `current` while its fact is still that approved version).
+ */
+export async function factVersions(
+  tx: Tx,
+  tenantId: string,
+  ids: readonly string[],
+): Promise<Map<string, { version: number; approved: boolean }>> {
+  if (ids.length === 0) return new Map();
+  const f = schema.facts;
+  const rows = await tx
+    .select({ id: f.id, version: f.version, status: f.status })
+    .from(f)
+    .where(and(eq(f.tenantId, tenantId), inArray(f.id, [...new Set(ids)])));
+  return new Map(
+    rows.map((r) => [r.id, { version: r.version, approved: r.status === 'approved' }]),
+  );
+}

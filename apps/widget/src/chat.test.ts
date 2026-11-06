@@ -11,6 +11,7 @@ import {
   fieldErrorText,
   leadFormView,
   leadValues,
+  quoteView,
   localText,
   sentSummary,
   validateLead,
@@ -470,5 +471,69 @@ describe('consent and details (SCR-WGT-003; FEAT-049 AC-1, AC-3, AC-5)', () => {
     };
     expect(sentSummary({ ...base, phone: '+6591234567' })).toBe('Mei Ling · +65 9123 4567');
     expect(sentSummary({ ...base, email: 'mei@example.com' })).toBe('Mei Ling · mei@example.com');
+  });
+});
+
+describe('quote card (SCR-WGT-002; FEAT-055 AC-6, AC-13)', () => {
+  const card = {
+    kind: 'quote' as const,
+    approvalId: '00000000-0000-4000-8000-0000000000aa',
+    lines: [
+      {
+        factId: null,
+        factVersion: null,
+        label: 'Vanilla cupcake',
+        unit: 'piece',
+        quantity: 200,
+        unitPriceCents: 350,
+      },
+    ],
+    discountPct: 15,
+    totals: {
+      subtotalCents: 70000,
+      discountCents: 10500,
+      totalCents: 59500,
+      gst: 'inclusive' as const,
+    },
+    note: '  Ready by 10 am Friday. ',
+  };
+
+  it('shows each line, the discount, the stored total and the GST note in English', () => {
+    expect(quoteView(card, strings('en'))).toEqual({
+      lines: [
+        { key: '0', label: '200 × Vanilla cupcake', amount: 'S$700.00', each: 'S$3.50 each' },
+      ],
+      discount: { label: '15% off', amount: '-S$105.00' },
+      total: 'S$595.00',
+      gst: 'Prices include GST',
+      note: 'Ready by 10 am Friday.',
+    });
+  });
+
+  it('uses the Chinese labels and hides an empty discount, GST note and note', () => {
+    const v = quoteView(
+      {
+        ...card,
+        discountPct: 0,
+        note: ' ',
+        totals: { ...card.totals, discountCents: 0, totalCents: 70000, gst: 'none' },
+      },
+      strings('zh-Hans'),
+    );
+    expect(v.lines[0]!.each).toBe('每件 S$3.50');
+    expect(v.discount).toBeNull();
+    expect(v.total).toBe('S$700.00');
+    expect(v.gst).toBeNull();
+    expect(v.note).toBeNull();
+    expect(
+      quoteView({ ...card, totals: { ...card.totals, gst: 'exclusive' } }, strings('zh-Hans')).gst,
+    ).toBe('价格未含消费税');
+  });
+
+  it('is read-only: a quote neither opens nor answers an earlier card', () => {
+    const consent = { ...msg('c1', 1, 'agent'), card: { kind: 'consent' as const, prefill: {} } };
+    const quote = { ...msg('q', 2, 'system'), card };
+    expect(activeCard([quote].reduce(withMessage, emptyChat))).toBeNull();
+    expect(activeCard([consent, quote].reduce(withMessage, emptyChat))).toBe('c1');
   });
 });

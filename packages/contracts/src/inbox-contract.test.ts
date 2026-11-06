@@ -97,6 +97,7 @@ describe('inbox contracts (FEAT-042 §3)', () => {
         intents: [{ signal: 'asked_questions', count: 1 }],
         lead: null,
         facts: [{ id: ID, type: 'product', label: 'Fudge cake', status: 'approved', uses: 1 }],
+        approval: null,
       },
     };
     expect(ConversationThread.parse(thread)).toEqual(thread);

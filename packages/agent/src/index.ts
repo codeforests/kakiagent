@@ -41,6 +41,7 @@ export {
   OutOfScopeArgs,
   outOfScopeHandler,
   PHASE,
+  requestCommitmentHandler,
   visitorRegistry,
   type BoundaryRules,
   type CoachingPort,
@@ -199,3 +200,10 @@ export {
   type SuggestDeps,
   type SuggestInput,
 } from './suggest.js';
+export {
+  approvalNotice,
+  autoQuoteFollowUp,
+  RequestCommitmentArgs,
+  withoutFlaggedCommitments,
+  type ApprovalPortResult,
+} from './approval.js';

@@ -20,6 +20,8 @@ export const Subset = z.enum([
   'retrieval',
   /** Boundary rules: blocked topics, discount offers, commitments (FEAT-054, APR-01). */
   'boundary',
+  /** Quote, discount and commitment requests drafted for approval (FEAT-055, APR-02, AGT-06). */
+  'approvals',
 ]);
 export type Subset = z.infer<typeof Subset>;
 
@@ -34,6 +36,8 @@ export const Outcome = z.enum([
   'refused',
   /** FEAT-025: a safety task ended the turn (crisis, abuse). */
   'ended',
+  /** FEAT-055: a commitment-only turn (the waiting notice, or a quote's follow-up line). */
+  'approval',
 ]);
 
 /** Deterministic scorers, plus the LLM judge (`judge`, FEAT-023, ADR-022). */
@@ -90,6 +94,15 @@ export const Expectation = z.discriminatedUnion('kind', [
     kind: z.literal('card'),
     card: z.enum(['consent', 'lead_form']).nullable(),
     prefill: z.record(z.string(), z.string()).optional(),
+  }),
+  /**
+   * FEAT-055 (AC-1–AC-3): what `request_commitment` did (`null`: no request), and the waiting
+   * notice's text when one was stored.
+   */
+  z.object({
+    kind: z.literal('approval'),
+    status: z.enum(['drafted', 'already_pending', 'auto']).nullable(),
+    contains: z.string().optional(),
   }),
   /** The LLM judge on one criterion; only with a real model (D8). */
   z.object({ kind: z.literal('judge'), criterion: Criterion }),
@@ -152,6 +165,7 @@ export const Case = z
           z.enum(['delivery_guarantee', 'refund', 'legal_advice', 'medical_advice']),
         ),
         customCommitments: z.array(z.string()),
+        approvalSlaMinutes: z.int().min(15).max(2880),
       })
       .partial()
       .strict()
@@ -169,6 +183,8 @@ export const Case = z
     consent: z.enum(['agreed', 'declined']).optional(),
     /** FEAT-049: a consent card was already offered in this conversation. */
     offered: z.boolean().default(false),
+    /** FEAT-055 D4: the conversation already has a pending approval. */
+    pendingApproval: z.boolean().default(false),
     /** Earlier abuse turns in the conversation (FEAT-025): seeds the abuse count. */
     priorAbuse: z.int().min(0).max(5).default(0),
     /** The plan's task kinds, in any order (ADR-025). */
@@ -275,6 +291,8 @@ export interface Reply {
   aiEnded: boolean;
   /** FEAT-049: the card stored under the reply (consent offer or lead form), or null. */
   card: MessageCard | null;
+  /** FEAT-055: what the commitment request did, and the waiting notice; null without one. */
+  approval: { status: 'drafted' | 'already_pending' | 'auto'; notice: string | null } | null;
 }
 
 export interface ScoreContext {
@@ -337,12 +355,18 @@ export function score(reply: Reply, expectations: Expectation[], ctx: ScoreConte
           : reply.notice === null;
       case 'safety':
         return reply.safety === e.key;
+      case 'approval':
+        return (
+          (reply.approval?.status ?? null) === e.status &&
+          (!e.contains || (reply.approval?.notice ?? '').includes(e.contains))
+        );
       case 'flagged':
         return [...reply.flags].sort().join() === [...e.reasons].sort().join();
       case 'card':
         return (
           (reply.card?.kind ?? null) === e.card &&
-          (!e.prefill || sameFields(reply.card?.prefill ?? {}, e.prefill))
+          (!e.prefill ||
+            sameFields(reply.card && 'prefill' in reply.card ? reply.card.prefill : {}, e.prefill))
         );
       case 'ai-ended':
         return reply.aiEnded === e.value;

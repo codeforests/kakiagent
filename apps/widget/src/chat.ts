@@ -2,8 +2,10 @@ import type {
   LeadCaptureConfig,
   LeadPrefill,
   Message,
+  MessageCard,
   WidgetConfigResponse,
 } from '@kaki/contracts';
+import { formatSgd } from '@kaki/contracts/quote';
 import {
   checkLead,
   leadOk,
@@ -237,7 +239,8 @@ function noticeView(
 export function activeCard(c: Chat): string | null {
   for (let i = c.messages.length - 1; i >= 0; i--) {
     const m = c.messages[i]!;
-    if (m.card) return m.id;
+    // An approved quote (FEAT-055) is read-only: it doesn't open or answer a card.
+    if (m.card && m.card.kind !== 'quote') return m.id;
     if (m.author === 'visitor' || m.noticeKind === 'lead_captured' || m.noticeKind === 'chat_ended')
       return null;
   }
@@ -345,4 +348,42 @@ export function timeLabel(at: Date, locale: Locale): string {
     hour: 'numeric',
     minute: '2-digit',
   });
+}
+
+type QuoteCardData = Extract<MessageCard, { kind: 'quote' }>;
+
+/** One row of the quote card (SCR-WGT-002; FEAT-055): amounts preformatted, never model text. */
+export interface QuoteView {
+  lines: { key: string; label: string; amount: string; each: string }[];
+  discount: { label: string; amount: string } | null;
+  total: string;
+  gst: string | null;
+  note: string | null;
+}
+
+/**
+ * The quote card's rows from the card's values (D2): line amounts from quantity × unit price,
+ * the discount and total from the stored totals, so the card always shows what was approved.
+ */
+export function quoteView(card: QuoteCardData, t: Strings): QuoteView {
+  return {
+    lines: card.lines.map((l, i) => ({
+      key: `${i}`,
+      label: `${l.quantity} × ${l.label}`,
+      amount: formatSgd(l.quantity * l.unitPriceCents),
+      each: t.quoteEach(formatSgd(l.unitPriceCents)),
+    })),
+    discount:
+      card.discountPct > 0
+        ? { label: t.quoteOff(card.discountPct), amount: formatSgd(-card.totals.discountCents) }
+        : null,
+    total: formatSgd(card.totals.totalCents),
+    gst:
+      card.totals.gst === 'inclusive'
+        ? t.gstInclusive
+        : card.totals.gst === 'exclusive'
+          ? t.gstExclusive
+          : null,
+    note: card.note.trim() || null,
+  };
 }

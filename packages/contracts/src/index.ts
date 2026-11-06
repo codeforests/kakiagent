@@ -13,10 +13,43 @@ export const LeadPrefill = z.object({
 });
 export type LeadPrefill = z.infer<typeof LeadPrefill>;
 
-/** A widget card on an agent message (SCR-WGT-003; FEAT-049 §3, D1). */
+/** One quote line (FEAT-055 §3): a product fact's, or one the approver added (`factId` null). */
+export const ApprovalLine = z
+  .object({
+    factId: z.uuid().nullable(),
+    factVersion: z.number().int().nullable(),
+    label: z.string().trim().min(1).max(120),
+    unit: z.string().max(40).nullable(),
+    quantity: z.number().int().min(1).max(100_000),
+    unitPriceCents: z.number().int().min(0).max(100_000_000),
+  })
+  .strict();
+export type ApprovalLine = z.infer<typeof ApprovalLine>;
+/** Integer cents, from `totalsOf` (`@kaki/contracts/quote`). */
+export const ApprovalTotals = z.object({
+  subtotalCents: z.number().int(),
+  discountCents: z.number().int(),
+  totalCents: z.number().int(),
+  gst: z.enum(['inclusive', 'exclusive', 'none']),
+});
+export type ApprovalTotals = z.infer<typeof ApprovalTotals>;
+
+/**
+ * A widget card on a message (SCR-WGT-003; FEAT-049 §3, D1). FEAT-055 adds `quote`: an
+ * approved quote, built in code from the approver's values (D2); the body carries the same
+ * text for other channels.
+ */
 export const MessageCard = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('consent'), prefill: LeadPrefill }),
   z.object({ kind: z.literal('lead_form'), consentId: z.uuid(), prefill: LeadPrefill }),
+  z.object({
+    kind: z.literal('quote'),
+    approvalId: z.uuid(),
+    lines: z.array(ApprovalLine).max(20),
+    discountPct: z.number().int().min(0).max(100),
+    totals: ApprovalTotals,
+    note: z.string().max(500),
+  }),
 ]);
 export type MessageCard = z.infer<typeof MessageCard>;
 
@@ -38,10 +71,21 @@ export const Message = z.object({
    * What the notice is (FEAT-025): `chat_ended` closes the widget's composer; `staff_joined`
    * and `staff_left` mark a take-over and hand-back (FEAT-043); `escalated` is the visitor's
    * "I've asked the team to join" notice (FEAT-044); `lead_captured` confirms the visitor's
-   * details reached the team (FEAT-049).
+   * details reached the team (FEAT-049). FEAT-055 adds `approval_waiting` (the team is
+   * checking a request), `approval_rejected` and `approval_expired`.
    */
   noticeKind: z
-    .enum(['after_hours', 'chat_ended', 'staff_joined', 'staff_left', 'escalated', 'lead_captured'])
+    .enum([
+      'after_hours',
+      'chat_ended',
+      'staff_joined',
+      'staff_left',
+      'escalated',
+      'lead_captured',
+      'approval_waiting',
+      'approval_rejected',
+      'approval_expired',
+    ])
     .nullable(),
   /** A consent or lead-form card under an agent reply (FEAT-049); absent or null: none. */
   card: MessageCard.nullable().optional(),
@@ -70,7 +114,12 @@ export const CloseReason = z.enum(['staff', 'inactive', 'visitor', 'abuse']);
 export type CloseReason = z.infer<typeof CloseReason>;
 
 /** What started an escalation (INB-05, CHN-13; FEAT-044 §3). */
-export const EscalationSource = z.enum(['visitor_button', 'visitor_asked', 'unverified']);
+export const EscalationSource = z.enum([
+  'visitor_button',
+  'visitor_asked',
+  'unverified',
+  'approval_sla',
+]);
 export type EscalationSource = z.infer<typeof EscalationSource>;
 
 /** The open escalation on a conversation (FEAT-044 §3); its assignee's staff-facing name. */
@@ -1390,6 +1439,7 @@ export const VisitorsWouldGet = z.enum([
   'without_unreviewed',
   'fallback_paused',
   'not_live',
+  'approval',
 ]);
 export const Explainer = z.object({
   outcome: CoachOutcome,
@@ -1871,11 +1921,26 @@ export type SegmentEvent = z.infer<typeof SegmentEvent>;
 /** The kill switch changed (FEAT-057 §3): a nudge to refetch `GET /api/v1/ai/status`. */
 export const AiStatusEvent = z.object({ type: z.literal('ai_status'), paused: z.boolean() });
 export type AiStatusEvent = z.infer<typeof AiStatusEvent>;
+/** An approval was drafted, decided or expired (FEAT-055 §3): refetch the queue and that approval. */
+export const ApprovalEvent = z.object({
+  type: z.literal('approval'),
+  id: z.uuid(),
+  status: z.enum([
+    'pending',
+    'approved',
+    'edited_approved',
+    'rejected',
+    'expired',
+    'undeliverable',
+  ]),
+});
+export type ApprovalEvent = z.infer<typeof ApprovalEvent>;
 export const RealtimeEvent = z.discriminatedUnion('type', [
   MessageEvent,
   ConversationEvent,
   SegmentEvent,
   AiStatusEvent,
+  ApprovalEvent,
 ]);
 export type RealtimeEvent = z.infer<typeof RealtimeEvent>;
 /**
@@ -1908,8 +1973,21 @@ export const EscalationReminderJob = z.object({
   escalationId: z.uuid(),
 });
 export type EscalationReminderJob = z.infer<typeof EscalationReminderJob>;
-/** Everything on `conversation-turns`: an auto-close or escalation reminder job, or a visitor turn. */
-export const TurnQueueJob = z.union([AutoCloseJob, EscalationReminderJob, TurnJob]);
+/** Queued by `approvals_queue_due()` on the turns topic (APR-04, APR-06; FEAT-055 §4, D10). */
+export const ApprovalTimerJob = z.object({
+  kind: z.literal('approval_timer'),
+  tenantId: z.uuid(),
+  approvalId: z.uuid(),
+  timer: z.enum(['urgent', 'sla', 'expire']),
+});
+export type ApprovalTimerJob = z.infer<typeof ApprovalTimerJob>;
+/** Everything on `conversation-turns`: an auto-close, escalation reminder or approval timer job, or a visitor turn. */
+export const TurnQueueJob = z.union([
+  AutoCloseJob,
+  EscalationReminderJob,
+  ApprovalTimerJob,
+  TurnJob,
+]);
 export type TurnQueueJob = z.infer<typeof TurnQueueJob>;
 
 /**
@@ -2233,6 +2311,8 @@ export const BoundaryRules = z
     forbiddenCommitments: z.array(CommitmentKey),
     /** The owner's own, such as "same-day delivery". */
     customCommitments: z.array(Topic).max(BOUNDARY_LIMITS.customCommitments),
+    /** Business minutes before an undecided approval escalates (APR-04; FEAT-055 §3). */
+    approvalSlaMinutes: z.number().int().min(15).max(2_880),
   })
   .superRefine((r, ctx) => {
     // No duplicate in a list, ignoring case and spacing.
@@ -2262,6 +2342,10 @@ export const BoundaryRulesResponse = z.object({
   savedAt: z.iso.datetime().nullable(),
   /** Where the shown rules come from: the saved version, the industry template, or the safe defaults. */
   source: z.enum(['saved', 'template', 'default']),
+  /** Who can decide approvals (FEAT-055 §3): owners, admins and agents with rights; read-only here. */
+  approvers: z.array(
+    z.object({ userId: z.uuid(), name: z.string(), role: z.enum(['owner', 'admin', 'agent']) }),
+  ),
 });
 export type BoundaryRulesResponse = z.infer<typeof BoundaryRulesResponse>;
 
@@ -2515,8 +2599,8 @@ export type ConversationList = z.infer<typeof ConversationList>;
 /** A message as staff see it: with the facts an AI answer used (the widget's `Message` has none). */
 export const ThreadMessage = Message.extend({
   factIds: z.array(z.uuid()),
-  /** The card's kind only, never its prefill (FEAT-049 §3). */
-  card: z.enum(['consent', 'lead_form']).nullable(),
+  /** The card's kind only, never its prefill (FEAT-049 §3); `quote` from FEAT-055. */
+  card: z.enum(['consent', 'lead_form', 'quote']).nullable(),
   /** The team member behind a staff message or notice (FEAT-043): "You" on your own. */
   authorUserId: z.uuid().nullable(),
 });
@@ -2528,8 +2612,19 @@ export type ThreadMessage = z.infer<typeof ThreadMessage>;
  */
 export const ThreadEvent = z.object({
   at: z.iso.datetime({ offset: true }),
-  /** FEAT-049 adds `consent` (agreed, declined) and `lead` (created, updated). */
-  kind: z.enum(['state', 'flagged', 'consent', 'lead']),
+  /**
+   * FEAT-049 adds `consent` (agreed, declined) and `lead` (created, updated); FEAT-055
+   * `approval_drafted`, `approval_decided` (reason = the outcome) and `approval_expired`.
+   */
+  kind: z.enum([
+    'state',
+    'flagged',
+    'consent',
+    'lead',
+    'approval_drafted',
+    'approval_decided',
+    'approval_expired',
+  ]),
   to: ConversationStatus.nullable(),
   from: ConversationStatus.nullable(),
   reason: z
@@ -2548,6 +2643,11 @@ export const ThreadEvent = z.object({
         'declined',
         'created',
         'updated',
+        'approved',
+        'edited_approved',
+        'rejected',
+        'undeliverable',
+        'auto',
       ]),
     ])
     .nullable(),
@@ -2607,6 +2707,14 @@ export const ContextSidebar = z.object({
   intents: z.array(z.object({ signal: IntentSignal, count: z.number().int().min(1) })),
   lead: LeadSummary.nullable(),
   facts: z.array(FactChip.extend({ uses: z.number().int().min(1) })),
+  /** The conversation's pending approval (FEAT-055 §5.3), filled by the api; null without one. */
+  approval: z
+    .object({
+      id: z.uuid(),
+      status: z.literal('pending'),
+      slaDueAt: z.iso.datetime({ offset: true }),
+    })
+    .nullable(),
 });
 export type ContextSidebar = z.infer<typeof ContextSidebar>;
 
@@ -2921,3 +3029,123 @@ export const LeadSettingsBody = z.strictObject({
   }),
 });
 export type LeadSettingsBody = z.infer<typeof LeadSettingsBody>;
+
+// ---- Dashboard API: approvals (APR-02, APR-04, APR-06; FEAT-055 §3) ----------------------
+
+export const ApprovalKind = z.enum(['quote', 'discount', 'commitment']);
+export type ApprovalKind = z.infer<typeof ApprovalKind>;
+export const ApprovalStatus = z.enum([
+  'pending',
+  'approved',
+  'edited_approved',
+  'rejected',
+  'expired',
+  'undeliverable',
+]);
+export type ApprovalStatus = z.infer<typeof ApprovalStatus>;
+
+export const APPROVAL_LIMITS = { lines: 20, note: 500, reason: 500 } as const;
+
+/** What the visitor would get: lines, a discount and the staff's words (sent as written). */
+export const ApprovalTerms = z
+  .object({
+    lines: z.array(ApprovalLine).max(APPROVAL_LIMITS.lines),
+    discountPct: z.number().int().min(0).max(100),
+    /** Staff's words to the visitor (delivery date, custom work); sent as written. */
+    note: z.string().max(APPROVAL_LIMITS.note),
+  })
+  .strict();
+export type ApprovalTerms = z.infer<typeof ApprovalTerms>;
+
+export const ApprovalSummary = z.object({
+  id: z.uuid(),
+  kind: ApprovalKind,
+  status: ApprovalStatus,
+  conversationId: z.uuid(),
+  contactName: z.string().nullable(),
+  /** "200 × Vanilla cupcake · 15% off", built in code. */
+  headline: z.string(),
+  totalCents: z.number().int().nullable(),
+  createdAt: z.iso.datetime({ offset: true }),
+  slaDueAt: z.iso.datetime({ offset: true }),
+  expiresAt: z.iso.datetime({ offset: true }),
+  urgent: z.boolean(),
+  breached: z.boolean(),
+  afterHours: z.boolean(),
+  aboveMaxDiscount: z.boolean(),
+});
+export type ApprovalSummary = z.infer<typeof ApprovalSummary>;
+
+export const ApprovalList = z.object({
+  items: z.array(ApprovalSummary),
+  nextCursor: z.string().nullable(),
+  pendingCount: z.number().int().min(0),
+});
+export type ApprovalList = z.infer<typeof ApprovalList>;
+
+export const ApprovalListQuery = z.object({
+  view: z.enum(['pending', 'decided']).default('pending'),
+  cursor: z.string().max(200).optional(),
+});
+export type ApprovalListQuery = z.infer<typeof ApprovalListQuery>;
+
+export const ApprovalPrice = z.object({
+  factId: z.uuid(),
+  version: z.number().int(),
+  name: z.string(),
+  priceCents: z.number().int(),
+  unit: z.string().nullable(),
+  /** The fact's visitor-visible version is still this one. */
+  current: z.boolean(),
+});
+export type ApprovalPrice = z.infer<typeof ApprovalPrice>;
+
+export const ApprovalDetail = ApprovalSummary.extend({
+  request: z.object({
+    items: z.string().nullable(),
+    quantity: z.string().nullable(),
+    date: z.string().nullable(),
+    discountPct: z.number().int().nullable(),
+  }),
+  draft: ApprovalTerms,
+  draftTotals: ApprovalTotals,
+  final: ApprovalTerms.nullable(),
+  finalTotals: ApprovalTotals.nullable(),
+  prices: z.array(ApprovalPrice),
+  /** The latest messages up to the request. */
+  excerpt: z.array(ThreadMessage).max(10),
+  maxDiscountPct: z.number().int(),
+  decision: z
+    .object({
+      by: z.object({ userId: z.uuid(), name: z.string() }).nullable(),
+      at: z.iso.datetime({ offset: true }),
+      reason: z.string().nullable(),
+    })
+    .nullable(),
+  version: z.number().int(),
+  /** `Me.canApprove` and still pending. */
+  canDecide: z.boolean(),
+});
+export type ApprovalDetail = z.infer<typeof ApprovalDetail>;
+
+export const ApprovalDecision = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('approve'), version: z.number().int() }).strict(),
+  z
+    .object({ action: z.literal('edit_approve'), version: z.number().int(), terms: ApprovalTerms })
+    .strict(),
+  z
+    .object({
+      action: z.literal('reject'),
+      version: z.number().int(),
+      reason: z.string().trim().min(1).max(APPROVAL_LIMITS.reason),
+    })
+    .strict(),
+]);
+export type ApprovalDecision = z.infer<typeof ApprovalDecision>;
+
+/** 409: someone decided first, or the row changed since it was loaded. */
+export const AlreadyDecided = z.object({
+  error: z.literal('already_decided'),
+  approval: ApprovalDetail,
+});
+export type AlreadyDecided = z.infer<typeof AlreadyDecided>;

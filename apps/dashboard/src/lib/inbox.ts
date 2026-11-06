@@ -265,6 +265,20 @@ export function eventText(e: ThreadEvent): string {
       : 'Visitor agreed to share their details';
   if (e.kind === 'lead')
     return e.reason === 'updated' ? 'Visitor updated their details' : 'Visitor left their details';
+  // Approval dividers (FEAT-055 ui-design SCR-APP-014).
+  if (e.kind === 'approval_drafted')
+    return e.reason === 'auto'
+      ? 'Assistant sent a quote within your rules'
+      : 'Assistant asked the team to approve a quote';
+  if (e.kind === 'approval_expired') return 'The approval expired';
+  if (e.kind === 'approval_decided') {
+    const by = e.actor.name ?? 'A team member';
+    if (e.reason === 'edited_approved') return `${by} approved the quote with edits`;
+    if (e.reason === 'rejected') return `${by} rejected the request`;
+    if (e.reason === 'undeliverable')
+      return `${by} approved the quote, but the visitor couldn't be reached`;
+    return `${by} approved the quote`;
+  }
   if (e.kind === 'flagged')
     return e.reason === 'crisis' ? 'Flagged: crisis message' : 'Flagged: abuse';
   const who = e.actor.name ?? 'A team member';
@@ -504,4 +518,6 @@ export const cardCaption = (card: ThreadMessage['card']) =>
     ? 'Asked for consent'
     : card === 'lead_form'
       ? 'Showed the details form'
-      : null;
+      : card === 'quote'
+        ? 'Sent after approval'
+        : null;

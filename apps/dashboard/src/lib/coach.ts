@@ -80,6 +80,11 @@ export function visitorsLine(
         tone: 'caption',
         text: "Your assistant isn't live yet. This is what customers will get.",
       };
+    case 'approval':
+      return {
+        tone: 'info',
+        text: 'A customer asking this would get: the team is checking your request. It goes to your approval queue.',
+      };
   }
 }
 

@@ -81,7 +81,9 @@ export type ReasonCode =
   | 'hours_slot'
   | 'unreviewed_used'
   | SafetyKey;
-export type VisitorsWouldGet = 'same' | 'without_unreviewed' | 'fallback_paused' | 'not_live';
+/** `approval` (FEAT-055 §5.2): a visitor asking this gets the team-is-checking notice, no draft here. */
+export type VisitorsWouldGet =
+  'same' | 'without_unreviewed' | 'fallback_paused' | 'not_live' | 'approval';
 
 export interface ExplainedFact {
   id: string;
@@ -213,9 +215,11 @@ export function explain(input: {
       ? 'fallback_paused'
       : !input.channelLive
         ? 'not_live'
-        : unreviewedUsed
-          ? 'without_unreviewed'
-          : 'same',
+        : plan?.tasks.some((t) => t.kind === 'request_commitment')
+          ? 'approval'
+          : unreviewedUsed
+            ? 'without_unreviewed'
+            : 'same',
   };
 }
 
@@ -402,6 +406,9 @@ function dispatchContext(
         throw new Error('coaching has no conversation');
       },
       escalate: async () => {
+        throw new Error('coaching has no conversation');
+      },
+      draftApproval: async () => {
         throw new Error('coaching has no conversation');
       },
     },

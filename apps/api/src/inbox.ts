@@ -27,6 +27,7 @@ import {
   type RealtimeEvent,
   type ThreadEvent,
 } from '@kaki/contracts';
+import { pendingApprovalOf } from '@kaki/approvals';
 import { withTenant } from '@kaki/db';
 import { can, displayNameOf, inboxMembers, memberNames } from '@kaki/identity';
 import {
@@ -220,6 +221,8 @@ export function registerInboxRoutes(
         // never imports leads).
         contact: await contactOf(tx, t, id),
         lead: await leadSummaryOf(tx, t, id),
+        // FEAT-055 §5.3: the pending approval (api-side: inbox never imports approvals).
+        approval: await pendingApprovalOf(tx, t, id),
         facts: chips.map((chip) => ({
           ...chip,
           uses: used.find((u) => u.factId === chip.id)!.uses,
@@ -263,6 +266,13 @@ export function registerInboxRoutes(
         intents: data.intents,
         lead: data.lead,
         facts: data.facts,
+        approval: data.approval
+          ? {
+              id: data.approval.id,
+              status: 'pending',
+              slaDueAt: data.approval.slaDueAt.toISOString(),
+            }
+          : null,
       },
     });
   });
@@ -385,6 +395,8 @@ export function registerInboxRoutes(
           conversationId: id,
           userId: s.userId,
           version,
+          // D5: a pending approval sends the hand-back to `waiting_approval`.
+          hasPendingApproval: (q) => pendingApprovalOf(q, t, id).then(Boolean),
         });
         return { ...r, summary: (await conversationSummary(tx, t, id, namesIn(t)))! };
       });

@@ -231,6 +231,8 @@ describe('runVisitorTurn (UC-20)', () => {
       rulesVersion: null,
       // FEAT-049: no card under the reply.
       card: null,
+      // FEAT-055: no commitment request this turn.
+      approval: null,
     });
     expect((decision.payload.factIds as string[]).sort()).toEqual(result!.message.factIds.sort());
   });
@@ -552,9 +554,10 @@ describe('runVisitorTurn with triage, dispatch and routing (FEAT-004)', () => {
       'request_commitment',
       'capture_lead',
     ]);
-    // FEAT-049: `capture_lead` is handled, and refused until the visitor consents.
+    // FEAT-049: `capture_lead` is handled, and refused until the visitor consents. FEAT-055:
+    // `request_commitment` drafts an approval.
     expect(result?.dispatched).toEqual([
-      { task: 'request_commitment', index: 1, outcome: 'unhandled' },
+      { task: 'request_commitment', index: 1, outcome: 'done' },
       { task: 'capture_lead', index: 2, outcome: 'refused', reason: 'consent' },
     ]);
     expect(result?.route).toBe('reply.complex');
@@ -563,7 +566,7 @@ describe('runVisitorTurn with triage, dispatch and routing (FEAT-004)', () => {
       (r) => r.event_type === 'agent.dispatch',
     );
     expect(dispatches.map((r) => r.payload)).toEqual([
-      { task: 'request_commitment', outcome: 'unhandled' },
+      { task: 'request_commitment', tool: 'draft_approval', outcome: 'done' },
       { task: 'capture_lead', outcome: 'refused', reason: 'consent' },
     ]);
     expect(dispatches[0]!.subject_refs).toEqual([

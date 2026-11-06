@@ -17,6 +17,18 @@ export type LiveState = 'connecting' | 'live' | 'offline';
 /** Visitor messages seen live, for the list's polite announcement (throttled by the page). */
 export const inboxEvents = new EventTarget();
 
+/** Approval changes seen live (FEAT-055): the queue announces rows decided by someone else. */
+export const approvalEvents = new EventTarget();
+export class ApprovalNotice extends Event {
+  readonly id: string;
+  readonly status: string;
+  constructor(id: string, status: string) {
+    super('approval');
+    this.id = id;
+    this.status = status;
+  }
+}
+
 /** Events for the signed-in member only (FEAT-043): the shell turns them into toasts. */
 export const memberEvents = new EventTarget();
 export class MemberEventNotice extends Event {
@@ -111,6 +123,7 @@ export function useInboxSocket(enabled = true): void {
           void queryClient.invalidateQueries({ queryKey: ['conversations'] });
           void queryClient.invalidateQueries({ queryKey: COUNTS_KEY });
           void queryClient.invalidateQueries({ queryKey: ['conversation'] });
+          void queryClient.invalidateQueries({ queryKey: ['approvals'] });
           return;
         }
         const member = MemberEvent.safeParse(data);
@@ -128,6 +141,12 @@ export function useInboxSocket(enabled = true): void {
         else if (event.data.type === 'conversation')
           onConversation(queryClient, event.data.conversation);
         else if (event.data.type === 'message') onMessage(queryClient, event.data.message);
+        else if (event.data.type === 'approval') {
+          // A draft, a decision or an expiry (FEAT-055): the queue, its count and the page.
+          void queryClient.invalidateQueries({ queryKey: ['approvals'] });
+          void queryClient.invalidateQueries({ queryKey: ['approval', event.data.id] });
+          approvalEvents.dispatchEvent(new ApprovalNotice(event.data.id, event.data.status));
+        }
       };
       socket.onclose = (e) => {
         if (closed) return;

@@ -122,6 +122,7 @@ import { registerSettingsRoutes } from './settings.js';
 import { registerWidgetRoutes, widgetErrorReply } from './widget.js';
 import { channelErrorReply, registerChannelRoutes } from './channels.js';
 import { onboardingErrorReply, registerOnboardingRoutes } from './onboarding.js';
+import { registerApprovalRoutes } from './approvals.js';
 import { registerInboxRoutes } from './inbox.js';
 import { registerAiRoutes } from './ai.js';
 import { registerTeamRoutes, teamErrorReply } from './team.js';
@@ -670,6 +671,7 @@ export async function buildApp(deps: Deps) {
   registerMfaRoutes(app, deps, { authFrom, sessionFrom });
 
   registerInboxRoutes(app, deps, sessionFrom, notify);
+  registerApprovalRoutes(app, deps, sessionFrom, notify);
   registerFactRoutes(app, deps, sessionFrom);
   registerReviewRoutes(app, deps, sessionFrom);
   registerConflictRoutes(app, deps, sessionFrom);

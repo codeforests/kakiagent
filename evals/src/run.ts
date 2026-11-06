@@ -10,10 +10,23 @@
  * until M1.5; with `LLM_PROVIDER=anthropic-dev` the real model answers instead, and the
  * LLM judge scores the `judge` expectations and its agreement sample (FEAT-023 D8).
  */
-import { SAFE_DEFAULTS, type BoundaryRules } from '@kaki/approvals';
+import {
+  commitmentDecision,
+  draftLines,
+  kindOf,
+  parseDiscount,
+  SAFE_DEFAULTS,
+  type BoundaryRules,
+  type PricedProduct,
+} from '@kaki/approvals';
 import {
   answerTurn,
   applyBoundary,
+  approvalNotice,
+  autoQuoteFollowUp,
+  withoutFlaggedCommitments,
+  withGst,
+  type ApprovalPortResult,
   buildVisitorPrompt,
   cardForReply,
   consentCardFor,
@@ -61,7 +74,7 @@ import {
   type LlmGateway,
   type UsageEvent,
 } from '@kaki/llm-gateway';
-import { DEFAULT_PERSONA, openStatus, type Persona } from '@kaki/tenancy';
+import { addBusinessMinutes, DEFAULT_PERSONA, openStatus, type Persona } from '@kaki/tenancy';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import type { MessageCard } from '@kaki/contracts';
@@ -283,8 +296,20 @@ async function dispatchCheck(
  * The conversation port in memory (FEAT-025 §5.7): each case is one conversation, with
  * `priorAbuse` earlier abuse turns.
  */
-function memoryConversation(priorAbuse: number) {
+/** What the in-memory `draftApproval` needs (FEAT-055 §5.7): as the worker's port computes it. */
+interface ApprovalCtx {
+  products: PricedProduct[];
+  rules: BoundaryRules;
+  /** The case's conversation already has a pending approval (D4). */
+  pending: boolean;
+  slaDueAt: Date;
+  afterHours: boolean;
+}
+
+function memoryConversation(priorAbuse: number, approval: ApprovalCtx) {
   const state = {
+    /** FEAT-055: what the `request_commitment` handler drafted (status only; nothing is sent). */
+    approvals: [] as ApprovalPortResult[],
     flags: [] as string[],
     abuseTurns: new Set(Array.from({ length: priorAbuse }, (_, i) => `earlier-${i}`)),
     aiEnded: false,
@@ -306,6 +331,32 @@ function memoryConversation(priorAbuse: number) {
       const status = state.escalations.length ? 'already_escalated' : 'escalated';
       state.escalations.push(source);
       return { status };
+    },
+    // As approvals `draftApproval` decides it (D3, D4), in memory: a plain allowed quote is
+    // `auto`, anything else is drafted, a second request is `already_pending`.
+    async draftApproval(request) {
+      const pct = parseDiscount(request.discount);
+      const lines = draftLines(request.items, request.quantity, approval.products);
+      const kind = kindOf(request, pct, lines);
+      const allowed =
+        commitmentDecision(approval.rules, { discountPct: pct ?? 0 }) === 'allowed' &&
+        kind !== 'commitment' &&
+        lines.length > 0 &&
+        !request.date?.trim();
+      const status =
+        approval.pending || state.approvals.length
+          ? ('already_pending' as const)
+          : allowed
+            ? ('auto' as const)
+            : ('drafted' as const);
+      const r = {
+        status,
+        approvalId: 'eval-approval',
+        slaDueAt: approval.slaDueAt,
+        afterHours: approval.afterHours,
+      };
+      state.approvals.push(r);
+      return r;
     },
   };
   return { state, port };
@@ -333,9 +384,54 @@ async function runCase(c: Case) {
   // FEAT-054: the case's rules over the safe defaults, applied as the worker applies them.
   const rules: BoundaryRules = { ...SAFE_DEFAULTS, ...c.rules };
   const triaged = await triage(llm, { history: c.messages, meta, tail: triageTail(rules) });
-  const { plan } = applyBoundary(triaged, rules, query);
-  const conversation = memoryConversation(c.priorAbuse);
+  const plan = withoutFlaggedCommitments(applyBoundary(triaged, rules, query).plan);
+  const hours = hoursAt(fixture, c, at);
+  const facts = retrieve(c.tenant, query);
+  const exceptions = { ...fixture.holidays, ...c.holidays };
+  const conversation = memoryConversation(c.priorAbuse, {
+    products: facts.flatMap((f) =>
+      f.type === 'product'
+        ? [
+            {
+              factId: f.id,
+              version: f.version,
+              name: f.value.name,
+              unit: f.value.unit ?? null,
+              priceCents:
+                fixture.gstRegistered && f.gstTreatment === 'exclusive'
+                  ? withGst(f.value.priceCents)
+                  : f.value.priceCents,
+              gst: f.gstTreatment,
+            },
+          ]
+        : [],
+    ),
+    rules,
+    pending: c.pendingApproval,
+    slaDueAt: addBusinessMinutes(
+      fixture.hours ?? null,
+      fixture.openOnPublicHolidays,
+      at,
+      rules.approvalSlaMinutes,
+      exceptions,
+    ),
+    afterHours: hours !== null && !hours.status.open,
+  });
   const dispatch = await dispatchCheck(plan, fixture.tenantId, conversation.port, rules, c.consent);
+  // FEAT-055 §5.2: what the request did, and the visitor's waiting notice, as turn.ts renders it.
+  const drafted = conversation.state.approvals[0] ?? null;
+  const waiting =
+    drafted && drafted.status !== 'auto'
+      ? approvalNotice(replyLanguage(plan, query), {
+          status: drafted.status,
+          afterHours: drafted.afterHours,
+          dueAt: drafted.slaDueAt,
+          nextOpen: drafted.afterHours && hours ? hours.status.nextOpen : null,
+          now: at,
+        })
+      : null;
+  const approvalOf = (notice: string | null) =>
+    drafted ? { status: drafted.status, notice } : null;
   // FEAT-049 AC-8: the card under the reply, as turn.ts picks it (a purpose statement saved).
   const cardOf = (outcome: string, afterHoursNotice: boolean, escalatedAfterHours: boolean) =>
     cardForReply({
@@ -349,15 +445,14 @@ async function runCase(c: Case) {
     });
   const route = routeReply(routeSignals(plan, false), DEFAULT_ROUTE_POLICY);
   const language = replyLanguage(plan, query);
-  const hours = hoursAt(fixture, c, at);
   const slots = systemSlots(hours, language);
-  const facts = retrieve(c.tenant, query);
   const persona = personaOf(c);
   const texts = textsFor(language, persona);
   const turnState = {
     safety: dispatch.endTurn,
     flags: conversation.state.flags,
     aiEnded: conversation.state.aiEnded,
+    approval: null as { status: ApprovalPortResult['status']; notice: string | null } | null,
   };
   // A safety task ended the turn: its fixed text is the reply, as the worker stores it.
   if (dispatch.endTurn) {
@@ -370,6 +465,25 @@ async function runCase(c: Case) {
       retrieved: facts.map((f) => f.id),
       ...turnState,
       card: cardOf('ended', false, false),
+    };
+    return { reply, plan, route: null, dispatchError: dispatch.error, facts, hours, llm, persona };
+  }
+  // A commitment-only turn (FEAT-055 §5.2): the waiting notice is the reply, no reply model; a
+  // quote sent at once (D3) gets the follow-up line.
+  const commitmentOnly =
+    drafted !== null &&
+    plan.tasks.every((t) => ['request_commitment', 'escalate', 'crisis', 'abuse'].includes(t.kind));
+  if (commitmentOnly) {
+    const reply: Reply = {
+      text: drafted.status === 'auto' ? autoQuoteFollowUp(language) : '',
+      factIds: [],
+      outcome: 'approval',
+      notice: null,
+      disclosure: texts.disclosure(fixture.businessName),
+      retrieved: facts.map((f) => f.id),
+      ...turnState,
+      approval: approvalOf(waiting),
+      card: cardOf('approval', false, false),
     };
     return { reply, plan, route: null, dispatchError: dispatch.error, facts, hours, llm, persona };
   }
@@ -430,6 +544,8 @@ async function runCase(c: Case) {
     disclosure: texts.disclosure(fixture.businessName),
     retrieved: facts.map((f) => f.id),
     ...turnState,
+    // FEAT-055: beside an answer, the waiting notice follows the reply.
+    approval: approvalOf(waiting),
     card: cardOf(result.outcome, notice !== null, false),
   };
   return { reply, plan, route, dispatchError: dispatch.error, facts, hours, llm, persona };

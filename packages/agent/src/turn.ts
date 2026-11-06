@@ -1,8 +1,9 @@
-import { rulesInForce } from '@kaki/approvals';
+import { draftApproval, rulesInForce, type DraftResult, type PricedProduct } from '@kaki/approvals';
 import { withTenant, type ZoneDb } from '@kaki/db';
 import { audit, auditCode, auditId, type AuditPayload } from '@kaki/governance';
 import {
   appendAgentReply,
+  appendSystemNotice,
   endAiConversation,
   flagConversation,
   getMessage,
@@ -23,6 +24,7 @@ import { consentState, leadCaptureConfig } from '@kaki/leads';
 import { routeReply, type LlmGateway, type LogicalModel } from '@kaki/llm-gateway';
 import { openStatus } from '@kaki/tenancy';
 import { answerTurn, type AnswerOutcome, type AnswerResult } from './answer.js';
+import { approvalNotice, autoQuoteFollowUp, withoutFlaggedCommitments } from './approval.js';
 import { applyBoundary, triageTail } from './boundary.js';
 import { cardForReply, consentCardFor } from './lead.js';
 import {
@@ -37,6 +39,7 @@ import { systemSlots, type HoursContext } from './hours-text.js';
 import { replyLanguage, type ReplyLanguage } from './language.js';
 import { routeSignals, triage, type TurnPlan } from './plan.js';
 import { HISTORY_LIMIT } from './prompt.js';
+import { withGst } from './render.js';
 import type { Violation } from './verify.js';
 import { escalationNotice, safetyText, textsFor, type SafetyKey } from './texts.js';
 
@@ -60,8 +63,11 @@ export interface TurnJobInput {
   messageId: string;
 }
 
-/** `ended`: a safety task ended the turn with its own text (ADR-025 decision 6). */
-export type TurnOutcome = AnswerOutcome | 'paused' | 'ended' | 'not_live';
+/**
+ * `ended`: a safety task ended the turn with its own text (ADR-025 decision 6). `approval`: a
+ * commitment-only turn (FEAT-055 §5.2): the waiting notice, or the follow-up to a quote sent at once.
+ */
+export type TurnOutcome = AnswerOutcome | 'paused' | 'ended' | 'not_live' | 'approval';
 
 type Stored = NonNullable<Awaited<ReturnType<typeof appendAgentReply>>>;
 
@@ -81,6 +87,14 @@ export type TurnResult = Stored & {
    * reply. Null otherwise (an escalate-only turn's notice is the reply itself).
    */
   escalationNotice: MessageRow | null;
+  /**
+   * FEAT-055: the approval this turn drafted or found pending (published to the inbox), the
+   * quote sent at once (D3; published before the reply) and the waiting notice stored after an
+   * answered reply (published after it). Null when there was none.
+   */
+  approval: { id: string; status: DraftResult['status'] } | null;
+  approvalMessage: MessageRow | null;
+  approvalNotice: MessageRow | null;
 };
 
 /**
@@ -173,6 +187,11 @@ export async function runVisitorTurn(
   const escalated = () => escalation as RequestEscalationResult | null;
   // FEAT-049: the card the dispatch asked for (consent or lead form); `store()` may add an offer.
   let card: MessageCard | null = null;
+  // FEAT-055 §5.2: what the approval port did.
+  let drafted: DraftResult | null = null;
+  const approvalOf = () => drafted as DraftResult | null;
+  // The waiting notice's text (rendered once the port answers; the turn's language by then).
+  let waitingText: string | null = null;
 
   async function store(
     outcome: TurnOutcome,
@@ -180,7 +199,7 @@ export async function runVisitorTurn(
     text: string,
     composed: AnswerResult | null,
     safety: SafetyKey | null = null,
-    escalatedNotice: string | null = null,
+    replyNotice: { kind: 'escalated' | 'approval_waiting'; text: string } | null = null,
   ): Promise<TurnResult | null> {
     const t = textsFor(language, persona);
     const disclosure = prep!.disclosed ? null : t.disclosure(businessName);
@@ -188,10 +207,11 @@ export async function runVisitorTurn(
     // notice, so the after-hours notice waits for the next reply of the closed period.
     // FEAT-023 D6: the return time is rendered, never written by the model.
     // FEAT-044: an escalate-only turn's reply is the escalation notice, which already says
-    // when the team is back, so the after-hours notice waits.
+    // when the team is back, so the after-hours notice waits. FEAT-055: so does a
+    // commitment-only turn's waiting notice.
     const notice =
-      escalatedNotice !== null
-        ? { kind: 'escalated' as const, text: escalatedNotice }
+      replyNotice !== null
+        ? replyNotice
         : safety === 'abuse_ended'
           ? { kind: 'chat_ended' as const, text: t.chatEnded }
           : prep!.noticeDue && safety === null
@@ -228,6 +248,16 @@ export async function runVisitorTurn(
         card: attached,
       });
       if (!reply) return null;
+      // FEAT-055 §5.2: beside an answer, the waiting notice follows the reply.
+      const waiting =
+        waitingText !== null && replyNotice === null && safety === null
+          ? await appendSystemNotice(tx, {
+              tenantId,
+              conversationId,
+              kind: 'approval_waiting',
+              text: () => waitingText!,
+            })
+          : null;
       // KB-09 (FEAT-019 §5.2): a question the turn tried to answer and couldn't is a gap.
       const gapReason = GAP_OUTCOMES.get(outcome);
       if (gapReason && queryVector && plan?.tasks.some((task) => task.kind === 'answer'))
@@ -286,12 +316,15 @@ export async function runVisitorTurn(
         rulesVersion: rules.version,
         // FEAT-049: the card shown under the reply (its kind only, never the prefill).
         card: attached ? auditCode(attached.kind) : null,
+        // FEAT-055: what the commitment request did (a code; never the request or amounts).
+        approval: approvalOf() ? auditCode(approvalOf()!.status) : null,
       });
-      return reply;
+      return { ...reply, waiting };
     });
     return stored
       ? {
-          ...stored,
+          message: stored.message,
+          conversation: stored.conversation,
           outcome,
           timings: composed ? { ...composed.timings, triageMs } : null,
           plan,
@@ -300,6 +333,14 @@ export async function runVisitorTurn(
           language,
           afterHours: notice?.kind === 'after_hours',
           escalationNotice: escalated()?.notice ?? null,
+          approval: approvalOf()
+            ? { id: approvalOf()!.approval.id, status: approvalOf()!.status }
+            : null,
+          approvalMessage: (() => {
+            const a = approvalOf();
+            return a?.status === 'auto' ? a.message : null;
+          })(),
+          approvalNotice: stored.waiting,
         }
       : null;
   }
@@ -361,6 +402,7 @@ export async function runVisitorTurn(
   }
   const facts = factsResult.value;
   ({ plan, blocked: blockedTopic } = applyBoundary(plan, rules.rules, message.body));
+  plan = withoutFlaggedCommitments(plan);
   language = replyLanguage(plan, message.body);
   slotValues = systemSlots(hours, language);
   const t = textsFor(language, persona);
@@ -368,6 +410,12 @@ export async function runVisitorTurn(
   escalateOnly =
     plan.tasks.some((task) => task.kind === 'escalate') &&
     plan.tasks.every((task) => ['escalate', 'crisis', 'abuse'].includes(task.kind));
+  // FEAT-055 §5.2: nothing to answer but the request (an escalation beside it has its own notice).
+  const commitmentOnly =
+    plan.tasks.some((task) => task.kind === 'request_commitment') &&
+    plan.tasks.every((task) =>
+      ['request_commitment', 'escalate', 'crisis', 'abuse'].includes(task.kind),
+    );
   const tenantHours = gate.tenant
     ? {
         hours: gate.tenant.hours,
@@ -444,6 +492,64 @@ export async function runVisitorTurn(
         escalation = r;
         return { status: r.status };
       },
+      // APR-02 (FEAT-055 §5.2, D2): drafted in code from this turn's product facts, priced as the
+      // visitor is quoted (KB-15: GST-inclusive at a registered tenant), in one transaction.
+      draftApproval: async (request) => {
+        const registered = gate.tenant.gstRegistered;
+        const products: PricedProduct[] = facts.flatMap((f) =>
+          f.type === 'product'
+            ? [
+                {
+                  factId: f.id,
+                  version: f.version,
+                  name: f.value.name,
+                  unit: f.value.unit ?? null,
+                  priceCents:
+                    registered && f.gstTreatment === 'exclusive'
+                      ? withGst(f.value.priceCents)
+                      : f.value.priceCents,
+                  gst: f.gstTreatment,
+                },
+              ]
+            : [],
+        );
+        const r = await withTenant(zdb, tenantId, (tx) =>
+          draftApproval(tx, {
+            tenantId,
+            conversationId,
+            request,
+            products,
+            gst: registered ? 'inclusive' : 'none',
+            business: businessName,
+            rules: rules.rules,
+            rulesVersion: rules.version,
+            hours: tenantHours,
+            now: wall,
+          }),
+        );
+        drafted = r;
+        const afterHours = r.approval.afterHours;
+        const slaDueAt = r.approval.slaDueAt;
+        if (r.status !== 'auto') {
+          const nextOpen =
+            afterHours && tenantHours?.hours
+              ? openStatus(
+                  tenantHours.hours,
+                  tenantHours.openOnPublicHolidays,
+                  wall,
+                  tenantHours.holidays,
+                ).nextOpen
+              : null;
+          waitingText = approvalNotice(language, {
+            status: r.status,
+            afterHours,
+            dueAt: slaDueAt,
+            nextOpen,
+            now: wall,
+          });
+        }
+        return { status: r.status, approvalId: r.approval.id, slaDueAt, afterHours };
+      },
     },
   };
   const dispatch = await dispatchPlan(deps.registry ?? visitorRegistry, plan, ctx);
@@ -471,14 +577,22 @@ export async function runVisitorTurn(
             tenantHours.holidays,
           ).nextOpen
         : null;
-    return store(
-      'escalated',
-      'system',
-      '',
-      null,
-      null,
-      escalationNotice(language, afterHours, nextOpen, wall),
-    );
+    return store('escalated', 'system', '', null, null, {
+      kind: 'escalated',
+      text: escalationNotice(language, afterHours, nextOpen, wall),
+    });
+  }
+
+  // A commitment-only turn (FEAT-055 §5.2, AC-3): no reply model. The waiting notice is the
+  // reply; a quote sent at once (D3) gets a short follow-up. If the draft failed, answer as usual.
+  const requested = approvalOf();
+  if (commitmentOnly && requested) {
+    if (requested.status === 'auto')
+      return store('approval', 'agent', autoQuoteFollowUp(language), null);
+    return store('approval', 'system', '', null, null, {
+      kind: 'approval_waiting',
+      text: waitingText!,
+    });
   }
 
   route = routeReply(routeSignals(plan, false), gate.tenant.routePolicy);

@@ -1,9 +1,10 @@
-import type { BoundaryRules } from '@kaki/approvals';
+import { commitmentDecision, parseDiscount, type BoundaryRules } from '@kaki/approvals';
 import type { MessageCard } from '@kaki/contracts';
 import type { ToolCall } from '@kaki/llm-gateway';
 import { z } from 'zod';
 import type { TaskKind, TurnPlan } from './plan.js';
 import { CaptureLeadArgs, prefillOf } from './lead.js';
+import { RequestCommitmentArgs, type ApprovalPortResult } from './approval.js';
 import type { SafetyKey } from './texts.js';
 
 /**
@@ -64,6 +65,12 @@ export interface ConversationPort {
   escalate(
     source: 'visitor_asked' | 'unverified',
   ): Promise<{ status: 'escalated' | 'already_escalated' | 'with_person' }>;
+  /**
+   * Drafts an approval from the visitor's request (APR-02, AGT-06 `draft_approval`; FEAT-055
+   * §5.2): approvals `draftApproval` with this turn's retrieved facts and the rules in force.
+   * Nothing reaches the visitor but the waiting notice, or (D3) a plain quote sent at once.
+   */
+  draftApproval(request: RequestCommitmentArgs): Promise<ApprovalPortResult>;
 }
 
 /**
@@ -132,6 +139,8 @@ export interface TaskResult {
   escalation?: { status: 'escalated' | 'already_escalated' | 'with_person' };
   /** A widget card under the reply (FEAT-049 §5.3): data, never a side effect. */
   card?: MessageCard;
+  /** What a commitment request did (FEAT-055). */
+  approval?: ApprovalPortResult;
 }
 
 export interface TaskHandler<A = unknown> {
@@ -270,6 +279,23 @@ export const captureLeadHandler: TaskHandler<z.infer<typeof CaptureLeadArgs>> = 
   },
 };
 
+/**
+ * AGT-06 `draft_approval` (FEAT-055 §5.2, D1–D3): a quote, discount or commitment request is
+ * drafted for approval in code; the model never answers it. The boundary check stays as the
+ * ADR-025 hook (D1 sends above-maximum discounts to approval, so it passes today).
+ */
+export const requestCommitmentHandler: TaskHandler<RequestCommitmentArgs> = {
+  kind: 'request_commitment',
+  scopes: ['visitor'],
+  tool: 'draft_approval',
+  args: RequestCommitmentArgs,
+  checkBoundary: (rules, args) =>
+    commitmentDecision(rules, { discountPct: parseDiscount(args.discount) ?? 0 }) !== 'refuse',
+  async run(ctx, args) {
+    return { approval: await ctx.conversation.draftApproval(args) };
+  },
+};
+
 /** The visitor scope's handlers (ADR-025). Kinds without one are reported `unhandled`. */
 export const visitorRegistry: Registry = createRegistry([
   crisisHandler,
@@ -277,6 +303,7 @@ export const visitorRegistry: Registry = createRegistry([
   outOfScopeHandler,
   escalateHandler,
   captureLeadHandler,
+  requestCommitmentHandler,
 ]);
 
 type Checked = { ok: true; args: unknown } | { ok: false; reason: RefusalReason };
@@ -347,6 +374,8 @@ export async function dispatchPlan(
     reports.push(report);
     await ctx.audit({
       task: report.task,
+      // The tool the task stands for (FEAT-055 AC-1: `draft_approval`), as a code.
+      ...(h?.tool ? { tool: h.tool } : {}),
       outcome: report.outcome,
       ...(report.reason ? { reason: report.reason } : {}),
     });

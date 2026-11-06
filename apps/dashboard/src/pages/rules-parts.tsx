@@ -9,20 +9,26 @@ import {
 import { Button, ConfirmDialog, EmptyState, ErrorState } from '@kaki/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
+import { Link } from 'react-router';
 import { ApiError } from '../lib/api.ts';
 import { describedBy } from '../lib/form.ts';
 import { ReauthCancelled } from '../lib/reauth.ts';
 import {
+  approverLine,
   COMMITMENT_LABELS,
   diffRules,
   discountError,
   RULES_KEY,
   rulesFieldErrors,
   savedCaption,
+  SLA_ERROR,
+  slaInputOf,
+  slaMinutesOf,
   topicError,
   useRules,
   useSaveRules,
   type RulesErrorField,
+  type SlaUnit,
 } from '../lib/rules.ts';
 import { ErrorSummary } from './privacy-parts.tsx';
 
@@ -276,6 +282,8 @@ export function RulesForm({
   const [base, setBase] = useState<BoundaryRules>(data.rules);
   const [draft, setDraft] = useState<BoundaryRules>(data.rules);
   const [discount, setDiscount] = useState(String(data.rules.maxDiscountPct));
+  const [sla, setSla] = useState(() => slaInputOf(data.rules.approvalSlaMinutes));
+  const [slaShown, setSlaShown] = useState<string | undefined>();
   const [confirming, setConfirming] = useState(false);
   const [serverErrors, setServerErrors] = useState<Partial<Record<RulesErrorField, string>>>({});
   const [discountShown, setDiscountShown] = useState<string | undefined>();
@@ -284,9 +292,20 @@ export function RulesForm({
   const saveRef = useRef<HTMLButtonElement>(null);
   const save = useSaveRules();
 
-  const next: BoundaryRules = { ...draft, maxDiscountPct: Number(discount.trim()) };
-  const lines = diffRules(base, discountError(discount) ? draft : next);
-  const dirty = lines.length > 0 || discount.trim() !== String(base.maxDiscountPct);
+  const slaMinutes = slaMinutesOf(sla.value, sla.unit);
+  const next: BoundaryRules = {
+    ...draft,
+    maxDiscountPct: Number(discount.trim()),
+    approvalSlaMinutes: slaMinutes ?? draft.approvalSlaMinutes,
+  };
+  const lines = diffRules(
+    base,
+    discountError(discount) ? { ...next, maxDiscountPct: draft.maxDiscountPct } : next,
+  );
+  const dirty =
+    lines.length > 0 ||
+    discount.trim() !== String(base.maxDiscountPct) ||
+    slaMinutes !== base.approvalSlaMinutes;
   const pending = save.isPending;
   const neverSaved = data.version === null;
   // Nothing to save: aria-disabled, not disabled, so focus can come back to it after a save.
@@ -300,12 +319,16 @@ export function RulesForm({
   const errors: Partial<Record<RulesErrorField, string>> = {
     ...serverErrors,
     ...(discountShown ? { maxDiscountPct: discountShown } : {}),
+    ...(slaShown ? { approvalSlaMinutes: slaShown } : {}),
   };
 
   function startSave() {
     const err = discountError(discount);
     setDiscountShown(err);
-    if (err) {
+    // The SLA is only on the settings page (SCR-APP-042); setup keeps the stored value.
+    const slaErr = variant === 'settings' && slaMinutes === null ? SLA_ERROR : undefined;
+    setSlaShown(slaErr);
+    if (err || slaErr) {
       setAttempts((n) => n + 1);
       return;
     }
@@ -321,6 +344,7 @@ export function RulesForm({
           setBase(res.rules);
           setDraft(res.rules);
           setDiscount(String(res.rules.maxDiscountPct));
+          setSla(slaInputOf(res.rules.approvalSlaMinutes));
           setServerErrors({});
           setConfirming(false);
           onToast('Rules saved. They apply from the next reply.');
@@ -418,8 +442,8 @@ export function RulesForm({
             </span>
           </div>
           <p className="field__help" id="rules-maxDiscountPct-help">
-            0% means your assistant never offers a discount. Until approvals are set up, your team
-            confirms every discount.
+            0% means your assistant never offers a discount. Larger discounts go to you for
+            approval.
           </p>
           {errors.maxDiscountPct && (
             <p className="field__error" id="rules-maxDiscountPct-error">
@@ -494,7 +518,67 @@ export function RulesForm({
 
       {variant === 'settings' && (
         <Section id="rules-approvals" title="Approvals">
-          <p className="privacy-lede">Approval times and who can approve arrive with approvals.</p>
+          <div className="field">
+            <label className="field__label" htmlFor="rules-approvalSlaMinutes">
+              Reply within
+            </label>
+            <div className="input-suffix">
+              <input
+                id="rules-approvalSlaMinutes"
+                className="input rules-discount"
+                inputMode="numeric"
+                maxLength={4}
+                value={sla.value}
+                readOnly={pending}
+                onChange={(e) => {
+                  setSla((x) => ({ ...x, value: e.target.value }));
+                  setSlaShown(undefined);
+                  if (serverErrors.approvalSlaMinutes)
+                    setServerErrors((x) => ({ ...x, approvalSlaMinutes: undefined }));
+                }}
+                aria-invalid={errors.approvalSlaMinutes ? true : undefined}
+                aria-describedby={describedBy(
+                  'rules-approvalSlaMinutes',
+                  errors.approvalSlaMinutes,
+                  true,
+                )}
+              />
+              <select
+                className="input rules-sla-unit"
+                aria-label="Unit, in business hours"
+                value={sla.unit}
+                disabled={pending}
+                onChange={(e) => {
+                  setSla((x) => ({ ...x, unit: e.target.value as SlaUnit }));
+                  setSlaShown(undefined);
+                }}
+              >
+                <option value="minutes">minutes</option>
+                <option value="hours">hours</option>
+              </select>
+              <span className="input-suffix__text">business hours</span>
+            </div>
+            <p className="field__help" id="rules-approvalSlaMinutes-help">
+              Your assistant tells visitors when to expect an answer. If no one decides in time, the
+              conversation is escalated. After 7 days the request expires.
+            </p>
+            {errors.approvalSlaMinutes && (
+              <p className="field__error" id="rules-approvalSlaMinutes-error">
+                <span aria-hidden="true">!</span> {errors.approvalSlaMinutes}
+              </p>
+            )}
+          </div>
+          <div className="rules-approvers">
+            <h3 className="subsection-title" id="rules-approvers-title">
+              Who can approve
+            </h3>
+            <ul aria-labelledby="rules-approvers-title" data-testid="rules-approvers">
+              {data.approvers.map((a) => (
+                <li key={a.userId}>{approverLine(a)}</li>
+              ))}
+            </ul>
+            <Link to="/settings/team">Manage on Team</Link>
+          </div>
         </Section>
       )}
 

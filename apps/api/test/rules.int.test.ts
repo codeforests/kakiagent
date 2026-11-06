@@ -26,6 +26,7 @@ const SAFE = {
   quotesNeedApproval: true,
   forbiddenCommitments: ['delivery_guarantee', 'refund', 'legal_advice', 'medical_advice'],
   customCommitments: [],
+  approvalSlaMinutes: 120,
 };
 const RULES = {
   allowedTopics: ['Menu and prices', 'Cakes'],
@@ -34,6 +35,7 @@ const RULES = {
   quotesNeedApproval: false,
   forbiddenCommitments: ['refund', 'legal_advice', 'medical_advice'],
   customCommitments: ['same-day delivery'],
+  approvalSlaMinutes: 120,
 };
 
 beforeAll(async () => {
@@ -91,6 +93,27 @@ const rulesEntries = async (tenantId = TENANT_A) =>
   ).rows;
 const versions = async () =>
   Number((await owner.query(`select count(*) from boundary_rules`)).rows[0].count);
+
+describe('approval SLA and approvers on the rules page (FEAT-055 §3; AC-4)', () => {
+  it('stores the SLA, audits approval_sla, refuses one out of range and lists the approvers', async () => {
+    const before = (await rulesEntries()).length;
+    const res = await put(asA, { version: null, rules: { ...RULES, approvalSlaMinutes: 60 } });
+    expect(res.statusCode).toBe(200);
+    const body = BoundaryRulesResponse.parse(res.json());
+    expect(body.rules.approvalSlaMinutes).toBe(60);
+    expect(body.approvers).toContainEqual(
+      expect.objectContaining({ userId: ownerA, role: 'owner' }),
+    );
+    const second = await put(asA, { version: 1, rules: { ...RULES, approvalSlaMinutes: 90 } });
+    expect(second.statusCode).toBe(200);
+    const entries = (await rulesEntries()).slice(before);
+    expect(JSON.parse(entries[1].p)).toEqual({ version: 2, changed: ['approval_sla'] });
+    const bad = await put(asA, { version: 2, rules: { ...RULES, approvalSlaMinutes: 10 } });
+    expect(bad.statusCode).toBe(400);
+    expect(bad.json().fields).toHaveProperty(['rules.approvalSlaMinutes']);
+    await owner.query(`delete from boundary_rules`);
+  });
+});
 
 describe('boundary rules routes (FEAT-054)', () => {
   it('shows the F&B template over the safe defaults before any save, else the defaults (AC-1)', async () => {

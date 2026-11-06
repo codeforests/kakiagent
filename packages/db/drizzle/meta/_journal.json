@@ -344,6 +344,13 @@
       "when": 1793768295273,
       "tag": "0048_leads",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1793874408995,
+      "tag": "0049_approvals",
+      "breakpoints": true
     }
   ]
 }

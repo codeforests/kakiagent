@@ -11,7 +11,7 @@ import {
   type BoundaryRules,
 } from '@kaki/contracts';
 import { withTenant, type Tx } from '@kaki/db';
-import { can, requireReauth } from '@kaki/identity';
+import { can, listTeam, requireReauth } from '@kaki/identity';
 import { getBusinessProfile, INDUSTRY_TEMPLATES, sgDay } from '@kaki/tenancy';
 import type { FastifyRequest } from 'fastify';
 import type { ZodError } from 'zod';
@@ -72,7 +72,26 @@ export function registerRuleRoutes(
   deps: Deps,
   sessionFrom: (req: FastifyRequest) => Promise<TenantSession>,
 ) {
-  const { dashboardDb } = deps;
+  const { dashboardDb, identityDb } = deps;
+
+  /**
+   * Who can decide approvals (FEAT-055 §3, read-only on SCR-APP-042): active owners, admins
+   * and agents with approval rights. Names come from identity per request (ADR-014).
+   */
+  async function approversOf(tenantId: string, userId: string) {
+    const team = await withTenant(identityDb, tenantId, (tx) => listTeam(tx, userId));
+    return team.members
+      .filter(
+        (m) =>
+          m.status === 'active' &&
+          (m.role === 'owner' || m.role === 'admin' || (m.role === 'agent' && m.approvalRights)),
+      )
+      .map((m) => ({
+        userId: m.userId,
+        name: m.displayName ?? m.email.split('@')[0]!,
+        role: m.role,
+      }));
+  }
 
   async function manager(req: FastifyRequest) {
     const s = await sessionFrom(req);
@@ -81,7 +100,7 @@ export function registerRuleRoutes(
   }
 
   /** The saved rules; else the industry template's topics over the safe defaults (ONB-06). */
-  async function response(tx: Tx, tenantId: string) {
+  async function response(tx: Tx, tenantId: string, approvers: unknown[]) {
     const saved = await currentRules(tx, tenantId);
     if (saved)
       return BoundaryRulesResponse.parse({
@@ -89,6 +108,7 @@ export function registerRuleRoutes(
         version: saved.version,
         savedAt: saved.savedAt.toISOString(),
         source: 'saved',
+        approvers,
       });
     const { industry } = await getBusinessProfile(tx, tenantId, sgDay(new Date()));
     const template = industry ? INDUSTRY_TEMPLATES[industry]?.suggestedRules : undefined;
@@ -103,12 +123,14 @@ export function registerRuleRoutes(
       version: null,
       savedAt: null,
       source: template ? 'template' : 'default',
+      approvers,
     });
   }
 
   app.get('/api/v1/settings/rules', async (req) => {
     const s = await manager(req);
-    return withTenant(dashboardDb, s.tenantId, (tx) => response(tx, s.tenantId));
+    const approvers = await approversOf(s.tenantId, s.userId);
+    return withTenant(dashboardDb, s.tenantId, (tx) => response(tx, s.tenantId, approvers));
   });
 
   app.put('/api/v1/settings/rules', async (req) => {
@@ -116,13 +138,14 @@ export function registerRuleRoutes(
     const body = SaveBoundaryRulesRequest.safeParse(req.body);
     if (!body.success) throw new RulesBodyError(fieldsOf(body.error));
     requireReauth(s);
+    const approvers = await approversOf(s.tenantId, s.userId);
     return withTenant(dashboardDb, s.tenantId, async (tx) => {
       await saveRules(tx, s.tenantId, {
         expectedVersion: body.data.version,
         rules: toDomain(body.data.rules),
         userId: s.userId,
       });
-      return response(tx, s.tenantId);
+      return response(tx, s.tenantId, approvers);
     });
   });
 }
