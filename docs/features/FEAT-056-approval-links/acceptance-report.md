@@ -62,4 +62,4 @@ Test ref appended 2026-11-06: APR-03. `node scripts/check-rtm.mjs FEAT-056 --sta
 
 ## CI
 
-_pending_
+GitHub CI run 111 (`workflow_dispatch`, https://github.com/codeforests/kakiagent/actions/runs/42220707118) at `5bc6d48`: all 11 jobs green on attempt 2, including E2E on Chromium, Firefox and WebKit (`approval-link.e2e` with the AC-9 correction, `inbox.e2e` at the tall viewport, `widget-controls.e2e` after the menu fix) and integration with coverage (`uploads.int`, `rate-limit.int`). Attempt 1's Firefox job hit the 30-minute job timeout during its browser install, before any test ran. Earlier runs: 109 at `31a5985` (inbox target-size, F2; widget-controls, F3) and 110 at `d75c887` (widget-controls on both attempts, F3; one Firefox `two-step` sign-in timeout, which passed in run 111). Later commits only touch documents.

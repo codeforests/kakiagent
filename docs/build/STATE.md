@@ -54,7 +54,7 @@ The repo is public, so GitHub Actions minutes are free. CI (`.github/workflows/c
 - **Every feature:** the verify stage runs the full local checks through `scripts/test-env.sh scripts/check-summary.sh` (with no arguments it runs `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`; add `'pnpm --filter <pkg> test:coverage'` for each package the feature touches), then starts CI on the PR branch (`actions_run_trigger` `run_workflow`, `ci.yml`, ref = the branch), waits for the PR events (no polling), fixes anything red on the branch and re-runs until all jobs are green. The PR body lists both.
 - **E2E** runs in CI (Chromium, Firefox, WebKit). The acceptance report records the run number and commit.
 - Ken's local WSL run (`/mnt/project-files/guides/run-kakiagent-locally.md`) is only a fallback when GitHub CI is unavailable.
-- **Last CI run:** GitHub CI run 107 on FEAT-055 at `de562b2`, 2026-11-06: all green on attempt 2 (attempt 1: a `widget-controls.e2e` Chromium focus flake and the known `search-volume.int` timing, both green on re-run).
+- **Last CI run:** GitHub CI run 111 on FEAT-056 at `5bc6d48`, 2026-11-06: all green on attempt 2 (attempt 1: Firefox E2E timed out installing browsers). The `widget-controls.e2e` Chromium focus flake was a real race in the widget menu, fixed in `5bc6d48`.
 
 ## Token tracking (Ken, 2026-10-24; every feature)
 
