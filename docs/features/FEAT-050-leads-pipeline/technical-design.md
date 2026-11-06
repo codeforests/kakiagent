@@ -165,7 +165,7 @@ Band: **hot ≥ 5, warm 3–4, cold ≤ 2** (fixed, D2). `parseBudget`: the larg
 
 ## 7. Decisions
 
-- **D1 — Leads CSV is a direct download after re-auth (recommended to Ken, 2026-11-06; decision card open).** UC-24 step 3 describes a background build and a 24-hour link for exports. For the leads CSV alone the design downloads it in the response: an SME's leads fit well under the 10,000-row cap, it is instant, and no copy of personal data sits in S3. The tenant data export (UC-24, FEAT-062) keeps the link. If Ken picks the background link, §5.4 becomes a job on the scheduler writing `exports/` with a 24-hour lifecycle and a link page; tasks T3–T6 change accordingly.
+- **D1 — Leads CSV is a direct download after re-auth (Ken, 2026-11-06).** UC-24 step 3 describes a background build and a 24-hour link for exports. For the leads CSV alone the design downloads it in the response: an SME's leads fit well under the 10,000-row cap, it is instant, and no copy of personal data sits in S3. The tenant data export (UC-24, FEAT-062) keeps the link.
 - **D2 — Fixed points and bands, owner-set keywords and minimum budget.** LED-03's "tenant-configurable criteria" are the two things an owner knows (what a good enquiry mentions, what spend is worth chasing); the intent signals and the bands are the platform's so scores mean the same across tenants and need no tuning. Budget and timing are free text (FEAT-049), so only budget is parsed, deterministically.
 - **D3 — One hot-lead alert per lead, on capture only.** Rescoring after a criteria change never alerts; a reopened lead doesn't alert again. Recipients are all active members (`escalation_candidates()`); each member's `hot_lead` preference and quiet hours decide delivery (FEAT-052 D3).
 - **D4 — Any status move is allowed, Owner and Admin only.** The pipeline is New → Contacted → Won / Lost as shown, but mistakes need undoing, so any move is a compare-and-set. "Agent: view only" (ux-foundations SCR-APP-032) means Agents can't move or export.
@@ -175,7 +175,7 @@ Band: **hot ≥ 5, warm 3–4, cold ≤ 2** (fixed, D2). `parseBudget`: the larg
 ## 8. Escalations and open items
 
 - LED-05's "withdrawn consent excluded from exports" and LED-07's "consent withdrawn" state on SCR-APP-033 are FEAT-051's (`exportable()` in §5.4 is the seam); LED-05's Test ref stays partial until then.
-- UC-24 step 3 deviation for the leads CSV (D1) waits on Ken's answer.
+- UC-24 step 3 deviation for the leads CSV (D1) is Ken's decision of 2026-11-06.
 - Criteria-save rescoring caps at 5,000 open leads per save; beyond that the rest keep their score until their next capture (noted in the toast count).
 - FEAT-049 verify note (F&B "Date needed" label not carried in the widget config) is not part of this feature: the dashboard labels the field "Preferred date or time" everywhere; left in pending-actions.
 - The score uses only `messages.task_kinds`; richer intent (pages viewed, dwell) waits for the intent data of INB-04's later work.
