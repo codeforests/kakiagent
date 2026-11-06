@@ -1,7 +1,7 @@
 # Tasks: FEAT-055 — Approval drafts, queue, decisions, SLA, expiry
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: designed · Last updated: 2026-11-05 (design)
+> Status: developer-done · Last updated: 2026-11-06 (build, UI)
 
 - [x] T1 — Schema: `0049_approvals.sql` and `schema.ts` (`approvals` with checks, `approvals_one_pending_uq`, grants per zone; `boundary_rules.approval_sla_minutes`; `approvals_queue_due()` owned by `kaki_approvals_timer`; `inbox_queue_auto_close()` skips `waiting_approval`; `NOTIFICATION_KINDS` + `approval_undeliverable`, `NOTICE_KINDS` + `approval_waiting`/`approval_rejected`/`approval_expired`, `ESCALATION_SOURCES` + `approval_sla`), name in `TENANT_SCOPED_TABLES`, cases in `rls.int.test.ts` (design §4; D6, D10; AC-12)
       Done when: `drizzle-kit generate` reports no drift after 0049; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes with tenant-B-can't-see-A for `approvals`, a second pending approval for one conversation refused, `app_visitor` refused an update, `app_dashboard` refused an update of `draft`, `rejected` without a reason refused, `approvals_queue_due()` queuing urgent/sla/expire once each, and auto-close leaving a quiet `waiting_approval` conversation open.
@@ -37,21 +37,22 @@
 - [x] T10 — E2E `e2e/tests/approvals.e2e.ts`: visitor asks for a quote in the widget → notice; Owner approves with an edit → quote card in the widget; reject path; axe on the queue and detail at desktop and phone width (tall viewport) (AC-1–AC-6, AC-13)
       Done when: the spec passes in GitHub CI (verify stage); locally typecheck only (no stack in cloud sessions).
       Note (build): `e2e/tests/approvals.e2e.ts` (2 tests, serial) typechecks; not run here (no stack). The dev tenant has no product facts, so drafts start with "Price to set": the approve test adds a line in Edit (bad price → error summary focused), approves, and checks the widget's quote card; the reject test runs at 375 × 5000 (axe at phone width). Rows are found by a run tag in the request text (the headline carries it). Both tests decide their approval, so no pending one is left behind. Before this, a stubbed Chromium run over the built dashboard (`page.route` for `/api/v1/**`) checked the queue rows and badge, the detail at 1280 and 375 (no horizontal scroll), the edit form's error summary focus and live totals, approve → toast and decided state, reject with a blank reason, and a 409 `already_decided` (alert focused, dialog closed).
-- [ ] T11 — Verify: full `pnpm lint` and `pnpm typecheck`, this feature's tests, `node scripts/check-rtm.mjs FEAT-055`; status `developer-done`; draft PR
+- [x] T11 — Verify: full `pnpm lint` and `pnpm typecheck`, this feature's tests, `node scripts/check-rtm.mjs FEAT-055`; status `developer-done`; draft PR
       Done when: all pass; Verification evidence below has one bullet per AC.
+      Note (build): `pnpm format:check`, `pnpm lint` (incl. check-rtm), `pnpm typecheck`, `pnpm test` (132 files, 1576 tests) pass; `node scripts/check-rtm.mjs FEAT-055` passes; widget size within budget. Integration suites were run by the backend session (T1–T6) and not re-run here (no backend change).
 
 ## Verification evidence
 
-- AC-1 —
-- AC-2 —
-- AC-3 —
-- AC-4 —
-- AC-5 —
-- AC-6 —
-- AC-7 —
-- AC-8 —
-- AC-9 —
-- AC-10 —
-- AC-11 —
-- AC-12 —
-- AC-13 —
+- AC-1 — agent `approval.int.test.ts` and api `approvals.int.test.ts` (T4, T5): draft, `waiting_approval`, audits, detail excerpt and prices; E2E approvals test 1 finds the row on the queue (CI).
+- AC-2 — `feat-055-approvals` eval subset, 23 cases, threshold 1.0 (T6); E2E checks the widget shows only the waiting notice and no quote card before the decision on the reject path (CI).
+- AC-3 — agent integration (T4): SGT time, after-hours next business day, no `reply.*` call on a commitment-only turn; E2E waits for the notice (CI).
+- AC-4 — api rules suite SLA case (T5); dashboard `rules.test.ts` SLA field range, units, change line and server error (T9).
+- AC-5 — api `approvals.int.test.ts` approve/edit/reject, 403 for an Agent without rights (T5); dashboard `approvals.test.ts` `termsError`; stubbed browser run and E2E edit-approve and reject (T8, T10).
+- AC-6 — approvals domain and api integration (T3, T5): card totals = `totalsOf(final)`, closed conversation; widget `quoteView` tests and the 320 px stubbed check (T7); E2E checks the card's line, price, total and note (CI).
+- AC-7 — api `approvals.int.test.ts` stale version and second decider 409 `already_decided` (T5); dashboard 409 path checked in the stubbed browser run (alert names the first decider, focused) (T8).
+- AC-8 — approvals `timers` integration and scheduler unit (T3, T5): escalation at the SLA, one urgent alert; `slaChip` tests (T8).
+- AC-9 — approvals timers integration and api 409 `expired` (T3, T5); `decisionText` expired wording (T8).
+- AC-10 — approvals `decide` integration, undeliverable path (T3); `decisionText` not-delivered wording (T8).
+- AC-11 — approvals domain and agent integration (T3, T4): `aboveMax`, D3 auto quote, already pending, hand-back to `waiting_approval`, auto-close skip; dashboard above-max alert and chip (T8).
+- AC-12 — `rls.int.test.ts` approvals cases (T1); api tenant-B 404 (T5).
+- AC-13 — E2E axe on the queue and detail at 1440 px and 375 × 5000, and on the widget with the quote card (CI, verify stage); stubbed Chromium checks of the widget card at 320 px and the dashboard queue/detail at 1280 and 375 px (T7, T8).

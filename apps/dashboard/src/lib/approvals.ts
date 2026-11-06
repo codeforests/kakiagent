@@ -15,6 +15,7 @@ import {
 } from '@kaki/contracts';
 import { totalsOf, type GstNote, type QuoteTotals } from '@kaki/contracts/quote';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
 import { api } from './api.ts';
 
 export { formatSgd, totalsOf } from '@kaki/contracts/quote';
@@ -273,4 +274,14 @@ export function usePendingApprovals(enabled = true) {
 
 export function useApproval(id: string) {
   return useQuery({ queryKey: approvalKey(id), queryFn: () => api.approval(id) });
+}
+
+/** Re-renders every 30 s so SLA chips count down without a refetch. */
+export function useNow(ms = 30_000): Date {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), ms);
+    return () => clearInterval(t);
+  }, [ms]);
+  return now;
 }

@@ -10,22 +10,13 @@ import {
   slaChip,
   STATUS_LABEL,
   useApprovals,
+  useNow,
   usePendingApprovals,
   type ApprovalView,
 } from '../lib/approvals.ts';
 import { rowTime } from '../lib/inbox.ts';
 import { approvalEvents, type ApprovalNotice } from '../lib/realtime.ts';
 import { Icon } from '../shell/icon.tsx';
-
-/** Re-renders every 30 s so SLA chips count down without a refetch. */
-export function useNow(ms = 30_000): Date {
-  const [now, setNow] = useState(() => new Date());
-  useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), ms);
-    return () => clearInterval(t);
-  }, [ms]);
-  return now;
-}
 
 /**
  * `/approvals`: SCR-APP-017 Approvals (APR-02, APR-04; FEAT-055 ui-design). Pending (overdue,
@@ -188,7 +179,9 @@ function useDecidedElsewhere(visible: ApprovalSummary[]): string {
   const queryClient = useQueryClient();
   const [note, setNote] = useState('');
   const rows = useRef(visible);
-  rows.current = visible;
+  useEffect(() => {
+    rows.current = visible;
+  });
   useEffect(() => {
     const on = (e: Event) => {
       const { id, status } = e as ApprovalNotice;

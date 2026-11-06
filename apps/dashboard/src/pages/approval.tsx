@@ -13,6 +13,7 @@ import {
   STATUS_LABEL,
   timeOf,
   useApproval,
+  useNow,
 } from '../lib/approvals.ts';
 import { useToast } from '../lib/form.ts';
 import {
@@ -23,7 +24,6 @@ import {
   RejectDialog,
   RequestCard,
 } from './approval-parts.tsx';
-import { useNow } from './approvals.tsx';
 
 /**
  * `/approvals/:id`: SCR-APP-018 Approval (APR-02, APR-06; FEAT-055 ui-design). Approve the
@@ -82,19 +82,17 @@ function ApprovalBody({ a }: { a: ApprovalDetail }) {
   const [failure, setFailure] = useState<string | null>(null);
   const alertRef = useRef<HTMLDivElement>(null);
   const [focusAlert, setFocusAlert] = useState(0);
-  // Seen pending, then decided by someone else (live or 409): move focus to the alert.
-  const wasPending = useRef(a.status === 'pending');
-
-  useEffect(() => {
-    if (a.status !== 'pending' && wasPending.current) {
-      wasPending.current = false;
-      if (a.decision?.by?.userId !== meId) {
-        setEditing(false);
-        setRejecting(false);
-        setFocusAlert((k) => k + 1);
-      }
+  // Seen pending, then decided by someone else (live or 409): close the editor and dialog
+  // and move focus to the alert (adjusting state on a prop change, during render).
+  const [seenStatus, setSeenStatus] = useState(a.status);
+  if (seenStatus !== a.status) {
+    setSeenStatus(a.status);
+    if (seenStatus === 'pending' && a.decision?.by?.userId !== meId) {
+      setEditing(false);
+      setRejecting(false);
+      setFocusAlert((k) => k + 1);
     }
-  }, [a.status, a.decision, meId]);
+  }
   useEffect(() => {
     if (focusAlert) alertRef.current?.focus();
   }, [focusAlert]);
@@ -106,7 +104,6 @@ function ApprovalBody({ a }: { a: ApprovalDetail }) {
       setFailure(null);
     },
     onSuccess: (res, body) => {
-      wasPending.current = false;
       queryClient.setQueryData(approvalKey(a.id), res);
       void queryClient.invalidateQueries({ queryKey: ['approvals'] });
       setEditing(false);
