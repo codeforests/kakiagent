@@ -84,7 +84,7 @@ describe('leadsCsv (FEAT-050 §5.4; AC-6, AC-7)', () => {
       }),
       row({ marketing_agreed: false }),
     ]);
-    expect(csv.startsWith('﻿')).toBe(true);
+    expect(csv.startsWith('\uFEFF')).toBe(true);
     expect(csv.endsWith('\r\n')).toBe(true);
     const lines = parseCsv(csv.slice(1));
     expect(lines).toHaveLength(5);

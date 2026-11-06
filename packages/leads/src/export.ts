@@ -119,7 +119,7 @@ export function leadsCsv(rows: readonly LeadDbRow[]): string {
       r.conversation_id ? 'Chat' : 'Contact form',
     ]);
   }
-  return `﻿${lines.map((l) => l.map(csvCell).join(',')).join('\r\n')}\r\n`;
+  return `\uFEFF${lines.map((l) => l.map(csvCell).join(',')).join('\r\n')}\r\n`;
 }
 
 /** `leads-YYYY-MM-DD.csv`, the date in Singapore. */

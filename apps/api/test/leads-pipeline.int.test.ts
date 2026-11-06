@@ -179,7 +179,7 @@ describe('CSV export (AC-5, AC-7)', () => {
       /^attachment; filename="leads-\d{4}-\d{2}-\d{2}\.csv"$/,
     );
     expect(res.headers['cache-control']).toBe('no-store');
-    const lines = res.body.replace(/^﻿/, '').split('\r\n');
+    const lines = res.body.replace(/^\uFEFF/, '').split('\r\n');
     expect(lines[0]).toMatch(/^"Reminder: the Do Not Call Registry applies/);
     expect(lines[1]).toMatch(/^Created \(SGT\),Updated \(SGT\),Status,Score/);
     expect(lines.filter((l) => l.length > 0)).toHaveLength(4);
