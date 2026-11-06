@@ -2117,17 +2117,27 @@
           "expired",
           "not delivered",
           "cannot decide",
-          "price changed"
+          "price changed",
+          "link checking",
+          "link sign in",
+          "link check your email",
+          "link expired",
+          "link already used",
+          "link not valid",
+          "link wrong account",
+          "link no longer on the team",
+          "link can't check"
         ],
-        "gaps": [
-          "link expired, link already used (FEAT-056)"
-        ],
-        "supplements": []
+        "gaps": [],
+        "supplements": [
+          "FEAT-056 link landing (/approve): features/FEAT-056-approval-links/ui-design.md#scr-app-018--approval-link-landing-approve"
+        ]
       },
       "contract_bindings": [
         "GET /api/v1/approvals/:id",
         "POST /api/v1/approvals/:id/decision",
-        "WS /ws (approval events)"
+        "WS /ws (approval events)",
+        "POST /api/v1/approval-links/open"
       ],
       "conformance": {
         "result": "pass",
