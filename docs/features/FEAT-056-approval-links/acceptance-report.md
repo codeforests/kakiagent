@@ -52,6 +52,9 @@ Run here through `scripts/test-env.sh scripts/check-summary.sh`, 2026-11-06:
 ## Findings
 
 - None blocking. F1 (test only, fixed): AC-9's desktop and keyboard clauses had no automated test (Corrected tests).
+- F2 (test only, fixed): `inbox.e2e` "at phone width…" used a 1400 px viewport; this feature's E2E adds conversations before it runs, so a row sat under the fixed tab bar (axe target-size, run 109, all browsers). It now uses the 5000 px tall viewport like the other phone-width axe checks (`d75c887`).
+- F3 (pre-existing widget defect, fixed outside this feature's scope): `widget-controls.e2e` failed on Chromium in run 109 and both attempts of run 110 (and once on FEAT-055's run 107). Escape right after a click left focus nowhere, because the open render's item-focus effect could run after `hide(true)` had focused the button. `HeaderMenu` now refocuses the button again in the effect once the close commits (`5bc6d48`). No test changed.
+- Firefox `two-step.e2e` timed out once waiting for "Check your email" (run 110, attempt 1); it passed in run 109 and on Chromium and WebKit. Recorded; watched in the next run.
 
 ## RTM
 
