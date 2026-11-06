@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { approvalNotice, autoQuoteFollowUp } from './approval.js';
+import { approvalNotice, autoQuoteFollowUp, withoutFlaggedCommitments } from './approval.js';
 
 // Thu 5 Nov 2026, 12:30 SGT.
 const now = new Date('2026-11-05T04:30:00Z');
@@ -59,5 +59,18 @@ describe('approvalNotice (APR-04, UC-22 3, 3a; FEAT-055 AC-3, AC-11)', () => {
       expect(t).not.toMatch(/S\$|%/);
       expect(autoQuoteFollowUp(lang)).not.toMatch(/S\$|%/);
     }
+  });
+});
+
+describe('withoutFlaggedCommitments (AGT-07)', () => {
+  const plan = (injection: boolean, impersonation: boolean) => ({
+    flags: { injection, impersonation },
+    tasks: [{ kind: 'answer' }, { kind: 'request_commitment' }],
+  });
+  it('drops the request on an injection or impersonation, else keeps the plan', () => {
+    expect(withoutFlaggedCommitments(plan(true, false)).tasks).toEqual([{ kind: 'answer' }]);
+    expect(withoutFlaggedCommitments(plan(false, true)).tasks).toEqual([{ kind: 'answer' }]);
+    const clean = plan(false, false);
+    expect(withoutFlaggedCommitments(clean)).toBe(clean);
   });
 });

@@ -24,7 +24,7 @@ import { consentState, leadCaptureConfig } from '@kaki/leads';
 import { routeReply, type LlmGateway, type LogicalModel } from '@kaki/llm-gateway';
 import { openStatus } from '@kaki/tenancy';
 import { answerTurn, type AnswerOutcome, type AnswerResult } from './answer.js';
-import { approvalNotice, autoQuoteFollowUp } from './approval.js';
+import { approvalNotice, autoQuoteFollowUp, withoutFlaggedCommitments } from './approval.js';
 import { applyBoundary, triageTail } from './boundary.js';
 import { cardForReply, consentCardFor } from './lead.js';
 import {
@@ -403,6 +403,7 @@ export async function runVisitorTurn(
   }
   const facts = factsResult.value;
   ({ plan, blocked: blockedTopic } = applyBoundary(plan, rules.rules, message.body));
+  plan = withoutFlaggedCommitments(plan);
   language = replyLanguage(plan, message.body);
   slotValues = systemSlots(hours, language);
   const t = textsFor(language, persona);
