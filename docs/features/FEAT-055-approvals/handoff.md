@@ -1,5 +1,5 @@
 # Handoff: FEAT-055 — Approval drafts, queue, decisions, SLA, expiry
-Branch: feat/FEAT-055-approvals · PR: draft (see the thread) · Updated: 2026-11-06 by build (UI, T7–T11)
+Branch: feat/FEAT-055-approvals · PR: https://github.com/codeforests/kakiagent/pull/54 (draft) · Updated: 2026-11-06 by build (UI, T7–T11)
 Stage done: build (T1–T11 of 11; developer-done)
 Next: verify — kickoff: "Verify FEAT-055 on branch feat/FEAT-055-approvals. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
 
