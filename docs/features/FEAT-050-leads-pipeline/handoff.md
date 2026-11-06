@@ -1,19 +1,21 @@
 # Handoff: FEAT-050 — Leads list, pipeline, scoring and CSV export
-Branch: feat/FEAT-050-leads-pipeline · PR: none · Updated: 2026-11-06 by build (backend)
-Stage done: build (T1–T5 of 9)
-Next: build (UI, T6–T9) — kickoff: "Build FEAT-050 (UI) on branch feat/FEAT-050-leads-pipeline. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage build."
+Branch: feat/FEAT-050-leads-pipeline · PR: draft (see the branch's PR) · Updated: 2026-11-06 by build (UI)
+Stage done: build (T1–T9 of 9), status developer-done
+Next: verify — kickoff: "Verify FEAT-050 on branch feat/FEAT-050-leads-pipeline. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
 
-## What the UI session needs
-- Routes (apps/api/src/leads.ts): `GET /api/v1/leads?status&score&cursor&limit` → `LeadList`; `GET /api/v1/leads/:id` → `LeadDetail` (with `canManage`/`canExport`); `POST /api/v1/leads/:id/status` `{ status, version }` → `LeadRow`, 409 `LeadConflict409` (`stale` with `lead`, or `open_lead_exists`), 403 for Agents; `POST /api/v1/leads/export` `LeadExportBody` → CSV body (`text/csv`, `attachment; filename="leads-YYYY-MM-DD.csv"`), 403 `reauth_required` (wrap in `useReauthGuard().guard`), 413 `too_many`. Bad cursor → 400 `invalid_cursor`.
-- Contracts: `LeadScore`, `ScoreReasonCode`, `ScoreReason`, `LeadScoring` (nullable), `Qualification` sit beside `LeadStatus`; the rest in "Dashboard API: leads" at the end. `LeadSummary.scoring` is in the inbox sidebar already. `PUT /settings/leads` answers `LeadSettingsSaved` (= settings + `rescored`); `LeadSettingsBody.qualification` is optional server-side, but the dashboard's `leadBodyOf` already sends `draft.qualification` (carried through from `leadDraftOf`); T8 only has to add the card, validation and the diff.
-- Reason words: leads `REASON_TEXT` (export.ts) is the CSV's copy of the ui-design table; the dashboard's `reasonText` should match it word for word.
-- F&B template keywords are `INDUSTRY_TEMPLATES.fnb.leadKeywords` (`wedding`, `corporate`, `event`, `婚礼`); a never-saved tenant's GET already returns them in `qualification`.
-- Dev seed: Kaki Bakery has four contact-form leads: Rachel Tan hot 7 (new), Daniel Lim warm 4 (new, keyword already counted), Siti Rahman cold 1 (new, need "Do you sell bread loaves?"), Grace Wong warm 3 (won, never rescored); qualification = template keywords + `minBudget` 300. Second tenant: none. T9's "warm turns hot" can't happen with this seed (a keyword counts once and Daniel has no budget), so the E2E should add the keyword `bread` and assert Siti goes Cold → Warm (1 → 3), then remove it again in `afterEach`.
-- Agents read leads with `inbox.read`; `leads.manage`/`leads.export` are Owner and Admin.
+## What the next stage needs
+- Screens: `/leads` (`pages/leads.tsx`), `/leads/:leadId` (`pages/lead.tsx`), parts in `pages/leads-parts.tsx`; `ScoreChip` sits in `conversation-parts.tsx` (inbox sidebar shows it plus "Open lead"); Qualification card in `leads-settings-parts.tsx` (`#qualification`). Helpers and unit tests in `lib/leads.ts` / `lib/leads.test.ts`.
+- `api.saveLeadSettings` now parses `LeadSettingsSaved`; the toast reads "Lead settings saved. {n} open leads rescored." when `rescored > 0`. FEAT-049's `leads-settings.e2e` filters toasts with `hasText: 'Lead settings saved'`, so it still matches.
+- Deviations from ui-design, both small:
+  - Export dialog title: the tab count when there's no score filter. With a score filter the list counts don't apply (they ignore score), so it shows the loaded row count once the list is complete, else "Export these leads?". The toast's n comes from the downloaded CSV's rows.
+  - 409 `open_lead_exists`: the server doesn't name the other lead, so the alert has no "Open their lead" link (the design allows this).
+- The Lead page's Details card adds an "Offers" row (LED-08 flag on the lead) and puts captures/first captured/updated in one caption line.
+- E2E `leads.e2e.ts` restores the bakery's leads (status, version, score columns) and `lead_settings.qualification` in `afterEach` via the owner connection. Keyword test adds "bread" (Siti Cold 1 → Warm 3), as the backend handoff advised.
+- Export with re-auth uses `ageReauth` + the emailed link, as `rules.e2e.ts` does; the download comes from a blob URL (`page.waitForEvent('download')`).
 
 ## Left to CI or later
-- E2E (`leads.e2e.ts`) and screen renders in the verify stage's GitHub CI (no Docker here).
-- `apps/api` `uploads.int` needs LocalStack, so it can't run here; all other api suites pass (395).
+- `leads.e2e.ts` and axe at 1280 and 375×5000 run only in GitHub CI (no Docker here). A stubbed-API Chromium run covered the screens' main paths (tasks.md evidence).
+- `apps/api` `uploads.int` needs LocalStack (backend handoff).
 
 ## Pending for Ken
 - None.

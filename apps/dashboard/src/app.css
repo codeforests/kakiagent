@@ -5242,6 +5242,8 @@ a.settings-row:hover {
   min-width: 0;
 }
 .leads-tabs .tabs__tab {
+  /* Holds the count's sr-only text inside the scrolling row (no page scroll on phones). */
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
@@ -5258,6 +5260,7 @@ a.settings-row:hover {
 .leads-score {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: var(--space-2);
 }
 .leads-score .field__label {
@@ -5293,6 +5296,17 @@ a.settings-row:hover {
   .leads > .page-header {
     flex-wrap: wrap;
   }
+  .leads-filters {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .leads-score {
+    max-width: none;
+  }
+  .leads-score .input {
+    flex: 1;
+    min-width: 0;
+  }
   .lead-table .lead-row {
     grid-template-columns: 1fr auto;
     grid-template-areas: 'name score' 'contact contact' 'status updated';
@@ -5324,6 +5338,10 @@ a.settings-row:hover {
   .lead-table .lead-row td {
     padding: 0;
     height: auto;
+  }
+  .lead-table .lead-row__contact,
+  .lead-table .lead-row__updated {
+    display: block;
   }
 }
 .lead-page {

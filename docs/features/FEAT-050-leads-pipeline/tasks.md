@@ -1,7 +1,7 @@
 # Tasks: FEAT-050 — Leads list, pipeline, scoring and CSV export
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: designed · Last updated: 2026-11-06 (design)
+> Status: developer-done · Last updated: 2026-11-06 (build UI)
 
 - [x] T1 — Schema: `0051_lead_scoring.sql` and `schema.ts` (`leads` score columns with the all-or-none check, `version`, `status_changed_at`, `leads_tenant_status_updated_idx`; `lead_settings.qualification`; column grants per zone; `lead_intents()` only if the visitor zone can't read the contact's other conversations' task kinds), `LEAD_SCORES`, `SCORE_REASON_CODES`; cases in `rls.int.test.ts` (design §4; AC-9)
       Done when: `drizzle-kit generate` reports no drift after 0051; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes with: `app_agent_visitor` can set the score columns but not `status`; `app_dashboard` can set `status`/`version` but not `need`/`contact_id`; a half-set score refused by the check; tenant B can't update tenant A's lead.
@@ -29,10 +29,12 @@
       Done when: dashboard unit tests and typecheck pass; stubbed Playwright check of stale (409) and `open_lead_exists` messages.
 - [x] T8 — Qualification card on SCR-APP-043 (`leads-settings-parts.tsx`, `KeywordListEditor`, `validateLeadDraft`/`diffLeadSettings` cover qualification) and the inbox sidebar score (`ContextSidebar` Lead section: `ScoreChip`, "Open lead") (ui-design SCR-APP-043, SCR-APP-014; AC-1, AC-2)
       Done when: `pnpm --filter @kaki/dashboard test` passes (keyword validation: empty, duplicate, 41 chars, 21st; budget: 0, text, 10,000,001; diff includes qualification).
-- [ ] T9 — E2E and verify: `e2e/tests/leads.e2e.ts` (Owner: list tabs and counts with the seeded leads, hot chip, open a lead, reasons and consent shown, move to Contacted, export with re-auth and read the downloaded CSV's first two lines and a marketing column; Agent: no status menu, no Export; axe at 1280 and at `{ width: 375, height: 5000 }`); qualification save rescores (owner adds a keyword, the warm lead turns hot); full `pnpm lint`, `pnpm typecheck` (AC-1–AC-9)
+- [x] T9 — E2E and verify: `e2e/tests/leads.e2e.ts` (Owner: list tabs and counts with the seeded leads, hot chip, open a lead, reasons and consent shown, move to Contacted, export with re-auth and read the downloaded CSV's first two lines and a marketing column; Agent: no status menu, no Export; axe at 1280 and at `{ width: 375, height: 5000 }`); qualification save rescores (owner adds a keyword, the warm lead turns hot); full `pnpm lint`, `pnpm typecheck` (AC-1–AC-9)
       Done when: `pnpm lint` and `pnpm typecheck` pass locally; the E2E spec passes in the verify stage's GitHub CI run on all three browsers.
       Note: E2E runs only in CI (no Docker in cloud sessions). Tags in E2E text must have no digits (fake triage reads numbers as quantities).
 
 ## Verification evidence
 
 (filled by the build and verify stages, one bullet per AC)
+
+- Build (UI), 2026-11-06: `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm --filter @kaki/dashboard test` (241 passed, incl. the new leads list, export, qualification helpers) and the dashboard build pass locally. `leads.e2e.ts` written (3 tests: owner pipeline + export with re-auth + CSV lines; agent read-only; keyword save rescores Siti Cold → Warm, per the backend handoff since no seeded warm lead can turn hot); it runs in the verify stage's GitHub CI. A stubbed-API Chromium run of SCR-APP-032/033 checked rows, tab counts, chips, the export dialog title, re-auth path, download and toast, focus return to Export CSV, the status menu (Contacted, and 409 stale → "It's now Won."), the Agent view, and no sideways scroll at 375 px (it found and fixed two overflows).
