@@ -1,7 +1,7 @@
 # Tasks: FEAT-055 — Approval drafts, queue, decisions, SLA, expiry
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: developer-done · Last updated: 2026-11-06 (build, UI)
+> Status: accepted · Last updated: 2026-11-06 (verify)
 
 - [x] T1 — Schema: `0049_approvals.sql` and `schema.ts` (`approvals` with checks, `approvals_one_pending_uq`, grants per zone; `boundary_rules.approval_sla_minutes`; `approvals_queue_due()` owned by `kaki_approvals_timer`; `inbox_queue_auto_close()` skips `waiting_approval`; `NOTIFICATION_KINDS` + `approval_undeliverable`, `NOTICE_KINDS` + `approval_waiting`/`approval_rejected`/`approval_expired`, `ESCALATION_SOURCES` + `approval_sla`), name in `TENANT_SCOPED_TABLES`, cases in `rls.int.test.ts` (design §4; D6, D10; AC-12)
       Done when: `drizzle-kit generate` reports no drift after 0049; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes with tenant-B-can't-see-A for `approvals`, a second pending approval for one conversation refused, `app_visitor` refused an update, `app_dashboard` refused an update of `draft`, `rejected` without a reason refused, `approvals_queue_due()` queuing urgent/sla/expire once each, and auto-close leaving a quiet `waiting_approval` conversation open.
