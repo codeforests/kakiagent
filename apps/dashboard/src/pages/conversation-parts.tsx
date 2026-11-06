@@ -3,9 +3,12 @@ import type {
   ConversationSummary,
   ConversationThread,
   FactChip,
+  LeadScore,
+  LeadScoring,
   ThreadEvent,
   ThreadMessage,
 } from '@kaki/contracts';
+import { scoreLabel } from '../lib/leads.ts';
 import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import {
@@ -237,6 +240,24 @@ export function Dock({ conversation }: { conversation: ConversationSummary }) {
 }
 
 /** An email or phone with a copy button that says "Copied" (FEAT-049 ui-design SCR-APP-014). */
+const SCORE_TONE = { hot: 'danger', warm: 'warning', cold: 'info' } as const;
+const SCORE_GLYPH: Record<LeadScore, GlyphName> = {
+  hot: 'flame',
+  warm: 'sun',
+  cold: 'snowflake',
+};
+
+/** Hot / Warm / Cold / Not scored (FEAT-050): an icon and the word, never colour alone. */
+export function ScoreChip({ scoring }: { scoring: LeadScoring }) {
+  const tone = scoring ? SCORE_TONE[scoring.score] : 'neutral';
+  return (
+    <span className={`chip chip--${tone}`} data-testid="score-chip">
+      <Glyph name={scoring ? SCORE_GLYPH[scoring.score] : 'minus'} size={14} />{' '}
+      {scoreLabel(scoring)}
+    </span>
+  );
+}
+
 export function CopyRow({ label, value }: { label: 'email' | 'phone'; value: string }) {
   const [copied, setCopied] = useState(false);
   return (
@@ -328,10 +349,12 @@ export function ContextSidebar({ thread }: { thread: ConversationThread }) {
           <div className="sidebar-lead" data-testid="sidebar-lead">
             <span className={`chip chip--${LEAD_STATUS[lead.status].tone}`}>
               {LEAD_STATUS[lead.status].label}
-            </span>
+            </span>{' '}
+            <ScoreChip scoring={lead.scoring} />
             <p>Updated {clockTime(lead.updatedAt)}</p>
             <p>{leadLines(lead).consent}</p>
             <p>{leadLines(lead).offers}</p>
+            <Link to={`/leads/${lead.id}`}>Open lead</Link>
           </div>
         ) : (
           <p className="sidebar-caption">No details left yet.</p>

@@ -1,4 +1,4 @@
-import { LeadStatus, type LeadMarketing, type LeadScoring } from '@kaki/contracts';
+import { LeadStatus, type LeadMarketing } from '@kaki/contracts';
 import { ConfirmDialog } from '@kaki/ui';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { useMutation } from '@tanstack/react-query';
@@ -10,31 +10,15 @@ import {
   exportFileName,
   filterNote,
   marketingText,
-  scoreLabel,
   type LeadsFilter,
 } from '../lib/leads.ts';
 import { ReauthCancelled, useReauthGuard } from '../lib/reauth.ts';
-import { Glyph, type GlyphName } from './conversation-parts.tsx';
+import { Glyph, ScoreChip } from './conversation-parts.tsx';
 
 /** The parts of SCR-APP-032 Leads and SCR-APP-033 Lead (FEAT-050 ui-design, "Shared words"). */
 
-const SCORE_TONE = { hot: 'danger', warm: 'warning', cold: 'info' } as const;
-const SCORE_GLYPH: Record<'hot' | 'warm' | 'cold', GlyphName> = {
-  hot: 'flame',
-  warm: 'sun',
-  cold: 'snowflake',
-};
-
-/** Hot / Warm / Cold / Not scored: an icon and the word, never colour alone. */
-export function ScoreChip({ scoring }: { scoring: LeadScoring }) {
-  const tone = scoring ? SCORE_TONE[scoring.score] : 'neutral';
-  return (
-    <span className={`chip chip--${tone}`} data-testid="score-chip">
-      <Glyph name={scoring ? SCORE_GLYPH[scoring.score] : 'minus'} size={14} />{' '}
-      {scoreLabel(scoring)}
-    </span>
-  );
-}
+// The score chip lives with the inbox sidebar's parts, which show it too.
+export { ScoreChip };
 
 export function StatusChip({ status }: { status: LeadStatus }) {
   return (

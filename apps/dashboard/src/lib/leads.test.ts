@@ -18,6 +18,8 @@ import {
   reasonText,
   scoreLabel,
   tabCount,
+  budgetError,
+  keywordError,
 } from './leads.ts';
 
 const settings = (over: Partial<LeadSettings> = {}): LeadSettings => ({
@@ -157,5 +159,54 @@ describe('Leads list and lead page helpers (SCR-APP-032, -033; FEAT-050 AC-2, AC
     expect(csvLeadCount(csv)).toBe(2);
     expect(csvLeadCount('\uFEFFReminder\r\nCreated,Name\r\n')).toBe(0);
     expect(exportFileName(new Date('2026-11-17T16:30:00Z'))).toBe('leads-2026-11-18.csv');
+  });
+});
+
+describe('Qualification card helpers (SCR-APP-043; FEAT-050 AC-1)', () => {
+  it('checks a keyword before it is added', () => {
+    expect(keywordError([], '  ')).toBe('Enter a keyword');
+    expect(keywordError([], 'x'.repeat(41))).toBe('Keep keywords to 40 characters');
+    expect(keywordError(['Wedding'], ' wedding ')).toBe('You already added Wedding');
+    const twenty = Array.from({ length: 20 }, (_, i) => `k${i}`);
+    expect(keywordError(twenty, 'one more')).toBe('You can add up to 20 keywords');
+    expect(keywordError(['wedding'], '婚礼')).toBeUndefined();
+  });
+
+  it('checks the minimum budget and sends it as whole dollars or null', () => {
+    expect(budgetError('')).toBeUndefined();
+    expect(budgetError('1,000')).toBeUndefined();
+    expect(budgetError('12.50')).toBe('Enter a whole number of dollars');
+    expect(budgetError('abc')).toBe('Enter a whole number of dollars');
+    expect(budgetError('0')).toBe('Enter an amount from S$1 to S$10,000,000');
+    expect(budgetError('10000001')).toBe('Enter an amount from S$1 to S$10,000,000');
+    const d = leadDraftOf(
+      settings({ qualification: { keywords: ['wedding'], minBudget: 300 } }),
+      'K',
+    );
+    expect(d.qualification).toEqual({ keywords: ['wedding'], minBudget: '300' });
+    expect(leadBodyOf(d, 1).qualification).toEqual({ keywords: ['wedding'], minBudget: 300 });
+    d.qualification.minBudget = 'S$1,500';
+    expect(leadBodyOf(d, 1).qualification?.minBudget).toBe(1500);
+    d.qualification.minBudget = ' ';
+    expect(leadBodyOf(d, 1).qualification?.minBudget).toBeNull();
+    d.qualification.minBudget = 'abc';
+    expect(validateLeadDraft(d)).toEqual({ minBudget: 'Enter a whole number of dollars' });
+  });
+
+  it('lists keyword and budget changes in the diff', () => {
+    const before = leadDraftOf(
+      settings({ qualification: { keywords: ['wedding'], minBudget: 300 } }),
+      'K',
+    );
+    const after = leadDraftOf(
+      settings({ qualification: { keywords: ['bread'], minBudget: null } }),
+      'K',
+    );
+    expect(diffLeadSettings(before, after)).toEqual([
+      'Keywords added: bread',
+      'Keywords removed: wedding',
+      'Minimum budget removed',
+    ]);
+    expect(diffLeadSettings(before, before)).toEqual([]);
   });
 });

@@ -60,11 +60,40 @@ export const MARKETING_DEFAULT = (business: string) =>
 export interface LeadDraft {
   fields: LeadSettings['fields'];
   marketing: { enabled: boolean; en: string; zh: string };
-  /** FEAT-050: carried through until the Qualification card edits it (T8). */
-  qualification: LeadSettings['qualification'];
+  /** FEAT-050 Qualification card: the budget as typed (whole S$, empty = no criterion). */
+  qualification: { keywords: string[]; minBudget: string };
 }
 
-export type LeadErrors = Partial<Record<'email' | 'marketingEn', string>>;
+export type LeadErrors = Partial<Record<'email' | 'marketingEn' | 'minBudget', string>>;
+
+export const KEYWORD_MAX = 20;
+const keywordKey = (k: string) => k.normalize('NFKC').toLowerCase();
+
+/** The Add keyword checks (ui-design SCR-APP-043), else undefined. */
+export function keywordError(list: string[], value: string): string | undefined {
+  const v = value.trim().replace(/\s+/g, ' ');
+  if (!v) return 'Enter a keyword';
+  if (v.length > 40) return 'Keep keywords to 40 characters';
+  const dup = list.find((k) => keywordKey(k) === keywordKey(v));
+  if (dup) return `You already added ${dup}`;
+  if (list.length >= KEYWORD_MAX) return 'You can add up to 20 keywords';
+  return undefined;
+}
+
+/** The minimum budget in whole S$ ("1,000" allowed): null when empty, NaN when not a number. */
+export function budgetOf(value: string): number | null {
+  const v = value.trim().replace(/^S\$/i, '').replace(/[,\s]/g, '');
+  if (!v) return null;
+  return /^\d+$/.test(v) ? Number(v) : Number.NaN;
+}
+
+export function budgetError(value: string): string | undefined {
+  const n = budgetOf(value);
+  if (n === null) return undefined;
+  if (Number.isNaN(n)) return 'Enter a whole number of dollars';
+  if (n < 1 || n > 10_000_000) return 'Enter an amount from S$1 to S$10,000,000';
+  return undefined;
+}
 
 /** The form's starting values; an empty opt-in wording starts on the default. */
 export function leadDraftOf(s: LeadSettings, business: string): LeadDraft {
@@ -75,7 +104,10 @@ export function leadDraftOf(s: LeadSettings, business: string): LeadDraft {
       en: s.marketing.text.en || MARKETING_DEFAULT(business),
       zh: s.marketing.text.zh ?? '',
     },
-    qualification: { ...s.qualification, keywords: [...s.qualification.keywords] },
+    qualification: {
+      keywords: [...s.qualification.keywords],
+      minBudget: s.qualification.minBudget === null ? '' : String(s.qualification.minBudget),
+    },
   };
 }
 
@@ -87,7 +119,10 @@ export function leadBodyOf(d: LeadDraft, version: number): LeadSettingsBody {
       enabled: d.marketing.enabled,
       text: { en: d.marketing.en.trim(), zh: d.marketing.zh.trim() || null },
     },
-    qualification: d.qualification,
+    qualification: {
+      keywords: d.qualification.keywords,
+      minBudget: budgetOf(d.qualification.minBudget),
+    },
   };
 }
 
@@ -106,6 +141,8 @@ export function validateLeadDraft(d: LeadDraft): LeadErrors {
   if (fields) errors.email = fields;
   if (d.marketing.enabled && !d.marketing.en.trim())
     errors.marketingEn = 'Enter the opt-in wording';
+  const budget = budgetError(d.qualification.minBudget);
+  if (budget) errors.minBudget = budget;
   return errors;
 }
 
@@ -129,6 +166,22 @@ export function diffLeadSettings(before: LeadDraft, after: LeadDraft): string[] 
   if (m0.enabled !== m1.enabled) lines.push(`Marketing opt-in: ${m1.enabled ? 'on' : 'off'}`);
   if (m1.enabled && (m0.en.trim() !== m1.en.trim() || m0.zh.trim() !== m1.zh.trim()))
     lines.push('Opt-in wording changed');
+  const q0 = before.qualification;
+  const q1 = after.qualification;
+  const added = q1.keywords.filter((k) => !q0.keywords.includes(k));
+  const removed = q0.keywords.filter((k) => !q1.keywords.includes(k));
+  if (added.length) lines.push(`Keywords added: ${added.join(', ')}`);
+  if (removed.length) lines.push(`Keywords removed: ${removed.join(', ')}`);
+  if (q0.minBudget.trim() !== q1.minBudget.trim()) {
+    const n = budgetOf(q1.minBudget);
+    lines.push(
+      n === null
+        ? 'Minimum budget removed'
+        : Number.isNaN(n)
+          ? 'Minimum budget changed'
+          : `Minimum budget: S$${n}`,
+    );
+  }
   return lines;
 }
 
