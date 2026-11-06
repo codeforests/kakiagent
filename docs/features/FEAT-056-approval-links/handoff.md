@@ -1,5 +1,5 @@
 # Handoff: FEAT-056 — Signed mobile approval links
-Branch: feat/FEAT-056-approval-links · PR: see below · Updated: 2026-11-06 by build (UI)
+Branch: feat/FEAT-056-approval-links · PR: https://github.com/codeforests/kakiagent/pull/55 · Updated: 2026-11-06 by build (UI)
 Stage done: build (T1–T8 of 8), developer-done
 Next: verify — kickoff: "Verify FEAT-056 on branch feat/FEAT-056-approval-links. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
 
