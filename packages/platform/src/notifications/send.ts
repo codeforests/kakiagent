@@ -1,7 +1,7 @@
 import { sql, withTenant, type Tx, type ZoneDb } from '@kaki/db';
 import type { Mailer } from '../mailer.js';
 import { muteEvent, type NotificationKind, type SubjectType } from './kinds.js';
-import { linkFor, settingsLink } from './links.js';
+import { alertLink, settingsLink, type LinkOf } from './links.js';
 import { prefsOf, type Prefs } from './prefs.js';
 import { inQuietHours } from './quiet.js';
 import { alertEmail, digestEmail, type AlertItem, type EmailContext } from './templates.js';
@@ -32,6 +32,12 @@ export interface SendOptions {
   now?: Date;
   limit?: number;
   log?: { warn: (obj: object, msg: string) => void };
+  /**
+   * An alert's own link, minted per recipient at send time (FEAT-056 §5.2): the scheduler puts
+   * approvals' signed link on `approval_pending` this way, so platform never imports approvals.
+   * `null` (or no callback) falls back to `linkFor`.
+   */
+  linkOf?: LinkOf;
 }
 
 export interface SendResult {
@@ -105,12 +111,19 @@ const ctxOf = (r: Row, appUrl: string): EmailContext => ({
   businessName: r.business,
   settingsLink: settingsLink(appUrl),
 });
-const itemOf = (r: Row, appUrl: string): AlertItem => ({
-  kind: r.kind,
-  urgent: r.urgent,
-  at: createdAt(r),
-  link: linkFor(r.kind, { type: r.subject_type, id: r.subject_id }, appUrl),
-});
+const itemOf = (r: Row, tenantId: string, opts: SendOptions): AlertItem => {
+  const subject = { type: r.subject_type, id: r.subject_id };
+  return {
+    kind: r.kind,
+    urgent: r.urgent,
+    at: createdAt(r),
+    link: alertLink(
+      opts.linkOf,
+      { tenantId, userId: r.user_id, kind: r.kind, subject },
+      opts.appUrl,
+    ),
+  };
+};
 const mutedFor = (prefs: Prefs, r: Row) => {
   const event = muteEvent(r.kind);
   return event !== null && prefs.emailMuted.includes(event);
@@ -146,7 +159,7 @@ async function sendPending(
       out.held++;
     } else {
       try {
-        await mailer.send(alertEmail(itemOf(r, opts.appUrl), ctxOf(r, opts.appUrl)));
+        await mailer.send(alertEmail(itemOf(r, tenantId, opts), ctxOf(r, opts.appUrl)));
         await tx.execute(
           sql`update notifications set status = 'sent', sent_at = ${now}, attempts = attempts + 1
               where tenant_id = ${tenantId} and id = ${r.id}`,
@@ -211,7 +224,7 @@ async function sendDigests(
     try {
       await mailer.send(
         digestEmail(
-          items.map((r) => itemOf(r, opts.appUrl)),
+          items.map((r) => itemOf(r, tenantId, opts)),
           ctxOf(first, opts.appUrl),
         ),
       );

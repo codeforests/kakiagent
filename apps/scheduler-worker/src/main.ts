@@ -16,6 +16,8 @@ import {
   startTelemetry,
 } from '@kaki/platform';
 import { sendDueNotifications } from '@kaki/platform/notifications';
+import { approvalLinkKey } from '@kaki/approvals';
+import { alertLinkOf } from './alert-links.js';
 import { createDispatcher } from '@kaki/platform/outbox';
 import { z } from 'zod';
 import { channelHealthOnce } from './channel-health.js';
@@ -164,12 +166,15 @@ const linkTimer = setInterval(() => {
 
 // Owner alerts (FEAT-052 §5.2, D2, D10): sends due alerts, holds those in a member's quiet
 // hours and sends what was held as one digest when they end; chained so ticks never overlap.
+// `approval_pending` carries the approver's signed single-use link (FEAT-056 §5.2, D2, D3).
+const alertLinks = alertLinkOf(approvalLinkKey(config.MAGIC_LINK_SECRET), config.PUBLIC_APP_URL);
 let notifying = Promise.resolve();
 async function sweepAlerts() {
   try {
     const r = await sendDueNotifications(identityDb, mailer, {
       appUrl: config.PUBLIC_APP_URL,
       log: logger,
+      linkOf: alertLinks,
     });
     if (Object.values(r).some((n) => n > 0)) logger.info(r, 'alert sweep');
   } catch (err) {

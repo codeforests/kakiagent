@@ -11,6 +11,7 @@ import {
   notify,
   savePrefs,
   sendDueNotifications,
+  type LinkOf,
   type NotificationKind,
 } from '../src/notifications/index.js';
 
@@ -390,5 +391,60 @@ describe('tenant isolation', () => {
         }),
       ),
     ).rejects.toMatchObject({ cause: { message: expect.stringMatching(/row-level security/) } });
+  });
+});
+
+describe('per-recipient links (FEAT-056 §5.2; AC-1)', () => {
+  const approvalAlert = (kind: NotificationKind, recipients: string[], id: string) =>
+    withTenant(tdb.zone('dashboard'), TENANT_A, (tx) =>
+      notify(tx, {
+        tenantId: TENANT_A,
+        kind,
+        recipients,
+        urgent: false,
+        subject: { type: 'approval', id },
+        dedupeKey: `${kind}:${id}`,
+      }),
+    );
+  let minted = 0;
+  const linkOf: LinkOf = (i) =>
+    i.kind === 'approval_pending'
+      ? `${APP}/approve#token=${i.tenantId}.${i.subject.id}.${i.userId}.${++minted}`
+      : null;
+  const sendWith = (mailer: Mailer, now: Date) =>
+    sendDueNotifications(tdb.zone('identity'), mailer, { appUrl: APP, now, linkOf });
+
+  it('each recipient of approval_pending gets their own link; other kinds keep the page', async () => {
+    const { mailer, sent } = fakeMailer();
+    const a = randomUUID();
+    await approvalAlert('approval_pending', [ownerA, agentA], a);
+    await approvalAlert('approval_undeliverable', [ownerA], a);
+    await backdate(sg('10:00'));
+    await sendWith(mailer, sg('10:00'));
+    const linkTo = (to: string, subject: RegExp) =>
+      sent.find((e) => e.to === to && subject.test(e.subject))!.text.match(/https:\S+/)![0];
+    const forOwner = linkTo('owner@kaki-bakery.test', /waiting for your approval/);
+    const forAgent = linkTo('staff@kaki-bakery.test', /waiting for your approval/);
+    expect(forOwner).toMatch(new RegExp(`^${APP}/approve#token=${TENANT_A}\\.${a}\\.${ownerA}\\.`));
+    expect(forAgent).toMatch(new RegExp(`^${APP}/approve#token=${TENANT_A}\\.${a}\\.${agentA}\\.`));
+    expect(linkTo('owner@kaki-bakery.test', /couldn't reach/)).toBe(`${APP}/approvals/${a}`);
+  });
+
+  it('a held digest mints the approval item its own link at send time', async () => {
+    const { mailer, sent } = fakeMailer();
+    const a = randomUUID();
+    const c = randomUUID();
+    await setPrefs(ownerA, { quiet: ['22:00', '08:00'] });
+    await approvalAlert('approval_pending', [ownerA], a);
+    await alert('escalation', [ownerA], { id: c });
+    await backdate(sg('23:00'));
+    await sendWith(mailer, sg('23:00'));
+    const before = minted;
+    await sendWith(mailer, sg('08:00', 1));
+    expect(minted).toBe(before + 1);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.text).toContain(`${APP}/approve#token=${TENANT_A}.${a}.${ownerA}.`);
+    expect(sent[0]!.text).toContain(`${APP}/inbox/${c}`);
+    expect(sent[0]!.text).toContain('This link works once, for 24 hours.');
   });
 });
