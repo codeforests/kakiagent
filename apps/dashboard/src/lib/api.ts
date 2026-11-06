@@ -46,7 +46,14 @@ import {
   type StepOutcomeBody,
   PrivacySettingsResponse,
   LeadSettings,
+  LeadSettingsSaved,
+  LeadDetail,
+  LeadList,
+  LeadRow,
+  type LeadExportBody,
   type LeadSettingsBody,
+  type LeadStatusBody,
+  type LeadsQuery,
   type PrivacyNoticeBody,
   type PurposeStatementBody,
   ConversationList,
@@ -383,7 +390,20 @@ export const api = {
   // Leads and consent (SCR-APP-043, FEAT-049 §3).
   leadSettings: () => getJson('/api/v1/settings/leads', LeadSettings),
   saveLeadSettings: (body: LeadSettingsBody) =>
-    request('PUT', '/api/v1/settings/leads', LeadSettings, body),
+    request('PUT', '/api/v1/settings/leads', LeadSettingsSaved, body),
+  // Leads list, lead page, pipeline and CSV export (SCR-APP-032, -033; FEAT-050 §3).
+  listLeads: (q: Partial<LeadsQuery>) => getJson(`/api/v1/leads${query(q)}`, LeadList),
+  lead: (id: string) => getJson(`/api/v1/leads/${encodeURIComponent(id)}`, LeadDetail),
+  setLeadStatus: (id: string, body: LeadStatusBody) =>
+    request('POST', `/api/v1/leads/${encodeURIComponent(id)}/status`, LeadRow, body),
+  /** The CSV in the response (D1): filters in the body, never personal data in a URL. */
+  exportLeads: async (body: LeadExportBody) => {
+    const res = await send('POST', '/api/v1/leads/export', body);
+    const name = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') ?? '')?.[1];
+    // The bytes as sent (with the BOM Excel needs); `text()` would drop it.
+    const blob = await res.blob();
+    return { name: name ?? null, blob, text: await blob.text() };
+  },
   /** A plain link: the browser downloads it with the session cookie. */
   documentUrl: (doc: 'data-flow' | 'dpa') => `/api/v1/settings/privacy/documents/${doc}.pdf`,
   /** FEAT-012 §3: SCR-APP-023, SCR-APP-024 and the website form. */

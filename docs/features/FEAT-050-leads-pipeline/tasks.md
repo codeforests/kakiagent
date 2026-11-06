@@ -22,7 +22,7 @@
 
 ## Build session 2 (UI)
 
-- [ ] T6 — Dashboard Leads (SCR-APP-032): `pages/leads.tsx`, `pages/leads-parts.tsx` (`ScoreChip`, `StatusChip`, `MarketingFlag`, `ExportDialog`), `lib/leads.ts` (`useLeads`, `leadsQueryOf`, `scoreLabel`, `reasonText`, `exportFileName`), `api.listLeads`/`api.exportLeads` (blob), router replaces the placeholder (ui-design SCR-APP-032; AC-4–AC-6)
+- [x] T6 — Dashboard Leads (SCR-APP-032): `pages/leads.tsx`, `pages/leads-parts.tsx` (`ScoreChip`, `StatusChip`, `MarketingFlag`, `ExportDialog`), `lib/leads.ts` (`useLeads`, `leadsQueryOf`, `scoreLabel`, `reasonText`, `exportFileName`), `api.listLeads`/`api.exportLeads` (blob), router replaces the placeholder (ui-design SCR-APP-032; AC-4–AC-6)
       Done when: `pnpm --filter @kaki/dashboard test` passes (`leadsQueryOf` URL round-trip, `reasonText` for every code, `exportFileName` in SGT) and `pnpm --filter @kaki/dashboard typecheck` passes.
       Note: a stubbed-API Playwright check at 375 px and 1280 px (tabs, export dialog → re-auth → download, focus return) before CI (code-map Tests).
 - [ ] T7 — Dashboard Lead (SCR-APP-033): `pages/lead.tsx` (fields, score and reasons, status menu with 409 handling, consent records, conversations), route `/leads/:leadId` (ui-design SCR-APP-033; AC-2, AC-4, AC-8)

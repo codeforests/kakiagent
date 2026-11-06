@@ -1,0 +1,146 @@
+import type { LeadMarketing, LeadScoring, LeadStatus } from '@kaki/contracts';
+import { ConfirmDialog } from '@kaki/ui';
+import { useMutation } from '@tanstack/react-query';
+import { useState, type RefObject } from 'react';
+import { api, ApiError } from '../lib/api.ts';
+import { LEAD_STATUS } from '../lib/inbox.ts';
+import {
+  csvLeadCount,
+  exportFileName,
+  filterNote,
+  marketingText,
+  scoreLabel,
+  type LeadsFilter,
+} from '../lib/leads.ts';
+import { ReauthCancelled, useReauthGuard } from '../lib/reauth.ts';
+import { Glyph, type GlyphName } from './conversation-parts.tsx';
+
+/** The parts of SCR-APP-032 Leads and SCR-APP-033 Lead (FEAT-050 ui-design, "Shared words"). */
+
+const SCORE_TONE = { hot: 'danger', warm: 'warning', cold: 'info' } as const;
+const SCORE_GLYPH: Record<'hot' | 'warm' | 'cold', GlyphName> = {
+  hot: 'flame',
+  warm: 'sun',
+  cold: 'snowflake',
+};
+
+/** Hot / Warm / Cold / Not scored: an icon and the word, never colour alone. */
+export function ScoreChip({ scoring }: { scoring: LeadScoring }) {
+  const tone = scoring ? SCORE_TONE[scoring.score] : 'neutral';
+  return (
+    <span className={`chip chip--${tone}`} data-testid="score-chip">
+      <Glyph name={scoring ? SCORE_GLYPH[scoring.score] : 'minus'} size={14} />{' '}
+      {scoreLabel(scoring)}
+    </span>
+  );
+}
+
+export function StatusChip({ status }: { status: LeadStatus }) {
+  return (
+    <span className={`chip chip--${LEAD_STATUS[status].tone}`} data-testid="status-chip">
+      {LEAD_STATUS[status].label}
+    </span>
+  );
+}
+
+export function MarketingFlag({ marketing }: { marketing: LeadMarketing }) {
+  return <span className="lead-marketing">{marketingText(marketing)}</span>;
+}
+
+/** Saves the CSV under its name through a temporary object URL. */
+function save(blob: Blob, name: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  // Attached for Firefox, which ignores clicks on a detached link.
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/**
+ * Export CSV (design.md §4.10 sensitive action): confirm, then re-auth when the server asks
+ * (FEAT-006 guard), then the browser downloads the file. Focus goes back to Export CSV.
+ */
+export function ExportDialog({
+  open,
+  onOpenChange,
+  title,
+  filter,
+  returnTo,
+  onToast,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: string;
+  filter: LeadsFilter;
+  returnTo: RefObject<HTMLButtonElement | null>;
+  onToast: (message: string) => void;
+}) {
+  const { guard } = useReauthGuard();
+  const [tooMany, setTooMany] = useState(false);
+  const run = useMutation({
+    mutationFn: () =>
+      guard(() =>
+        api.exportLeads({
+          status: filter.status,
+          ...(filter.score ? { score: filter.score } : {}),
+        }),
+      ),
+    onMutate: () => setTooMany(false),
+    onSuccess: (res) => {
+      save(res.blob, res.name ?? exportFileName(new Date()));
+      const n = csvLeadCount(res.text);
+      onOpenChange(false);
+      onToast(
+        `Exported ${n} ${n === 1 ? 'lead' : 'leads'}. This export is recorded in the audit log.`,
+      );
+    },
+    onError: (err) => {
+      if (err instanceof ReauthCancelled) return onOpenChange(false);
+      if (err instanceof ApiError && err.status === 413) return setTooMany(true);
+      onOpenChange(false);
+      onToast("Couldn't export. Try again.");
+    },
+  });
+  const note = filterNote(filter);
+  return (
+    <ConfirmDialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) setTooMany(false);
+        onOpenChange(next);
+      }}
+      title={title}
+      confirmLabel="Export"
+      busy={run.isPending}
+      busyLabel="Exporting…"
+      onConfirm={() => run.mutate()}
+      onCloseAutoFocus={(e) => {
+        e.preventDefault();
+        returnTo.current?.focus();
+      }}
+      alert={
+        tooMany ? (
+          <div className="alert alert--danger" role="alert">
+            <p>That's more than 10,000 leads. Pick a status or score to export fewer.</p>
+          </div>
+        ) : undefined
+      }
+    >
+      {note && <p className="lead-export__filters">{note}</p>}
+      <p>
+        The file includes names, phone numbers and emails. Keep it safe and delete it when you're
+        done.
+      </p>
+      <div className="alert alert--info">
+        <p>
+          The Do Not Call Registry applies before you call or text anyone for marketing. Check the
+          Offers column.
+        </p>
+      </div>
+    </ConfirmDialog>
+  );
+}

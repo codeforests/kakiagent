@@ -26,6 +26,7 @@ import { LegalPage } from './pages/legal.tsx';
 import { ChannelsPage } from './pages/channels.tsx';
 import { PrivacyPage } from './pages/privacy.tsx';
 import { LeadsSettingsPage } from './pages/leads-settings.tsx';
+import { LeadsPage } from './pages/leads.tsx';
 import { RulesPage } from './pages/rules.tsx';
 import { SettingsPage } from './pages/settings.tsx';
 import { SetupRulesPage } from './pages/setup-rules.tsx';
@@ -112,8 +113,8 @@ export const router = createBrowserRouter([
       // Replay a conversation (FEAT-028, SCR-APP-031).
       { path: 'coach/replay', element: <ReplayPickPage /> },
       { path: 'coach/replay/:id', element: <ReplayPage /> },
-      // Leads list and lead detail (SCR-APP-032, -033) are FEAT-050.
-      { path: 'leads', element: <Placeholder title="Leads" feature="FEAT-050" /> },
+      // Leads list and lead detail (SCR-APP-032, -033; FEAT-050).
+      { path: 'leads', element: <LeadsPage /> },
       { path: 'insights', element: <Placeholder title="Insights" feature="FEAT-066" /> },
       // Settings index and Assistant (FEAT-024), Business profile (FEAT-009); the other
       // sections link as they are built.
