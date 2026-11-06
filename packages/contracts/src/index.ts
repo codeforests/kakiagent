@@ -3088,7 +3088,8 @@ export const LeadSettingsBody = z.strictObject({
     enabled: z.boolean(),
     text: z.object({ en: z.string().trim().max(600), zh: z.string().trim().max(600).nullable() }),
   }),
-  qualification: z.strictObject(Qualification.shape),
+  /** FEAT-050; absent keeps the saved criteria (a FEAT-049 client). */
+  qualification: z.strictObject(Qualification.shape).optional(),
 });
 export type LeadSettingsBody = z.infer<typeof LeadSettingsBody>;
 

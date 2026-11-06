@@ -128,3 +128,14 @@ describe('invitation tokens (FEAT-007 §5.1)', () => {
     expect(t).not.toBe(magicLinkToken(secret, id));
   });
 });
+
+describe('lead capabilities (FEAT-050 D1, D4)', () => {
+  it('Owner and Admin manage and export leads; Agents only read them', () => {
+    for (const cap of ['leads.manage', 'leads.export'] as const) {
+      expect(can('owner', cap)).toBe(true);
+      expect(can('admin', cap)).toBe(true);
+      expect(can('agent', cap)).toBe(false);
+    }
+    expect(can('agent', 'inbox.read')).toBe(true);
+  });
+});

@@ -1,6 +1,7 @@
 import type { LeadExportBody, ScoreReason, ScoreReasonCode } from '@kaki/contracts';
 import { LEAD_EXPORT_MAX } from '@kaki/contracts';
 import { sql, type Tx } from '@kaki/db';
+import { audit, auditCode } from '@kaki/governance';
 import { TooManyLeads } from './errors.js';
 import { leadFilter, leadSelect, scoringOf, type LeadDbRow } from './list.js';
 
@@ -125,4 +126,23 @@ export function leadsCsv(rows: readonly LeadDbRow[]): string {
 export function exportFileName(now: Date): string {
   const d = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Singapore' }).format(now);
   return `leads-${d}.csv`;
+}
+
+/** Audits a leads export (LED-05; AC-5): the count and filters, never personal data (ADR-014). */
+export async function auditExport(
+  tx: Tx,
+  input: { tenantId: string; userId: string; count: number; filters: LeadExportBody },
+): Promise<void> {
+  await audit.append(tx, input.tenantId, {
+    action: 'lead.exported',
+    actorType: 'user',
+    actorId: input.userId,
+    subjectType: 'tenant',
+    subjectId: input.tenantId,
+    payload: {
+      count: input.count,
+      status: auditCode(input.filters.status),
+      ...(input.filters.score ? { score: auditCode(input.filters.score) } : {}),
+    },
+  });
 }

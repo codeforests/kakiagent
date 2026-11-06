@@ -175,6 +175,8 @@ describe('the inbox sidebar, dividers and search (AC-10, AC-12)', () => {
     expect(thread.sidebar.lead).toMatchObject({
       status: 'new',
       consent: { marketing: { agreed: true } },
+      // FEAT-050: scored at capture (phone only, nothing else said: cold).
+      scoring: { score: 'cold', points: 0, reasons: [] },
     });
     expect(
       thread.events

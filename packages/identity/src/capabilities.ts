@@ -22,7 +22,11 @@ export type Capability =
   /** Decide approvals by role (APR-02); Agents only through a grant, see `canApprove`. */
   | 'approvals.decide'
   /** Take a conversation from the teammate who owns it (INB-09; FEAT-043 D1). Owner and Admin. */
-  | 'inbox.reassign';
+  | 'inbox.reassign'
+  /** Move leads through the pipeline (LED-05; FEAT-050 D4). Owner and Admin. */
+  | 'leads.manage'
+  /** Export leads as CSV, after re-auth (LED-05, AUTH-03; FEAT-050 D1). Owner and Admin. */
+  | 'leads.export';
 
 const POLICY: Record<Role, ReadonlySet<Capability>> = {
   owner: new Set([
@@ -37,6 +41,8 @@ const POLICY: Record<Role, ReadonlySet<Capability>> = {
     'team.grant_approval',
     'approvals.decide',
     'inbox.reassign',
+    'leads.manage',
+    'leads.export',
   ]),
   admin: new Set([
     'inbox.read',
@@ -48,6 +54,8 @@ const POLICY: Record<Role, ReadonlySet<Capability>> = {
     'team.manage',
     'approvals.decide',
     'inbox.reassign',
+    'leads.manage',
+    'leads.export',
   ]),
   agent: new Set(['inbox.read', 'inbox.reply']),
 };

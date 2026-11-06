@@ -49,6 +49,7 @@ export { setLeadStatus } from './status.js';
 export {
   CSV_HEADER,
   CSV_REMINDER,
+  auditExport,
   exportable,
   exportFileName,
   exportLeads,

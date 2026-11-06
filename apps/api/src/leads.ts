@@ -1,11 +1,35 @@
-import { LeadSettings, LeadSettingsBody } from '@kaki/contracts';
-import { withTenant } from '@kaki/db';
-import { can } from '@kaki/identity';
 import {
+  LeadConflict409,
+  LeadDetail,
+  LeadExportBody,
+  LeadList,
+  LeadRow,
+  LeadSettings,
+  LeadSettingsBody,
+  LeadSettingsSaved,
+  LeadsQuery,
+  LeadStatusBody,
+} from '@kaki/contracts';
+import { withTenant } from '@kaki/db';
+import { can, requireReauth } from '@kaki/identity';
+import { NotFoundError } from '@kaki/inbox';
+import {
+  auditExport,
+  exportFileName,
+  exportLeads,
   getLeadSettings,
+  InvalidLeadCursor,
+  leadDetail,
+  LeadNotFound,
+  leadsCsv,
   LeadSettingsInvalid,
   LeadSettingsStale,
+  LeadStale,
+  listLeads,
+  OpenLeadExists,
   saveLeadSettings,
+  setLeadStatus,
+  TooManyLeads,
 } from '@kaki/leads';
 import type { FastifyRequest } from 'fastify';
 import type { TenantSession } from './auth.js';
@@ -38,6 +62,29 @@ export function leadSettingsErrorReply(
         code: err.code,
       },
     };
+  if (err instanceof LeadStale)
+    return {
+      status: 409,
+      body: LeadConflict409.parse({ error: 'stale', lead: err.lead }) as Record<string, unknown>,
+    };
+  if (err instanceof OpenLeadExists)
+    return {
+      status: 409,
+      body: {
+        error: 'open_lead_exists',
+        message: 'This person already has an open lead. Close that one first.',
+      },
+    };
+  if (err instanceof TooManyLeads)
+    return {
+      status: 413,
+      body: {
+        error: 'too_many',
+        message: 'Too many leads to export at once. Narrow it with a status or score filter.',
+      },
+    };
+  if (err instanceof InvalidLeadCursor)
+    return { status: 400, body: { error: 'invalid_cursor', message: 'Reload the list' } };
   if (err instanceof StaleWith)
     return {
       status: 409,
@@ -83,7 +130,7 @@ export function registerLeadSettingsRoutes(
     }
     const body = parsed.data;
     try {
-      return LeadSettings.parse(
+      return LeadSettingsSaved.parse(
         await withTenant(dashboardDb, s.tenantId, (tx) =>
           saveLeadSettings(tx, {
             tenantId: s.tenantId,
@@ -91,6 +138,7 @@ export function registerLeadSettingsRoutes(
             version: body.version,
             fields: body.fields,
             marketing: body.marketing,
+            qualification: body.qualification,
           }),
         ),
       );
@@ -104,5 +152,92 @@ export function registerLeadSettingsRoutes(
         );
       throw err;
     }
+  });
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * The leads list, lead page, pipeline and CSV export (SCR-APP-032, SCR-APP-033; FEAT-050 §3,
+ * §5.5). Everyone with `inbox.read` sees leads; Owner and Admin move them (`leads.manage`) and
+ * export them after re-auth (`leads.export`, AUTH-03). The tenant comes from the session only.
+ */
+export function registerLeadRoutes(
+  app: App,
+  deps: Deps,
+  sessionFrom: (req: FastifyRequest) => Promise<TenantSession>,
+) {
+  const { dashboardDb } = deps;
+
+  async function member(
+    req: FastifyRequest,
+    capability: 'inbox.read' | 'leads.manage' | 'leads.export',
+  ) {
+    const s = await sessionFrom(req);
+    if (!can(s.role, capability)) throw new ForbiddenError(capability);
+    return s;
+  }
+  const idOf = (req: FastifyRequest) => {
+    const { id } = req.params as { id: string };
+    if (!UUID_RE.test(id)) throw new NotFoundError('lead not found');
+    return id;
+  };
+  const notFound = (err: unknown) => {
+    if (err instanceof LeadNotFound) throw new NotFoundError('lead not found');
+    throw err;
+  };
+
+  app.get('/api/v1/leads', async (req) => {
+    const s = await member(req, 'inbox.read');
+    const q = LeadsQuery.parse(req.query);
+    return LeadList.parse(
+      await withTenant(dashboardDb, s.tenantId, (tx) => listLeads(tx, s.tenantId, q)),
+    );
+  });
+
+  app.get('/api/v1/leads/:id', async (req) => {
+    const s = await member(req, 'inbox.read');
+    const id = idOf(req);
+    const rights = {
+      canManage: can(s.role, 'leads.manage'),
+      canExport: can(s.role, 'leads.export'),
+    };
+    return LeadDetail.parse(
+      await withTenant(dashboardDb, s.tenantId, (tx) =>
+        leadDetail(tx, s.tenantId, id, rights),
+      ).catch(notFound),
+    );
+  });
+
+  app.post('/api/v1/leads/:id/status', async (req) => {
+    const s = await member(req, 'leads.manage');
+    const id = idOf(req);
+    const body = LeadStatusBody.parse(req.body);
+    return LeadRow.parse(
+      await withTenant(dashboardDb, s.tenantId, (tx) =>
+        setLeadStatus(tx, { tenantId: s.tenantId, leadId: id, userId: s.userId, ...body }),
+      ).catch(notFound),
+    );
+  });
+
+  app.post('/api/v1/leads/export', async (req, reply) => {
+    const s = await member(req, 'leads.export');
+    requireReauth(s);
+    const filters = LeadExportBody.parse(req.body ?? {});
+    const csv = await withTenant(dashboardDb, s.tenantId, async (tx) => {
+      const rows = await exportLeads(tx, s.tenantId, filters);
+      await auditExport(tx, {
+        tenantId: s.tenantId,
+        userId: s.userId,
+        count: rows.length,
+        filters,
+      });
+      return leadsCsv(rows);
+    });
+    return reply
+      .header('Content-Type', 'text/csv; charset=utf-8')
+      .header('Content-Disposition', `attachment; filename="${exportFileName(new Date())}"`)
+      .header('Cache-Control', 'no-store')
+      .send(csv);
   });
 }
