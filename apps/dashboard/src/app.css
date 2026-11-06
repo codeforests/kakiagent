@@ -5326,3 +5326,117 @@ a.settings-row:hover {
     height: auto;
   }
 }
+.lead-page {
+  max-width: calc(var(--size-reading-max) * 1.4);
+}
+.lead-page__header {
+  flex-wrap: wrap;
+}
+.lead-page__header .page-title {
+  flex: 0 1 auto;
+  margin-bottom: 0;
+}
+.lead-page__chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.lead-page > .alert,
+.lead-page__header {
+  margin-bottom: var(--space-5);
+}
+.lead-status-menu {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.lead-status-item {
+  gap: var(--space-2);
+}
+.lead-status-item__check {
+  display: inline-block;
+  width: var(--space-4);
+}
+.lead-page__grid {
+  display: grid;
+  gap: var(--space-5);
+}
+@media (min-width: 1024px) {
+  .lead-page__grid {
+    grid-template-columns: 2fr 1fr;
+    align-items: start;
+  }
+}
+.skeleton-card {
+  min-height: calc(var(--space-10) * 3);
+  background: var(--color-bg-subtle);
+}
+.lead-fields {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+}
+.lead-fields > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: var(--space-4);
+}
+.lead-fields dt {
+  color: var(--color-text-secondary);
+}
+.lead-fields dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.lead-fields dd .sidebar-copy {
+  margin: 0;
+}
+.lead-fields__need {
+  white-space: pre-line;
+}
+.lead-fields__empty,
+.lead-fields__caption,
+.lead-reasons__points {
+  color: var(--color-text-secondary);
+}
+.lead-fields__caption {
+  margin: 0;
+  font-size: var(--type-caption-size);
+}
+.lead-reasons__points {
+  font-variant-numeric: tabular-nums;
+}
+.lead-reasons,
+.lead-consents,
+.lead-conversations {
+  margin: 0;
+  padding-left: var(--space-5);
+  display: grid;
+  gap: var(--space-2);
+}
+.lead-consents {
+  list-style: none;
+  padding: 0;
+  gap: var(--space-4);
+}
+.lead-consent p {
+  margin: 0;
+}
+.lead-consent__what {
+  font-weight: var(--font-weight-medium);
+}
+.lead-consent__wording summary {
+  cursor: pointer;
+  color: var(--color-text-link);
+}
+.lead-consent__wording p {
+  margin-top: var(--space-2);
+  white-space: pre-line;
+}
+@media (max-width: 639px) {
+  .lead-fields > div {
+    grid-template-columns: 1fr;
+    gap: var(--space-1);
+  }
+}

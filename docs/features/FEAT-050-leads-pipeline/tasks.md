@@ -25,7 +25,7 @@
 - [x] T6 — Dashboard Leads (SCR-APP-032): `pages/leads.tsx`, `pages/leads-parts.tsx` (`ScoreChip`, `StatusChip`, `MarketingFlag`, `ExportDialog`), `lib/leads.ts` (`useLeads`, `leadsQueryOf`, `scoreLabel`, `reasonText`, `exportFileName`), `api.listLeads`/`api.exportLeads` (blob), router replaces the placeholder (ui-design SCR-APP-032; AC-4–AC-6)
       Done when: `pnpm --filter @kaki/dashboard test` passes (`leadsQueryOf` URL round-trip, `reasonText` for every code, `exportFileName` in SGT) and `pnpm --filter @kaki/dashboard typecheck` passes.
       Note: a stubbed-API Playwright check at 375 px and 1280 px (tabs, export dialog → re-auth → download, focus return) before CI (code-map Tests).
-- [ ] T7 — Dashboard Lead (SCR-APP-033): `pages/lead.tsx` (fields, score and reasons, status menu with 409 handling, consent records, conversations), route `/leads/:leadId` (ui-design SCR-APP-033; AC-2, AC-4, AC-8)
+- [x] T7 — Dashboard Lead (SCR-APP-033): `pages/lead.tsx` (fields, score and reasons, status menu with 409 handling, consent records, conversations), route `/leads/:leadId` (ui-design SCR-APP-033; AC-2, AC-4, AC-8)
       Done when: dashboard unit tests and typecheck pass; stubbed Playwright check of stale (409) and `open_lead_exists` messages.
 - [ ] T8 — Qualification card on SCR-APP-043 (`leads-settings-parts.tsx`, `KeywordListEditor`, `validateLeadDraft`/`diffLeadSettings` cover qualification) and the inbox sidebar score (`ContextSidebar` Lead section: `ScoreChip`, "Open lead") (ui-design SCR-APP-043, SCR-APP-014; AC-1, AC-2)
       Done when: `pnpm --filter @kaki/dashboard test` passes (keyword validation: empty, duplicate, 41 chars, 21st; budget: 0, text, 10,000,001; diff includes qualification).

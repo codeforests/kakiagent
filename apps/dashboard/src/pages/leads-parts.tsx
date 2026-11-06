@@ -1,5 +1,6 @@
-import type { LeadMarketing, LeadScoring, LeadStatus } from '@kaki/contracts';
+import { LeadStatus, type LeadMarketing, type LeadScoring } from '@kaki/contracts';
 import { ConfirmDialog } from '@kaki/ui';
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { useMutation } from '@tanstack/react-query';
 import { useState, type RefObject } from 'react';
 import { api, ApiError } from '../lib/api.ts';
@@ -40,6 +41,52 @@ export function StatusChip({ status }: { status: LeadStatus }) {
     <span className={`chip chip--${LEAD_STATUS[status].tone}`} data-testid="status-chip">
       {LEAD_STATUS[status].label}
     </span>
+  );
+}
+
+/**
+ * "Status: New" with the four statuses as `menuitemradio` (Owner and Admin). Choosing one
+ * saves at once; not optimistic, so the button reads "Saving…" until the server answers.
+ */
+export function StatusMenu({
+  status,
+  busy,
+  onChange,
+}: {
+  status: LeadStatus;
+  busy: boolean;
+  onChange: (status: LeadStatus) => void;
+}) {
+  return (
+    <DropdownMenu.Root modal={false}>
+      <DropdownMenu.Trigger
+        className="kaki-btn kaki-btn--secondary lead-status-menu"
+        disabled={busy}
+        aria-busy={busy || undefined}
+      >
+        {busy ? 'Saving…' : `Status: ${LEAD_STATUS[status].label}`}
+        <Glyph name="chevron-down" />
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content className="menu" align="start" sideOffset={4}>
+          <DropdownMenu.RadioGroup
+            value={status}
+            onValueChange={(v) => {
+              if (v !== status) onChange(LeadStatus.parse(v));
+            }}
+          >
+            {LeadStatus.options.map((s) => (
+              <DropdownMenu.RadioItem key={s} value={s} className="menu__item lead-status-item">
+                <span className="lead-status-item__check" aria-hidden="true">
+                  {s === status ? '✓' : ''}
+                </span>
+                {LEAD_STATUS[s].label}
+              </DropdownMenu.RadioItem>
+            ))}
+          </DropdownMenu.RadioGroup>
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
   );
 }
 

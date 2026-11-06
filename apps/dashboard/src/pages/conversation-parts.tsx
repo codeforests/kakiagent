@@ -237,7 +237,7 @@ export function Dock({ conversation }: { conversation: ConversationSummary }) {
 }
 
 /** An email or phone with a copy button that says "Copied" (FEAT-049 ui-design SCR-APP-014). */
-function CopyRow({ label, value }: { label: 'email' | 'phone'; value: string }) {
+export function CopyRow({ label, value }: { label: 'email' | 'phone'; value: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <p className="sidebar-copy">
