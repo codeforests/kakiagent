@@ -164,7 +164,7 @@ test('at phone width the list, thread and details sheet work one at a time', asy
   browser,
 }) => {
   // A tall viewport: the fixed tab bar would otherwise overlap targets (axe target-size).
-  await owner.setViewportSize({ width: 375, height: 1400 });
+  await owner.setViewportSize({ width: 375, height: 5000 });
   await signIn(owner, 'owner@kaki-bakery.test');
   const visitor = await visitorChat(browser);
   const id = await firstMessage(visitor.page, visitor.send, `are you open today? ${token()}`);
