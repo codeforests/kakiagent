@@ -9,16 +9,24 @@ export function AuthLayout({
   title,
   busy,
   focusKey,
+  focusOnMount,
   children,
 }: {
   title: string;
   busy?: boolean;
   /** A step or state: when it changes, the heading takes focus (FEAT-006 SCR-APP-005). */
   focusKey?: string;
+  /** Also take focus when first shown: a state reached after another layout (FEAT-056). */
+  focusOnMount?: boolean;
   children?: ReactNode;
 }) {
   const heading = useRef<HTMLHeadingElement>(null);
   const firstKey = useRef(focusKey);
+  useEffect(() => {
+    if (focusOnMount) heading.current?.focus();
+    // Only on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   useEffect(() => {
     if (focusKey === undefined || focusKey === firstKey.current) return;
     firstKey.current = undefined;
