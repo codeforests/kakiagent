@@ -646,6 +646,9 @@ importers:
       '@kaki/governance':
         specifier: workspace:*
         version: link:../governance
+      '@kaki/identity':
+        specifier: workspace:*
+        version: link:../identity
       '@kaki/inbox':
         specifier: workspace:*
         version: link:../inbox

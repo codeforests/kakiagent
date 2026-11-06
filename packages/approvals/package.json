@@ -18,6 +18,7 @@
     "@kaki/contracts": "workspace:*",
     "@kaki/db": "workspace:*",
     "@kaki/governance": "workspace:*",
+    "@kaki/identity": "workspace:*",
     "@kaki/inbox": "workspace:*",
     "@kaki/platform": "workspace:*",
     "@kaki/tenancy": "workspace:*"

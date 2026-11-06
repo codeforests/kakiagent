@@ -82,3 +82,16 @@ export {
   totalsFor,
   type ApprovalSummaryRow,
 } from './views.js';
+export {
+  APPROVAL_LINK_TTL_S,
+  ApprovalLinkError,
+  approvalLinkKey,
+  approvalLinkUrl,
+  openApprovalLink,
+  readApprovalLink,
+  signApprovalLink,
+  type ApprovalLinkClaims,
+  type ApprovalLinkSubject,
+  type LinkOpener,
+  type ReadLink,
+} from './links.js';
