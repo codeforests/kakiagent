@@ -95,18 +95,30 @@ function HeaderMenu({
   const entries = () =>
     Array.from(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []);
 
+  // Set by hide(true); the button takes focus once the closed menu has committed, so an
+  // open's item focus still pending from the render before can't land after it and be lost
+  // with the unmounted menu (CI: widget-controls Escape right after a click).
+  const refocus = useRef(false);
   useEffect(() => {
     if (open && first !== null) entries()[first < 0 ? entries().length - 1 : first]?.focus();
+    else if (!open && refocus.current) {
+      refocus.current = false;
+      buttonRef.current?.focus();
+    }
   }, [open, first]);
 
   const show = (at: number) => {
     setFirst(at);
     setOpen(true);
   };
-  const hide = (refocus: boolean) => {
+  const hide = (refocusButton: boolean) => {
     setOpen(false);
     setFirst(null);
-    if (refocus) buttonRef.current?.focus();
+    if (refocusButton) {
+      // Now as well, so focus doesn't wait for the effect; the effect repeats it after commit.
+      buttonRef.current?.focus();
+      refocus.current = true;
+    }
   };
 
   function onMenuKey(e: KeyboardEvent) {
