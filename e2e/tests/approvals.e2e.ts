@@ -14,6 +14,16 @@ const WIDGET_HOST = 'http://localhost:5175/';
 const OWNER = 'owner@kaki-bakery.test';
 const WAITING = /Our team is (still )?checking/;
 const REJECTED = "Our team couldn't confirm this one, but they'll follow up with you.";
+/**
+ * A run tag with no digits: the fake triage takes the request's first number as the quantity,
+ * so a digit in the tag would change the draft's kind (a 0 or an out-of-range number makes it
+ * a "Promise").
+ */
+const runTag = (prefix: string) =>
+  prefix +
+  Date.now()
+    .toString(36)
+    .replace(/\d/g, (d) => 'abcdefghij'[Number(d)]!);
 
 test.describe.configure({ mode: 'serial' });
 
@@ -53,7 +63,7 @@ test('a quote is approved with an edit and reaches the visitor (AC-1, AC-2, AC-5
   browser,
 }) => {
   test.setTimeout(150_000);
-  const tag = `Q${Date.now().toString(36)}`;
+  const tag = runTag('Q');
   const visitor = await askForQuote(
     browser,
     `Can I get a quote for ${tag} 20 boxes of kueh lapis for Friday?`,
@@ -78,7 +88,8 @@ test('a quote is approved with an edit and reaches the visitor (AC-1, AC-2, AC-5
     // Edit: add a line; a bad price names the field first.
     await page.getByRole('button', { name: 'Edit' }).click();
     await page.getByRole('button', { name: 'Add a line' }).click();
-    await page.getByLabel('Line 1', { exact: true }).fill('Kueh lapis box');
+    // The approved headline is the first line, so the line carries the tag for the Decided tab.
+    await page.getByLabel('Line 1', { exact: true }).fill(`Kueh lapis box ${tag}`);
     await page.getByLabel('Quantity').fill('20');
     await page.getByLabel('Unit price').fill('abc');
     await page.getByRole('button', { name: 'Approve and send' }).click();
@@ -120,7 +131,7 @@ test('a rejected request tells the visitor the team will follow up (AC-1, AC-5, 
   browser,
 }) => {
   test.setTimeout(150_000);
-  const tag = `R${Date.now().toString(36)}`;
+  const tag = runTag('R');
   const visitor = await askForQuote(
     browser,
     `Please quote ${tag} a custom wedding cake for 300 guests`,
