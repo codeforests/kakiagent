@@ -1,7 +1,7 @@
 # Tasks: FEAT-050 — Leads list, pipeline, scoring and CSV export
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: developer-done · Last updated: 2026-11-06 (build UI)
+> Status: accepted · Last updated: 2026-11-06 (verify)
 
 - [x] T1 — Schema: `0051_lead_scoring.sql` and `schema.ts` (`leads` score columns with the all-or-none check, `version`, `status_changed_at`, `leads_tenant_status_updated_idx`; `lead_settings.qualification`; column grants per zone; `lead_intents()` only if the visitor zone can't read the contact's other conversations' task kinds), `LEAD_SCORES`, `SCORE_REASON_CODES`; cases in `rls.int.test.ts` (design §4; AC-9)
       Done when: `drizzle-kit generate` reports no drift after 0051; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes with: `app_agent_visitor` can set the score columns but not `status`; `app_dashboard` can set `status`/`version` but not `need`/`contact_id`; a half-set score refused by the check; tenant B can't update tenant A's lead.
