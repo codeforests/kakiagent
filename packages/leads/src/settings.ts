@@ -72,6 +72,7 @@ export async function getLeadSettings(tx: Tx, tenantId: string): Promise<LeadSet
       wording: wording ? { seq: wording.seq, savedAt: wording.createdAt.toISOString() } : null,
     },
     purpose: { text: privacy.purpose.text, saved: privacy.purpose.wording !== null },
+    qualification: { keywords: [], minBudget: null },
   };
 }
 

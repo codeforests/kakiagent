@@ -78,5 +78,6 @@ export async function leadSummaryOf(
       marketing:
         r.marketing_at !== null ? { agreed: !!r.marketing_agreed, at: iso(r.marketing_at) } : null,
     },
+    scoring: null,
   };
 }

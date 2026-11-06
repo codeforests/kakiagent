@@ -45,6 +45,8 @@ export const MARKETING_DEFAULT = (business: string) =>
 export interface LeadDraft {
   fields: LeadSettings['fields'];
   marketing: { enabled: boolean; en: string; zh: string };
+  /** FEAT-050: carried through until the Qualification card edits it (T8). */
+  qualification: LeadSettings['qualification'];
 }
 
 export type LeadErrors = Partial<Record<'email' | 'marketingEn', string>>;
@@ -58,6 +60,7 @@ export function leadDraftOf(s: LeadSettings, business: string): LeadDraft {
       en: s.marketing.text.en || MARKETING_DEFAULT(business),
       zh: s.marketing.text.zh ?? '',
     },
+    qualification: { ...s.qualification, keywords: [...s.qualification.keywords] },
   };
 }
 
@@ -69,6 +72,7 @@ export function leadBodyOf(d: LeadDraft, version: number): LeadSettingsBody {
       enabled: d.marketing.enabled,
       text: { en: d.marketing.en.trim(), zh: d.marketing.zh.trim() || null },
     },
+    qualification: d.qualification,
   };
 }
 

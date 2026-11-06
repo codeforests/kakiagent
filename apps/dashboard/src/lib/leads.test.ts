@@ -21,6 +21,7 @@ const settings = (over: Partial<LeadSettings> = {}): LeadSettings => ({
   ],
   marketing: { enabled: false, text: { en: '', zh: null }, wording: null },
   purpose: { text: { en: 'We use your details to reply.', zh: null }, saved: true },
+  qualification: { keywords: [], minBudget: null },
   ...over,
 });
 
