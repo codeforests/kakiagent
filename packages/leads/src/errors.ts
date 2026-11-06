@@ -24,3 +24,21 @@ export class LeadSettingsInvalid extends Error {
     super(code);
   }
 }
+/** 409 `stale` on a status change: the lead moved since it was read; carries the current row. */
+export class LeadStale extends Error {
+  constructor(readonly lead: import('@kaki/contracts').LeadRow) {
+    super('lead changed');
+  }
+}
+/** 409 `open_lead_exists`: reopening a won/lost lead while the contact has another open one. */
+export class OpenLeadExists extends Error {}
+/** 404: no such lead in this tenant. */
+export class LeadNotFound extends Error {}
+/** 400 `invalid_cursor`: the list cursor isn't one this API issued. */
+export class InvalidLeadCursor extends Error {}
+/** 413 `too_many`: the export would exceed `LEAD_EXPORT_MAX` rows (D1). */
+export class TooManyLeads extends Error {
+  constructor(readonly count: number) {
+    super('too many leads');
+  }
+}

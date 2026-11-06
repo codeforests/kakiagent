@@ -1,0 +1,128 @@
+import type { LeadExportBody, ScoreReason, ScoreReasonCode } from '@kaki/contracts';
+import { LEAD_EXPORT_MAX } from '@kaki/contracts';
+import { sql, type Tx } from '@kaki/db';
+import { TooManyLeads } from './errors.js';
+import { leadFilter, leadSelect, scoringOf, type LeadDbRow } from './list.js';
+
+/**
+ * Whether a lead may leave the platform in an export (LED-05). Today every lead passes;
+ * FEAT-051 adds "no withdrawn consent" here, the one seam for it (FEAT-050 §5.4, §8).
+ */
+export function exportable(_row: LeadDbRow): boolean {
+  return true;
+}
+
+/** The rows of a leads export with the list's filters, newest first; above the cap → `TooManyLeads`. */
+export async function exportLeads(
+  tx: Tx,
+  tenantId: string,
+  filters: LeadExportBody,
+): Promise<LeadDbRow[]> {
+  const { rows } = await tx.execute<LeadDbRow>(
+    leadSelect(
+      tenantId,
+      leadFilter(filters),
+      sql`order by l.updated_at desc, l.id desc limit ${LEAD_EXPORT_MAX + 1}`,
+    ),
+  );
+  const out = rows.filter(exportable);
+  if (out.length > LEAD_EXPORT_MAX) throw new TooManyLeads(out.length);
+  return out;
+}
+
+/** The dashboard's words for each reason (ui-design, "Shared words"). */
+export const REASON_TEXT: Record<ScoreReasonCode, (detail: string | null) => string> = {
+  keyword: (d) => `Mentions "${d ?? ''}"`,
+  budget_met: (d) => `Budget meets your S$${d ?? ''} minimum`,
+  budget_below: (d) => `Budget below your S$${d ?? ''} minimum`,
+  wants_to_order: () => 'Asked for a quote or to order',
+  both_contacts: () => 'Left phone and email',
+  need_given: () => 'Said what they need',
+  timing_given: () => 'Said when they need it',
+  returning: () => 'Came back',
+};
+export const reasonText = (r: ScoreReason) => REASON_TEXT[r.code](r.detail);
+
+const SGT = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Asia/Singapore',
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+});
+/** `18 Nov 2026 14:05` in Singapore time. */
+export function sgtDateTime(d: Date | string): string {
+  const p = Object.fromEntries(SGT.formatToParts(new Date(d)).map((x) => [x.type, x.value]));
+  return `${p['day']} ${p['month']} ${p['year']} ${p['hour']}:${p['minute']}`;
+}
+
+export const CSV_REMINDER =
+  'Reminder: the Do Not Call Registry applies before you call or text anyone for marketing. Marketing consent is in the "Marketing consent" columns.';
+
+export const CSV_HEADER = [
+  'Created (SGT)',
+  'Updated (SGT)',
+  'Status',
+  'Score',
+  'Score reasons',
+  'Name',
+  'Email',
+  'Phone',
+  'What they need',
+  'Budget',
+  'Preferred date or time',
+  'Enquiry consent at (SGT)',
+  'Marketing consent',
+  'Marketing consent at (SGT)',
+  'Source',
+] as const;
+
+const STATUS_TEXT = { new: 'New', contacted: 'Contacted', won: 'Won', lost: 'Lost' } as const;
+const SCORE_TEXT = { hot: 'Hot', warm: 'Warm', cold: 'Cold' } as const;
+
+/**
+ * One CSV cell (RFC 4180): a cell a spreadsheet would read as a formula (starting `=`, `+`,
+ * `-`, `@`, tab or CR) is prefixed with `'`; quoted when it holds a quote, comma or line break.
+ */
+export function csvCell(v: string | null): string {
+  let s = v ?? '';
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+/**
+ * The leads CSV (LED-05, LED-08; AC-6, AC-7): UTF-8 with a BOM so Excel shows Chinese, CRLF,
+ * the Do Not Call reminder on line 1, the header on line 2, then one row per lead.
+ */
+export function leadsCsv(rows: readonly LeadDbRow[]): string {
+  const lines: string[][] = [[CSV_REMINDER], [...CSV_HEADER]];
+  for (const r of rows) {
+    const scoring = scoringOf(r);
+    lines.push([
+      sgtDateTime(r.created_at),
+      sgtDateTime(r.updated_at),
+      STATUS_TEXT[r.status],
+      scoring ? SCORE_TEXT[scoring.score] : 'Not scored',
+      scoring ? scoring.reasons.map(reasonText).join('; ') : '',
+      r.name ?? '',
+      r.email ?? '',
+      r.phone ?? '',
+      r.need ?? '',
+      r.budget ?? '',
+      r.preferred_time ?? '',
+      sgtDateTime(r.enquiry_at),
+      r.marketing_at === null ? 'Not asked' : r.marketing_agreed ? 'Yes' : 'No',
+      r.marketing_at === null ? '' : sgtDateTime(r.marketing_at),
+      r.conversation_id ? 'Chat' : 'Contact form',
+    ]);
+  }
+  return `﻿${lines.map((l) => l.map(csvCell).join(',')).join('\r\n')}\r\n`;
+}
+
+/** `leads-YYYY-MM-DD.csv`, the date in Singapore. */
+export function exportFileName(now: Date): string {
+  const d = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Singapore' }).format(now);
+  return `leads-${d}.csv`;
+}

@@ -27,6 +27,11 @@ export interface IndustryTemplate {
    * `preferredTime` "Date needed" for F&B. In force until the owner saves their own.
    */
   leadFields?: readonly { key: LeadFieldKey; mode: 'off' | 'optional' | 'required' }[];
+  /**
+   * Keywords that make a lead hot (FEAT-050 §5.2, D2), shown as unsaved defaults on lead
+   * settings and in force until the owner saves their own.
+   */
+  leadKeywords?: readonly string[];
 }
 
 type LeadFieldKey = 'name' | 'phone' | 'email' | 'need' | 'budget' | 'preferredTime';
@@ -40,6 +45,7 @@ const FNB: IndustryTemplate = {
     { key: 'budget', mode: 'off' },
     { key: 'preferredTime', mode: 'optional' },
   ],
+  leadKeywords: ['wedding', 'corporate', 'event', '婚礼'],
   suggestedRules: {
     allowedTopics: [
       'Menu and prices',

@@ -1,4 +1,11 @@
-import type { LeadCaptureConfig, LeadFieldKey, LeadFieldMode, LeadSettings } from '@kaki/contracts';
+import type {
+  LeadCaptureConfig,
+  LeadFieldKey,
+  LeadFieldMode,
+  LeadSettings,
+  LeadSettingsSaved,
+  Qualification,
+} from '@kaki/contracts';
 import { LEAD_FIELD_KEYS } from '@kaki/contracts/lead-check';
 import { and, eq, schema, sql, type Tx } from '@kaki/db';
 import {
@@ -13,6 +20,7 @@ import {
 } from '@kaki/governance';
 import { coverageTemplate, INDUSTRY_TEMPLATES } from '@kaki/tenancy';
 import { LeadSettingsInvalid, LeadSettingsStale } from './errors.js';
+import { normaliseQualification, qualificationInForce, rescoreOpenLeads } from './rescore.js';
 
 const { leadSettings } = schema;
 
@@ -56,8 +64,9 @@ const fieldCodes = (fields: readonly FieldSetting[]) =>
 /** The tenant's lead settings for SCR-APP-043 (dashboard zone): the row, or the defaults at version 0. */
 export async function getLeadSettings(tx: Tx, tenantId: string): Promise<LeadSettings> {
   const [row] = await tx.select().from(leadSettings).where(eq(leadSettings.tenantId, tenantId));
-  const fields =
-    parseFields(row?.fields) ?? industryFields((await coverageTemplate(tx, tenantId))?.industry);
+  const industry = (await coverageTemplate(tx, tenantId))?.industry ?? null;
+  const fields = parseFields(row?.fields) ?? industryFields(industry);
+  const { qualification } = await qualificationInForce(tx, tenantId, industry);
   const wording = await wordingById(tx, tenantId, row?.marketingWordingId ?? null);
   const marketing = wording ? MarketingContent.parse(wording.content).text : null;
   const privacy = await getPrivacySettings(tx, tenantId);
@@ -72,7 +81,7 @@ export async function getLeadSettings(tx: Tx, tenantId: string): Promise<LeadSet
       wording: wording ? { seq: wording.seq, savedAt: wording.createdAt.toISOString() } : null,
     },
     purpose: { text: privacy.purpose.text, saved: privacy.purpose.wording !== null },
-    qualification: { keywords: [], minBudget: null },
+    qualification,
   };
 }
 
@@ -89,9 +98,19 @@ export async function saveLeadSettings(
     version: number;
     fields: readonly FieldSetting[];
     marketing: { enabled: boolean; text: { en: string; zh: string | null } };
+    /** FEAT-050: scoring criteria (absent = keep); a change rescores the open leads (§5.2). */
+    qualification?: Qualification;
   },
-): Promise<LeadSettings> {
+): Promise<LeadSettingsSaved> {
   const { tenantId, userId, version, marketing } = input;
+  const before = (
+    await qualificationInForce(
+      tx,
+      tenantId,
+      (await coverageTemplate(tx, tenantId))?.industry ?? null,
+    )
+  ).qualification;
+  const qualification = normaliseQualification(input.qualification ?? before);
   const en = marketing.text.en.trim();
   if (marketing.enabled && !en) throw new LeadSettingsInvalid('marketing_text');
   const [row] = await tx
@@ -112,6 +131,7 @@ export async function saveLeadSettings(
     fields: input.fields.map((f) => ({ key: f.key, mode: f.mode })),
     marketingEnabled: marketing.enabled,
     marketingWordingId: wording?.id ?? row?.marketingWordingId ?? null,
+    qualification,
   };
   const [saved] =
     version === 0
@@ -126,6 +146,8 @@ export async function saveLeadSettings(
           .where(and(eq(leadSettings.tenantId, tenantId), eq(leadSettings.version, version)))
           .returning();
   if (!saved) throw new LeadSettingsStale('lead settings changed');
+  const changed = JSON.stringify(before) !== JSON.stringify(qualification);
+  const rescored = changed ? await rescoreOpenLeads(tx, tenantId, qualification) : 0;
   await audit.append(tx, tenantId, {
     action: 'settings.lead_fields_updated',
     actorType: 'user',
@@ -139,9 +161,10 @@ export async function saveLeadSettings(
       ...(saved.marketingWordingId
         ? { marketingWordingId: auditId(saved.marketingWordingId) }
         : {}),
+      ...(changed ? { changed: [auditCode('qualification')], rescored } : {}),
     },
   });
-  return getLeadSettings(tx, tenantId);
+  return { ...(await getLeadSettings(tx, tenantId)), rescored };
 }
 
 const visitorText = (t: { en: string; zh: string | null }) => ({ en: t.en, zh: t.zh || t.en });

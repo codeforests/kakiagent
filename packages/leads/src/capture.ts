@@ -5,6 +5,7 @@ import { audit, auditId } from '@kaki/governance';
 import { appendSystemNotice, setConversationContact, type MessageRow } from '@kaki/inbox';
 import { recordConsent, type ConsentInput } from './consent.js';
 import { ConsentRequired, LeadFieldsInvalid, NotCapturing } from './errors.js';
+import { rescoreOnCapture, type Rescored } from './rescore.js';
 import { leadCaptureConfig } from './settings.js';
 
 const { consents, contacts } = schema;
@@ -32,6 +33,8 @@ export interface Captured {
   contactId: string;
   /** The `lead_captured` notice, when there is a conversation. */
   notice: MessageRow | null;
+  /** The score written at capture (FEAT-050 §5.2) and whether it alerted the team. */
+  scoring: Rescored;
 }
 
 interface ContactRow extends Record<string, unknown> {
@@ -177,6 +180,7 @@ export async function captureLead(tx: Tx, c: CaptureInput): Promise<Captured> {
       consentId: auditId(c.consentId),
     },
   });
+  const scoring = await rescoreOnCapture(tx, c.tenantId, lead.id);
 
   let notice: MessageRow | null = null;
   if (c.conversationId) {
@@ -190,7 +194,7 @@ export async function captureLead(tx: Tx, c: CaptureInput): Promise<Captured> {
       text: (language) => leadCapturedNotice(language, t?.name ?? 'the team'),
     });
   }
-  return { status, leadId: lead.id, contactId, notice };
+  return { status, leadId: lead.id, contactId, notice, scoring };
 }
 
 /**
