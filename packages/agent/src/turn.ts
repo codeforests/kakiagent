@@ -187,9 +187,8 @@ export async function runVisitorTurn(
   const escalated = () => escalation as RequestEscalationResult | null;
   // FEAT-049: the card the dispatch asked for (consent or lead form); `store()` may add an offer.
   let card: MessageCard | null = null;
-  // FEAT-055 §5.2: what the approval port did, and whether the plan has nothing to answer.
+  // FEAT-055 §5.2: what the approval port did.
   let drafted: DraftResult | null = null;
-  let commitmentOnly = false;
   const approvalOf = () => drafted as DraftResult | null;
   // The waiting notice's text (rendered once the port answers; the turn's language by then).
   let waitingText: string | null = null;
@@ -412,7 +411,7 @@ export async function runVisitorTurn(
     plan.tasks.some((task) => task.kind === 'escalate') &&
     plan.tasks.every((task) => ['escalate', 'crisis', 'abuse'].includes(task.kind));
   // FEAT-055 §5.2: nothing to answer but the request (an escalation beside it has its own notice).
-  commitmentOnly =
+  const commitmentOnly =
     plan.tasks.some((task) => task.kind === 'request_commitment') &&
     plan.tasks.every((task) =>
       ['request_commitment', 'escalate', 'crisis', 'abuse'].includes(task.kind),
