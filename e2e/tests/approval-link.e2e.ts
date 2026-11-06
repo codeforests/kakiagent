@@ -104,8 +104,13 @@ test('an alert link opens signed out, signs in and approves once (AC-1, AC-4, AC
     await page.goto(tamper(link));
     await expect(
       page.getByRole('heading', { name: "This link isn't valid", level: 1 }),
-    ).toBeVisible();
-    await page.getByRole('link', { name: 'Open approvals' }).click();
+    ).toBeFocused();
+    // AC-9: desktop width passes axe too, and the state works by keyboard.
+    await page.setViewportSize({ width: 1440, height: 1600 });
+    await expectNoSeriousA11yViolations(page);
+    await page.keyboard.press('Tab');
+    await expect(page.getByRole('link', { name: 'Open approvals' })).toBeFocused();
+    await page.keyboard.press('Enter');
     await expect(page.getByRole('heading', { name: 'Approvals', level: 1 })).toBeVisible();
   } finally {
     await visitor.close();
