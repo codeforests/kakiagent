@@ -24,9 +24,10 @@
 
 ## Build session 2 (UI)
 
-- [ ] T7 — Widget: `QuoteCard` in `cards.tsx`, approval notices in `strings.ts` (en, zh-Hans) (ui-design SCR-WGT-002; AC-6, AC-13)
+- [x] T7 — Widget: `QuoteCard` in `cards.tsx`, approval notices in `strings.ts` (en, zh-Hans) (ui-design SCR-WGT-002; AC-6, AC-13)
       Done when: `pnpm --filter @kaki/widget test` (quote card view helper, zh strings) passes and `pnpm build && pnpm size` stays within budget (the card is in the lazy panel).
       Note: a stubbed Playwright check of the card at 320 px (code-map Widget) before CI.
+      Note (build): widget unit 52 pass (3 new `quoteView`/`activeCard` cases); panel 20.03 KB gz (≤ 35), loader 4.47 KB. Approval notices are server-rendered (`approvalNotice`, T4), so `strings.ts` only gained the card's chrome (title, each, % off, Total, GST). The card replaces the message's text bubble; its labels follow the message's language. A quote card never opens or answers an earlier consent card (`activeCard`). Stubbed Chromium check at 320 px: card 286 px wide, amounts on one line, long labels wrap, the waiting notice above it.
 - [ ] T8 — Dashboard queue and detail: `lib/approvals.ts` (`slaChip`, `termsError`, `decisionText`, list/detail hooks, realtime invalidation), `pages/approvals.tsx`, `pages/approval.tsx`, `pages/approval-parts.tsx` (draft editor, reject dialog), router, nav badge (ui-design SCR-APP-017, SCR-APP-018; D8; AC-5, AC-7, AC-13)
       Done when: `pnpm --filter @kaki/dashboard test` passes (`slaChip` at 31/30/0/−5 minutes, `termsError` cases, `decisionText` per status) and `pnpm --filter @kaki/dashboard typecheck` is clean.
 - [ ] T9 — Dashboard rules SLA and approvers block on SCR-APP-042; inbox sidebar Approval section (ui-design SCR-APP-042, SCR-APP-014; AC-4, AC-13)

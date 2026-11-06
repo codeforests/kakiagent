@@ -16,6 +16,7 @@ import {
   leadFormView,
   leadValues,
   localText,
+  quoteView,
   sentSummary,
   timeLabel,
   validateLead,
@@ -637,5 +638,50 @@ export function ContactForm(
         </div>
       </form>
     </div>
+  );
+}
+
+/**
+ * The approved quote (SCR-WGT-002; FEAT-055 §5.6): read-only, in place of the message's text
+ * bubble; its labels follow the message's language. A nested `ul` of lines only (axe list
+ * rule: no `li role` inside the log).
+ */
+export function QuoteCard({
+  m,
+  t,
+}: {
+  m: Message & { card: Extract<MessageCard, { kind: 'quote' }> };
+  t: Strings;
+}) {
+  const v = quoteView(m.card, t);
+  return (
+    <li class="quote-item" data-card="quote" lang={langOf(m.body)}>
+      <div class="quote-card" role="group" aria-label={t.quoteTitle}>
+        <h3>{t.quoteTitle}</h3>
+        {v.lines.length > 0 && (
+          <ul class="quote-lines">
+            {v.lines.map((l) => (
+              <li key={l.key}>
+                <span class="ql">{l.label}</span>
+                <span class="qa">{l.amount}</span>
+                <span class="qe">{l.each}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {v.discount && (
+          <p class="quote-row">
+            <span class="ql">{v.discount.label}</span>
+            <span class="qa">{v.discount.amount}</span>
+          </p>
+        )}
+        <p class="quote-row quote-total">
+          <span class="ql">{t.quoteTotal}</span>
+          <span class="qa">{v.total}</span>
+        </p>
+        {v.gst && <p class="cap">{v.gst}</p>}
+        {v.note && <p class="quote-note">{v.note}</p>}
+      </div>
+    </li>
   );
 }

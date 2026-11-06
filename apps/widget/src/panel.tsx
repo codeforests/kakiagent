@@ -8,7 +8,7 @@ import type { LeadCaptureConfig, Message } from '@kaki/contracts';
 import { render, type ComponentChildren } from 'preact';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { ChatEndedError, createApi } from './api.js';
-import { ContactForm, LeadCard, PrivacyLink } from './cards.js';
+import { ContactForm, LeadCard, PrivacyLink, QuoteCard } from './cards.js';
 import {
   activeCard,
   awaitingTurn,
@@ -32,7 +32,7 @@ import {
   type Segment,
 } from './chat.js';
 import { PANEL_CSS } from './panel.css.js';
-import { strings, type Strings } from './strings.js';
+import { pickLocale, strings, type Strings } from './strings.js';
 import type { PanelContext } from './types.js';
 
 const CLOSE_ICON = (
@@ -629,37 +629,50 @@ function Panel({
               </li>
             )}
             {chat.messages.map((m) => [
-              ...rowsOf(m, t.teamMember).map((r) =>
-                r.kind === 'disclosure' ? (
-                  <li key={r.key} class="disc" lang={langOf(r.text)}>
-                    {INFO_ICON} {r.text}
-                  </li>
-                ) : r.kind === 'notice' ? (
-                  <li
-                    key={r.key}
-                    class="notice"
-                    lang={langOf(r.text)}
-                    {...(m.noticeKind === 'lead_captured' && { 'data-notice': m.id, tabIndex: -1 })}
-                  >
-                    {r.text}
-                  </li>
-                ) : (
-                  <li
-                    key={r.key}
-                    class={`msg ${m.author}`}
-                    data-author={m.author}
-                    lang={langOf(r.text)}
-                  >
-                    {m.author === 'visitor' && <span class="sr-only">{t.you}: </span>}
-                    {r.name !== undefined && (
-                      <span class="who" lang={langOf(r.name)}>
-                        {r.name}
-                        <span class="sr-only">: </span>
-                      </span>
-                    )}
-                    {r.text}
-                  </li>
+              ...rowsOf(m, t.teamMember)
+                // An approved quote (FEAT-055) shows as its card, not its text body.
+                .filter((r) => !(m.card?.kind === 'quote' && r.kind === 'message'))
+                .map((r) =>
+                  r.kind === 'disclosure' ? (
+                    <li key={r.key} class="disc" lang={langOf(r.text)}>
+                      {INFO_ICON} {r.text}
+                    </li>
+                  ) : r.kind === 'notice' ? (
+                    <li
+                      key={r.key}
+                      class="notice"
+                      lang={langOf(r.text)}
+                      {...(m.noticeKind === 'lead_captured' && {
+                        'data-notice': m.id,
+                        tabIndex: -1,
+                      })}
+                    >
+                      {r.text}
+                    </li>
+                  ) : (
+                    <li
+                      key={r.key}
+                      class={`msg ${m.author}`}
+                      data-author={m.author}
+                      lang={langOf(r.text)}
+                    >
+                      {m.author === 'visitor' && <span class="sr-only">{t.you}: </span>}
+                      {r.name !== undefined && (
+                        <span class="who" lang={langOf(r.name)}>
+                          {r.name}
+                          <span class="sr-only">: </span>
+                        </span>
+                      )}
+                      {r.text}
+                    </li>
+                  ),
                 ),
+              m.card?.kind === 'quote' && (
+                <QuoteCard
+                  key={`${m.id}-card`}
+                  m={{ ...m, card: m.card }}
+                  t={strings(pickLocale(langOf(m.body)))}
+                />
               ),
               m.card && m.card.kind !== 'quote' && leadCommon && (
                 <LeadCard
