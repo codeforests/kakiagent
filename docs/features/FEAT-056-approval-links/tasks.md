@@ -1,7 +1,7 @@
 # Tasks: FEAT-056 — Signed mobile approval links
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: designed · Last updated: 2026-11-06 (design)
+> Status: designed (build: T1–T5 done) · Last updated: 2026-11-06 (build, backend)
 
 - [x] T1 — Schema: `0050_approval_links.sql` and `schema.ts` (`used_link_nonces` with composite FK to `approvals`, primary key `(tenant_id, nonce)`, forced RLS, `app_dashboard` select/insert/delete only; `magic_links.approval_link` with its two checks), name in `TENANT_SCOPED_TABLES`, cases in `rls.int.test.ts` (design §4; AC-8)
       Done when: `drizzle-kit generate` reports no drift after 0050; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes with tenant-B-can't-see-or-insert-A for `used_link_nonces`, a duplicate nonce refused, `app_visitor` refused a select, and a `reauth` magic link with `approval_link` refused.
@@ -12,8 +12,9 @@
 - [x] T4 — Alerts: platform `SendOptions.linkOf` (falls back to `linkFor`), `templates.ts` copy for `approval_pending` (button "Review and approve", the once-for-24-hours line; digest line once); scheduler wires `linkOf` with `approvalLinkUrl` for `approval_pending` only (design §5.2; D3; AC-1)
       Done when: `pnpm --filter @kaki/platform test` passes (template copy; `linkOf` null → `linkFor`); `scripts/test-env.sh pnpm --filter @kaki/platform test:integration` passes with an `approval_pending` alert for two recipients whose emailed links carry different tokens that `readApprovalLink` accepts for each user, a held digest whose approval item has its own token, and `approval_undeliverable` keeping `/approvals/{id}`; `pnpm --filter @kaki/scheduler-worker typecheck` passes.
       Note (build): platform can't import approvals even in tests, so the platform integration test uses a fake per-recipient `linkOf` (two recipients, held digest, `approval_undeliverable` fallback), and the real tokens are checked in the scheduler's `alert-links.test.ts` (`alertLinkOf` → `readApprovalLink` per user). The fallback is `alertLink` in `links.ts`, unit-tested in `templates.test.ts`. `rate-limit.int.test.ts` needs Valkey (no container here); the notifications and outbox suites ran.
-- [ ] T5 — API: `approval-links.ts` (`POST /api/v1/approval-links/open`, cookie read with `authenticate`, IP rate limit), wired in `app.ts`; `auth.ts` magic-link `approvalLink` (signature check, not with `invitation`), verify returning it, Google `next=approve`; identity `requestMagicLink`/`consumeMagicLink` carrying `approval_link` (design §5.3; D1, D6; AC-3–AC-7)
+- [x] T5 — API: `approval-links.ts` (`POST /api/v1/approval-links/open`, cookie read with `authenticate`, IP rate limit), wired in `app.ts`; `auth.ts` magic-link `approvalLink` (signature check, not with `invitation`), verify returning it, Google `next=approve`; identity `requestMagicLink`/`consumeMagicLink` carrying `approval_link` (design §5.3; D1, D6; AC-3–AC-7)
       Done when: `scripts/test-env.sh pnpm --filter @kaki/api test:integration` passes a new `approval-links.int.test.ts`: tampered → 400, expired → 410 without a cookie, no cookie → `sign_in`, signed-in recipient → `opened`, again → 409, other member → 403 `wrong_account`, a two-step-pending session → `two_step`; and in `auth.int.test.ts`: a magic link requested with `approvalLink` returns it on verify, a forged one is 400, with `invitation` too is 400, Google start with `next=approve` then callback redirects to `/approve`.
+      Note (build): the auth cases (approvalLink on verify, forged 400, with invitation 400, Google `next=approve`) live in `approval-links.int.test.ts` beside the open route's, not in `auth.int.test.ts`; `auth.int` and `team.int` still pass. Full api integration: 35/36 files pass; `uploads.int` needs LocalStack (no container here).
 
 ## Build session 2 (UI)
 

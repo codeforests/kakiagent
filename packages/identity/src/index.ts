@@ -66,6 +66,7 @@ export {
   sendPendingMagicLinks,
   type MagicLinkConfig,
   type Reauthed,
+  type SignedInByLink,
 } from './magic-link.js';
 export { findOrCreateUser, startSession, type SignedIn } from './users.js';
 export {
