@@ -173,7 +173,10 @@ describe('suggestReply (AC-1, AC-2)', () => {
       outcome: 'ready',
       factIds: [fudge],
     });
-    expect(JSON.stringify(audit.rows[0].payload)).not.toContain('55');
+    // The ids are random UUIDs (asserted exactly above) and can contain '55' by chance;
+    // the check is that no price or reply text reaches the audit chain (ADR-014).
+    const rest = { ...audit.rows[0].payload, suggestionId: null, factIds: null };
+    expect(JSON.stringify(rest)).not.toContain('55');
   });
 
   it('a reply that types a literal price twice gives no draft, never the unchecked text', async () => {
