@@ -21,6 +21,7 @@ import { z } from 'zod';
 import { channelHealthOnce } from './channel-health.js';
 import { gapClusterOnce } from './gap-cluster.js';
 import { staleScanOnce } from './stale-scan.js';
+import { approvalTimersOnce } from './approval-timers.js';
 import { autoCloseOnce } from './auto-close.js';
 import { escalationRemindersOnce } from './escalation-reminders.js';
 
@@ -84,6 +85,8 @@ const config = loadConfig(
       AUTO_CLOSE_INTERVAL_MS: z.coerce.number().int().positive().default(60_000),
       /** Escalation reminders (INB-05, FEAT-044 §5.5): every 30 seconds, first run at start-up. */
       ESCALATION_SWEEP_MS: z.coerce.number().int().positive().default(30_000),
+      /** Approval timers (APR-04, APR-06; FEAT-055 §5.4): every 30 seconds, first run at start-up. */
+      APPROVAL_SWEEP_MS: z.coerce.number().int().positive().default(30_000),
     }),
 );
 const stopTelemetry = startTelemetry('scheduler-worker', config.OTEL_EXPORTER_OTLP_ENDPOINT);
@@ -241,6 +244,14 @@ const escalationTimer = setInterval(
   config.ESCALATION_SWEEP_MS,
 );
 
+// Approval timers (FEAT-055 §5.4, D10): marks and queues each due urgent alert, SLA escalation
+// and 7-day expiry; the agent-worker runs it and re-checks that the approval is still pending.
+const approvalRun = approvalTimersOnce(outboxDb, logger);
+const approvalTimer = setInterval(
+  () => void approvalTimersOnce(outboxDb, logger),
+  config.APPROVAL_SWEEP_MS,
+);
+
 async function shutdown() {
   abort.abort();
   clearInterval(anchorTimer);
@@ -252,6 +263,7 @@ async function shutdown() {
   clearInterval(channelTimer);
   clearInterval(autoCloseTimer);
   clearInterval(escalationTimer);
+  clearInterval(approvalTimer);
   await Promise.all([
     running.catch(() => {}),
     anchorRun,
@@ -263,6 +275,7 @@ async function shutdown() {
     channelRun,
     autoCloseRun,
     escalationRun,
+    approvalRun,
   ]);
   health.close();
   await mailer.close();

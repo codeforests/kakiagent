@@ -50,6 +50,9 @@ importers:
       '@kaki/analytics':
         specifier: workspace:*
         version: link:../../packages/analytics
+      '@kaki/approvals':
+        specifier: workspace:*
+        version: link:../../packages/approvals
       '@kaki/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -416,6 +419,9 @@ importers:
       '@kaki/analytics':
         specifier: workspace:*
         version: link:../../packages/analytics
+      '@kaki/approvals':
+        specifier: workspace:*
+        version: link:../../packages/approvals
       '@kaki/channels':
         specifier: workspace:*
         version: link:../../packages/channels

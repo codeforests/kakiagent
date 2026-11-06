@@ -1,5 +1,6 @@
 import { fakeAgentScript, runVisitorTurn } from '@kaki/agent';
 import { usageSink } from '@kaki/analytics';
+import { runApprovalTimer } from '@kaki/approvals';
 import { TurnQueueJob, type RealtimeEvent } from '@kaki/contracts';
 import { createZoneDb, ping, withTenant } from '@kaki/db';
 import {
@@ -64,6 +65,18 @@ const llm = gatewayFromConfig({
   onUsage,
 });
 
+/** Publishes each event on its channels after commit; a failure only logs (clients resume from Postgres). */
+async function publishAll(
+  events: [string[], RealtimeEvent][],
+  log: { warn(obj: object, msg: string): void },
+): Promise<void> {
+  for (const [names, event] of events) {
+    await Promise.all(names.map((n) => publisher.publish(n, event))).catch((err) =>
+      log.warn({ err }, 'publish failed; clients will resume from Postgres'),
+    );
+  }
+}
+
 const health = startHealthServer(config.HEALTH_PORT, { database: () => ping(visitorDb) });
 const abort = new AbortController();
 
@@ -85,9 +98,53 @@ const consuming = queue.consume<unknown>(
     // An escalation reminder (INB-05; FEAT-044 §5.5) rides the conversation's FIFO group. The
     // escalation's lock and its resolved check make a duplicate job a no-op; the dedupe key
     // keeps a redelivered one from alerting twice.
+    // An approval timer (APR-04, APR-06; FEAT-055 §5.4, D10): urgent alert, SLA escalation or
+    // expiry. `runApprovalTimer` re-checks the approval under a lock, so a stale or duplicate
+    // job does nothing (ADR-012).
     if ('kind' in parsed && parsed.kind === 'approval_timer') {
-      // FEAT-055 T5 runs it (`runApprovalTimer`); until then the sweep's job is a no-op.
-      logger.info({ outboxId: msg.id, approvalId: parsed.approvalId }, 'approval timer pending T5');
+      const t = parsed.tenantId;
+      const log = logger.child({
+        outboxId: msg.id,
+        tenantId: t,
+        approvalId: parsed.approvalId,
+        timer: parsed.timer,
+      });
+      const r = await withTenant(visitorDb, t, async (tx) => {
+        const tenant = await visitorTenantState(tx);
+        return runApprovalTimer(tx, {
+          tenantId: t,
+          approvalId: parsed.approvalId,
+          timer: parsed.timer,
+          hours: tenant
+            ? {
+                hours: tenant.hours,
+                openOnPublicHolidays: tenant.openOnPublicHolidays,
+                holidays: tenant.holidays,
+              }
+            : null,
+        });
+      });
+      // As for a turn: the summary (with an escalation's details) is read after commit.
+      const summary = r.conversation
+        ? ((await withTenant(visitorDb, t, (tx) =>
+            conversationSummary(tx, t, r.conversation!.id),
+          ).catch(() => null)) ?? toSummary(r.conversation, r.message?.notice ?? ''))
+        : null;
+      const events: [string[], RealtimeEvent][] = [];
+      if (r.message)
+        events.push([
+          [channels.conversation(t, r.message.conversationId), channels.inbox(t)],
+          { type: 'message', message: toMessage(r.message) },
+        ]);
+      if (summary)
+        events.push([[channels.inbox(t)], { type: 'conversation', conversation: summary }]);
+      if (r.outcome === 'expired')
+        events.push([
+          [channels.inbox(t)],
+          { type: 'approval', id: parsed.approvalId, status: 'expired' },
+        ]);
+      await publishAll(events, log);
+      log.info({ outcome: r.outcome }, 'approval timer');
       return;
     }
     if ('kind' in parsed && parsed.kind === 'escalation_reminder') {
@@ -169,7 +226,20 @@ const consuming = queue.consume<unknown>(
             conversationSummary(tx, job.tenantId, job.conversationId),
           ).catch(() => null)) ?? toSummary(reply.conversation, message.body))
         : toSummary(reply.conversation, message.body);
+    const both = [
+      channels.conversation(job.tenantId, job.conversationId),
+      channels.inbox(job.tenantId),
+    ];
     const events: [string[], RealtimeEvent][] = [
+      // A quote sent at once (FEAT-055 D3) was stored before the reply, so it goes first.
+      ...(reply.approvalMessage
+        ? [
+            [both, { type: 'message', message: toMessage(reply.approvalMessage) }] as [
+              string[],
+              RealtimeEvent,
+            ],
+          ]
+        : []),
       // The escalation notice stored beside an answered reply goes first (FEAT-044 §5.4).
       ...(reply.escalationNotice
         ? [
@@ -186,13 +256,32 @@ const consuming = queue.consume<unknown>(
         [channels.conversation(job.tenantId, job.conversationId), channels.inbox(job.tenantId)],
         { type: 'message', message },
       ],
+      // FEAT-055: the waiting notice stored after an answered reply.
+      ...(reply.approvalNotice
+        ? [
+            [both, { type: 'message', message: toMessage(reply.approvalNotice) }] as [
+              string[],
+              RealtimeEvent,
+            ],
+          ]
+        : []),
       [[channels.inbox(job.tenantId)], { type: 'conversation', conversation: summary }],
+      // FEAT-055: a new approval (or a quote sent at once) refreshes the approvals queue. The
+      // realtime role never forwards approval events to visitors.
+      ...(reply.approval && reply.approval.status !== 'already_pending'
+        ? [
+            [
+              [channels.inbox(job.tenantId)],
+              {
+                type: 'approval',
+                id: reply.approval.id,
+                status: reply.approval.status === 'auto' ? 'approved' : 'pending',
+              },
+            ] as [string[], RealtimeEvent],
+          ]
+        : []),
     ];
-    for (const [names, event] of events) {
-      await Promise.all(names.map((n) => publisher.publish(n, event))).catch((err) =>
-        log.warn({ err }, 'publish failed; clients will resume from Postgres'),
-      );
-    }
+    await publishAll(events, log);
     // NFR-01 latency (AC-12): measured from the first token request to release.
     log.info(
       {
