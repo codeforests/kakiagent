@@ -4,6 +4,7 @@ import {
   magicLinkFor,
   openShadowRoots,
   resetSignInLimits,
+  signIn,
 } from './support.ts';
 
 /**
@@ -40,6 +41,20 @@ async function askForQuote(browser: Browser, text: string) {
   return context;
 }
 
+/**
+ * The Owner's alert settings with quiet hours off or on (the seeded default). A non-urgent
+ * `approval_pending` alert is held between 22:00 and 08:00 Singapore time, so without this the
+ * spec fails whenever CI runs in the evening there (run 112, 22:53 SGT).
+ */
+const PREFS = (quiet: boolean) => ({
+  events: [
+    { event: 'escalation', email: true },
+    { event: 'approval_pending', email: true },
+    { event: 'hot_lead', email: true },
+  ],
+  quietHours: { enabled: quiet, start: '22:00', end: '08:00' },
+});
+
 /** Changes the signature's last character, so the token no longer verifies. */
 const tamper = (link: string) => link.slice(0, -1) + (link.endsWith('A') ? 'B' : 'A');
 
@@ -48,6 +63,12 @@ test('an alert link opens signed out, signs in and approves once (AC-1, AC-4, AC
 }) => {
   test.setTimeout(180_000);
   const tag = runTag('L');
+  const ownerContext = await browser.newContext();
+  const ownerPage = await ownerContext.newPage();
+  await signIn(ownerPage, OWNER);
+  expect(
+    (await ownerPage.request.put('/api/v1/me/notifications', { data: PREFS(false) })).status(),
+  ).toBe(200);
   const since = new Date(Date.now() - 1000);
   const visitor = await askForQuote(
     browser,
@@ -113,6 +134,8 @@ test('an alert link opens signed out, signs in and approves once (AC-1, AC-4, AC
     await page.keyboard.press('Enter');
     await expect(page.getByRole('heading', { name: 'Approvals', level: 1 })).toBeVisible();
   } finally {
+    await ownerPage.request.put('/api/v1/me/notifications', { data: PREFS(true) });
+    await ownerContext.close();
     await visitor.close();
     await context.close();
   }

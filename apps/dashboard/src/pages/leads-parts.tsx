@@ -1,0 +1,177 @@
+import { LeadStatus, type LeadMarketing } from '@kaki/contracts';
+import { ConfirmDialog } from '@kaki/ui';
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
+import { useMutation } from '@tanstack/react-query';
+import { useState, type RefObject } from 'react';
+import { api, ApiError } from '../lib/api.ts';
+import { LEAD_STATUS } from '../lib/inbox.ts';
+import {
+  csvLeadCount,
+  exportFileName,
+  filterNote,
+  marketingText,
+  type LeadsFilter,
+} from '../lib/leads.ts';
+import { ReauthCancelled, useReauthGuard } from '../lib/reauth.ts';
+import { Glyph, ScoreChip } from './conversation-parts.tsx';
+
+/** The parts of SCR-APP-032 Leads and SCR-APP-033 Lead (FEAT-050 ui-design, "Shared words"). */
+
+// The score chip lives with the inbox sidebar's parts, which show it too.
+export { ScoreChip };
+
+export function StatusChip({ status }: { status: LeadStatus }) {
+  return (
+    <span className={`chip chip--${LEAD_STATUS[status].tone}`} data-testid="status-chip">
+      {LEAD_STATUS[status].label}
+    </span>
+  );
+}
+
+/**
+ * "Status: New" with the four statuses as `menuitemradio` (Owner and Admin). Choosing one
+ * saves at once; not optimistic, so the button reads "Saving…" until the server answers.
+ */
+export function StatusMenu({
+  status,
+  busy,
+  onChange,
+}: {
+  status: LeadStatus;
+  busy: boolean;
+  onChange: (status: LeadStatus) => void;
+}) {
+  return (
+    <DropdownMenu.Root modal={false}>
+      <DropdownMenu.Trigger
+        className="kaki-btn kaki-btn--secondary lead-status-menu"
+        disabled={busy}
+        aria-busy={busy || undefined}
+      >
+        {busy ? 'Saving…' : `Status: ${LEAD_STATUS[status].label}`}
+        <Glyph name="chevron-down" />
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content className="menu" align="start" sideOffset={4}>
+          <DropdownMenu.RadioGroup
+            value={status}
+            onValueChange={(v) => {
+              if (v !== status) onChange(LeadStatus.parse(v));
+            }}
+          >
+            {LeadStatus.options.map((s) => (
+              <DropdownMenu.RadioItem key={s} value={s} className="menu__item lead-status-item">
+                <span className="lead-status-item__check" aria-hidden="true">
+                  {s === status ? '✓' : ''}
+                </span>
+                {LEAD_STATUS[s].label}
+              </DropdownMenu.RadioItem>
+            ))}
+          </DropdownMenu.RadioGroup>
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
+  );
+}
+
+export function MarketingFlag({ marketing }: { marketing: LeadMarketing }) {
+  return <span className="lead-marketing">{marketingText(marketing)}</span>;
+}
+
+/** Saves the CSV under its name through a temporary object URL. */
+function save(blob: Blob, name: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  // Attached for Firefox, which ignores clicks on a detached link.
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/**
+ * Export CSV (design.md §4.10 sensitive action): confirm, then re-auth when the server asks
+ * (FEAT-006 guard), then the browser downloads the file. Focus goes back to Export CSV.
+ */
+export function ExportDialog({
+  open,
+  onOpenChange,
+  title,
+  filter,
+  returnTo,
+  onToast,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: string;
+  filter: LeadsFilter;
+  returnTo: RefObject<HTMLButtonElement | null>;
+  onToast: (message: string) => void;
+}) {
+  const { guard } = useReauthGuard();
+  const [tooMany, setTooMany] = useState(false);
+  const run = useMutation({
+    mutationFn: () =>
+      guard(() =>
+        api.exportLeads({
+          status: filter.status,
+          ...(filter.score ? { score: filter.score } : {}),
+        }),
+      ),
+    onMutate: () => setTooMany(false),
+    onSuccess: (res) => {
+      save(res.blob, res.name ?? exportFileName(new Date()));
+      const n = csvLeadCount(res.text);
+      onOpenChange(false);
+      onToast(
+        `Exported ${n} ${n === 1 ? 'lead' : 'leads'}. This export is recorded in the audit log.`,
+      );
+    },
+    onError: (err) => {
+      if (err instanceof ReauthCancelled) return onOpenChange(false);
+      if (err instanceof ApiError && err.status === 413) return setTooMany(true);
+      onOpenChange(false);
+      onToast("Couldn't export. Try again.");
+    },
+  });
+  const note = filterNote(filter);
+  return (
+    <ConfirmDialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) setTooMany(false);
+        onOpenChange(next);
+      }}
+      title={title}
+      confirmLabel="Export"
+      busy={run.isPending}
+      busyLabel="Exporting…"
+      onConfirm={() => run.mutate()}
+      onCloseAutoFocus={(e) => {
+        e.preventDefault();
+        returnTo.current?.focus();
+      }}
+      alert={
+        tooMany ? (
+          <div className="alert alert--danger" role="alert">
+            <p>That's more than 10,000 leads. Pick a status or score to export fewer.</p>
+          </div>
+        ) : undefined
+      }
+    >
+      {note && <p className="lead-export__filters">{note}</p>}
+      <p>
+        The file includes names, phone numbers and emails. Keep it safe and delete it when you're
+        done.
+      </p>
+      <div className="alert alert--info">
+        <p>
+          The Do Not Call Registry applies before you call or text anyone for marketing. Check the
+          Offers column.
+        </p>
+      </div>
+    </ConfirmDialog>
+  );
+}

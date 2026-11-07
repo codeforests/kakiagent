@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Leads, consents and contacts (FEAT-049); scoring, exports and webhooks come later.",
+  "description": "Leads, consents and contacts (FEAT-049); scoring, the pipeline and CSV export (FEAT-050).",
   "exports": {
     ".": "./src/index.ts"
   },
@@ -19,6 +19,7 @@
     "@kaki/db": "workspace:*",
     "@kaki/governance": "workspace:*",
     "@kaki/inbox": "workspace:*",
+    "@kaki/platform": "workspace:*",
     "@kaki/tenancy": "workspace:*"
   },
   "devDependencies": {

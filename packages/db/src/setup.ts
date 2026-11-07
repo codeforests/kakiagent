@@ -40,9 +40,10 @@ export interface SeedTenant {
   } | null;
   /**
    * Saved privacy wordings so the dev widget captures leads (FEAT-049 §5.9); `marketing` turns
-   * the opt-in on. The test database leaves it out: suites start with nothing saved.
+   * the opt-in on; `leads` adds the sample contact-form leads (FEAT-050 §5.7). The test database
+   * leaves it out: suites start with nothing saved and no leads.
    */
-  privacy?: { marketing: boolean };
+  privacy?: { marketing: boolean; leads?: boolean };
 }
 
 const SEED_PURPOSE = {
@@ -70,6 +71,107 @@ const SEED_LEAD_FIELDS = [
   { key: 'need', mode: 'optional' },
   { key: 'budget', mode: 'off' },
   { key: 'preferredTime', mode: 'optional' },
+];
+
+/** The bakery's scoring criteria (FEAT-050 §5.7): the F&B keywords and a S$300 minimum. */
+export const SEED_QUALIFICATION = {
+  keywords: ['wedding', 'corporate', 'event', '婚礼'],
+  minBudget: 300,
+};
+
+type SeedReason = { code: string; points: number; detail: string | null };
+/**
+ * Sample contact-form leads for the dev bakery (FEAT-050 §5.7): no conversation, so the inbox
+ * lists and search are unchanged. Scores are what leads `scoreLead` gives with
+ * `SEED_QUALIFICATION` (its unit test checks each one); `marketing` null = not asked.
+ */
+export const SEED_LEADS: readonly {
+  name: string;
+  email: string | null;
+  phone: string | null;
+  need: string;
+  budget: string | null;
+  preferredTime: string | null;
+  status: 'new' | 'contacted' | 'won' | 'lost';
+  marketing: boolean | null;
+  hoursAgo: number;
+  score: { score: 'hot' | 'warm' | 'cold'; points: number; reasons: SeedReason[] };
+}[] = [
+  {
+    name: 'Rachel Tan',
+    email: 'rachel.tan@example.com',
+    phone: '+6591230001',
+    need: 'Wedding cake for 120 guests, three tiers',
+    budget: 'S$800',
+    preferredTime: 'Sat 12 Dec',
+    status: 'new',
+    marketing: true,
+    hoursAgo: 2,
+    score: {
+      score: 'hot',
+      points: 7,
+      reasons: [
+        { code: 'keyword', points: 2, detail: 'wedding' },
+        { code: 'budget_met', points: 2, detail: '300' },
+        { code: 'both_contacts', points: 1, detail: null },
+        { code: 'need_given', points: 1, detail: null },
+        { code: 'timing_given', points: 1, detail: null },
+      ],
+    },
+  },
+  {
+    name: 'Daniel Lim',
+    email: 'daniel.lim@example.com',
+    phone: null,
+    need: 'Corporate order of 60 cupcakes',
+    budget: null,
+    preferredTime: 'Next Friday',
+    status: 'new',
+    marketing: false,
+    hoursAgo: 5,
+    score: {
+      score: 'warm',
+      points: 4,
+      reasons: [
+        { code: 'keyword', points: 2, detail: 'corporate' },
+        { code: 'need_given', points: 1, detail: null },
+        { code: 'timing_given', points: 1, detail: null },
+      ],
+    },
+  },
+  {
+    name: 'Siti Rahman',
+    email: null,
+    phone: '+6581230003',
+    need: 'Do you sell bread loaves?',
+    budget: null,
+    preferredTime: null,
+    status: 'new',
+    marketing: null,
+    hoursAgo: 26,
+    score: { score: 'cold', points: 1, reasons: [{ code: 'need_given', points: 1, detail: null }] },
+  },
+  {
+    name: 'Grace Wong',
+    email: 'grace.wong@example.com',
+    phone: '+6591230004',
+    need: 'Birthday cake for my son',
+    budget: 'S$120',
+    preferredTime: 'Last Sunday',
+    status: 'won',
+    marketing: null,
+    hoursAgo: 72,
+    score: {
+      score: 'warm',
+      points: 3,
+      reasons: [
+        { code: 'budget_below', points: 0, detail: '300' },
+        { code: 'both_contacts', points: 1, detail: null },
+        { code: 'need_given', points: 1, detail: null },
+        { code: 'timing_given', points: 1, detail: null },
+      ],
+    },
+  },
 ];
 
 const weekday = [{ open: '08:00', close: '19:00' }];
@@ -112,7 +214,7 @@ export function devTenants(allowedOrigins: string[]): SeedTenant[] {
         contactPhone: '+6591234567',
         languages: ['en', 'zh'],
       },
-      privacy: { marketing: true },
+      privacy: { marketing: true, leads: true },
     },
     {
       id: '22222222-2222-4222-8222-222222222222',
@@ -226,7 +328,9 @@ export async function seed(client: pg.ClientBase, tenants: SeedTenant[]): Promis
        where not exists (select 1 from terms_acceptances where tenant_id = $1 and version = $3)`,
       [t.id, userId, SEED_TERMS_VERSION],
     );
-    if (t.privacy) await seedPrivacy(client, t.id, userId, t.ownerEmail, t.privacy.marketing);
+    if (t.privacy)
+      await seedPrivacy(client, t.id, userId, t.ownerEmail, t.privacy.marketing, !!t.privacy.leads);
+    if (t.privacy?.leads) await seedLeads(client, t.id);
   }
 }
 
@@ -237,6 +341,7 @@ async function seedPrivacy(
   userId: string,
   email: string,
   marketing: boolean,
+  withLeads: boolean,
 ): Promise<void> {
   const wording = async (kind: string, content: unknown) =>
     (
@@ -272,8 +377,78 @@ async function seedPrivacy(
   if (leads.rowCount === 0) {
     const marketingId = marketing ? await wording('marketing_consent', SEED_MARKETING) : null;
     await client.query(
-      `insert into lead_settings (tenant_id, fields, marketing_enabled, marketing_wording_id) values ($1, $2, $3, $4)`,
-      [tenantId, JSON.stringify(SEED_LEAD_FIELDS), marketing, marketingId],
+      `insert into lead_settings (tenant_id, fields, marketing_enabled, marketing_wording_id, qualification)
+       values ($1, $2, $3, $4, $5)`,
+      [
+        tenantId,
+        JSON.stringify(SEED_LEAD_FIELDS),
+        marketing,
+        marketingId,
+        JSON.stringify(withLeads ? SEED_QUALIFICATION : { keywords: [], minBudget: null }),
+      ],
+    );
+  }
+}
+
+/**
+ * The sample leads (FEAT-050 §5.7), once: a contact that already exists (by email or phone)
+ * is left alone with its leads, so a second run changes nothing.
+ */
+async function seedLeads(client: pg.ClientBase, tenantId: string): Promise<void> {
+  const ids = await client.query<{ purpose: string | null; marketing: string | null }>(
+    `select p.purpose_wording_id as purpose, l.marketing_wording_id as marketing
+     from privacy_settings p left join lead_settings l on l.tenant_id = p.tenant_id
+     where p.tenant_id = $1`,
+    [tenantId],
+  );
+  const purpose = ids.rows[0]?.purpose;
+  if (!purpose) return;
+  for (const l of SEED_LEADS) {
+    const exists = await client.query(
+      `select 1 from contacts where tenant_id = $1 and (email = $2 or phone = $3)`,
+      [tenantId, l.email, l.phone],
+    );
+    if (exists.rowCount) continue;
+    const at = `now() - interval '${l.hoursAgo} hours'`;
+    const contact = (
+      await client.query<{ id: string }>(
+        `insert into contacts (tenant_id, name, email, phone, created_at, updated_at)
+         values ($1, $2, $3, $4, ${at}, ${at}) returning id`,
+        [tenantId, l.name, l.email, l.phone],
+      )
+    ).rows[0]!.id;
+    const consent = (
+      await client.query<{ id: string }>(
+        `insert into consents (tenant_id, contact_id, purpose, decision, wording_id, channel, created_at)
+         values ($1, $2, 'enquiry', 'agreed', $3, 'widget', ${at}) returning id`,
+        [tenantId, contact, purpose],
+      )
+    ).rows[0]!.id;
+    if (l.marketing !== null && ids.rows[0]?.marketing)
+      await client.query(
+        `insert into consents (tenant_id, contact_id, purpose, decision, wording_id, channel, created_at)
+         values ($1, $2, 'marketing', $3, $4, 'widget', ${at})`,
+        [tenantId, contact, l.marketing ? 'agreed' : 'declined', ids.rows[0].marketing],
+      );
+    await client.query(
+      `insert into leads (tenant_id, contact_id, consent_id, status, need, budget, preferred_time,
+         score, score_points, score_reasons, scored_at, hot_alerted_at, status_changed_at,
+         created_at, updated_at)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, ${at}, $11, $12, ${at}, ${at})`,
+      [
+        tenantId,
+        contact,
+        consent,
+        l.status,
+        l.need,
+        l.budget,
+        l.preferredTime,
+        l.score.score,
+        l.score.points,
+        JSON.stringify(l.score.reasons),
+        l.score.score === 'hot' ? new Date(Date.now() - l.hoursAgo * 3_600_000) : null,
+        l.status === 'new' ? null : new Date(Date.now() - (l.hoursAgo - 1) * 3_600_000),
+      ],
     );
   }
 }

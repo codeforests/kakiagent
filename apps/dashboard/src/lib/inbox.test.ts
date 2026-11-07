@@ -489,6 +489,7 @@ describe('consent and lead in the thread and sidebar (FEAT-049 AC-12)', () => {
       status: 'new' as const,
       updatedAt: at,
       consent: { enquiryAt: at, marketing: { agreed: true, at } },
+      scoring: null,
     };
     expect(LEAD_STATUS.new).toEqual({ label: 'New', tone: 'info' });
     expect(leadLines(lead)).toEqual({

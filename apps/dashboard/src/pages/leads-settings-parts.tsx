@@ -1,6 +1,6 @@
 import { LEAD_FIELD_KEYS, type LeadFieldMode, type LeadSettings } from '@kaki/contracts';
 import { Button } from '@kaki/ui';
-import { useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { Link } from 'react-router';
 import { ApiError } from '../lib/api.ts';
 import { Field } from '../lib/field.tsx';
@@ -9,6 +9,8 @@ import {
   FIELD_LABELS,
   MODE_LABELS,
   diffLeadSettings,
+  KEYWORD_MAX,
+  keywordError,
   leadBodyOf,
   leadDraftOf,
   leadServerErrors,
@@ -60,7 +62,11 @@ export function LeadSettingsForm({
         setInitial(leadDraftOf(res, business));
         setDraft(leadDraftOf(res, business));
         setSubmitted(false);
-        onToast('Lead settings saved');
+        onToast(
+          res.rescored > 0
+            ? `Lead settings saved. ${res.rescored} open ${res.rescored === 1 ? 'lead' : 'leads'} rescored.`
+            : 'Lead settings saved',
+        );
       },
       onError: (err) => {
         if (err instanceof ApiError && err.status === 400) {
@@ -75,6 +81,13 @@ export function LeadSettingsForm({
     setDraft((d) => ({ ...d, fields: d.fields.map((f) => (f.key === key ? { ...f, mode } : f)) }));
   const setMarketing = (patch: Partial<LeadDraft['marketing']>) =>
     setDraft((d) => ({ ...d, marketing: { ...d.marketing, ...patch } }));
+  // The Lead page links to `#qualification`; the card renders after the settings load.
+  useEffect(() => {
+    if (window.location.hash === '#qualification')
+      document.getElementById('qualification')?.scrollIntoView();
+  }, []);
+  const setQualification = (patch: Partial<LeadDraft['qualification']>) =>
+    setDraft((d) => ({ ...d, qualification: { ...d.qualification, ...patch } }));
   const saved = wordingCaption(data.marketing.wording);
 
   return (
@@ -132,6 +145,47 @@ export function LeadSettingsForm({
             );
           })}
         </div>
+      </section>
+
+      <section
+        className="card stack"
+        id="qualification"
+        aria-labelledby="leads-qualification-title"
+      >
+        <h2 className="section-title" id="leads-qualification-title">
+          Qualification
+        </h2>
+        <p className="privacy-lede">
+          Decides which leads are hot, warm or cold. Your assistant adds points for asking for a
+          quote, leaving phone and email, and saying when.
+        </p>
+        <KeywordListEditor
+          items={draft.qualification.keywords}
+          disabled={pending}
+          onChange={(keywords) => setQualification({ keywords })}
+        />
+        <Field
+          id="leads-minBudget"
+          label="Minimum budget"
+          error={errors.minBudget}
+          help="Leads whose budget meets this get extra points. Leave empty to ignore budget."
+        >
+          <div className="input-adorned">
+            <span className="input-adorned__prefix" aria-hidden="true">
+              S$
+            </span>
+            <input
+              id="leads-minBudget"
+              className="input leads-budget"
+              inputMode="numeric"
+              value={draft.qualification.minBudget}
+              readOnly={pending}
+              aria-invalid={errors.minBudget ? true : undefined}
+              aria-describedby={describedBy('leads-minBudget', errors.minBudget, true)}
+              onChange={(e) => setQualification({ minBudget: e.target.value })}
+            />
+          </div>
+        </Field>
       </section>
 
       <section className="card stack" aria-labelledby="leads-consent-title">
@@ -216,5 +270,115 @@ export function LeadSettingsForm({
         </Button>
       </div>
     </form>
+  );
+}
+
+/**
+ * "Keywords that make a lead hot": the list-with-Add pattern of Rules' topics
+ * (`TopicListEditor`), with this card's limits and words (FEAT-050 ui-design SCR-APP-043).
+ */
+function KeywordListEditor({
+  items,
+  onChange,
+  disabled,
+}: {
+  items: string[];
+  onChange: (items: string[]) => void;
+  disabled: boolean;
+}) {
+  const id = 'leads-keywords';
+  const [value, setValue] = useState('');
+  const [error, setError] = useState<string | undefined>();
+  const [announce, setAnnounce] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+
+  function add(e: FormEvent | KeyboardEvent) {
+    e.preventDefault();
+    const err = keywordError(items, value);
+    setError(err);
+    if (err) return;
+    const keyword = value.trim().replace(/\s+/g, ' ');
+    onChange([...items, keyword]);
+    setValue('');
+    setAnnounce(`Added ${keyword}`);
+  }
+
+  function remove(index: number) {
+    const keyword = items[index];
+    onChange(items.filter((_, i) => i !== index));
+    setAnnounce(`Removed ${keyword}`);
+    requestAnimationFrame(() => {
+      const buttons = listRef.current?.querySelectorAll<HTMLButtonElement>('button');
+      const next = buttons?.[Math.min(index, buttons.length - 1)];
+      (next ?? inputRef.current)?.focus();
+    });
+  }
+
+  return (
+    <div className="field rules-topics">
+      <div className="rules-topics__head">
+        <label className="field__label" htmlFor={id}>
+          Keywords that make a lead hot
+        </label>
+        <span className="field__counter">
+          {items.length} of {KEYWORD_MAX}
+        </span>
+      </div>
+      <p className="field__help" id={`${id}-help`}>
+        Matched in what the visitor says they need. For example: wedding, corporate, 婚礼.
+      </p>
+      <div className="rules-add">
+        <input
+          id={id}
+          ref={inputRef}
+          className="input"
+          placeholder="Add a keyword"
+          value={value}
+          maxLength={60}
+          readOnly={disabled}
+          onChange={(e) => {
+            setValue(e.target.value);
+            if (error) setError(undefined);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') add(e);
+          }}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={describedBy(id, error, true)}
+        />
+        <Button type="button" variant="secondary" disabled={disabled} onClick={add}>
+          Add
+        </Button>
+      </div>
+      {error && (
+        <p className="field__error" id={`${id}-error`}>
+          <span aria-hidden="true">!</span> {error}
+        </p>
+      )}
+      {items.length === 0 ? (
+        <p className="field__help">None yet.</p>
+      ) : (
+        <ul className="origin-list" aria-label="Keywords that make a lead hot" ref={listRef}>
+          {items.map((k, i) => (
+            <li key={`${k}-${i}`} className="origin-row">
+              <span className="origin-row__host">{k}</span>
+              <button
+                type="button"
+                className="icon-button origin-row__remove"
+                aria-label={`Remove ${k}`}
+                disabled={disabled}
+                onClick={() => remove(i)}
+              >
+                <span aria-hidden="true">×</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="sr-only" aria-live="polite">
+        {announce}
+      </div>
+    </div>
   );
 }

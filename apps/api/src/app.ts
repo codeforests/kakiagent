@@ -130,7 +130,7 @@ import { registerTeamRoutes, teamErrorReply } from './team.js';
 import { notificationsErrorReply, registerNotificationRoutes } from './notifications.js';
 import { escalationErrorReply, registerEscalationRoutes } from './escalation.js';
 import { leadsErrorReply, registerLeadWidgetRoutes } from './leads-widget.js';
-import { leadSettingsErrorReply, registerLeadSettingsRoutes } from './leads.js';
+import { leadSettingsErrorReply, registerLeadRoutes, registerLeadSettingsRoutes } from './leads.js';
 import {
   AttestationRequiredError,
   FileTooLargeError,
@@ -694,6 +694,7 @@ export async function buildApp(deps: Deps) {
   registerNotificationRoutes(app, deps, sessionFrom);
   registerEscalationRoutes(app, deps, sessionFrom);
   registerLeadSettingsRoutes(app, deps, sessionFrom);
+  registerLeadRoutes(app, deps, sessionFrom);
 
   return app;
 }

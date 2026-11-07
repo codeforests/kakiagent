@@ -2683,6 +2683,56 @@ export type IntentSignal = z.infer<typeof IntentSignal>;
 export const LeadStatus = z.enum(['new', 'contacted', 'won', 'lost']);
 export type LeadStatus = z.infer<typeof LeadStatus>;
 
+// Lead scoring shapes (LED-03; FEAT-050 §3), here because the sidebar's LeadSummary and the
+// lead settings carry them; the leads routes are in "Dashboard API: leads" at the end.
+export const LeadScore = z.enum(['hot', 'warm', 'cold']);
+export type LeadScore = z.infer<typeof LeadScore>;
+/** Why a lead scored as it did; the dashboard words each code (FEAT-050 ui-design). */
+export const ScoreReasonCode = z.enum([
+  'keyword',
+  'budget_met',
+  'budget_below',
+  'wants_to_order',
+  'both_contacts',
+  'need_given',
+  'timing_given',
+  'returning',
+]);
+export type ScoreReasonCode = z.infer<typeof ScoreReasonCode>;
+export const ScoreReason = z.object({
+  code: ScoreReasonCode,
+  points: z.number().int(),
+  /** The matched keyword or the minimum budget in whole S$; null for the rest. */
+  detail: z.string().max(80).nullable(),
+});
+export type ScoreReason = z.infer<typeof ScoreReason>;
+/** Null: captured before FEAT-050 and not rescored yet. */
+export const LeadScoring = z
+  .object({
+    score: LeadScore,
+    points: z.number().int(),
+    reasons: z.array(ScoreReason),
+    at: z.iso.datetime({ offset: true }),
+  })
+  .nullable();
+export type LeadScoring = z.infer<typeof LeadScoring>;
+
+/**
+ * Owner-set scoring criteria (SCR-APP-043; FEAT-050 D2). Keywords 1–40 chars after trimming,
+ * at most 20, unique ignoring case (the leads module stores them case-folded).
+ */
+export const Qualification = z.object({
+  keywords: z
+    .array(z.string().trim().min(1).max(40))
+    .max(20)
+    .refine((ks) => new Set(ks.map((k) => k.normalize('NFKC').toLowerCase())).size === ks.length, {
+      message: 'duplicate_keyword',
+    }),
+  /** Whole S$, 1–10,000,000; null = no budget criterion. */
+  minBudget: z.number().int().min(1).max(10_000_000).nullable(),
+});
+export type Qualification = z.infer<typeof Qualification>;
+
 /** The conversation's contact's lead and the consent it was captured under (FEAT-049 §3). */
 export const LeadSummary = z.object({
   id: z.uuid(),
@@ -2692,6 +2742,8 @@ export const LeadSummary = z.object({
     enquiryAt: z.iso.datetime({ offset: true }),
     marketing: z.object({ agreed: z.boolean(), at: z.iso.datetime({ offset: true }) }).nullable(),
   }),
+  /** FEAT-050: the lead's score, shown in the sidebar's Lead section. */
+  scoring: LeadScoring,
 });
 export type LeadSummary = z.infer<typeof LeadSummary>;
 
@@ -3021,8 +3073,13 @@ export const LeadSettings = z.object({
     text: z.object({ en: z.string(), zh: z.string().nullable() }),
     saved: z.boolean(),
   }),
+  /** FEAT-050: scoring criteria; an F&B tenant that never saved sees its template's keywords. */
+  qualification: Qualification,
 });
 export type LeadSettings = z.infer<typeof LeadSettings>;
+/** `PUT /api/v1/settings/leads` answer: the saved settings and how many open leads were rescored. */
+export const LeadSettingsSaved = LeadSettings.extend({ rescored: z.number().int().min(0) });
+export type LeadSettingsSaved = z.infer<typeof LeadSettingsSaved>;
 
 export const LeadSettingsBody = z.strictObject({
   version: z.number().int().min(0),
@@ -3031,6 +3088,8 @@ export const LeadSettingsBody = z.strictObject({
     enabled: z.boolean(),
     text: z.object({ en: z.string().trim().max(600), zh: z.string().trim().max(600).nullable() }),
   }),
+  /** FEAT-050; absent keeps the saved criteria (a FEAT-049 client). */
+  qualification: z.strictObject(Qualification.shape).optional(),
 });
 export type LeadSettingsBody = z.infer<typeof LeadSettingsBody>;
 
@@ -3183,3 +3242,112 @@ export const APPROVAL_LINK_ERRORS = {
   not_member: 403,
 } as const;
 export type ApprovalLinkError = keyof typeof APPROVAL_LINK_ERRORS;
+
+// ---- Dashboard API: leads (LED-03, LED-05, LED-08; FEAT-050 §3) ----------------------------
+
+/** Chat when the lead was captured in a conversation, else the contact form (FEAT-049 D9). */
+export const LeadSource = z.enum(['chat', 'contact_form']);
+export type LeadSource = z.infer<typeof LeadSource>;
+/** The contact's latest marketing answer; null = not asked (LED-08). */
+export const LeadMarketing = z
+  .object({ agreed: z.boolean(), at: z.iso.datetime({ offset: true }) })
+  .nullable();
+export type LeadMarketing = z.infer<typeof LeadMarketing>;
+
+export const LeadRow = z.object({
+  id: z.uuid(),
+  version: z.number().int().min(1),
+  name: z.string().nullable(),
+  email: z.string().nullable(),
+  /** Formatted `+65 9123 4567`. */
+  phone: z.string().nullable(),
+  /** The first 120 characters in the list; the full text on the detail. */
+  need: z.string().nullable(),
+  status: LeadStatus,
+  scoring: LeadScoring,
+  source: LeadSource,
+  marketing: LeadMarketing,
+  createdAt: z.iso.datetime({ offset: true }),
+  updatedAt: z.iso.datetime({ offset: true }),
+});
+export type LeadRow = z.infer<typeof LeadRow>;
+
+export const LeadStatusFilter = z.enum(['open', 'new', 'contacted', 'won', 'lost', 'all']);
+export type LeadStatusFilter = z.infer<typeof LeadStatusFilter>;
+
+/** `GET /api/v1/leads` query. `open` = new + contacted. */
+export const LeadsQuery = z.object({
+  status: LeadStatusFilter.default('open'),
+  score: LeadScore.optional(),
+  /** Opaque keyset (updated_at, id). */
+  cursor: z.string().max(200).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+});
+export type LeadsQuery = z.infer<typeof LeadsQuery>;
+
+export const LeadList = z.object({
+  items: z.array(LeadRow),
+  nextCursor: z.string().nullable(),
+  /** All four statuses, ignoring the score filter. */
+  counts: z.record(LeadStatus, z.number().int().min(0)),
+});
+export type LeadList = z.infer<typeof LeadList>;
+
+/** One consent row of the contact with the exact wording shown (LED-02; AC-8). */
+export const LeadConsentRecord = z.object({
+  id: z.uuid(),
+  purpose: z.enum(['enquiry', 'marketing']),
+  decision: z.enum(['agreed', 'declined']),
+  at: z.iso.datetime({ offset: true }),
+  channel: z.enum(['widget']),
+  conversationId: z.uuid().nullable(),
+  wording: z.object({ id: z.uuid(), version: z.number().int(), text: z.string() }),
+});
+export type LeadConsentRecord = z.infer<typeof LeadConsentRecord>;
+
+export const LeadConversation = z.object({
+  id: z.uuid(),
+  status: ConversationStatus,
+  startedAt: z.iso.datetime({ offset: true }),
+  lastMessageAt: z.iso.datetime({ offset: true }),
+});
+export type LeadConversation = z.infer<typeof LeadConversation>;
+
+/** `GET /api/v1/leads/:id` (SCR-APP-033). */
+export const LeadDetail = LeadRow.extend({
+  budget: z.string().nullable(),
+  preferredTime: z.string().nullable(),
+  captures: z.number().int().min(1),
+  contactId: z.uuid(),
+  /** Every consent row of the contact, newest first. */
+  consents: z.array(LeadConsentRecord),
+  /** The contact's conversations, newest first, at most 20. */
+  conversations: z.array(LeadConversation).max(20),
+  canManage: z.boolean(),
+  canExport: z.boolean(),
+});
+export type LeadDetail = z.infer<typeof LeadDetail>;
+
+/** `POST /api/v1/leads/:id/status` (D4: any move, compare-and-set on `version`). */
+export const LeadStatusBody = z.strictObject({
+  status: LeadStatus,
+  version: z.number().int().min(1),
+});
+export type LeadStatusBody = z.infer<typeof LeadStatusBody>;
+
+/** 409 on a status change: `stale` carries the current row. */
+export const LeadConflict409 = z.object({
+  error: z.enum(['stale', 'open_lead_exists']),
+  lead: LeadRow.optional(),
+});
+export type LeadConflict409 = z.infer<typeof LeadConflict409>;
+
+/** `POST /api/v1/leads/export` (D1): filters in the body, never personal data in a URL. */
+export const LeadExportBody = z.strictObject({
+  status: LeadStatusFilter.default('open'),
+  score: LeadScore.optional(),
+});
+export type LeadExportBody = z.infer<typeof LeadExportBody>;
+
+/** Above this many rows the export answers 413 `too_many` (D1). */
+export const LEAD_EXPORT_MAX = 10_000;

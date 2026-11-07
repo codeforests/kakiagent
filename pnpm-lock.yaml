@@ -923,6 +923,9 @@ importers:
       '@kaki/inbox':
         specifier: workspace:*
         version: link:../inbox
+      '@kaki/platform':
+        specifier: workspace:*
+        version: link:../platform
       '@kaki/tenancy':
         specifier: workspace:*
         version: link:../tenancy

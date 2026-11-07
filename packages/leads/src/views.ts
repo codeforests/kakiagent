@@ -1,6 +1,7 @@
 import type { LeadSummary } from '@kaki/contracts';
 import { formatSgPhone } from '@kaki/contracts';
 import { sql, type Tx } from '@kaki/db';
+import { scoringOf } from './list.js';
 
 export interface ContactView {
   contactId: string;
@@ -52,8 +53,13 @@ export async function leadSummaryOf(
     enquiry_at: Date | string;
     marketing_agreed: boolean | null;
     marketing_at: Date | string | null;
+    score: 'hot' | 'warm' | 'cold' | null;
+    score_points: number | null;
+    score_reasons: NonNullable<LeadSummary['scoring']>['reasons'] | null;
+    scored_at: Date | string | null;
   }>(sql`
     select l.id, l.status, l.updated_at, e.created_at as enquiry_at,
+      l.score, l.score_points, l.score_reasons, l.scored_at,
       m.decision = 'agreed' as marketing_agreed, m.created_at as marketing_at
     from conversations c
     join leads l on l.tenant_id = c.tenant_id and l.contact_id = c.contact_id
@@ -78,5 +84,6 @@ export async function leadSummaryOf(
       marketing:
         r.marketing_at !== null ? { agreed: !!r.marketing_agreed, at: iso(r.marketing_at) } : null,
     },
+    scoring: scoringOf(r),
   };
 }
