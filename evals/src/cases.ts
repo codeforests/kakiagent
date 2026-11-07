@@ -92,9 +92,13 @@ export const Expectation = z.discriminatedUnion('kind', [
    */
   z.object({
     kind: z.literal('card'),
-    card: z.enum(['consent', 'lead_form']).nullable(),
+    card: z.enum(['consent', 'lead_form', 'withdraw']).nullable(),
     prefill: z.record(z.string(), z.string()).optional(),
+    /** FEAT-051: the withdraw card offers "Just stop offers". */
+    offers: z.boolean().optional(),
   }),
+  /** FEAT-044/051: the escalation sources the turn's handlers asked for, in order. */
+  z.object({ kind: z.literal('escalated'), sources: z.array(z.string()) }),
   /**
    * FEAT-055 (AC-1–AC-3): what `request_commitment` did (`null`: no request), and the waiting
    * notice's text when one was stored.
@@ -183,6 +187,14 @@ export const Case = z
     consent: z.enum(['agreed', 'declined']).optional(),
     /** FEAT-049: a consent card was already offered in this conversation. */
     offered: z.boolean().default(false),
+    /**
+     * FEAT-051: what the conversation holds about the visitor (`withdrawalTarget`); absent:
+     * nothing held.
+     */
+    contact: z
+      .object({ held: z.boolean(), offers: z.boolean(), withdrawn: z.boolean() })
+      .strict()
+      .optional(),
     /** FEAT-055 D4: the conversation already has a pending approval. */
     pendingApproval: z.boolean().default(false),
     /** Earlier abuse turns in the conversation (FEAT-025): seeds the abuse count. */
@@ -289,6 +301,8 @@ export interface Reply {
   safety: string | null;
   flags: string[];
   aiEnded: boolean;
+  /** FEAT-044/051: the escalation sources asked for. */
+  escalations: string[];
   /** FEAT-049: the card stored under the reply (consent offer or lead form), or null. */
   card: MessageCard | null;
   /** FEAT-055: what the commitment request did, and the waiting notice; null without one. */
@@ -366,8 +380,15 @@ export function score(reply: Reply, expectations: Expectation[], ctx: ScoreConte
         return (
           (reply.card?.kind ?? null) === e.card &&
           (!e.prefill ||
-            sameFields(reply.card && 'prefill' in reply.card ? reply.card.prefill : {}, e.prefill))
+            sameFields(
+              reply.card && 'prefill' in reply.card ? reply.card.prefill : {},
+              e.prefill,
+            )) &&
+          (e.offers === undefined ||
+            (reply.card?.kind === 'withdraw' && reply.card.offers === e.offers))
         );
+      case 'escalated':
+        return reply.escalations.join() === e.sources.join();
       case 'ai-ended':
         return reply.aiEnded === e.value;
       case 'no-leak': {

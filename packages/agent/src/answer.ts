@@ -61,12 +61,20 @@ export function replyPlan(input: {
   return { compose: true, lead: null, closing: replies };
 }
 
+/** Withdrawal and data-request texts (FEAT-051) answer the visitor's ask; they refuse nothing. */
+const NOT_REFUSALS = new Set<ReplyKey | 'unsure'>([
+  'withdraw_confirm',
+  'withdraw_already',
+  'withdraw_none',
+  'data_request',
+]);
+
 /** The outcome of a fixed lead text (FEAT-023, FEAT-025). */
 function leadOutcome(lead: ReplyKey | 'unsure'): AnswerOutcome {
   // A blocked topic (FEAT-054) is a business's own out-of-scope line.
   if (lead === 'blocked_topic') return 'out_of_scope';
   // Lead capture's texts carry a card (FEAT-049): the turn answered the visitor's ask.
-  if (lead === 'lead_consent' || lead === 'lead_form') return 'answered';
+  if (lead === 'lead_consent' || lead === 'lead_form' || NOT_REFUSALS.has(lead)) return 'answered';
   return lead === 'out_of_scope' || lead === 'unsure' ? lead : 'refused';
 }
 
@@ -104,6 +112,14 @@ function render(key: ReplyKey | 'unsure', input: AnswerInput): string {
       return t.leadConsent;
     case 'lead_form':
       return t.leadForm;
+    case 'withdraw_confirm':
+      return t.withdrawConfirm(b);
+    case 'withdraw_already':
+      return t.withdrawAlready(b);
+    case 'withdraw_none':
+      return t.withdrawNone(b);
+    case 'data_request':
+      return t.dataRequest(b);
   }
 }
 
@@ -141,7 +157,11 @@ export async function answerTurn(input: AnswerInput, deps: ComposeDeps): Promise
       ...input,
       outOfScope: input.replies.some(
         (k) =>
-          k !== 'injection' && k !== 'impersonation' && k !== 'lead_consent' && k !== 'lead_form',
+          k !== 'injection' &&
+          k !== 'impersonation' &&
+          k !== 'lead_consent' &&
+          k !== 'lead_form' &&
+          !NOT_REFUSALS.has(k),
       ),
       injection: input.plan.flags.injection,
       impersonation: input.plan.flags.impersonation,

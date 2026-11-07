@@ -31,7 +31,14 @@ function planOf(tasks: [TaskKind, Record<string, string>?][]): TurnPlan {
 }
 
 /** An in-memory conversation port that records what handlers did (FEAT-025 §5.2). */
-function memoryConversation(failFlag = false) {
+function memoryConversation(
+  failFlag = false,
+  offer: { held: boolean; offers: boolean; withdrawn: boolean } = {
+    held: true,
+    offers: false,
+    withdrawn: false,
+  },
+) {
   const state = {
     flags: [] as string[],
     abuseTurns: new Set<string>(),
@@ -55,6 +62,9 @@ function memoryConversation(failFlag = false) {
       state.escalations.push(source);
       return { status: 'escalated' as const };
     },
+    async withdrawalOffer() {
+      return offer;
+    },
     async draftApproval(request) {
       state.requests.push(request);
       return {
@@ -68,9 +78,12 @@ function memoryConversation(failFlag = false) {
   return { state, port };
 }
 
-function context(over: Partial<DispatchContext> = {}) {
+function context(
+  over: Partial<DispatchContext> = {},
+  offer?: { held: boolean; offers: boolean; withdrawn: boolean },
+) {
   const audits: DispatchAuditEntry[] = [];
-  const memory = memoryConversation();
+  const memory = memoryConversation(false, offer);
   const ctx: DispatchContext = {
     scope: 'visitor',
     tenantId: 't',
@@ -137,14 +150,12 @@ describe('dispatchPlan (ADR-025 decisions 2 and 6, AC-7)', () => {
     const { ctx, audits } = context();
     const { reports, endTurn } = await dispatchPlan(
       visitorRegistry,
-      planOf([['answer'], ['data_request', { phone: '9123 4567' }], ['handoff_channel']]),
+      planOf([['answer'], ['handoff_channel', { phone: '9123 4567' }]]),
       ctx,
     );
     expect(endTurn).toBeUndefined();
-    expect(reports).toEqual([
-      { task: 'data_request', index: 1, outcome: 'unhandled' },
-      { task: 'handoff_channel', index: 2, outcome: 'unhandled' },
-    ]);
+    // FEAT-051 handles `data_request`; `handoff_channel` waits for FEAT-038.
+    expect(reports).toEqual([{ task: 'handoff_channel', index: 1, outcome: 'unhandled' }]);
     // Codes only: the phone number in the args never reaches the audit entry.
     expect(JSON.stringify(audits)).not.toContain('9123');
   });
@@ -353,14 +364,17 @@ describe('the safety handlers (FEAT-025 AC-6, AC-7; ADR-025 decision 6)', () => 
   it('the visitor registry has no owner function (AC-5; ADR-009)', () => {
     // `escalate` (FEAT-044) asks for a person for this conversation; `capture_lead` (FEAT-049)
     // returns a card for the visitor's own details; `request_commitment` (FEAT-055) drafts an
-    // approval for this conversation. None reads or changes other tenant data.
+    // approval for this conversation; `withdraw_consent` (FEAT-051) returns a card and
+    // `data_request` escalates this conversation. None reads or changes other tenant data.
     expect([...visitorRegistry.byKind.keys()].sort()).toEqual([
       'abuse',
       'capture_lead',
       'crisis',
+      'data_request',
       'escalate',
       'out_of_scope',
       'request_commitment',
+      'withdraw_consent',
     ]);
     expect([...visitorRegistry.byTool.keys()]).toEqual(['draft_approval']);
   });
@@ -531,5 +545,56 @@ describe('capture_lead (FEAT-049 §5.3; AC-7)', () => {
       email: 'mei@example.com',
     });
     expect(prefillOf('nonsense')).toEqual({});
+  });
+});
+
+describe('withdraw_consent and data_request (FEAT-051 §5.3; AC-2, AC-9)', () => {
+  it('held: the confirm card with offers, its reply text, and no write', async () => {
+    const { ctx, conversation } = context({}, { held: true, offers: true, withdrawn: false });
+    const out = await dispatchPlan(visitorRegistry, planOf([['withdraw_consent']]), ctx);
+    expect(out.reports).toEqual([{ task: 'withdraw_consent', index: 0, outcome: 'done' }]);
+    expect(out.card).toEqual({ kind: 'withdraw', offers: true });
+    expect(out.replies).toEqual(['withdraw_confirm']);
+    expect(conversation).toMatchObject({ escalations: [], flags: [], ended: false });
+  });
+
+  it('already withdrawn: withdraw_already; nothing held: withdraw_none; no card either way', async () => {
+    const done = context({}, { held: true, offers: false, withdrawn: true });
+    const a = await dispatchPlan(visitorRegistry, planOf([['withdraw_consent']]), done.ctx);
+    expect(a.card).toBeUndefined();
+    expect(a.replies).toEqual(['withdraw_already']);
+    const none = context({}, { held: false, offers: false, withdrawn: false });
+    const b = await dispatchPlan(visitorRegistry, planOf([['withdraw_consent']]), none.ctx);
+    expect(b.card).toBeUndefined();
+    expect(b.replies).toEqual(['withdraw_none']);
+  });
+
+  it('a deletion request escalates with source data_request; with a withdrawal both happen', async () => {
+    const { ctx, conversation } = context();
+    const out = await dispatchPlan(
+      visitorRegistry,
+      planOf([['withdraw_consent'], ['data_request']]),
+      ctx,
+    );
+    expect(out.reports.map((r) => [r.task, r.outcome])).toEqual([
+      ['withdraw_consent', 'done'],
+      ['data_request', 'done'],
+    ]);
+    expect(out.card).toEqual({ kind: 'withdraw', offers: false });
+    expect(out.replies).toEqual(['withdraw_confirm', 'data_request']);
+    expect(conversation.escalations).toEqual(['data_request']);
+  });
+
+  it('coaching scope and replay never run them', async () => {
+    const { ctx, conversation } = context({ scope: 'coaching' });
+    const out = await dispatchPlan(
+      visitorRegistry,
+      planOf([['withdraw_consent'], ['data_request']]),
+      ctx,
+    );
+    expect(out.reports.map((r) => r.reason)).toEqual(['scope', 'scope']);
+    expect(conversation.escalations).toEqual([]);
+    expect(replayRegistry.byKind.has('withdraw_consent')).toBe(false);
+    expect(replayRegistry.byKind.has('data_request')).toBe(false);
   });
 });

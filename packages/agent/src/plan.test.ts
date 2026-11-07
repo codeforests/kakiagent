@@ -165,6 +165,12 @@ describe('fake triage (local development and E2E)', () => {
     ],
     ['can I talk to a person', ['escalate'], 0.2],
     ['please stop contacting me', ['withdraw_consent'], 0.2],
+    // FEAT-051: a withdrawal is never also a lead ("don't contact me" contains "contact me").
+    ["pls don't contact me", ['withdraw_consent'], 0.2],
+    ["pls don't keep my number lah", ['withdraw_consent'], 0.2],
+    ['不要用我的电话', ['withdraw_consent'], 0.2],
+    ['stop using and delete my details', ['withdraw_consent', 'data_request'], 0.2],
+    ["don't call before 10am, my number is 9123 4567", ['capture_lead'], 0.8],
     ['蛋糕多少钱？', ['answer'], 0.2],
   ])('%s → %j', (text, kinds, complexity) => {
     const p = run(text);

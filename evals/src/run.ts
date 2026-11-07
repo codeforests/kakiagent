@@ -306,7 +306,14 @@ interface ApprovalCtx {
   afterHours: boolean;
 }
 
-function memoryConversation(priorAbuse: number, approval: ApprovalCtx) {
+type ContactCtx = { held: boolean; offers: boolean; withdrawn: boolean };
+const NOTHING_HELD: ContactCtx = { held: false, offers: false, withdrawn: false };
+
+function memoryConversation(
+  priorAbuse: number,
+  approval: ApprovalCtx,
+  contact: ContactCtx = NOTHING_HELD,
+) {
   const state = {
     /** FEAT-055: what the `request_commitment` handler drafted (status only; nothing is sent). */
     approvals: [] as ApprovalPortResult[],
@@ -331,6 +338,10 @@ function memoryConversation(priorAbuse: number, approval: ApprovalCtx) {
       const status = state.escalations.length ? 'already_escalated' : 'escalated';
       state.escalations.push(source);
       return { status };
+    },
+    // FEAT-051: the case's contact state, as leads `withdrawalTarget` would read it.
+    async withdrawalOffer() {
+      return contact;
     },
     // As approvals `draftApproval` decides it (D3, D4), in memory: a plain allowed quote is
     // `auto`, anything else is drafted, a second request is `already_pending`.
@@ -388,35 +399,39 @@ async function runCase(c: Case) {
   const hours = hoursAt(fixture, c, at);
   const facts = retrieve(c.tenant, query);
   const exceptions = { ...fixture.holidays, ...c.holidays };
-  const conversation = memoryConversation(c.priorAbuse, {
-    products: facts.flatMap((f) =>
-      f.type === 'product'
-        ? [
-            {
-              factId: f.id,
-              version: f.version,
-              name: f.value.name,
-              unit: f.value.unit ?? null,
-              priceCents:
-                fixture.gstRegistered && f.gstTreatment === 'exclusive'
-                  ? withGst(f.value.priceCents)
-                  : f.value.priceCents,
-              gst: f.gstTreatment,
-            },
-          ]
-        : [],
-    ),
-    rules,
-    pending: c.pendingApproval,
-    slaDueAt: addBusinessMinutes(
-      fixture.hours ?? null,
-      fixture.openOnPublicHolidays,
-      at,
-      rules.approvalSlaMinutes,
-      exceptions,
-    ),
-    afterHours: hours !== null && !hours.status.open,
-  });
+  const conversation = memoryConversation(
+    c.priorAbuse,
+    {
+      products: facts.flatMap((f) =>
+        f.type === 'product'
+          ? [
+              {
+                factId: f.id,
+                version: f.version,
+                name: f.value.name,
+                unit: f.value.unit ?? null,
+                priceCents:
+                  fixture.gstRegistered && f.gstTreatment === 'exclusive'
+                    ? withGst(f.value.priceCents)
+                    : f.value.priceCents,
+                gst: f.gstTreatment,
+              },
+            ]
+          : [],
+      ),
+      rules,
+      pending: c.pendingApproval,
+      slaDueAt: addBusinessMinutes(
+        fixture.hours ?? null,
+        fixture.openOnPublicHolidays,
+        at,
+        rules.approvalSlaMinutes,
+        exceptions,
+      ),
+      afterHours: hours !== null && !hours.status.open,
+    },
+    c.contact,
+  );
   const dispatch = await dispatchCheck(plan, fixture.tenantId, conversation.port, rules, c.consent);
   // FEAT-055 §5.2: what the request did, and the visitor's waiting notice, as turn.ts renders it.
   const drafted = conversation.state.approvals[0] ?? null;
@@ -441,7 +456,12 @@ async function runCase(c: Case) {
       capturing: true,
       afterHoursNotice,
       escalatedAfterHours,
-      state: { enquiry: c.consent ?? null, offered: c.offered, captured: false },
+      state: {
+        enquiry: c.consent ?? null,
+        offered: c.offered,
+        captured: false,
+        withdrawn: c.contact?.withdrawn ?? false,
+      },
     });
   const route = routeReply(routeSignals(plan, false), DEFAULT_ROUTE_POLICY);
   const language = replyLanguage(plan, query);
@@ -452,6 +472,7 @@ async function runCase(c: Case) {
     safety: dispatch.endTurn,
     flags: conversation.state.flags,
     aiEnded: conversation.state.aiEnded,
+    escalations: conversation.state.escalations,
     approval: null as { status: ApprovalPortResult['status']; notice: string | null } | null,
   };
   // A safety task ended the turn: its fixed text is the reply, as the worker stores it.

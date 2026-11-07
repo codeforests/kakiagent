@@ -30,9 +30,11 @@ export function prefillOf(args: unknown): LeadPrefill {
 
 /** The conversation's lead-capture state the offer rule reads (leads `consentState`). */
 export interface LeadState {
-  enquiry: 'agreed' | 'declined' | null;
+  enquiry: 'agreed' | 'declined' | 'withdrawn' | null;
   offered: boolean;
   captured: boolean;
+  /** FEAT-051: the conversation's contact withdrew consent: no consent offer. */
+  withdrawn?: boolean;
 }
 
 /**
@@ -70,14 +72,17 @@ export function cardForReply(input: {
   escalatedAfterHours: boolean;
   state: LeadState | null;
 }): MessageCard | null {
-  if (!input.capturing || input.safety || NO_CARD_OUTCOMES.has(input.outcome)) return null;
+  if (input.safety || NO_CARD_OUTCOMES.has(input.outcome)) return null;
+  // FEAT-051: a withdrawal never needs a purpose statement; consent and lead cards do.
+  if (input.card?.kind === 'withdraw') return input.card;
+  if (!input.capturing) return null;
   if (input.card) return input.card;
   const offerable =
     OFFER_OUTCOMES.has(input.outcome) ||
     input.afterHoursNotice ||
     (input.outcome === 'escalated' && input.escalatedAfterHours);
   const s = input.state;
-  return offerable && s && !s.enquiry && !s.offered && !s.captured
+  return offerable && s && !s.enquiry && !s.offered && !s.captured && !s.withdrawn
     ? { kind: 'consent', prefill: {} }
     : null;
 }

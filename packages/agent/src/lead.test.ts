@@ -51,6 +51,14 @@ describe('cardForReply (AC-8)', () => {
     } as const;
     expect(reply({ card: form, capturing: false })).toBeNull();
   });
+
+  it('FEAT-051: no consent offer once withdrawn; the withdraw card needs no purpose statement', () => {
+    expect(reply({ outcome: 'unsure', state: { ...fresh, withdrawn: true } })).toBeNull();
+    expect(reply({ outcome: 'unsure', state: { ...fresh, enquiry: 'withdrawn' } })).toBeNull();
+    const withdraw = { kind: 'withdraw', offers: true } as const;
+    expect(reply({ card: withdraw, capturing: false })).toEqual(withdraw);
+    expect(reply({ card: withdraw, safety: true })).toBeNull();
+  });
 });
 
 describe('prefillOf (AC-5)', () => {

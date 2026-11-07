@@ -1452,6 +1452,8 @@ export const VisitorsWouldGet = z.enum([
   'fallback_paused',
   'not_live',
   'approval',
+  /** FEAT-051: a customer would get the withdraw confirm card. */
+  'withdraw',
 ]);
 export const Explainer = z.object({
   outcome: CoachOutcome,
