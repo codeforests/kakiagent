@@ -313,7 +313,8 @@
           "sidebar lead",
           "consent and lead dividers",
           "card captions",
-          "contact search hit"
+          "contact search hit",
+          "lead consent withdrawn"
         ],
         "gaps": [],
         "supplements": [
@@ -326,7 +327,8 @@
             "state": "lead score and Open lead link",
             "strategy": "code-native",
             "source": "features/FEAT-050-leads-pipeline/ui-design.md#scr-app-014--inbox-partial"
-          }
+          },
+          "features/FEAT-051-consent-withdrawal/ui-design.md#scr-app-014--inbox-sidebar-lead-section"
         ]
       },
       "contract_bindings": [
@@ -1823,10 +1825,13 @@
           "test rate-limited",
           "test failed",
           "loading",
-          "error"
+          "error",
+          "consent withdrawn toggle"
         ],
         "gaps": [],
-        "supplements": []
+        "supplements": [
+          "features/FEAT-051-consent-withdrawal/ui-design.md#scr-app-056--my-notifications-new-toggle"
+        ]
       },
       "contract_bindings": [
         "GET /api/v1/me/notifications",
@@ -2000,18 +2005,27 @@
           "submitting",
           "submitted",
           "submit failed",
-          "consent required"
+          "consent required",
+          "withdraw asked",
+          "withdraw sending",
+          "withdrawn",
+          "offers stopped",
+          "already withdrawn",
+          "nothing held",
+          "kept",
+          "withdraw failed"
         ],
-        "gaps": [
-          "withdrawn (FEAT-051)"
-        ],
-        "supplements": []
+        "gaps": [],
+        "supplements": [
+          "features/FEAT-051-consent-withdrawal/ui-design.md#scr-wgt-003--consent-and-details-withdrawn"
+        ]
       },
       "contract_bindings": [
         "SSE message (Message.card)",
         "GET /widget/v1/config (leadCapture)",
         "POST /widget/v1/conversations/:id/consent",
-        "POST /widget/v1/conversations/:id/lead"
+        "POST /widget/v1/conversations/:id/lead",
+        "POST /widget/v1/conversations/:id/withdraw"
       ],
       "conformance": {
         "result": "pass",
@@ -2178,10 +2192,13 @@
           "exporting",
           "export too many",
           "export failed",
-          "permission (Agent: no export)"
+          "permission (Agent: no export)",
+          "consent withdrawn chip"
         ],
         "gaps": [],
-        "supplements": []
+        "supplements": [
+          "features/FEAT-051-consent-withdrawal/ui-design.md#scr-app-032--leads-withdrawn-chip-export-note"
+        ]
       },
       "contract_bindings": [
         "GET /api/v1/leads",
@@ -2214,16 +2231,20 @@
           "stale (409)",
           "open lead exists (409)",
           "permission (Agent: view)",
-          "contact form (no conversation)"
+          "contact form (no conversation)",
+          "consent withdrawn",
+          "record withdrawal",
+          "record withdrawal failed"
         ],
-        "gaps": [
-          "Consent withdrawn (FEAT-051)"
-        ],
-        "supplements": []
+        "gaps": [],
+        "supplements": [
+          "features/FEAT-051-consent-withdrawal/ui-design.md#scr-app-033--lead-consent-withdrawn-record-withdrawal"
+        ]
       },
       "contract_bindings": [
         "GET /api/v1/leads/:id",
-        "POST /api/v1/leads/:id/status"
+        "POST /api/v1/leads/:id/status",
+        "POST /api/v1/leads/:id/withdraw"
       ],
       "conformance": {
         "result": "pass",
