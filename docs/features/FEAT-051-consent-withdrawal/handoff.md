@@ -1,18 +1,17 @@
 # Handoff: FEAT-051 — Consent withdrawal in any channel
-Branch: feat/FEAT-051-consent-withdrawal · PR: https://github.com/codeforests/kakiagent/pull/57 (draft) · Updated: 2026-11-07 by build (UI)
-Stage done: build (T1–T8 of 8), status developer-done
-Next: verify — kickoff: "Verify FEAT-051 on branch feat/FEAT-051-consent-withdrawal. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
+Branch: feat/FEAT-051-consent-withdrawal · PR: https://github.com/codeforests/kakiagent/pull/57 · Updated: 2026-11-07 by verify
+Stage done: verify (accepted)
+Next: Ken reviews and merges PR #57; then M3 close (`pipeline-verify` and demo).
 
 ## What the next stage needs
-- Widget: `WithdrawCard` (`cards.tsx`) over `withdrawChoices`/`withdrawStateOf`/`withdrawLine` (`chat.ts`); `api.withdraw`. `activeCard` now also closes on a `consent_withdrawn` notice; the panel gives that notice `data-notice` so focus moves to it. Reloading the chat after an answer shows the card as "Not answered" (same as FEAT-049's consent card; no answered state is stored on the card).
-- Dashboard: alert, `ConsentEntry` channel text (`consentWhere`), `RecordWithdrawalDialog` and `WithdrawnChip` (`leads-parts.tsx`), sidebar line (`leadLines().withdrawn`), `data_request` escalation labels, an `alert` glyph. The list chip sits in the Status cell (the list has no marketing column to replace).
-- Stubbed Playwright checks for both (tasks.md T6/T7 evidence) passed; scripts were scratch only.
-- E2E `consent-withdrawal.e2e.ts` checks the export exclusion through `page.request.post('/api/v1/leads/export')` right after sign-in (fresh re-auth), not the download dialog.
-- Deviations from the backend handoff still stand (advisory lock; `consentId` newer than the withdrawal; no "asked the team" notice for `data_request`; card even without a purpose statement).
+- Acceptance report: `acceptance-report.md` (AC-4 test corrected in `db30a9c`).
+- FEAT-053 must call `exportable()` (`leads/export.ts`) when a webhook sends, not when it enqueues (LED-06).
+- FEAT-061 replaces `dataRequestHandler.run` (escalation) with opening a data-subject request (GOV-05, UC-28 2a).
+- FEAT-037 and later channels render the `withdraw` card their own way (ADR-011).
 
 ## Left to CI or later
-- `consent-withdrawal.e2e.ts` and all E2E/axe runs: verify stage's GitHub CI (no local stack here).
-- `apps/api/test/escalation.int.test.ts` "after hours" fails on 2026-11-07 regardless of FEAT-051 (Deepavali; "reply from on Tue 10 Nov" wording bug, in pending-actions). `uploads.int` needs S3 locally.
+- E2E `consent-withdrawal.e2e.ts` and axe: GitHub CI (report's CI section).
+- `escalation.int` "after hours" fails until 10 Nov 2026 (FEAT-044 wording "reply from on …"; report F1).
 
 ## Pending for Ken
-- None blocking.
+- Merge PR #57 once CI is green; F1's fix (pending-actions).

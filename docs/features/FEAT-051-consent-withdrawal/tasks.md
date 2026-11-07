@@ -1,7 +1,7 @@
 # Tasks: FEAT-051 — Consent withdrawal in any channel
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: developer-done · Last updated: 2026-11-07 (build UI)
+> Status: accepted · Last updated: 2026-11-07 (verify)
 
 - [x] T1 — Schema: `0052_consent_withdrawal.sql` and `schema.ts` (`CONSENT_DECISIONS` + `withdrawn`, channel `dashboard`, nullable `wording_id` and `recorded_by` with their checks, `consents_withdrawn_ck`, the widened `consents_declined_ck`, `consents_contact_latest_idx`; dashboard INSERT with the restrictive insert policies for both zones; `messages_card_ck` + `withdraw`; `NOTICE_KINDS` + `consent_withdrawn`; `ALERT_EVENTS` + `consent_withdrawn`; `ESCALATION_SOURCES` + `data_request`); cases in `rls.int.test.ts` (design §4; AC-7)
       Done when: `drizzle-kit generate` reports no drift after 0052; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes with: `app_dashboard` can insert a `withdrawn`/`dashboard` row with `recorded_by` but not an `agreed` row; `app_agent_visitor` can insert a `withdrawn`/`widget` row but not a `dashboard` one; a withdrawn row without `contact_id` or with a `wording_id` is refused; tenant B can't insert a consent for tenant A's contact.
@@ -30,4 +30,4 @@
 
 ## Verification evidence
 
-(filled by the build and verify stages, one bullet per AC)
+- Verify 2026-11-07: AC-1..AC-10 audited and re-run; see [acceptance-report.md](acceptance-report.md) (AC-4 test corrected in `db30a9c`; E2E in GitHub CI).
