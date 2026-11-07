@@ -8,7 +8,7 @@ import type { LeadCaptureConfig, Message } from '@kaki/contracts';
 import { render, type ComponentChildren } from 'preact';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { ChatEndedError, createApi } from './api.js';
-import { ContactForm, LeadCard, PrivacyLink, QuoteCard } from './cards.js';
+import { ContactForm, LeadCard, PrivacyLink, QuoteCard, WithdrawCard } from './cards.js';
 import {
   activeCard,
   awaitingTurn,
@@ -654,7 +654,8 @@ function Panel({
                       key={r.key}
                       class="notice"
                       lang={langOf(r.text)}
-                      {...(m.noticeKind === 'lead_captured' && {
+                      {...((m.noticeKind === 'lead_captured' ||
+                        m.noticeKind === 'consent_withdrawn') && {
                         'data-notice': m.id,
                         tabIndex: -1,
                       })}
@@ -686,14 +687,33 @@ function Panel({
                   t={strings(pickLocale(langOf(m.body)))}
                 />
               ),
-              m.card && m.card.kind !== 'quote' && leadCommon && (
-                <LeadCard
+              m.card &&
+                (m.card.kind === 'consent' || m.card.kind === 'lead_form') &&
+                leadCommon && (
+                  <LeadCard
+                    key={`${m.id}-card`}
+                    {...leadCommon}
+                    m={{ ...m, card: m.card }}
+                    active={m.id === openCard}
+                    api={preview ? null : api}
+                    conversationId={conversationId}
+                    onNotice={(notice) => {
+                      setChat((c) => withMessage(c, notice));
+                      focusNext.current = `notice:${notice.id}`;
+                    }}
+                    focusComposer={() => inputRef.current?.focus()}
+                  />
+                ),
+              m.card?.kind === 'withdraw' && (
+                <WithdrawCard
                   key={`${m.id}-card`}
-                  {...leadCommon}
                   m={{ ...m, card: m.card }}
                   active={m.id === openCard}
                   api={preview ? null : api}
                   conversationId={conversationId}
+                  t={t}
+                  locale={locale}
+                  business={business}
                   onNotice={(notice) => {
                     setChat((c) => withMessage(c, notice));
                     focusNext.current = `notice:${notice.id}`;

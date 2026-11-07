@@ -83,7 +83,7 @@ export type ReasonCode =
   | SafetyKey;
 /** `approval` (FEAT-055 §5.2): a visitor asking this gets the team-is-checking notice, no draft here. */
 export type VisitorsWouldGet =
-  'same' | 'without_unreviewed' | 'fallback_paused' | 'not_live' | 'approval';
+  'same' | 'without_unreviewed' | 'fallback_paused' | 'not_live' | 'approval' | 'withdraw';
 
 export interface ExplainedFact {
   id: string;
@@ -217,9 +217,11 @@ export function explain(input: {
         ? 'not_live'
         : plan?.tasks.some((t) => t.kind === 'request_commitment')
           ? 'approval'
-          : unreviewedUsed
-            ? 'without_unreviewed'
-            : 'same',
+          : plan?.tasks.some((t) => t.kind === 'withdraw_consent')
+            ? 'withdraw'
+            : unreviewedUsed
+              ? 'without_unreviewed'
+              : 'same',
   };
 }
 
@@ -409,6 +411,9 @@ function dispatchContext(
         throw new Error('coaching has no conversation');
       },
       draftApproval: async () => {
+        throw new Error('coaching has no conversation');
+      },
+      withdrawalOffer: async () => {
         throw new Error('coaching has no conversation');
       },
     },

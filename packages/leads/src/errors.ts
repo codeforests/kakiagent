@@ -8,6 +8,11 @@ export class WordingChanged extends Error {
 }
 /** 409 `consent_required`: no granted enquiry consent of this conversation (AC-1). */
 export class ConsentRequired extends Error {}
+/**
+ * 409 `consent_required` too (FEAT-051 §5.1; AC-8): the consent is older than the contact's
+ * latest withdrawal, so the visitor must consent again.
+ */
+export class ConsentWithdrawn extends ConsentRequired {}
 /** 409 `not_capturing`: the tenant has no saved purpose statement (LED-02, fail closed). */
 export class NotCapturing extends Error {}
 /** 422 with per-field codes (AC-5). */
@@ -42,3 +47,7 @@ export class TooManyLeads extends Error {
     super('too many leads');
   }
 }
+/** 422 `scope_not_offered`: "just stop offers" when the contact never agreed to offers (FEAT-051 D1). */
+export class ScopeNotOffered extends Error {}
+/** 404: the message isn't this conversation's agent message carrying a withdraw card (FEAT-051 §3). */
+export class WithdrawCardNotFound extends Error {}

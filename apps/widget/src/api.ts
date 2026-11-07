@@ -9,6 +9,8 @@ import type {
   LeadSubmitBody,
   LeadSubmitResponse,
   Message,
+  WithdrawBody,
+  WithdrawResponse,
 } from '@kaki/contracts';
 
 /** The conversation is closed (409 `chat_ended`, FEAT-033 D5): the panel shows it ended. */
@@ -53,6 +55,17 @@ export function createApi(apiUrl: string, token: string) {
       leadPost<LeadSubmitResponse>(`conversations/${conversationId}/lead`, body),
     /** The fallback contact form (SCR-WGT-005): consent and details in one request. */
     submitContact: (body: ContactFormBody) => leadPost<ContactFormResponse>('contact', body),
+    /** The withdraw card's answer (SCR-WGT-003 withdrawn; FEAT-051 §3); idempotent. */
+    async withdraw(conversationId: string, body: WithdrawBody): Promise<WithdrawResponse> {
+      const r = await fetch(`${apiUrl}/widget/v1/conversations/${conversationId}/withdraw`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+        credentials: 'omit',
+      });
+      if (!r.ok) throw new Error(`withdraw: ${r.status}`);
+      return (await r.json()) as WithdrawResponse;
+    },
     async createConversation(): Promise<string> {
       const r = await fetch(`${apiUrl}/widget/v1/conversations`, {
         method: 'POST',

@@ -241,7 +241,12 @@ export function activeCard(c: Chat): string | null {
     const m = c.messages[i]!;
     // An approved quote (FEAT-055) is read-only: it doesn't open or answer a card.
     if (m.card && m.card.kind !== 'quote') return m.id;
-    if (m.author === 'visitor' || m.noticeKind === 'lead_captured' || m.noticeKind === 'chat_ended')
+    if (
+      m.author === 'visitor' ||
+      m.noticeKind === 'lead_captured' ||
+      m.noticeKind === 'consent_withdrawn' ||
+      m.noticeKind === 'chat_ended'
+    )
       return null;
   }
   return null;
@@ -348,6 +353,49 @@ export function timeLabel(at: Date, locale: Locale): string {
     hour: 'numeric',
     minute: '2-digit',
   });
+}
+
+// ---- Consent withdrawal (SCR-WGT-003 withdrawn; FEAT-051 §5.6) -------------------------
+
+/** The withdraw card's state: asked, or how it was answered. */
+export type WithdrawState = 'asked' | 'all' | 'marketing' | 'nothing_held' | 'kept';
+export type WithdrawChoice = 'all' | 'marketing' | 'keep';
+
+/** The card's buttons in reading order: "Just stop offers" only when offers were agreed. */
+export function withdrawChoices(offers: boolean): WithdrawChoice[] {
+  return offers ? ['all', 'marketing', 'keep'] : ['all', 'keep'];
+}
+
+/**
+ * The state a withdraw answer leads to: `already_withdrawn` collapses as withdrawn (with no
+ * second notice), `nothing_held` says nothing is held.
+ */
+export function withdrawStateOf(
+  scope: 'all' | 'marketing',
+  status: 'withdrawn' | 'already_withdrawn' | 'nothing_held',
+): WithdrawState {
+  return status === 'nothing_held' ? 'nothing_held' : scope;
+}
+
+/** The collapsed card's one line; null while asked. */
+export function withdrawLine(
+  state: WithdrawState,
+  t: Strings,
+  business: string,
+  time: string,
+): string | null {
+  switch (state) {
+    case 'all':
+      return t.withdrawnLine(time);
+    case 'marketing':
+      return t.offersStoppedLine(time);
+    case 'nothing_held':
+      return t.nothingHeldLine(business);
+    case 'kept':
+      return t.keptLine(business);
+    default:
+      return null;
+  }
 }
 
 type QuoteCardData = Extract<MessageCard, { kind: 'quote' }>;

@@ -14,7 +14,8 @@ const RULES: [Exclude<TaskKind, 'answer'>, RegExp][] = [
   ],
   [
     'withdraw_consent',
-    /\b(stop (contacting|messaging|calling)|unsubscribe|don'?t contact)\b|别再联系|不要再联系/i,
+    // FEAT-051 §5.3: EN, Singlish and Chinese ways to withdraw consent.
+    /\b(stop (contacting|messaging|calling|texting)|stop using (\w+ ){0,2}my (details|number|data|info)|(don'?t|dun|do not) keep my (number|details)|(pls |please )?(don'?t|dun|do not) (call|contact|whatsapp|message|text) me|unsubscribe|no more (promos?|promotions|offers))\b|别再联系|不要再联系|不要用我的(资料|电话|号码)|取消订阅|不要再发/i,
   ],
   [
     'data_request',
@@ -123,7 +124,10 @@ function commitmentArgs(text: string): { name: string; value: string }[] {
 export function fakeTriage(req: GenerateRequest): string {
   const text = [...req.messages].reverse().find((m) => m.role === 'user')?.content ?? '';
   const tasks: { kind: TaskKind; args: { name: string; value: string }[] }[] = [];
-  const kinds = RULES.filter(([, re]) => re.test(text)).map(([k]) => k);
+  const kinds = RULES.filter(([, re]) => re.test(text))
+    .map(([k]) => k)
+    // "don't contact me" also reads as "contact me": a withdrawal is never a lead (FEAT-051).
+    .filter((k, _i, all) => !(k === 'capture_lead' && all.includes('withdraw_consent')));
   const topic = blockedByTail(req, text) ? 'blocked' : TOPICS.find(([, re]) => re.test(text))?.[0];
   if (topic && !kinds.includes('out_of_scope')) kinds.push('out_of_scope');
   // A question goes with an answer task; beside an advice or illegal topic, only a

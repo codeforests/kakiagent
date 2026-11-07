@@ -17,6 +17,10 @@ export const EVENT_TEXT: Record<AlertEvent, { label: string; help: string }> = {
     help: 'Quotes, discounts or promises waiting for you to approve.',
   },
   hot_lead: { label: 'New hot lead', help: 'When a customer looks ready to buy.' },
+  consent_withdrawn: {
+    label: 'Consent withdrawn',
+    help: 'When a customer asks you to stop using their details.',
+  },
 };
 
 type Times = { start: string; end: string };

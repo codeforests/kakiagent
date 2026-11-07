@@ -150,7 +150,8 @@ describe('Talk to a person (AC-1, AC-4, AC-6)', () => {
     const c = await chat();
     const res = await escalate(c);
     expect(res.json().notice.notice).toMatch(
-      /We're closed now, so they'll reply from (today|tomorrow) at /,
+      // The next opening can be days away when public holidays fall next (e.g. Deepavali).
+      /We're closed now, so they'll reply (from today|from tomorrow|on \w{3} \d{1,2} \w{3}) at /,
     );
     expect(await alerts(c.id)).toEqual([
       expect.objectContaining({ user_id: ids.mei, urgent: false }),

@@ -32,7 +32,8 @@ const row = {
   status: 'new',
   scoring,
   source: 'contact_form',
-  marketing: { agreed: true, at: AT },
+  marketing: { agreed: true, at: AT, withdrawn: false },
+  consentWithdrawnAt: null,
   createdAt: AT,
   updatedAt: AT,
 } as const;
@@ -60,6 +61,7 @@ describe('leads contracts (FEAT-050 §3)', () => {
           channel: 'widget',
           conversationId: null,
           wording: { id: ID, version: 1, text: 'To reply to you.' },
+          recordedBy: null,
         },
       ],
       conversations: [{ id: ID, status: 'ai', startedAt: AT, lastMessageAt: AT }],
@@ -71,7 +73,7 @@ describe('leads contracts (FEAT-050 §3)', () => {
       id: ID,
       status: 'new',
       updatedAt: AT,
-      consent: { enquiryAt: AT, marketing: null },
+      consent: { enquiryAt: AT, marketing: null, withdrawnAt: null },
       scoring: null,
     };
     expect(LeadSummary.parse(summary)).toEqual(summary);

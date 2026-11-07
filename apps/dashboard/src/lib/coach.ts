@@ -85,6 +85,11 @@ export function visitorsLine(
         tone: 'info',
         text: 'A customer asking this would get: the team is checking your request. It goes to your approval queue.',
       };
+    case 'withdraw':
+      return {
+        tone: 'info',
+        text: 'A customer asking this would be asked to confirm, then their details would no longer be used.',
+      };
   }
 }
 

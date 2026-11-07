@@ -37,6 +37,7 @@ const GLYPHS = {
   'check-circle': 'M22 11.1V12a10 10 0 1 1-5.9-9.1M22 4 12 14l-3-3',
   flag: 'M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1zM4 22v-7',
   info: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 16v-4M12 8h.01',
+  alert: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 8v4M12 16h.01',
   'arrow-left': 'M19 12H5M12 19l-7-7 7-7',
   'more-horizontal': 'M12 12h.01M19 12h.01M5 12h.01',
   chat: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z',
@@ -354,6 +355,12 @@ export function ContextSidebar({ thread }: { thread: ConversationThread }) {
             <p>Updated {clockTime(lead.updatedAt)}</p>
             <p>{leadLines(lead).consent}</p>
             <p>{leadLines(lead).offers}</p>
+            {leadLines(lead).withdrawn && (
+              <p className="consent-withdrawn" data-testid="sidebar-withdrawn">
+                <Glyph name="alert" size={14} />
+                {leadLines(lead).withdrawn}
+              </p>
+            )}
             <Link to={`/leads/${lead.id}`}>Open lead</Link>
           </div>
         ) : (

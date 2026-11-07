@@ -1,7 +1,12 @@
-import { LeadStatus, type LeadMarketing } from '@kaki/contracts';
+import {
+  LeadStatus,
+  type LeadDetail,
+  type LeadMarketing,
+  type WithdrawScope,
+} from '@kaki/contracts';
 import { ConfirmDialog } from '@kaki/ui';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, type RefObject } from 'react';
 import { api, ApiError } from '../lib/api.ts';
 import { LEAD_STATUS } from '../lib/inbox.ts';
@@ -9,7 +14,9 @@ import {
   csvLeadCount,
   exportFileName,
   filterNote,
+  leadKey,
   marketingText,
+  offersWithdrawable,
   type LeadsFilter,
 } from '../lib/leads.ts';
 import { ReauthCancelled, useReauthGuard } from '../lib/reauth.ts';
@@ -71,6 +78,16 @@ export function StatusMenu({
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
     </DropdownMenu.Root>
+  );
+}
+
+/** SCR-APP-032 (FEAT-051): a row whose contact withdrew consent; it stays in its status tab. */
+export function WithdrawnChip() {
+  return (
+    <span className="chip chip--neutral consent-withdrawn" data-testid="withdrawn-chip">
+      <Glyph name="alert" size={12} />
+      Consent withdrawn
+    </span>
   );
 }
 
@@ -166,12 +183,110 @@ export function ExportDialog({
         The file includes names, phone numbers and emails. Keep it safe and delete it when you're
         done.
       </p>
+      <p className="lead-export__filters">Leads whose consent was withdrawn are left out.</p>
       <div className="alert alert--info">
         <p>
           The Do Not Call Registry applies before you call or text anyone for marketing. Check the
           Offers column.
         </p>
       </div>
+    </ConfirmDialog>
+  );
+}
+
+/**
+ * Record a withdrawal the person asked for directly (SCR-APP-033; FEAT-051 ui-design, LED-07,
+ * UC-28 1a). "Only stop offers" shows only when the latest marketing answer is agreed. On
+ * success the page takes the response and focus returns to the Consent heading.
+ */
+export function RecordWithdrawalDialog({
+  open,
+  onOpenChange,
+  lead,
+  returnTo,
+  onToast,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  lead: LeadDetail;
+  returnTo: RefObject<HTMLElement | null>;
+  onToast: (message: string) => void;
+}) {
+  const queryClient = useQueryClient();
+  const offers = offersWithdrawable(lead);
+  const [scope, setScope] = useState<WithdrawScope>('all');
+  const [failed, setFailed] = useState(false);
+  const run = useMutation({
+    mutationFn: () => api.withdrawLead(lead.id, { scope: offers ? scope : 'all' }),
+    onMutate: () => setFailed(false),
+    onSuccess: (detail) => {
+      queryClient.setQueryData<LeadDetail>(leadKey(lead.id), detail);
+      void queryClient.invalidateQueries({ queryKey: ['leads'] });
+      onOpenChange(false);
+      onToast('Withdrawal recorded');
+    },
+    onError: (err) => {
+      if (err instanceof ApiError && err.status === 403) {
+        onOpenChange(false);
+        return onToast("You can't change leads.");
+      }
+      setFailed(true);
+    },
+  });
+  return (
+    <ConfirmDialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) {
+          setFailed(false);
+          setScope('all');
+        }
+        onOpenChange(next);
+      }}
+      title="Record a consent withdrawal"
+      confirmLabel="Record withdrawal"
+      confirmVariant="danger"
+      busy={run.isPending}
+      busyLabel="Recording…"
+      onConfirm={() => run.mutate()}
+      onCloseAutoFocus={(e) => {
+        e.preventDefault();
+        returnTo.current?.focus();
+      }}
+      alert={
+        failed ? (
+          <div className="alert alert--danger" role="alert">
+            <p>Couldn't record it. Try again.</p>
+          </div>
+        ) : undefined
+      }
+    >
+      <p>
+        Use this when {lead.name || 'this person'} asked you directly to stop using their details.
+        Only they can give consent again, in a later chat.
+      </p>
+      {offers && (
+        <fieldset className="radio-group" data-testid="withdraw-scope">
+          <legend className="field__label">What did they ask?</legend>
+          {(
+            [
+              ['all', 'Stop all use of their details'],
+              ['marketing', 'Only stop offers'],
+            ] as const
+          ).map(([value, label]) => (
+            <label className="radio" key={value}>
+              <input
+                type="radio"
+                name="withdraw-scope"
+                checked={scope === value}
+                onChange={() => setScope(value)}
+                disabled={run.isPending}
+              />
+              {label}
+            </label>
+          ))}
+        </fieldset>
+      )}
     </ConfirmDialog>
   );
 }

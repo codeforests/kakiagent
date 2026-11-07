@@ -365,6 +365,13 @@
       "when": 1793973862951,
       "tag": "0051_lead_scoring",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1794013117984,
+      "tag": "0052_consent_withdrawal",
+      "breakpoints": true
     }
   ]
 }

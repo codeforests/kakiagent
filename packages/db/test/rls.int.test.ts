@@ -3896,11 +3896,19 @@ describe('contacts, consents, leads and lead settings (FEAT-049)', () => {
       `insert into contacts (tenant_id, name) values ('${TENANT_A}', 'x')`,
       `update contacts set name = 'x'`,
       `update leads set need = 'x'`,
-      `insert into consents (tenant_id, purpose, decision, wording_id, channel) values ('${TENANT_A}', 'enquiry', 'agreed', '${a.wordingId}', 'widget')`,
     ])
       await expect(asRole('app_dashboard', TENANT_A, (c) => c.query(sql))).rejects.toThrow(
         /permission denied/,
       );
+    // From FEAT-051 the dashboard may insert consents, but only dashboard withdrawals.
+    await expect(
+      asRole('app_dashboard', TENANT_A, (c) =>
+        c.query(
+          `insert into consents (tenant_id, purpose, decision, wording_id, channel) values ($1, 'enquiry', 'agreed', $2, 'widget')`,
+          [TENANT_A, a.wordingId],
+        ),
+      ),
+    ).rejects.toThrow(/row-level security/);
     // The visitor role reads lead_settings and may set only consents.contact_id.
     const set = await asRole('app_agent_visitor', TENANT_A, async (c) => ({
       contact: (
@@ -4496,5 +4504,177 @@ describe('lead scoring and status (FEAT-050)', () => {
     expect(counts).toEqual({ visitor: 0, dashboard: 0 });
     const { rows } = await owner.query(`select status, score from leads where id = $1`, [id]);
     expect(rows[0]).toEqual({ status: 'new', score: null });
+  });
+});
+
+describe('consent withdrawals (FEAT-051)', () => {
+  const contactOf = async (t: string, email: string) => {
+    const conversationId = (
+      await owner.query<{ id: string }>(
+        `insert into conversations (tenant_id, channel, visitor_id) values ($1, 'widget', gen_random_uuid()) returning id`,
+        [t],
+      )
+    ).rows[0]!.id;
+    const contactId = (
+      await owner.query<{ id: string }>(
+        `insert into contacts (tenant_id, name, email) values ($1, 'Siti', $2) returning id`,
+        [t, email],
+      )
+    ).rows[0]!.id;
+    const wordingId = (
+      await owner.query<{ id: string }>(
+        `insert into wording_versions (tenant_id, kind, seq, content)
+         values ($1, 'purpose_statement', coalesce((select max(seq) from wording_versions where tenant_id = $1 and kind = 'purpose_statement'), 0) + 1, '{"en":"To reply."}') returning id`,
+        [t],
+      )
+    ).rows[0]!.id;
+    return { conversationId, contactId, wordingId };
+  };
+  const insert = (
+    c: pg.Client,
+    v: {
+      tenantId: string;
+      contactId: string | null;
+      decision: string;
+      channel: string;
+      wordingId?: string | null;
+      recordedBy?: string | null;
+      purpose?: string;
+    },
+  ) =>
+    c.query(
+      `insert into consents (tenant_id, contact_id, purpose, decision, wording_id, channel, recorded_by)
+       values ($1, $2, $3, $4, $5, $6, $7) returning id`,
+      [
+        v.tenantId,
+        v.contactId,
+        v.purpose ?? 'enquiry',
+        v.decision,
+        v.wordingId ?? null,
+        v.channel,
+        v.recordedBy ?? null,
+      ],
+    );
+
+  afterAll(async () => {
+    await owner.query(`delete from consents`);
+    await owner.query(`update conversations set contact_id = null`);
+    await owner.query(`delete from contacts`);
+  });
+
+  it('the dashboard inserts only dashboard withdrawals, with who recorded them', async () => {
+    const a = await contactOf(TENANT_A, 'siti@a.test');
+    const staff = randomUUID();
+    const ok = await asRole(
+      'app_dashboard',
+      TENANT_A,
+      async (c) =>
+        (
+          await insert(c, {
+            tenantId: TENANT_A,
+            contactId: a.contactId,
+            decision: 'withdrawn',
+            channel: 'dashboard',
+            recordedBy: staff,
+          })
+        ).rowCount,
+    );
+    expect(ok).toBe(1);
+    for (const v of [
+      { decision: 'agreed', channel: 'dashboard', wordingId: a.wordingId, recordedBy: staff },
+      { decision: 'withdrawn', channel: 'widget' },
+    ])
+      await expect(
+        asRole('app_dashboard', TENANT_A, (c) =>
+          insert(c, { tenantId: TENANT_A, contactId: a.contactId, ...v }),
+        ),
+      ).rejects.toThrow(/row-level security/);
+  });
+
+  it('the visitor zone inserts widget withdrawals but never a dashboard row', async () => {
+    const a = await contactOf(TENANT_A, 'siti.v@a.test');
+    const ok = await asRole(
+      'app_agent_visitor',
+      TENANT_A,
+      async (c) =>
+        (
+          await insert(c, {
+            tenantId: TENANT_A,
+            contactId: a.contactId,
+            decision: 'withdrawn',
+            channel: 'widget',
+          })
+        ).rowCount,
+    );
+    expect(ok).toBe(1);
+    await expect(
+      asRole('app_agent_visitor', TENANT_A, (c) =>
+        insert(c, {
+          tenantId: TENANT_A,
+          contactId: a.contactId,
+          decision: 'withdrawn',
+          channel: 'dashboard',
+          recordedBy: randomUUID(),
+        }),
+      ),
+    ).rejects.toThrow(/row-level security/);
+  });
+
+  it('a withdrawal needs a contact and no wording; a dashboard row needs its recorder', async () => {
+    const a = await contactOf(TENANT_A, 'siti.ck@a.test');
+    const base = { tenantId: TENANT_A, contactId: a.contactId, decision: 'withdrawn' };
+    for (const [v, ck] of [
+      [{ ...base, contactId: null, channel: 'widget' }, 'consents_withdrawn_ck'],
+      [{ ...base, channel: 'widget', wordingId: a.wordingId }, 'consents_wording_ck'],
+      [{ ...base, decision: 'agreed', channel: 'widget' }, 'consents_wording_ck'],
+      [{ ...base, channel: 'widget', recordedBy: randomUUID() }, 'consents_recorded_by_ck'],
+      [{ ...base, channel: 'dashboard' }, 'consents_recorded_by_ck'],
+      [{ ...base, channel: 'phone' }, 'consents_channel_ck'],
+    ] as const)
+      await expect(
+        owner.query(
+          `insert into consents (tenant_id, contact_id, purpose, decision, wording_id, channel, recorded_by)
+           values ($1, $2, 'enquiry', $3, $4, $5, $6)`,
+          [
+            v.tenantId,
+            v.contactId,
+            v.decision,
+            'wordingId' in v ? v.wordingId : null,
+            v.channel,
+            'recordedBy' in v ? v.recordedBy : null,
+          ],
+        ),
+      ).rejects.toThrow(ck);
+    // The new card, notice, alert and escalation-source values pass their checks.
+    await owner.query(
+      `insert into messages (tenant_id, conversation_id, author, body, card, notice, notice_kind)
+       values ($1, $2, 'system', 'Done.', '{"kind":"withdraw","offers":true}', 'Done.', 'consent_withdrawn')`,
+      [TENANT_A, a.conversationId],
+    );
+  });
+
+  it("tenant B can't insert a withdrawal for tenant A's contact, in either zone", async () => {
+    const a = await contactOf(TENANT_A, 'siti.x@a.test');
+    for (const [role, channel] of [
+      ['app_dashboard', 'dashboard'],
+      ['app_agent_visitor', 'widget'],
+    ] as const)
+      await expect(
+        asRole(role, TENANT_B, (c) =>
+          insert(c, {
+            tenantId: TENANT_A,
+            contactId: a.contactId,
+            decision: 'withdrawn',
+            channel,
+            recordedBy: channel === 'dashboard' ? randomUUID() : null,
+          }),
+        ),
+      ).rejects.toThrow(/row-level security/);
+    const seen = await asRole(
+      'app_dashboard',
+      TENANT_B,
+      async (c) => (await c.query(`select id from consents`)).rowCount,
+    );
+    expect(seen).toBe(0);
   });
 });

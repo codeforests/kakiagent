@@ -5448,6 +5448,21 @@ a.settings-row:hover {
   cursor: pointer;
   color: var(--color-text-link);
 }
+.consent-withdrawn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.consent-withdrawn svg {
+  color: var(--color-danger-fg);
+  flex: none;
+}
+.lead-row__status .consent-withdrawn {
+  margin-left: var(--space-2);
+}
+.lead-consent__record {
+  justify-self: start;
+}
 .lead-consent__wording p {
   margin-top: var(--space-2);
   white-space: pre-line;

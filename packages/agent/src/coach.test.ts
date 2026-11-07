@@ -88,6 +88,9 @@ function dispatchCtx(scope: 'visitor' | 'coaching') {
       recordAbuse: async () => 0,
       endAi: async () => {},
       escalate: async () => ({ status: 'escalated' }),
+      withdrawalOffer: async () => {
+        throw new Error('coaching withdraws nothing');
+      },
       draftApproval: async () => {
         throw new Error('coaching drafts no approval');
       },

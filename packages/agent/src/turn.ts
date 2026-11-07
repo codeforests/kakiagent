@@ -20,7 +20,7 @@ import {
 } from '@kaki/inbox';
 import type { MessageCard } from '@kaki/contracts';
 import { searchVisitorFacts, visitorKb, type VisitorFact } from '@kaki/kb';
-import { consentState, leadCaptureConfig } from '@kaki/leads';
+import { consentState, leadCaptureConfig, withdrawalTarget } from '@kaki/leads';
 import { routeReply, type LlmGateway, type LogicalModel } from '@kaki/llm-gateway';
 import { openStatus } from '@kaki/tenancy';
 import { answerTurn, type AnswerOutcome, type AnswerResult } from './answer.js';
@@ -432,10 +432,12 @@ export async function runVisitorTurn(
     turnId: message.id,
     gateOpen: async () =>
       (await withTenant(zdb, tenantId, (tx) => aiAllowed(tx, tenantId, conversationId))).open,
-    // LED-02 (FEAT-049 D2): the conversation's latest enquiry answer is "agreed".
-    consentGiven: async () =>
-      (await withTenant(zdb, tenantId, (tx) => consentState(tx, tenantId, conversationId)))
-        .enquiry === 'agreed',
+    // LED-02 (FEAT-049 D2): the conversation's latest enquiry answer is "agreed", and (FEAT-051
+    // §5.1) given after the contact's latest withdrawal, so a withdrawn visitor consents again.
+    consentGiven: async () => {
+      const s = await withTenant(zdb, tenantId, (tx) => consentState(tx, tenantId, conversationId));
+      return s.enquiry === 'agreed' && s.consentId !== null;
+    },
     leadConsentId: async () =>
       (await withTenant(zdb, tenantId, (tx) => consentState(tx, tenantId, conversationId)))
         .consentId,
@@ -473,7 +475,8 @@ export async function runVisitorTurn(
       },
       // INB-05 (FEAT-044 §5.4): routes, alerts and (beside an answer) stores the notice.
       escalate: async (source) => {
-        const withNotice = source !== 'unverified' && !escalateOnly;
+        // A data request (FEAT-051) replies with its own fixed text, so no escalation notice.
+        const withNotice = source === 'visitor_asked' && !escalateOnly;
         const r = await withTenant(zdb, tenantId, (tx) =>
           requestEscalation(tx, {
             tenantId,
@@ -491,6 +494,15 @@ export async function runVisitorTurn(
         );
         escalation = r;
         return { status: r.status };
+      },
+      // LED-07 (FEAT-051 §5.3, D2): who a withdrawal would apply to; reads only.
+      withdrawalOffer: async () => {
+        const t = await withTenant(zdb, tenantId, (tx) =>
+          withdrawalTarget(tx, tenantId, conversationId),
+        );
+        return t
+          ? { held: true, offers: t.offers, withdrawn: t.withdrawn }
+          : { held: false, offers: false, withdrawn: false };
       },
       // APR-02 (FEAT-055 §5.2, D2): drafted in code from this turn's product facts, priced as the
       // visitor is quoted (KB-15: GST-inclusive at a registered tenant), in one transaction.

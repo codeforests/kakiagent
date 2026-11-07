@@ -35,9 +35,14 @@ describe('notification contracts (FEAT-052 §3)', () => {
     expect(same.error?.issues[0]).toMatchObject({ path: ['end'], message: 'same_time' });
   });
 
-  it('body: strict, unique known events, at most three', () => {
+  it('body: strict, unique known events, at most one per event', () => {
     const ok = { events: [{ event: 'hot_lead', email: false }], quietHours: quiet };
     expect(NotificationPrefsBody.safeParse(ok).success).toBe(true);
+    // FEAT-051 acceptance: the page saves every event it lists, consent_withdrawn included.
+    const all = ['escalation', 'approval_pending', 'hot_lead', 'consent_withdrawn'].map(
+      (event) => ({ event, email: true }),
+    );
+    expect(NotificationPrefsBody.safeParse({ ...ok, events: all }).success).toBe(true);
     expect(NotificationPrefsBody.safeParse({ ...ok, extra: 1 }).success).toBe(false);
     expect(
       NotificationPrefsBody.safeParse({

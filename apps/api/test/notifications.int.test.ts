@@ -68,6 +68,7 @@ describe('GET/PUT /api/v1/me/notifications (AC-5, AC-6)', () => {
         { event: 'escalation', email: true },
         { event: 'approval_pending', email: true },
         { event: 'hot_lead', email: true },
+        { event: 'consent_withdrawn', email: true },
       ],
       quietHours: quiet,
       timeZone: 'Asia/Singapore',
@@ -91,6 +92,7 @@ describe('GET/PUT /api/v1/me/notifications (AC-5, AC-6)', () => {
       { event: 'escalation', email: false },
       { event: 'approval_pending', email: true },
       { event: 'hot_lead', email: false },
+      { event: 'consent_withdrawn', email: true },
     ]);
     expect(got.quietHours).toEqual({ enabled: false, start: '23:30', end: '06:15' });
   });
@@ -128,7 +130,11 @@ describe('GET/PUT /api/v1/me/notifications (AC-5, AC-6)', () => {
 
   it('approval alerts only for members who can approve (D9)', async () => {
     const agent = (await req('GET', URL, agentCookie)).json();
-    expect(agent.events.map((e: { event: string }) => e.event)).toEqual(['escalation', 'hot_lead']);
+    expect(agent.events.map((e: { event: string }) => e.event)).toEqual([
+      'escalation',
+      'hot_lead',
+      'consent_withdrawn',
+    ]);
     const forbidden = await req('PUT', URL, agentCookie, {
       events: [{ event: 'approval_pending', email: false }],
       quietHours: quiet,

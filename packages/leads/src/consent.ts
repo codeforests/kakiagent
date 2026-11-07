@@ -77,11 +77,55 @@ export async function recordConsent(tx: Tx, input: ConsentInput): Promise<Record
   return { consentId: input.agreed ? enquiry : null, marketingConsentId: marketing, config };
 }
 
+/** A contact's latest consent row per purpose (FEAT-051 §5.1): its current state. */
+export interface ContactConsent {
+  enquiry: { decision: 'agreed' | 'declined' | 'withdrawn'; at: Date } | null;
+  marketing: { decision: 'agreed' | 'declined' | 'withdrawn'; at: Date } | null;
+  /** The latest full withdrawal (an enquiry `withdrawn` row), even if consent was given again. */
+  withdrawnAt: Date | null;
+}
+
+/** The contact's consent state: its latest row per purpose, and its latest full withdrawal. */
+export async function contactConsent(
+  tx: Tx,
+  tenantId: string,
+  contactId: string,
+): Promise<ContactConsent> {
+  const { rows } = await tx.execute<{
+    purpose: 'enquiry' | 'marketing';
+    decision: 'agreed' | 'declined' | 'withdrawn';
+    created_at: Date | string;
+    withdrawn_at: Date | string | null;
+  }>(sql`
+    select distinct on (purpose) purpose, decision, created_at,
+      (select max(w.created_at) from consents w
+        where w.tenant_id = ${tenantId} and w.contact_id = ${contactId}
+          and w.purpose = 'enquiry' and w.decision = 'withdrawn') as withdrawn_at
+    from consents
+    where tenant_id = ${tenantId} and contact_id = ${contactId}
+    order by purpose, created_at desc, (decision = 'withdrawn') desc`);
+  const of = (p: 'enquiry' | 'marketing') => {
+    const r = rows.find((x) => x.purpose === p);
+    return r ? { decision: r.decision, at: new Date(r.created_at) } : null;
+  };
+  const w = rows[0]?.withdrawn_at;
+  return {
+    enquiry: of('enquiry'),
+    marketing: of('marketing'),
+    withdrawnAt: w ? new Date(w) : null,
+  };
+}
+
 export interface ConsentState {
-  /** The latest enquiry answer in this conversation. */
-  enquiry: 'agreed' | 'declined' | null;
-  /** The latest granted enquiry consent, if any. */
+  /** The latest enquiry answer in this conversation (FEAT-051: may be a withdrawal). */
+  enquiry: 'agreed' | 'declined' | 'withdrawn' | null;
+  /**
+   * The latest granted enquiry consent, if any, and only while it is newer than the contact's
+   * latest full withdrawal (FEAT-051 §5.1): after a withdrawal, consent must be given again.
+   */
   consentId: string | null;
+  /** The conversation's contact has currently withdrawn consent (FEAT-051). */
+  withdrawn: boolean;
   /** A consent or form card was already shown in this conversation. */
   offered: boolean;
   /** A lead names this conversation. */
@@ -107,7 +151,7 @@ export async function consentState(
     .orderBy(desc(consents.createdAt))
     .limit(1);
   const [granted] = await tx
-    .select({ id: consents.id })
+    .select({ id: consents.id, at: consents.createdAt })
     .from(consents)
     .where(
       and(
@@ -119,15 +163,26 @@ export async function consentState(
     )
     .orderBy(desc(consents.createdAt))
     .limit(1);
-  const { rows } = await tx.execute<{ offered: boolean; captured: boolean }>(sql`
+  const { rows } = await tx.execute<{
+    offered: boolean;
+    captured: boolean;
+    contact_id: string | null;
+  }>(sql`
     select
       exists (select 1 from messages where tenant_id = ${tenantId}
         and conversation_id = ${conversationId} and card is not null) as offered,
       exists (select 1 from leads where tenant_id = ${tenantId}
-        and conversation_id = ${conversationId}) as captured`);
+        and conversation_id = ${conversationId}) as captured,
+      (select contact_id from conversations where tenant_id = ${tenantId}
+        and id = ${conversationId}) as contact_id`);
+  const contactId = rows[0]?.contact_id ?? null;
+  const contact = contactId ? await contactConsent(tx, tenantId, contactId) : null;
+  const usable =
+    granted && (!contact?.withdrawnAt || granted.at.getTime() > contact.withdrawnAt.getTime());
   return {
     enquiry: latest?.decision ?? null,
-    consentId: granted?.id ?? null,
+    consentId: usable ? granted.id : null,
+    withdrawn: contact?.enquiry?.decision === 'withdrawn',
     offered: !!rows[0]?.offered,
     captured: !!rows[0]?.captured,
   };

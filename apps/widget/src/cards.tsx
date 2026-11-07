@@ -6,7 +6,7 @@
 import type { LeadCaptureConfig, Message, MessageCard } from '@kaki/contracts';
 
 /** The consent and lead-form cards; the quote card (FEAT-055) renders on its own. */
-export type LeadMessageCard = Exclude<MessageCard, { kind: 'quote' }>;
+export type LeadMessageCard = Extract<MessageCard, { kind: 'consent' | 'lead_form' }>;
 import type { LeadFieldKey } from '@kaki/contracts/lead-check';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { createApi } from './api.js';
@@ -20,7 +20,12 @@ import {
   sentSummary,
   timeLabel,
   validateLead,
+  withdrawChoices,
+  withdrawLine,
+  withdrawStateOf,
   type LeadErrors,
+  type WithdrawChoice,
+  type WithdrawState,
 } from './chat.js';
 import type { Locale, Strings } from './strings.js';
 
@@ -638,6 +643,112 @@ export function ContactForm(
         </div>
       </form>
     </div>
+  );
+}
+
+/**
+ * The withdraw confirm card (SCR-WGT-003 withdrawn; FEAT-051 §5.6, AC-10): "Yes, stop",
+ * "Just stop offers" (only when offers were agreed) and "Keep my details". The api records the
+ * withdrawal; "Keep" sends nothing. Styled like the consent card.
+ */
+export function WithdrawCard(p: {
+  m: Message & { card: Extract<MessageCard, { kind: 'withdraw' }> };
+  active: boolean;
+  api: Api | null;
+  conversationId: string | null;
+  t: Strings;
+  locale: Locale;
+  business: string;
+  onNotice(notice: Message): void;
+  focusComposer(): void;
+}) {
+  const { t, business } = p;
+  const [state, setState] = useState<WithdrawState>('asked');
+  const [at, setAt] = useState<Date | null>(null);
+  const [busy, setBusy] = useState<WithdrawChoice | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  async function choose(c: WithdrawChoice) {
+    if (busy) return;
+    if (c === 'keep') {
+      setState('kept');
+      p.focusComposer();
+      return;
+    }
+    if (!p.api || !p.conversationId) return;
+    setBusy(c);
+    setFailed(false);
+    try {
+      const r = await p.api.withdraw(p.conversationId, { messageId: p.m.id, scope: c });
+      setAt(new Date());
+      setState(withdrawStateOf(c, r.status));
+      if (r.notice) p.onNotice(r.notice);
+      else p.focusComposer();
+    } catch {
+      setFailed(true);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const line = withdrawLine(state, t, business, timeLabel(at ?? new Date(), p.locale));
+  if (line !== null)
+    return (
+      <li class="lead-done" data-card="withdraw" data-state={state}>
+        <p class="lead-line">
+          {(state === 'all' || state === 'marketing') && TICK_ICON}
+          {line}
+        </p>
+      </li>
+    );
+  if (!p.active)
+    return (
+      <li class="lead-done" data-card="withdraw">
+        <p class="lead-line">{t.notAnswered}</p>
+      </li>
+    );
+
+  const title = `k-${p.m.id}-title`;
+  const label: Record<WithdrawChoice, string> = {
+    all: t.withdrawYes,
+    marketing: t.withdrawOffersOnly,
+    keep: t.withdrawKeep,
+  };
+  const cls: Record<WithdrawChoice, string> = { all: 'pri', marketing: 'sec', keep: 'ghost' };
+  return (
+    <li class="lead-item" data-card="withdraw">
+      <div class="lead-card" role="group" aria-labelledby={title}>
+        <span class="sr-only">{t.withdrawAsks(business)}</span>
+        <h3 id={title}>{t.withdrawTitle}</h3>
+        <p class="cap">{t.withdrawBody(business)}</p>
+        {p.m.card.offers && <p class="cap">{t.withdrawOffersCaption(business)}</p>}
+        {failed && (
+          <p class="lead-err" role="alert">
+            {ERROR_ICON}
+            {t.consentFailed}
+          </p>
+        )}
+        <div class="row">
+          {withdrawChoices(p.m.card.offers)
+            .slice()
+            .reverse()
+            .map((c) => (
+              <button
+                key={c}
+                type="button"
+                class={`btn ${cls[c]}`}
+                data-choice={c}
+                disabled={!!busy}
+                aria-busy={busy === c || undefined}
+                onClick={() => void choose(c)}
+              >
+                {busy === c && SPINNER}
+                {label[c]}
+              </button>
+            ))}
+        </div>
+      </div>
+    </li>
   );
 }
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   csvCell,
+  exportable,
   CSV_HEADER,
   CSV_REMINDER,
   exportFileName,
@@ -36,6 +37,8 @@ const row = (over: Partial<LeadDbRow> = {}): LeadDbRow => ({
   enquiry_at: '2026-11-18T06:04:00Z',
   marketing_agreed: true,
   marketing_at: '2026-11-18T06:04:30Z',
+  marketing_withdrawn: false,
+  consent_withdrawn_at: null,
   ...over,
 });
 
@@ -129,5 +132,24 @@ describe('leadsCsv (FEAT-050 §5.4; AC-6, AC-7)', () => {
   it('dates and the file name are in Singapore time', () => {
     expect(sgtDateTime('2026-11-18T16:30:00Z')).toBe('19 Nov 2026 00:30');
     expect(exportFileName(new Date('2026-11-18T16:30:00Z'))).toBe('leads-2026-11-19.csv');
+  });
+});
+
+describe('exportable (LED-05, LED-07; FEAT-051 §5.2)', () => {
+  it.each([
+    ['a usable lead', {}, true],
+    ['a lead whose consent was withdrawn', { consent_withdrawn_at: '2026-11-18T06:31:00Z' }, false],
+    [
+      'a lead that only stopped offers',
+      { marketing_agreed: false, marketing_withdrawn: true },
+      true,
+    ],
+  ] as const)('%s → %s', (_name, over, ok) => {
+    expect(exportable(row(over))).toBe(ok);
+  });
+
+  it('a lead that only stopped offers exports with Marketing consent No', () => {
+    const csv = leadsCsv([row({ marketing_agreed: false, marketing_withdrawn: true })]);
+    expect(csv.split('\r\n')[2]).toContain(',No,');
   });
 });

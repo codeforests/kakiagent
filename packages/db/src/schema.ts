@@ -245,6 +245,7 @@ export const NOTICE_KINDS = [
   'approval_waiting',
   'approval_rejected',
   'approval_expired',
+  'consent_withdrawn',
 ] as const;
 /** Embedding dimensions: Cohere Embed Multilingual v3 (ADR-019). */
 export const EMBEDDING_DIMENSIONS = 1024;
@@ -404,7 +405,7 @@ export const messages = pgTable(
     }),
     check(
       'messages_card_ck',
-      sql`${t.card} is null or (${t.author} in ('agent', 'system') and ${t.card}->>'kind' in ('consent', 'lead_form', 'quote'))`,
+      sql`${t.card} is null or (${t.author} in ('agent', 'system') and ${t.card}->>'kind' in ('consent', 'lead_form', 'quote', 'withdraw'))`,
     ),
     index('messages_tenant_conversation_seq_idx').on(t.tenantId, t.conversationId, t.seq),
     uniqueIndex('messages_client_message_id_uq').on(
@@ -1794,7 +1795,12 @@ export const onboardingProgress = pgTable(
   ],
 );
 
-export const ALERT_EVENTS = ['escalation', 'approval_pending', 'hot_lead'] as const;
+export const ALERT_EVENTS = [
+  'escalation',
+  'approval_pending',
+  'hot_lead',
+  'consent_withdrawn',
+] as const;
 /**
  * `escalation_reminder` is muted with `escalation` (FEAT-044 D6) and `approval_undeliverable`
  * with `approval_pending` (FEAT-055 §4), so neither is an alert event.
@@ -1843,7 +1849,7 @@ export const notificationPrefs = pgTable(
     }).onDelete('cascade'),
     check(
       'notification_prefs_muted_ck',
-      sql`${t.emailMuted} <@ array['escalation','approval_pending','hot_lead']::text[]`,
+      sql`${t.emailMuted} <@ array['escalation','approval_pending','hot_lead','consent_withdrawn']::text[]`,
     ),
     check(
       'notification_prefs_quiet_ck',
@@ -1909,6 +1915,7 @@ export const ESCALATION_SOURCES = [
   'visitor_asked',
   'unverified',
   'approval_sla',
+  'data_request',
 ] as const;
 export const ESCALATION_RESOLUTIONS = ['claimed', 'closed', 'returned'] as const;
 export const ESCALATION_MODES = ['round_robin', 'person'] as const;
@@ -2044,7 +2051,9 @@ export const suggestions = pgTable(
 // ---- Leads and consent (LED-01, LED-02, LED-08, LED-09; FEAT-049 §4) -------------------
 
 export const CONSENT_PURPOSES = ['enquiry', 'marketing'] as const;
-export const CONSENT_DECISIONS = ['agreed', 'declined'] as const;
+/** `withdrawn` (LED-07; FEAT-051 §4): a contact's consent state per purpose is its latest row. */
+export const CONSENT_DECISIONS = ['agreed', 'declined', 'withdrawn'] as const;
+export const CONSENT_CHANNELS = ['widget', 'dashboard'] as const;
 export const LEAD_STATUSES = ['new', 'contacted', 'won', 'lost'] as const;
 /** Lead score bands (LED-03; FEAT-050 §5.1, D2). */
 export const LEAD_SCORES = ['hot', 'warm', 'cold'] as const;
@@ -2113,8 +2122,11 @@ export const consents = pgTable(
     conversationId: uuid('conversation_id'),
     purpose: text('purpose', { enum: CONSENT_PURPOSES }).notNull(),
     decision: text('decision', { enum: CONSENT_DECISIONS }).notNull(),
-    wordingId: uuid('wording_id').notNull(),
-    channel: text('channel', { enum: ['widget'] }).notNull(),
+    /** Null exactly on a withdrawal (FEAT-051 §4). */
+    wordingId: uuid('wording_id'),
+    channel: text('channel', { enum: CONSENT_CHANNELS }).notNull(),
+    /** The staff member who recorded a dashboard withdrawal (UC-28 1a). */
+    recordedBy: uuid('recorded_by'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -2136,13 +2148,20 @@ export const consents = pgTable(
     }),
     index('consents_conversation_idx').on(t.tenantId, t.conversationId, t.createdAt),
     index('consents_contact_idx').on(t.tenantId, t.contactId),
+    index('consents_contact_latest_idx').on(t.tenantId, t.contactId, t.purpose, t.createdAt.desc()),
     check('consents_purpose_ck', sql`${t.purpose} in (${inList(CONSENT_PURPOSES)})`),
     check('consents_decision_ck', sql`${t.decision} in (${inList(CONSENT_DECISIONS)})`),
-    check('consents_channel_ck', sql`${t.channel} in ('widget')`),
+    check('consents_channel_ck', sql`${t.channel} in (${inList(CONSENT_CHANNELS)})`),
     check(
       'consents_declined_ck',
-      sql`${t.decision} = 'agreed' or ${t.contactId} is null or ${t.purpose} = 'marketing'`,
+      sql`${t.decision} in ('agreed', 'withdrawn') or ${t.contactId} is null or ${t.purpose} = 'marketing'`,
     ),
+    check('consents_wording_ck', sql`(${t.decision} = 'withdrawn') = (${t.wordingId} is null)`),
+    check(
+      'consents_recorded_by_ck',
+      sql`(${t.channel} = 'dashboard') = (${t.recordedBy} is not null)`,
+    ),
+    check('consents_withdrawn_ck', sql`${t.decision} <> 'withdrawn' or ${t.contactId} is not null`),
   ],
 );
 

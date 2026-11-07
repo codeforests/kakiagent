@@ -63,14 +63,28 @@ export interface ConversationPort {
    * `requestEscalation` routes, alerts and stores the visitor's notice.
    */
   escalate(
-    source: 'visitor_asked' | 'unverified',
+    source: 'visitor_asked' | 'unverified' | 'data_request',
   ): Promise<{ status: 'escalated' | 'already_escalated' | 'with_person' }>;
+  /**
+   * What a withdrawal would apply to (LED-07; FEAT-051 §5.3, D2): leads `withdrawalTarget`, the
+   * conversation's contact or the same visitor's earlier one. Reads only.
+   */
+  withdrawalOffer(): Promise<WithdrawalOffer>;
   /**
    * Drafts an approval from the visitor's request (APR-02, AGT-06 `draft_approval`; FEAT-055
    * §5.2): approvals `draftApproval` with this turn's retrieved facts and the rules in force.
    * Nothing reaches the visitor but the waiting notice, or (D3) a plain quote sent at once.
    */
   draftApproval(request: RequestCommitmentArgs): Promise<ApprovalPortResult>;
+}
+
+/** Whether contact details are held from this visitor, and what the confirm card offers. */
+export interface WithdrawalOffer {
+  held: boolean;
+  /** The contact agreed to offers: the card also offers "Just stop offers" (D1). */
+  offers: boolean;
+  /** The contact already withdrew consent. */
+  withdrawn: boolean;
 }
 
 /**
@@ -116,7 +130,11 @@ export type ReplyKey =
   | 'impersonation'
   | 'blocked_topic'
   | 'lead_consent'
-  | 'lead_form';
+  | 'lead_form'
+  | 'withdraw_confirm'
+  | 'withdraw_already'
+  | 'withdraw_none'
+  | 'data_request';
 
 export type { SafetyKey };
 
@@ -296,6 +314,37 @@ export const requestCommitmentHandler: TaskHandler<RequestCommitmentArgs> = {
   },
 };
 
+/**
+ * LED-07 (FEAT-051 §5.3; AC-2): "stop using my details" gets the confirm card, never a write.
+ * The visitor's button records it (`/widget/v1/conversations/:id/withdraw`); who it applies
+ * to comes from the conversation, never the message (D2).
+ */
+export const withdrawConsentHandler: TaskHandler<Record<string, unknown>> = {
+  kind: 'withdraw_consent',
+  scopes: ['visitor'],
+  args: z.record(z.string(), z.unknown()).catch({}),
+  async run(ctx) {
+    const o = await ctx.conversation.withdrawalOffer();
+    if (!o.held) return { reply: { key: 'withdraw_none' } };
+    if (o.withdrawn) return { reply: { key: 'withdraw_already' } };
+    return { card: { kind: 'withdraw', offers: o.offers }, reply: { key: 'withdraw_confirm' } };
+  },
+};
+
+/**
+ * GOV-05 routing (FEAT-051 §5.3, D5; AC-9): a request to delete their data goes to the team as
+ * an escalation until FEAT-061 replaces this `run` with a data-subject request.
+ */
+export const dataRequestHandler: TaskHandler<Record<string, unknown>> = {
+  kind: 'data_request',
+  scopes: ['visitor'],
+  args: z.record(z.string(), z.unknown()).catch({}),
+  async run(ctx) {
+    const { status } = await ctx.conversation.escalate('data_request');
+    return { escalation: { status }, reply: { key: 'data_request' } };
+  },
+};
+
 /** The visitor scope's handlers (ADR-025). Kinds without one are reported `unhandled`. */
 export const visitorRegistry: Registry = createRegistry([
   crisisHandler,
@@ -304,6 +353,8 @@ export const visitorRegistry: Registry = createRegistry([
   escalateHandler,
   captureLeadHandler,
   requestCommitmentHandler,
+  withdrawConsentHandler,
+  dataRequestHandler,
 ]);
 
 type Checked = { ok: true; args: unknown } | { ok: false; reason: RefusalReason };

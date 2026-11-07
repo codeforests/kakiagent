@@ -165,6 +165,11 @@ describe('escalation texts (FEAT-044 §5.1, §5.4; AC-1, AC-6, AC-8)', () => {
     expect(escalationNotice('zh', true, next, now)).toBe(
       '我已通知团队。我们现在休息，团队将于明天上午8:00起回复您；在此之前，我可以继续回答您的问题。',
     );
+    // A later day reads "on Tue 10 Nov at …", never "from on …".
+    const later = new Date(next.getTime() + 3 * 86_400_000);
+    expect(escalationNotice('en', true, later, now)).toMatch(
+      /they'll reply on \w{3} \d{1,2} \w{3} at /,
+    );
     expect(escalationNotice('en', true, null, now)).toContain(
       "they'll reply when we're next open.",
     );

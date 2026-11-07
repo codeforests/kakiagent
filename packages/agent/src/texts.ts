@@ -38,6 +38,14 @@ export interface Texts {
   leadConsent: string;
   /** FEAT-049: the reply that carries the lead form once they agreed. */
   leadForm: string;
+  /** FEAT-051: the reply that carries the withdraw confirm card. */
+  withdrawConfirm(businessName: string): string;
+  /** FEAT-051: the contact has already withdrawn. */
+  withdrawAlready(businessName: string): string;
+  /** FEAT-051: nothing is held from this visitor (D2). */
+  withdrawNone(businessName: string): string;
+  /** FEAT-051: a deletion request was passed to the team (until FEAT-061, D5). */
+  dataRequest(businessName: string): string;
 }
 
 /**
@@ -115,7 +123,11 @@ type FixedKeys =
   | 'abuseEnded'
   | 'chatEnded'
   | 'leadConsent'
-  | 'leadForm';
+  | 'leadForm'
+  | 'withdrawConfirm'
+  | 'withdrawAlready'
+  | 'withdrawNone'
+  | 'dataRequest';
 
 const FIXED: Record<ReplyLanguage, Pick<Texts, FixedKeys>> = {
   en: {
@@ -144,6 +156,14 @@ const FIXED: Record<ReplyLanguage, Pick<Texts, FixedKeys>> = {
     chatEnded: 'This chat has ended.',
     leadConsent: 'I can pass your details to the team so they can get back to you.',
     leadForm: 'Please fill in your details below.',
+    withdrawConfirm: (b: string) =>
+      `Sure. Do you want ${b} to stop using your contact details? Choose below.`,
+    withdrawAlready: (b: string) =>
+      `You've already asked ${b} to stop using your details, and they have.`,
+    withdrawNone: (b: string) =>
+      `${b} doesn't have contact details from you in this chat. If you gave them another way, tell the team and they'll stop using them.`,
+    dataRequest: (b: string) =>
+      `I've passed your request about your personal data to the ${b} team. They'll get back to you.`,
   },
   zh: {
     escalation: '我先跟团队确认一下，稍后回复您。',
@@ -164,6 +184,11 @@ const FIXED: Record<ReplyLanguage, Pick<Texts, FixedKeys>> = {
     chatEnded: '本次对话已结束。',
     leadConsent: '我可以把您的资料转给团队，让他们联系您。',
     leadForm: '请在下方填写您的资料。',
+    withdrawConfirm: (b: string) => `好的。您希望 ${b} 停止使用您的联系资料吗？请在下方选择。`,
+    withdrawAlready: (b: string) => `您已要求 ${b} 停止使用您的资料，他们已照办。`,
+    withdrawNone: (b: string) =>
+      `${b} 在这次对话中没有您的联系资料。如果您是通过其他方式提供的，请告诉团队，他们会停止使用。`,
+    dataRequest: (b: string) => `我已把您关于个人资料的请求转给 ${b} 团队，他们会尽快回复您。`,
   },
 };
 
@@ -272,6 +297,8 @@ export function escalationNotice(
     const when = nextOpen ? `于${formatNextOpen(nextOpen, now, 'zh')}起` : '营业后';
     return `我已通知团队。我们现在休息，团队将${when}回复您；在此之前，我可以继续回答您的问题。`;
   }
-  const when = nextOpen ? `from ${formatNextOpen(nextOpen, now, 'en')}` : "when we're next open";
+  // "from tomorrow at 8:00 am", but "on Tue 10 Nov at 8:00 am" (no "from on").
+  const at = nextOpen ? formatNextOpen(nextOpen, now, 'en') : null;
+  const when = at ? (at.startsWith('on ') ? at : `from ${at}`) : "when we're next open";
   return `I've let the team know. We're closed now, so they'll reply ${when}. I can keep answering questions until then.`;
 }

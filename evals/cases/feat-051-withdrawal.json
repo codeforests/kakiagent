@@ -1,0 +1,129 @@
+[
+  {
+    "id": "withdraw-en",
+    "subset": "multi-task",
+    "fast": true,
+    "messages": [{ "role": "user", "content": "Please stop contacting me" }],
+    "contact": { "held": true, "offers": false, "withdrawn": false },
+    "expectTasks": ["withdraw_consent"],
+    "expect": [
+      { "kind": "card", "card": "withdraw", "offers": false },
+      { "kind": "contains", "text": "stop using your contact details" },
+      { "kind": "outcome", "outcome": "answered" }
+    ]
+  },
+  {
+    "id": "withdraw-en-details-offers",
+    "subset": "multi-task",
+    "fast": true,
+    "messages": [{ "role": "user", "content": "stop using my details" }],
+    "contact": { "held": true, "offers": true, "withdrawn": false },
+    "expectTasks": ["withdraw_consent"],
+    "expect": [{ "kind": "card", "card": "withdraw", "offers": true }]
+  },
+  {
+    "id": "withdraw-singlish-number",
+    "subset": "multi-task",
+    "fast": true,
+    "messages": [{ "role": "user", "content": "pls don't keep my number lah" }],
+    "contact": { "held": true, "offers": false, "withdrawn": false },
+    "expectTasks": ["withdraw_consent"],
+    "expect": [{ "kind": "card", "card": "withdraw", "offers": false }]
+  },
+  {
+    "id": "withdraw-singlish-call",
+    "subset": "multi-task",
+    "fast": true,
+    "messages": [{ "role": "user", "content": "dun call me again ok" }],
+    "contact": { "held": true, "offers": true, "withdrawn": false },
+    "expectTasks": ["withdraw_consent"],
+    "expect": [{ "kind": "card", "card": "withdraw", "offers": true }]
+  },
+  {
+    "id": "withdraw-zh",
+    "subset": "multi-task",
+    "fast": true,
+    "messages": [{ "role": "user", "content": "别再联系我了" }],
+    "contact": { "held": true, "offers": false, "withdrawn": false },
+    "expectTasks": ["withdraw_consent"],
+    "expect": [
+      { "kind": "card", "card": "withdraw", "offers": false },
+      { "kind": "language", "lang": "zh" }
+    ]
+  },
+  {
+    "id": "withdraw-zh-phone",
+    "subset": "multi-task",
+    "fast": true,
+    "messages": [{ "role": "user", "content": "不要用我的电话" }],
+    "contact": { "held": true, "offers": false, "withdrawn": false },
+    "expectTasks": ["withdraw_consent"],
+    "expect": [
+      { "kind": "card", "card": "withdraw" },
+      { "kind": "language", "lang": "zh" }
+    ]
+  },
+  {
+    "id": "withdraw-nothing-held",
+    "subset": "multi-task",
+    "fast": true,
+    "messages": [{ "role": "user", "content": "Please stop contacting me" }],
+    "expectTasks": ["withdraw_consent"],
+    "expect": [
+      { "kind": "card", "card": null },
+      { "kind": "contains", "text": "doesn't have contact details from you" }
+    ]
+  },
+  {
+    "id": "withdraw-already",
+    "subset": "multi-task",
+    "fast": true,
+    "messages": [{ "role": "user", "content": "unsubscribe" }],
+    "contact": { "held": true, "offers": false, "withdrawn": true },
+    "expectTasks": ["withdraw_consent"],
+    "expect": [
+      { "kind": "card", "card": null },
+      { "kind": "contains", "text": "already asked" }
+    ]
+  },
+  {
+    "id": "data-request-delete",
+    "subset": "multi-task",
+    "fast": true,
+    "messages": [{ "role": "user", "content": "Please delete my details" }],
+    "expectTasks": ["data_request"],
+    "expect": [
+      { "kind": "escalated", "sources": ["data_request"] },
+      { "kind": "contains", "text": "passed your request about your personal data" }
+    ]
+  },
+  {
+    "id": "withdraw-and-delete",
+    "subset": "multi-task",
+    "fast": true,
+    "messages": [{ "role": "user", "content": "stop using and delete my details" }],
+    "contact": { "held": true, "offers": false, "withdrawn": false },
+    "expectTasks": ["withdraw_consent", "data_request"],
+    "expect": [
+      { "kind": "card", "card": "withdraw" },
+      { "kind": "escalated", "sources": ["data_request"] }
+    ]
+  },
+  {
+    "id": "not-withdraw-delivery",
+    "subset": "multi-task",
+    "fast": true,
+    "messages": [{ "role": "user", "content": "stop the delivery on Friday" }],
+    "contact": { "held": true, "offers": false, "withdrawn": false },
+    "expectTasks": ["request_commitment"],
+    "expect": [{ "kind": "card", "card": null }]
+  },
+  {
+    "id": "not-withdraw-call-time",
+    "subset": "multi-task",
+    "fast": true,
+    "messages": [{ "role": "user", "content": "don't call before 10am, my number is 9123 4567" }],
+    "expectTasks": ["capture_lead"],
+    "expect": [{ "kind": "card", "card": "consent", "prefill": { "phone": "+6591234567" } }]
+  }
+]
