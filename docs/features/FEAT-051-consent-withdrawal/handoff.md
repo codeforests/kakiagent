@@ -11,7 +11,7 @@ Next: Ken reviews and merges PR #57; then M3 close (`pipeline-verify` and demo).
 
 ## Left to CI or later
 - E2E `consent-withdrawal.e2e.ts` and axe: GitHub CI (report's CI section).
-- `escalation.int` "after hours" fails until 10 Nov 2026 (FEAT-044 wording "reply from on …"; report F1).
+- F1 (FEAT-044 "reply from on …") fixed in this PR, `f703f99` (Ken, 2026-11-07).
 
 ## Pending for Ken
-- Merge PR #57 once CI is green; F1's fix (pending-actions).
+- Merge PR #57 once CI is green.

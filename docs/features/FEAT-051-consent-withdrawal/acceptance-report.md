@@ -50,7 +50,7 @@ Run fresh on `db30a9c`'s parent (`0bc16f1`) through `scripts/test-env.sh scripts
 
 ## Findings
 
-- **F1 (outside FEAT-051):** `escalation.int` "after hours" expects "reply from (today|tomorrow)"; with the Deepavali holidays the next opening is Tue 10 Nov, and `escalationNotice` (`packages/agent/src/texts.ts`, FEAT-044) renders "reply from on Tue 10 Nov at midnight" ("from on"). A wording bug plus a test that assumes the next opening is within a day; it fails on main too until 10 Nov. Recorded in `/mnt/project-files/pending-actions.md`.
+- **F1 (outside FEAT-051):** `escalation.int` "after hours" expects "reply from (today|tomorrow)"; with the Deepavali holidays the next opening is Tue 10 Nov, and `escalationNotice` (`packages/agent/src/texts.ts`, FEAT-044) renders "reply from on Tue 10 Nov at midnight" ("from on"). A wording bug plus a test that assumes the next opening is within a day; it fails on main too until 10 Nov. Ken chose to fix it in this PR (2026-11-07): commit `f703f99` renders "on Tue 10 Nov at …" (no "from on"), adds a unit case for a later day, and lets the after-hours test accept one.
 
 ## RTM
 
