@@ -488,7 +488,11 @@ describe('consent and lead in the thread and sidebar (FEAT-049 AC-12)', () => {
       id: '00000000-0000-4000-8000-000000000001',
       status: 'new' as const,
       updatedAt: at,
-      consent: { enquiryAt: at, marketing: { agreed: true, at } },
+      consent: {
+        enquiryAt: at,
+        marketing: { agreed: true, at, withdrawn: false },
+        withdrawnAt: null,
+      },
       scoring: null,
     };
     expect(LEAD_STATUS.new).toEqual({ label: 'New', tone: 'info' });
@@ -496,9 +500,9 @@ describe('consent and lead in the thread and sidebar (FEAT-049 AC-12)', () => {
       consent: 'Consent · 18 Nov 2026, 2:30 pm',
       offers: 'Offers · Yes, 2:30 pm',
     });
-    expect(leadLines({ ...lead, consent: { enquiryAt: at, marketing: null } }).offers).toBe(
-      'Offers · No',
-    );
+    expect(
+      leadLines({ ...lead, consent: { enquiryAt: at, marketing: null, withdrawnAt: null } }).offers,
+    ).toBe('Offers · No');
   });
 });
 

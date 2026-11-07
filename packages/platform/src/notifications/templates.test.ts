@@ -28,6 +28,9 @@ describe('alert emails', () => {
     expect(alertEmail(item({ kind: 'hot_lead' }), ctx).subject).toBe(
       '[Kaki <Bakery> & Co] New hot lead',
     );
+    expect(alertEmail(item({ kind: 'consent_withdrawn' }), ctx).subject).toBe(
+      '[Kaki <Bakery> & Co] A contact withdrew consent',
+    );
     expect(alertEmail(item({ kind: 'escalation_reminder' }), ctx).subject).toBe(
       '[Kaki <Bakery> & Co] Reminder: a customer is still waiting for a person',
     );
@@ -87,6 +90,7 @@ describe('links', () => {
       'https://app.test/approvals/x1',
     );
     expect(linkFor('hot_lead', s, 'https://app.test')).toBe('https://app.test/leads/x1');
+    expect(linkFor('consent_withdrawn', s, 'https://app.test')).toBe('https://app.test/leads/x1');
     expect(linkFor('test', s, 'https://app.test')).toBe('https://app.test/account/notifications');
   });
 

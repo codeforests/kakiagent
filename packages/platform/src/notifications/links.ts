@@ -25,6 +25,7 @@ export function linkFor(kind: NotificationKind, subject: Subject, appUrl: string
     case 'approval_undeliverable':
       return `${base}/approvals/${subject.id}`;
     case 'hot_lead':
+    case 'consent_withdrawn':
       return `${base}/leads/${subject.id}`;
     case 'test':
       return `${base}${SETTINGS_PATH}`;

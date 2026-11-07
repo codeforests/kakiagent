@@ -520,4 +520,6 @@ export const cardCaption = (card: ThreadMessage['card']) =>
       ? 'Showed the details form'
       : card === 'quote'
         ? 'Sent after approval'
-        : null;
+        : card === 'withdraw'
+          ? 'Asked to confirm the withdrawal'
+          : null;

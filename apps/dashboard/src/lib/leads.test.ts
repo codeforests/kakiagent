@@ -130,8 +130,10 @@ describe('Leads list and lead page helpers (SCR-APP-032, -033; FEAT-050 AC-2, AC
 
   it('shows the marketing flag with its time (LED-08)', () => {
     expect(marketingText(null)).toBe('Offers: Not asked');
-    expect(marketingText({ agreed: false, at: '2026-11-18T06:30:00Z' })).toBe('Offers: No');
-    expect(marketingText({ agreed: true, at: '2026-11-18T06:30:00Z' })).toBe(
+    expect(marketingText({ agreed: false, at: '2026-11-18T06:30:00Z', withdrawn: false })).toBe(
+      'Offers: No',
+    );
+    expect(marketingText({ agreed: true, at: '2026-11-18T06:30:00Z', withdrawn: false })).toBe(
       'Offers: Yes · 18 Nov 2026, 2:30 pm',
     );
   });

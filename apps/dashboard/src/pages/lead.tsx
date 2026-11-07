@@ -260,8 +260,16 @@ function LeadBody({ lead }: { lead: LeadDetail }) {
 const NotGiven = () => <span className="lead-fields__empty">Not given</span>;
 
 const CONSENT_TEXT = {
-  enquiry: { agreed: 'Agreed to be contacted', declined: 'Chose not to share details' },
-  marketing: { agreed: 'Agreed to offers', declined: 'Declined offers' },
+  enquiry: {
+    agreed: 'Agreed to be contacted',
+    declined: 'Chose not to share details',
+    withdrawn: 'Withdrew consent',
+  },
+  marketing: {
+    agreed: 'Agreed to offers',
+    declined: 'Declined offers',
+    withdrawn: 'Stopped offers',
+  },
 } as const;
 
 function ConsentEntry({ c }: { c: LeadConsentRecord }) {
@@ -271,10 +279,12 @@ function ConsentEntry({ c }: { c: LeadConsentRecord }) {
       <p className="lead-fields__caption">
         {dateTime(c.at)} · {c.conversationId ? 'Website chat' : 'Contact form'}
       </p>
-      <details className="lead-consent__wording">
-        <summary>Wording shown (version {c.wording.version})</summary>
-        <p>{c.wording.text}</p>
-      </details>
+      {c.wording && (
+        <details className="lead-consent__wording">
+          <summary>Wording shown (version {c.wording.version})</summary>
+          <p>{c.wording.text}</p>
+        </details>
+      )}
     </li>
   );
 }

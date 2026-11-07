@@ -6,7 +6,7 @@
 import type { LeadCaptureConfig, Message, MessageCard } from '@kaki/contracts';
 
 /** The consent and lead-form cards; the quote card (FEAT-055) renders on its own. */
-export type LeadMessageCard = Exclude<MessageCard, { kind: 'quote' }>;
+export type LeadMessageCard = Extract<MessageCard, { kind: 'consent' | 'lead_form' }>;
 import type { LeadFieldKey } from '@kaki/contracts/lead-check';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { createApi } from './api.js';

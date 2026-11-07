@@ -686,21 +686,23 @@ function Panel({
                   t={strings(pickLocale(langOf(m.body)))}
                 />
               ),
-              m.card && m.card.kind !== 'quote' && leadCommon && (
-                <LeadCard
-                  key={`${m.id}-card`}
-                  {...leadCommon}
-                  m={{ ...m, card: m.card }}
-                  active={m.id === openCard}
-                  api={preview ? null : api}
-                  conversationId={conversationId}
-                  onNotice={(notice) => {
-                    setChat((c) => withMessage(c, notice));
-                    focusNext.current = `notice:${notice.id}`;
-                  }}
-                  focusComposer={() => inputRef.current?.focus()}
-                />
-              ),
+              m.card &&
+                (m.card.kind === 'consent' || m.card.kind === 'lead_form') &&
+                leadCommon && (
+                  <LeadCard
+                    key={`${m.id}-card`}
+                    {...leadCommon}
+                    m={{ ...m, card: m.card }}
+                    active={m.id === openCard}
+                    api={preview ? null : api}
+                    conversationId={conversationId}
+                    onNotice={(notice) => {
+                      setChat((c) => withMessage(c, notice));
+                      focusNext.current = `notice:${notice.id}`;
+                    }}
+                    focusComposer={() => inputRef.current?.focus()}
+                  />
+                ),
               m.id === waitingFor && growing && (
                 <li
                   key={`${m.id}-reply`}

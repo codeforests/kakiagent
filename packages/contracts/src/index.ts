@@ -50,6 +50,11 @@ export const MessageCard = z.discriminatedUnion('kind', [
     totals: ApprovalTotals,
     note: z.string().max(500),
   }),
+  /**
+   * The consent-withdrawal confirm card (LED-07; FEAT-051 §3): `offers` = the contact's latest
+   * marketing answer is agreed, so the card also offers "Just stop offers" (D1).
+   */
+  z.object({ kind: z.literal('withdraw'), offers: z.boolean() }),
 ]);
 export type MessageCard = z.infer<typeof MessageCard>;
 
@@ -72,7 +77,8 @@ export const Message = z.object({
    * and `staff_left` mark a take-over and hand-back (FEAT-043); `escalated` is the visitor's
    * "I've asked the team to join" notice (FEAT-044); `lead_captured` confirms the visitor's
    * details reached the team (FEAT-049). FEAT-055 adds `approval_waiting` (the team is
-   * checking a request), `approval_rejected` and `approval_expired`.
+   * checking a request), `approval_rejected` and `approval_expired`. FEAT-051 adds
+   * `consent_withdrawn` (the visitor's withdrawal is recorded).
    */
   noticeKind: z
     .enum([
@@ -85,6 +91,7 @@ export const Message = z.object({
       'approval_waiting',
       'approval_rejected',
       'approval_expired',
+      'consent_withdrawn',
     ])
     .nullable(),
   /** A consent or lead-form card under an agent reply (FEAT-049); absent or null: none. */
@@ -119,6 +126,7 @@ export const EscalationSource = z.enum([
   'visitor_asked',
   'unverified',
   'approval_sla',
+  'data_request',
 ]);
 export type EscalationSource = z.infer<typeof EscalationSource>;
 
@@ -2603,8 +2611,8 @@ export type ConversationList = z.infer<typeof ConversationList>;
 /** A message as staff see it: with the facts an AI answer used (the widget's `Message` has none). */
 export const ThreadMessage = Message.extend({
   factIds: z.array(z.uuid()),
-  /** The card's kind only, never its prefill (FEAT-049 §3); `quote` from FEAT-055. */
-  card: z.enum(['consent', 'lead_form', 'quote']).nullable(),
+  /** The card's kind only, never its prefill (FEAT-049 §3); `quote` FEAT-055, `withdraw` FEAT-051. */
+  card: z.enum(['consent', 'lead_form', 'quote', 'withdraw']).nullable(),
   /** The team member behind a staff message or notice (FEAT-043): "You" on your own. */
   authorUserId: z.uuid().nullable(),
 });
@@ -2740,7 +2748,12 @@ export const LeadSummary = z.object({
   updatedAt: z.iso.datetime({ offset: true }),
   consent: z.object({
     enquiryAt: z.iso.datetime({ offset: true }),
-    marketing: z.object({ agreed: z.boolean(), at: z.iso.datetime({ offset: true }) }).nullable(),
+    /** FEAT-051 adds `withdrawn` (the sidebar's "Offers: stopped"). */
+    marketing: z
+      .object({ agreed: z.boolean(), at: z.iso.datetime({ offset: true }), withdrawn: z.boolean() })
+      .nullable(),
+    /** FEAT-051: when the contact withdrew consent (the latest enquiry row); null = not withdrawn. */
+    withdrawnAt: z.iso.datetime({ offset: true }).nullable(),
   }),
   /** FEAT-050: the lead's score, shown in the sidebar's Lead section. */
   scoring: LeadScoring,
@@ -2848,7 +2861,12 @@ export type MemberEvent = z.infer<typeof MemberEvent>;
 // ---- Dashboard API: notifications (LED-04, DSH-09; FEAT-052 §3) ---------------------------
 
 /** The events a member can turn on or off (LED-04's three; the internal test alert isn't one). */
-export const AlertEvent = z.enum(['escalation', 'approval_pending', 'hot_lead']);
+export const AlertEvent = z.enum([
+  'escalation',
+  'approval_pending',
+  'hot_lead',
+  'consent_withdrawn',
+]);
 export type AlertEvent = z.infer<typeof AlertEvent>;
 /** FEAT-037 adds `telegram`, FEAT-048 `push`. */
 export const NotificationChannel = z.enum(['email']);
@@ -3248,9 +3266,12 @@ export type ApprovalLinkError = keyof typeof APPROVAL_LINK_ERRORS;
 /** Chat when the lead was captured in a conversation, else the contact form (FEAT-049 D9). */
 export const LeadSource = z.enum(['chat', 'contact_form']);
 export type LeadSource = z.infer<typeof LeadSource>;
-/** The contact's latest marketing answer; null = not asked (LED-08). */
+/**
+ * The contact's latest marketing answer; null = not asked (LED-08). FEAT-051: `withdrawn` =
+ * that answer is a withdrawal (`agreed` is then false).
+ */
 export const LeadMarketing = z
-  .object({ agreed: z.boolean(), at: z.iso.datetime({ offset: true }) })
+  .object({ agreed: z.boolean(), at: z.iso.datetime({ offset: true }), withdrawn: z.boolean() })
   .nullable();
 export type LeadMarketing = z.infer<typeof LeadMarketing>;
 
@@ -3267,6 +3288,8 @@ export const LeadRow = z.object({
   scoring: LeadScoring,
   source: LeadSource,
   marketing: LeadMarketing,
+  /** FEAT-051: the contact's latest enquiry row is a withdrawal (§5.1); null = usable. */
+  consentWithdrawnAt: z.iso.datetime({ offset: true }).nullable(),
   createdAt: z.iso.datetime({ offset: true }),
   updatedAt: z.iso.datetime({ offset: true }),
 });
@@ -3293,15 +3316,19 @@ export const LeadList = z.object({
 });
 export type LeadList = z.infer<typeof LeadList>;
 
-/** One consent row of the contact with the exact wording shown (LED-02; AC-8). */
+/**
+ * One consent row of the contact with the exact wording shown (LED-02; AC-8). FEAT-051: a
+ * withdrawal has no wording; a dashboard one names the staff member who recorded it.
+ */
 export const LeadConsentRecord = z.object({
   id: z.uuid(),
   purpose: z.enum(['enquiry', 'marketing']),
-  decision: z.enum(['agreed', 'declined']),
+  decision: z.enum(['agreed', 'declined', 'withdrawn']),
   at: z.iso.datetime({ offset: true }),
-  channel: z.enum(['widget']),
+  channel: z.enum(['widget', 'dashboard']),
   conversationId: z.uuid().nullable(),
-  wording: z.object({ id: z.uuid(), version: z.number().int(), text: z.string() }),
+  wording: z.object({ id: z.uuid(), version: z.number().int(), text: z.string() }).nullable(),
+  recordedBy: z.string().nullable(),
 });
 export type LeadConsentRecord = z.infer<typeof LeadConsentRecord>;
 
@@ -3351,3 +3378,24 @@ export type LeadExportBody = z.infer<typeof LeadExportBody>;
 
 /** Above this many rows the export answers 413 `too_many` (D1). */
 export const LEAD_EXPORT_MAX = 10_000;
+
+// ---- Consent withdrawal (LED-07; FEAT-051 §3) ------------------------------------------------
+
+/** `all` stops every use of the contact's details; `marketing` only stops offers (D1). */
+export const WithdrawScope = z.enum(['all', 'marketing']);
+export type WithdrawScope = z.infer<typeof WithdrawScope>;
+
+/** `POST /widget/v1/conversations/:id/withdraw`: the agent message carrying the withdraw card. */
+export const WithdrawBody = z.strictObject({ messageId: z.uuid(), scope: WithdrawScope });
+export type WithdrawBody = z.infer<typeof WithdrawBody>;
+
+/** 201: `already_withdrawn` and `nothing_held` write nothing and carry no notice. */
+export const WithdrawResponse = z.object({
+  status: z.enum(['withdrawn', 'already_withdrawn', 'nothing_held']),
+  notice: Message.nullable(),
+});
+export type WithdrawResponse = z.infer<typeof WithdrawResponse>;
+
+/** `POST /api/v1/leads/:id/withdraw` (UC-28 1a; `leads.manage`): answers the `LeadDetail`. */
+export const LeadWithdrawBody = z.strictObject({ scope: WithdrawScope });
+export type LeadWithdrawBody = z.infer<typeof LeadWithdrawBody>;
