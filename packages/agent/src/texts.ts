@@ -297,6 +297,8 @@ export function escalationNotice(
     const when = nextOpen ? `于${formatNextOpen(nextOpen, now, 'zh')}起` : '营业后';
     return `我已通知团队。我们现在休息，团队将${when}回复您；在此之前，我可以继续回答您的问题。`;
   }
-  const when = nextOpen ? `from ${formatNextOpen(nextOpen, now, 'en')}` : "when we're next open";
+  // "from tomorrow at 8:00 am", but "on Tue 10 Nov at 8:00 am" (no "from on").
+  const at = nextOpen ? formatNextOpen(nextOpen, now, 'en') : null;
+  const when = at ? (at.startsWith('on ') ? at : `from ${at}`) : "when we're next open";
   return `I've let the team know. We're closed now, so they'll reply ${when}. I can keep answering questions until then.`;
 }
