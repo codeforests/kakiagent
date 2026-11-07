@@ -118,7 +118,7 @@ POST /api/v1/leads/:id/withdraw                   (session; leads.manage: Owner,
 
 ## 7. Decisions
 
-- **D1 — The confirm card offers "Stop all use" and, when the contact agreed to offers, "Just stop offers"** (recommended to Ken 2026-11-07, decision card open). "Stop sending promos" usually still wants the enquiry answered, and the card lets the visitor say which, so triage needn't guess. Only a full withdrawal marks the lead "consent withdrawn" and drops it from exports; marketing-only sets Marketing consent to No.
+- **D1 — The confirm card offers "Stop all use" and, when the contact agreed to offers, "Just stop offers"** (Ken, 2026-11-07). "Stop sending promos" usually still wants the enquiry answered, and the card lets the visitor say which, so triage needn't guess. Only a full withdrawal marks the lead "consent withdrawn" and drops it from exports; marketing-only sets Marketing consent to No.
 - **D2 — Who the withdrawal applies to comes from the conversation, never from the message.** The conversation's contact, else the same browser's earlier contact (`visitor_id`). The visitor isn't asked for an email or phone: matching typed identifiers would let anyone withdraw someone else's consent and reveal whether a contact exists. A visitor we can't link is told so, and staff record it on the Lead page when asked another way (UC-28 1a).
 - **D3 — Staff can record a withdrawal, never undo one.** Only the contact consenting again in a later chat makes the lead usable again. No re-auth: the action only narrows what the team may do.
 - **D4 — Withdrawn leads stay in the list,** with a chip, so the team sees the history and doesn't re-enter them; they never leave the platform (export, later webhooks).
@@ -127,7 +127,6 @@ POST /api/v1/leads/:id/withdraw                   (session; leads.manage: Owner,
 
 ## 8. Escalations and open items
 
-- D1 is awaiting Ken's answer; if he picks "one withdrawal covers all", drop the `marketing` scope, `offers` and AC-4 (the rest stands).
 - LED-06 webhooks: FEAT-053 must check `exportable` at send time (§5.2). LED-07's "excluded from webhooks" Test ref stays partial until then.
 - GOV-05 / UC-28 2a: only the routing (escalation) lands here; FEAT-061 opens the data-subject request (SCR-APP-049).
 - Other channels (Telegram FEAT-037, email, Meta): the handler, port and route are channel-neutral, but the confirm card is a widget card. Each channel adapter renders the `withdraw` card its own way (buttons or a "Reply YES" text) when it lands (ADR-011); noted for FEAT-037.

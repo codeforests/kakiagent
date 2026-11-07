@@ -62,6 +62,5 @@ Dashboard: `--color-danger-soft`/`-fg`, `--color-surface`, `--color-border-defau
 
 ## Gaps and escalations
 
-- D1 (Just stop offers) awaits Ken; without it the widget card has two buttons and the dialog has no radios.
 - Other channels render the `withdraw` card through their adapters when they land (FEAT-037 Telegram first).
 - SCR-APP-016 (Contact) and SCR-APP-049 (Data request) are later features.
