@@ -411,8 +411,10 @@ describe('list, detail and export (AC-4, AC-6, AC-8, AC-9)', () => {
       nextCursor: null,
       counts: { new: 0, contacted: 0, won: 0, lost: 0 },
     });
-    expect(await dash((tx) => exportLeads(tx, TENANT_B, { status: 'all' }), TENANT_B)).toEqual([]);
-    expect((await dash((tx) => exportLeads(tx, TENANT_A, { status: 'open' }))).length).toBe(3);
+    expect(
+      (await dash((tx) => exportLeads(tx, TENANT_B, { status: 'all' }), TENANT_B)).rows,
+    ).toEqual([]);
+    expect((await dash((tx) => exportLeads(tx, TENANT_A, { status: 'open' }))).rows.length).toBe(3);
   });
 
   it('the detail lists every consent with its exact wording and the conversations', async () => {
@@ -432,7 +434,7 @@ describe('list, detail and export (AC-4, AC-6, AC-8, AC-9)', () => {
       canManage: true,
       scoring: { score: 'warm' },
     });
-    expect(d.consents.map((c) => [c.purpose, c.decision, c.wording.text])).toEqual(
+    expect(d.consents.map((c) => [c.purpose, c.decision, c.wording?.text])).toEqual(
       expect.arrayContaining([
         ['enquiry', 'agreed', '为了回复您。'],
         ['marketing', 'declined', 'Send me offers'],

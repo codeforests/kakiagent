@@ -1,7 +1,7 @@
 import type { LeadSummary } from '@kaki/contracts';
 import { formatSgPhone } from '@kaki/contracts';
 import { sql, type Tx } from '@kaki/db';
-import { scoringOf } from './list.js';
+import { latestConsentColumns, latestConsentJoins, marketingOf, scoringOf } from './list.js';
 
 export interface ContactView {
   contactId: string;
@@ -53,22 +53,19 @@ export async function leadSummaryOf(
     enquiry_at: Date | string;
     marketing_agreed: boolean | null;
     marketing_at: Date | string | null;
+    marketing_withdrawn: boolean | null;
+    consent_withdrawn_at: Date | string | null;
     score: 'hot' | 'warm' | 'cold' | null;
     score_points: number | null;
     score_reasons: NonNullable<LeadSummary['scoring']>['reasons'] | null;
     scored_at: Date | string | null;
   }>(sql`
     select l.id, l.status, l.updated_at, e.created_at as enquiry_at,
-      l.score, l.score_points, l.score_reasons, l.scored_at,
-      m.decision = 'agreed' as marketing_agreed, m.created_at as marketing_at
+      l.score, l.score_points, l.score_reasons, l.scored_at, ${latestConsentColumns}
     from conversations c
     join leads l on l.tenant_id = c.tenant_id and l.contact_id = c.contact_id
     join consents e on e.tenant_id = l.tenant_id and e.id = l.consent_id
-    left join lateral (
-      select decision, created_at from consents
-      where tenant_id = l.tenant_id and contact_id = l.contact_id and purpose = 'marketing'
-      order by created_at desc limit 1
-    ) m on true
+    ${latestConsentJoins}
     where c.tenant_id = ${tenantId} and c.id = ${conversationId}
     order by (l.status in ('new', 'contacted')) desc, l.updated_at desc
     limit 1`);
@@ -81,8 +78,8 @@ export async function leadSummaryOf(
     updatedAt: iso(r.updated_at),
     consent: {
       enquiryAt: iso(r.enquiry_at),
-      marketing:
-        r.marketing_at !== null ? { agreed: !!r.marketing_agreed, at: iso(r.marketing_at) } : null,
+      marketing: marketingOf(r),
+      withdrawnAt: r.consent_withdrawn_at !== null ? iso(r.consent_withdrawn_at) : null,
     },
     scoring: scoringOf(r),
   };

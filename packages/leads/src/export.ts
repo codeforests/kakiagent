@@ -6,11 +6,18 @@ import { TooManyLeads } from './errors.js';
 import { leadFilter, leadSelect, scoringOf, type LeadDbRow } from './list.js';
 
 /**
- * Whether a lead may leave the platform in an export (LED-05). Today every lead passes;
- * FEAT-051 adds "no withdrawn consent" here, the one seam for it (FEAT-050 §5.4, §8).
+ * Whether a lead may leave the platform (LED-05, LED-06; FEAT-051 §5.2): not while the contact's
+ * latest enquiry row is a withdrawal. The one seam for exports and, from FEAT-053, webhooks,
+ * which must call it when they send, not when they enqueue.
  */
-export function exportable(_row: LeadDbRow): boolean {
-  return true;
+export function exportable(row: Pick<LeadDbRow, 'consent_withdrawn_at'>): boolean {
+  return row.consent_withdrawn_at === null;
+}
+
+/** An export's rows and how many withdrawn leads it left out (for the audit). */
+export interface LeadExport {
+  rows: LeadDbRow[];
+  excluded: number;
 }
 
 /** The rows of a leads export with the list's filters, newest first; above the cap → `TooManyLeads`. */
@@ -18,7 +25,7 @@ export async function exportLeads(
   tx: Tx,
   tenantId: string,
   filters: LeadExportBody,
-): Promise<LeadDbRow[]> {
+): Promise<LeadExport> {
   const { rows } = await tx.execute<LeadDbRow>(
     leadSelect(
       tenantId,
@@ -28,7 +35,7 @@ export async function exportLeads(
   );
   const out = rows.filter(exportable);
   if (out.length > LEAD_EXPORT_MAX) throw new TooManyLeads(out.length);
-  return out;
+  return { rows: out, excluded: rows.length - out.length };
 }
 
 /** The dashboard's words for each reason (ui-design, "Shared words"). */
@@ -131,7 +138,14 @@ export function exportFileName(now: Date): string {
 /** Audits a leads export (LED-05; AC-5): the count and filters, never personal data (ADR-014). */
 export async function auditExport(
   tx: Tx,
-  input: { tenantId: string; userId: string; count: number; filters: LeadExportBody },
+  input: {
+    tenantId: string;
+    userId: string;
+    count: number;
+    /** Leads left out because their consent was withdrawn (FEAT-051). */
+    excluded?: number;
+    filters: LeadExportBody;
+  },
 ): Promise<void> {
   await audit.append(tx, input.tenantId, {
     action: 'lead.exported',
@@ -141,6 +155,7 @@ export async function auditExport(
     subjectId: input.tenantId,
     payload: {
       count: input.count,
+      excluded: input.excluded ?? 0,
       status: auditCode(input.filters.status),
       ...(input.filters.score ? { score: auditCode(input.filters.score) } : {}),
     },

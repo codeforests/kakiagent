@@ -3,8 +3,8 @@ import { checkLead, leadOk } from '@kaki/contracts/lead-check';
 import { and, eq, schema, sql, type Tx } from '@kaki/db';
 import { audit, auditId } from '@kaki/governance';
 import { appendSystemNotice, setConversationContact, type MessageRow } from '@kaki/inbox';
-import { recordConsent, type ConsentInput } from './consent.js';
-import { ConsentRequired, LeadFieldsInvalid, NotCapturing } from './errors.js';
+import { contactConsent, recordConsent, type ConsentInput } from './consent.js';
+import { ConsentRequired, ConsentWithdrawn, LeadFieldsInvalid, NotCapturing } from './errors.js';
 import { rescoreOnCapture, type Rescored } from './rescore.js';
 import { leadCaptureConfig } from './settings.js';
 
@@ -117,7 +117,11 @@ export async function captureLead(tx: Tx, c: CaptureInput): Promise<Captured> {
   const config = await leadCaptureConfig(tx);
   if (!config) throw new NotCapturing('no purpose statement');
   const [consent] = await tx
-    .select({ id: consents.id, conversationId: consents.conversationId })
+    .select({
+      id: consents.id,
+      conversationId: consents.conversationId,
+      at: consents.createdAt,
+    })
     .from(consents)
     .where(
       and(
@@ -139,6 +143,11 @@ export async function captureLead(tx: Tx, c: CaptureInput): Promise<Captured> {
     });
   const v = check.value;
   const contactId = await resolveContact(tx, c.tenantId, c.conversationId, v);
+  // A consent given before the contact's latest withdrawal no longer counts (FEAT-051 AC-8);
+  // the caller's transaction rolls back the contact update with the throw.
+  const { withdrawnAt } = await contactConsent(tx, c.tenantId, contactId);
+  if (withdrawnAt && consent.at.getTime() <= withdrawnAt.getTime())
+    throw new ConsentWithdrawn('consent older than the withdrawal');
 
   const ids = [c.consentId, ...(c.consentIds ?? [])];
   await tx.execute(sql`

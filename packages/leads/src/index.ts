@@ -13,8 +13,10 @@ export {
 } from './settings.js';
 export {
   consentState,
+  contactConsent,
   recordConsent,
   type ConsentInput,
+  type ContactConsent,
   type ConsentState,
   type RecordedConsent,
 } from './consent.js';
@@ -44,7 +46,7 @@ export {
   RESCORE_CAP,
   type Rescored,
 } from './rescore.js';
-export { leadDetail, leadRowOf, listLeads, type LeadDbRow } from './list.js';
+export { leadDetail, leadRowOf, listLeads, type LeadDbRow, type NamesOf } from './list.js';
 export { setLeadStatus } from './status.js';
 export {
   CSV_HEADER,
@@ -54,5 +56,13 @@ export {
   exportFileName,
   exportLeads,
   leadsCsv,
+  type LeadExport,
   reasonText,
 } from './export.js';
+export {
+  withdrawalTarget,
+  withdrawConsent,
+  type WithdrawalTarget,
+  type WithdrawInput,
+  type Withdrawn,
+} from './withdraw.js';

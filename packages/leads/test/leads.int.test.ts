@@ -206,6 +206,7 @@ describe('consent (LED-02, LED-08; AC-2–AC-4)', () => {
     expect(await vis((tx) => consentState(tx, TENANT_A, conv))).toEqual({
       enquiry: 'declined',
       consentId: null,
+      withdrawn: false,
       offered: false,
       captured: false,
     });

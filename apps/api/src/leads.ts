@@ -225,11 +225,12 @@ export function registerLeadRoutes(
     requireReauth(s);
     const filters = LeadExportBody.parse(req.body ?? {});
     const csv = await withTenant(dashboardDb, s.tenantId, async (tx) => {
-      const rows = await exportLeads(tx, s.tenantId, filters);
+      const { rows, excluded } = await exportLeads(tx, s.tenantId, filters);
       await auditExport(tx, {
         tenantId: s.tenantId,
         userId: s.userId,
         count: rows.length,
+        excluded,
         filters,
       });
       return leadsCsv(rows);
