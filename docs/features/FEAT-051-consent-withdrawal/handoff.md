@@ -1,20 +1,18 @@
 # Handoff: FEAT-051 — Consent withdrawal in any channel
-Branch: feat/FEAT-051-consent-withdrawal · PR: none · Updated: 2026-11-07 by build (backend)
-Stage done: build (T1–T5 of 8)
-Next: build (UI, T6–T8) — kickoff: "Build FEAT-051 (UI) on branch feat/FEAT-051-consent-withdrawal. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage build."
+Branch: feat/FEAT-051-consent-withdrawal · PR: (draft, see thread) · Updated: 2026-11-07 by build (UI)
+Stage done: build (T1–T8 of 8), status developer-done
+Next: verify — kickoff: "Verify FEAT-051 on branch feat/FEAT-051-consent-withdrawal. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
 
 ## What the next stage needs
-- Widget: `POST /widget/v1/conversations/:id/withdraw` body `WithdrawBody` `{ messageId, scope: 'all'|'marketing' }` → 201 `WithdrawResponse` `{ status: 'withdrawn'|'already_withdrawn'|'nothing_held', notice }` (notice only on `withdrawn`, `noticeKind: 'consent_withdrawn'`); 404 not this conversation's withdraw card or not the visitor's; 422 `scope_not_offered`; 400 extra fields. The card is `MessageCard` `{ kind: 'withdraw', offers }` on the agent message.
-- Dashboard: `POST /api/v1/leads/:id/withdraw` body `LeadWithdrawBody` `{ scope }` → 200 `LeadDetail` (idempotent); 403 Agent; 404 other tenant; 422 `scope_not_offered` (marketing with no offers agreed). GET detail now names recorders.
-- Contracts: `LeadRow.consentWithdrawnAt`, `LeadMarketing.withdrawn`, `LeadConsentRecord` (`decision` `withdrawn`, `channel` `dashboard`, `wording` nullable, `recordedBy` name), `LeadSummary.consent.withdrawnAt` and (deviation, for ui-design's sidebar "Offers: stopped") `LeadSummary.consent.marketing.withdrawn`, `ThreadMessage.card` `withdraw`, `VisitorsWouldGet` `withdraw`, `AlertEvent` `consent_withdrawn`.
-- Already in the dashboard (to keep typecheck green): `lib/notifications.ts` toggle text (ui-design SCR-APP-056, done), `lib/inbox.ts` `cardCaption('withdraw')`, `lib/coach.ts` `withdraw` explainer text (not in ui-design; reword if wanted), `pages/lead.tsx` `CONSENT_TEXT` withdrawn entries and the wording guard. T7 still adds the channel line ("Recorded by {name}" / "See conversation"), alert, dialog, chip, export note, sidebar line.
-- The escalation labels in `lib/inbox.ts` (`e.source === 'unverified' ? …`, two places) read `data_request` as "visitor asked for a person"; add a label ("asked about their personal data") in T7.
-- Widget: `LeadMessageCard` is now consent | lead_form only and `panel.tsx` renders `LeadCard` for those two; T6 adds `WithdrawCard`. `activeCard` already treats a withdraw card as open (any non-quote card).
-- Deviations from the design: the per-contact lock is `pg_advisory_xact_lock` (the dashboard zone has no UPDATE on contacts for `for update`); the turn's `consentGiven` also needs a `consentId` newer than the withdrawal; a `data_request` escalation stores no "asked the team" notice (its own fixed reply says so); the withdraw card is attached even without a saved purpose statement.
+- Widget: `WithdrawCard` (`cards.tsx`) over `withdrawChoices`/`withdrawStateOf`/`withdrawLine` (`chat.ts`); `api.withdraw`. `activeCard` now also closes on a `consent_withdrawn` notice; the panel gives that notice `data-notice` so focus moves to it. Reloading the chat after an answer shows the card as "Not answered" (same as FEAT-049's consent card; no answered state is stored on the card).
+- Dashboard: alert, `ConsentEntry` channel text (`consentWhere`), `RecordWithdrawalDialog` and `WithdrawnChip` (`leads-parts.tsx`), sidebar line (`leadLines().withdrawn`), `data_request` escalation labels, an `alert` glyph. The list chip sits in the Status cell (the list has no marketing column to replace).
+- Stubbed Playwright checks for both (tasks.md T6/T7 evidence) passed; scripts were scratch only.
+- E2E `consent-withdrawal.e2e.ts` checks the export exclusion through `page.request.post('/api/v1/leads/export')` right after sign-in (fresh re-auth), not the download dialog.
+- Deviations from the backend handoff still stand (advisory lock; `consentId` newer than the withdrawal; no "asked the team" notice for `data_request`; card even without a purpose statement).
 
 ## Left to CI or later
-- E2E (`consent-withdrawal.e2e.ts`, T8) and screen renders in the verify stage's CI.
-- `apps/api/test/escalation.int.test.ts` "after hours" fails on 2026-11-07 regardless of FEAT-051: with the Deepavali holiday the next opening is "on Tue 10 Nov", and the notice reads "reply from on Tue 10 Nov" (pre-existing wording bug in the escalation notice). `uploads.int` needs an S3 endpoint locally.
+- `consent-withdrawal.e2e.ts` and all E2E/axe runs: verify stage's GitHub CI (no local stack here).
+- `apps/api/test/escalation.int.test.ts` "after hours" fails on 2026-11-07 regardless of FEAT-051 (Deepavali; "reply from on Tue 10 Nov" wording bug, in pending-actions). `uploads.int` needs S3 locally.
 
 ## Pending for Ken
-- None blocking. Noted in pending-actions: the "reply from on …" escalation-notice wording bug.
+- None blocking.
