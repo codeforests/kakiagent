@@ -9,9 +9,10 @@ import {
   LeadSettingsSaved,
   LeadsQuery,
   LeadStatusBody,
+  LeadWithdrawBody,
 } from '@kaki/contracts';
 import { withTenant } from '@kaki/db';
-import { can, requireReauth } from '@kaki/identity';
+import { can, memberNames, requireReauth } from '@kaki/identity';
 import { NotFoundError } from '@kaki/inbox';
 import {
   auditExport,
@@ -30,6 +31,7 @@ import {
   saveLeadSettings,
   setLeadStatus,
   TooManyLeads,
+  withdrawLead,
 } from '@kaki/leads';
 import type { FastifyRequest } from 'fastify';
 import type { TenantSession } from './auth.js';
@@ -167,7 +169,10 @@ export function registerLeadRoutes(
   deps: Deps,
   sessionFrom: (req: FastifyRequest) => Promise<TenantSession>,
 ) {
-  const { dashboardDb } = deps;
+  const { dashboardDb, identityDb } = deps;
+  /** Staff names for consent records a team member recorded (FEAT-051), via the identity zone. */
+  const namesIn = (tenantId: string) => (ids: string[]) =>
+    withTenant(identityDb, tenantId, (itx) => memberNames(itx, ids));
 
   async function member(
     req: FastifyRequest,
@@ -204,8 +209,28 @@ export function registerLeadRoutes(
     };
     return LeadDetail.parse(
       await withTenant(dashboardDb, s.tenantId, (tx) =>
-        leadDetail(tx, s.tenantId, id, rights),
+        leadDetail(tx, s.tenantId, id, rights, namesIn(s.tenantId)),
       ).catch(notFound),
+    );
+  });
+
+  // UC-28 1a (FEAT-051 §5.4, D3): staff record a withdrawal the contact asked for another way.
+  // No re-auth: it only narrows what the team may do, and staff can't undo it.
+  app.post('/api/v1/leads/:id/withdraw', async (req) => {
+    const s = await member(req, 'leads.manage');
+    const id = idOf(req);
+    const body = LeadWithdrawBody.parse(req.body);
+    const rights = { canManage: true, canExport: can(s.role, 'leads.export') };
+    return LeadDetail.parse(
+      await withTenant(dashboardDb, s.tenantId, async (tx) => {
+        await withdrawLead(tx, {
+          tenantId: s.tenantId,
+          leadId: id,
+          scope: body.scope,
+          userId: s.userId,
+        });
+        return leadDetail(tx, s.tenantId, id, rights, namesIn(s.tenantId));
+      }).catch(notFound),
     );
   });
 

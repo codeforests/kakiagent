@@ -62,6 +62,10 @@ export {
 export {
   withdrawalTarget,
   withdrawConsent,
+  withdrawInChat,
+  withdrawLead,
+  withdrawnNotice,
+  type ChatWithdrawal,
   type WithdrawalTarget,
   type WithdrawInput,
   type Withdrawn,

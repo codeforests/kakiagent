@@ -1,9 +1,10 @@
 import type { WithdrawScope } from '@kaki/contracts';
 import { sql, type Tx } from '@kaki/db';
 import { audit, auditCode, auditId } from '@kaki/governance';
+import { appendSystemNotice, type MessageRow } from '@kaki/inbox';
 import { cancelNotifications, notify } from '@kaki/platform/notifications';
 import { contactConsent } from './consent.js';
-import { ScopeNotOffered } from './errors.js';
+import { LeadNotFound, ScopeNotOffered, WithdrawCardNotFound } from './errors.js';
 
 /** Who a visitor's withdrawal applies to, and what the confirm card offers (FEAT-051 §5.2). */
 export interface WithdrawalTarget {
@@ -137,4 +138,87 @@ export async function withdrawConsent(tx: Tx, w: WithdrawInput): Promise<Withdra
       await cancelNotifications(tx, w.tenantId, { type: 'lead', id: l.id }, 'hot_lead');
 
   return { status: 'withdrawn', consentIds };
+}
+
+/** The visitor's confirmation once the withdrawal is recorded (`consent_withdrawn`; ui-design). */
+export function withdrawnNotice(
+  scope: WithdrawScope,
+  language: 'en' | 'zh',
+  businessName: string,
+): string {
+  if (language === 'zh')
+    return scope === 'all'
+      ? `好了。${businessName}将停止使用您的联系资料，也不会再联系您。`
+      : `好了。${businessName}不会再向您发送优惠信息，但仍会回复您的咨询。`;
+  return scope === 'all'
+    ? `Done. ${businessName} will stop using your contact details and won't contact you.`
+    : `Done. ${businessName} won't send you offers. They can still reply about your enquiry.`;
+}
+
+export interface ChatWithdrawal {
+  status: 'withdrawn' | 'already_withdrawn' | 'nothing_held';
+  /** The stored `consent_withdrawn` notice; null unless something was withdrawn. */
+  notice: MessageRow | null;
+}
+
+/**
+ * The widget's confirm button (`POST /widget/v1/conversations/:id/withdraw`; FEAT-051 §5.4;
+ * AC-3, AC-4): the message must be this conversation's agent message with a withdraw card, and
+ * `marketing` only when that card offered it. The contact comes from the conversation (D2).
+ * Visitor zone; the caller has checked the conversation is the visitor's.
+ */
+export async function withdrawInChat(
+  tx: Tx,
+  input: { tenantId: string; conversationId: string; messageId: string; scope: WithdrawScope },
+): Promise<ChatWithdrawal> {
+  const { rows } = await tx.execute<{ card: { kind?: string; offers?: boolean } | null }>(sql`
+    select card from messages
+    where tenant_id = ${input.tenantId} and id = ${input.messageId}
+      and conversation_id = ${input.conversationId} and author = 'agent'`);
+  const card = rows[0]?.card;
+  if (card?.kind !== 'withdraw') throw new WithdrawCardNotFound('no withdraw card');
+  if (input.scope === 'marketing' && !card.offers) throw new ScopeNotOffered('card had no offers');
+  const target = await withdrawalTarget(tx, input.tenantId, input.conversationId);
+  if (!target) return { status: 'nothing_held', notice: null };
+  const w = await withdrawConsent(tx, {
+    tenantId: input.tenantId,
+    contactId: target.contactId,
+    scope: input.scope,
+    channel: 'widget',
+    conversationId: input.conversationId,
+    recordedBy: null,
+  });
+  if (w.status === 'already_withdrawn') return { status: w.status, notice: null };
+  const [t] = await tx
+    .execute<{ name: string }>(sql`select business_name as name from visitor_privacy()`)
+    .then((r) => r.rows);
+  const notice = await appendSystemNotice(tx, {
+    tenantId: input.tenantId,
+    conversationId: input.conversationId,
+    kind: 'consent_withdrawn',
+    text: (language) => withdrawnNotice(input.scope, language, t?.name ?? 'the team'),
+  });
+  return { status: 'withdrawn', notice };
+}
+
+/**
+ * A withdrawal staff record on the Lead page (UC-28 1a; FEAT-051 §5.4; AC-7): the lead's
+ * contact, channel `dashboard`, the recorder named. Dashboard zone. Unknown lead → `LeadNotFound`.
+ */
+export async function withdrawLead(
+  tx: Tx,
+  input: { tenantId: string; leadId: string; scope: WithdrawScope; userId: string },
+): Promise<Withdrawn> {
+  const { rows } = await tx.execute<{ contact_id: string }>(sql`
+    select contact_id from leads where tenant_id = ${input.tenantId} and id = ${input.leadId}`);
+  const contactId = rows[0]?.contact_id;
+  if (!contactId) throw new LeadNotFound('no such lead');
+  return withdrawConsent(tx, {
+    tenantId: input.tenantId,
+    contactId,
+    scope: input.scope,
+    channel: 'dashboard',
+    conversationId: null,
+    recordedBy: input.userId,
+  });
 }

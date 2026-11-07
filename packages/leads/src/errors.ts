@@ -49,3 +49,5 @@ export class TooManyLeads extends Error {
 }
 /** 422 `scope_not_offered`: "just stop offers" when the contact never agreed to offers (FEAT-051 D1). */
 export class ScopeNotOffered extends Error {}
+/** 404: the message isn't this conversation's agent message carrying a withdraw card (FEAT-051 §3). */
+export class WithdrawCardNotFound extends Error {}

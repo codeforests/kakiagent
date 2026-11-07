@@ -6,20 +6,24 @@ import {
   ContactFormResponse,
   LeadSubmitBody,
   LeadSubmitResponse,
+  WithdrawBody,
+  WithdrawResponse,
   type ConversationSummary,
   type RealtimeEvent,
 } from '@kaki/contracts';
 import { withTenant, type Tx } from '@kaki/db';
-import { getConversation, NotFoundError, toMessage } from '@kaki/inbox';
+import { getConversation, NotFoundError, toMessage, type MessageRow } from '@kaki/inbox';
 import {
   captureLead,
   ConsentRequired,
   LeadFieldsInvalid,
   NotCapturing,
   recordConsent,
+  ScopeNotOffered,
   submitContactForm,
+  withdrawInChat,
+  WithdrawCardNotFound,
   WordingChanged,
-  type Captured,
 } from '@kaki/leads';
 import { channels } from '@kaki/platform';
 import { visitorTenantState } from '@kaki/tenancy';
@@ -58,6 +62,14 @@ export function leadsErrorReply(
       body: { error: 'not_capturing', message: "This business isn't taking details here." },
     };
   if (err instanceof LeadFieldsInvalid) return { status: 422, body: { ...err.body } };
+  // FEAT-051 §3: "just stop offers" on a contact who never agreed to offers.
+  if (err instanceof ScopeNotOffered)
+    return {
+      status: 422,
+      body: { error: 'scope_not_offered', message: 'There are no offers to stop.' },
+    };
+  if (err instanceof WithdrawCardNotFound)
+    return { status: 404, body: { error: 'not_found', message: 'Not found' } };
   return null;
 }
 
@@ -87,7 +99,11 @@ export function registerLeadWidgetRoutes(
   };
 
   /** The notice and the inbox row after a capture (the sidebar refetches on the event). */
-  const publish = async (t: string, conversationId: string | null, captured: Captured) => {
+  const publish = async (
+    t: string,
+    conversationId: string | null,
+    captured: { notice: MessageRow | null },
+  ) => {
     if (!conversationId || !captured.notice) return null;
     const notice = toMessage(captured.notice);
     await notify([channels.conversation(t, conversationId), channels.inbox(t)], {
@@ -136,6 +152,28 @@ export function registerLeadWidgetRoutes(
       .code(captured.status === 'created' ? 201 : 200)
       .send(LeadSubmitResponse.parse({ status: captured.status, notice }));
   });
+
+  // LED-07 (FEAT-051 §5.4; AC-3, AC-4): the withdraw card's confirm button. The contact comes from
+  // the conversation (D2); a repeat writes nothing and stores no second notice.
+  app.post<{ Params: { id: string } }>(
+    '/widget/v1/conversations/:id/withdraw',
+    async (req, reply) => {
+      const v = visitorFrom(req, reply);
+      const body = WithdrawBody.parse(req.body);
+      const conversationId = req.params.id;
+      const out = await withTenant(visitorDb, v.t, async (tx) => {
+        await ownConversation(tx, v, conversationId);
+        return withdrawInChat(tx, {
+          tenantId: v.t,
+          conversationId,
+          messageId: body.messageId,
+          scope: body.scope,
+        });
+      });
+      const notice = await publish(v.t, conversationId, out);
+      return reply.code(201).send(WithdrawResponse.parse({ status: out.status, notice }));
+    },
+  );
 
   // SCR-WGT-005 (GOV-08 "with lead capture"; UX-R4): while paused, or before go-live in
   // message mode, the fallback screen's contact form. A live, running widget uses the chat.

@@ -189,7 +189,7 @@ describe('CSV export (AC-5, AC-7)', () => {
       `select payload from audit_entries where tenant_id = $1 and event_type = 'lead.exported'`,
       [TENANT_A],
     );
-    expect(entry.rows[0].payload).toEqual({ count: 2, status: 'all' });
+    expect(entry.rows[0].payload).toEqual({ count: 2, excluded: 0, status: 'all' });
 
     // Tenant B exports an empty file of its own.
     const b = await call('POST', '/api/v1/leads/export', asB, {});
