@@ -60,4 +60,4 @@ Test ref appended 2026-11-07: LED-07 (partial: webhooks FEAT-053), LED-05, LED-0
 
 ## CI
 
-CI_LINE
+GitHub CI run 116 (`workflow_dispatch`, https://github.com/codeforests/kakiagent/actions/runs/42327332588) at `7adff59`: all 11 jobs green on attempt 2, including integration with coverage (`escalation.int` with the F1 fix, `uploads.int`) and E2E on Chromium, Firefox and WebKit (`consent-withdrawal.e2e` 2 tests per browser, `notifications.e2e` with the F2 fix). Attempt 1: Firefox `consent-withdrawal.e2e` timed out at the second visitor message with the widget's Send button disabled (empty composer after `fill`); it passed on Firefox in run 115 and on the re-run of that job only, with no widget change, so it is recorded as a watch item, not a defect. Earlier: run 115 at `4b70cf3` found F2 (`notifications.e2e` red on all browsers; `consent-withdrawal.e2e` green on all); run 114 at `38d7e1a` cancelled (stale head).
