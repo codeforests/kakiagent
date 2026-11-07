@@ -14,6 +14,10 @@ import {
   leadsQueryOf,
   leadsSearchOf,
   marketingText,
+  canRecordWithdrawal,
+  consentWhere,
+  offersWithdrawable,
+  withdrawnAlertText,
   pointsText,
   reasonText,
   scoreLabel,
@@ -210,5 +214,57 @@ describe('Qualification card helpers (SCR-APP-043; FEAT-050 AC-1)', () => {
       'Minimum budget removed',
     ]);
     expect(diffLeadSettings(before, before)).toEqual([]);
+  });
+});
+
+describe('consent withdrawal (SCR-APP-033, -032; FEAT-051 AC-7, AC-10)', () => {
+  const at = '2026-11-18T06:31:00Z';
+  const conv = '00000000-0000-4000-8000-0000000000c1';
+  const rec = (over: Record<string, unknown> = {}) => ({
+    id: '00000000-0000-4000-8000-0000000000a1',
+    purpose: 'enquiry' as const,
+    decision: 'withdrawn' as const,
+    at,
+    channel: 'widget' as const,
+    conversationId: conv,
+    wording: null,
+    recordedBy: null,
+    ...over,
+  });
+
+  it('names where each consent entry came from', () => {
+    expect(consentWhere(rec())).toEqual({ text: 'Website chat', conversationId: conv });
+    expect(
+      consentWhere(rec({ channel: 'dashboard', conversationId: null, recordedBy: 'Mei Ling' })),
+    ).toEqual({ text: 'Recorded by Mei Ling', conversationId: null });
+    expect(consentWhere(rec({ channel: 'dashboard', conversationId: null })).text).toBe(
+      'Recorded by a team member',
+    );
+    // Agreed and declined entries keep FEAT-050's text, with no conversation link.
+    expect(consentWhere(rec({ decision: 'agreed' }))).toEqual({
+      text: 'Website chat',
+      conversationId: null,
+    });
+    expect(consentWhere(rec({ decision: 'agreed', conversationId: null })).text).toBe(
+      'Contact form',
+    );
+  });
+
+  it('writes the withdrawn alert and the stopped-offers flag in Singapore time', () => {
+    expect(withdrawnAlertText(at)).toBe(
+      "On 18 Nov 2026, 2:31 pm this person withdrew consent. Don't contact them or use their details. They're left out of exports.",
+    );
+    expect(marketingText({ agreed: false, at, withdrawn: true })).toBe(
+      'Offers: stopped 18 Nov 2026',
+    );
+  });
+
+  it('offers Record withdrawal to managers until fully withdrawn, and "Only stop offers" only after agreed offers', () => {
+    expect(canRecordWithdrawal({ canManage: true, consentWithdrawnAt: null })).toBe(true);
+    expect(canRecordWithdrawal({ canManage: false, consentWithdrawnAt: null })).toBe(false);
+    expect(canRecordWithdrawal({ canManage: true, consentWithdrawnAt: at })).toBe(false);
+    expect(offersWithdrawable({ marketing: { agreed: true, at, withdrawn: false } })).toBe(true);
+    expect(offersWithdrawable({ marketing: { agreed: false, at, withdrawn: true } })).toBe(false);
+    expect(offersWithdrawable({ marketing: null })).toBe(false);
   });
 });

@@ -51,6 +51,7 @@ import {
   LeadList,
   LeadRow,
   type LeadExportBody,
+  type LeadWithdrawBody,
   type LeadSettingsBody,
   type LeadStatusBody,
   type LeadsQuery,
@@ -396,6 +397,9 @@ export const api = {
   lead: (id: string) => getJson(`/api/v1/leads/${encodeURIComponent(id)}`, LeadDetail),
   setLeadStatus: (id: string, body: LeadStatusBody) =>
     request('POST', `/api/v1/leads/${encodeURIComponent(id)}/status`, LeadRow, body),
+  // Record a withdrawal the person asked for directly (SCR-APP-033; FEAT-051 §3).
+  withdrawLead: (id: string, body: LeadWithdrawBody) =>
+    request('POST', `/api/v1/leads/${encodeURIComponent(id)}/withdraw`, LeadDetail, body),
   /** The CSV in the response (D1): filters in the body, never personal data in a URL. */
   exportLeads: async (body: LeadExportBody) => {
     const res = await send('POST', '/api/v1/leads/export', body);

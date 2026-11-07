@@ -18,7 +18,7 @@ import {
   type LeadsFilter,
 } from '../lib/leads.ts';
 import { Glyph } from './conversation-parts.tsx';
-import { ExportDialog, ScoreChip, StatusChip } from './leads-parts.tsx';
+import { ExportDialog, ScoreChip, StatusChip, WithdrawnChip } from './leads-parts.tsx';
 
 /**
  * `/leads`: SCR-APP-032 Leads (LED-05, LED-08; FEAT-050 ui-design). Chat and contact-form
@@ -203,6 +203,7 @@ function LeadTableRow({ lead, now, back }: { lead: LeadRow; now: Date; back: str
       <td className="lead-row__status">
         <StatusChip status={lead.status} />{' '}
         <span className="lead-row__source">{SOURCE_LABEL[lead.source]}</span>
+        {lead.consentWithdrawnAt && <WithdrawnChip />}
       </td>
       <td className="fact-row__meta lead-row__updated">{rowTime(lead.updatedAt, now)}</td>
     </tr>

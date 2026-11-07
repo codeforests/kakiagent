@@ -294,7 +294,11 @@ export function eventText(e: ThreadEvent): string {
       return `${who} asked ${whom} to hand over`;
     case 'escalated':
       return `Escalated to ${e.subject?.name ?? 'a team member'} · ${
-        e.source === 'unverified' ? "reply couldn't be checked" : 'visitor asked for a person'
+        e.source === 'unverified'
+          ? "reply couldn't be checked"
+          : e.source === 'data_request'
+            ? 'visitor asked about their personal data'
+            : 'visitor asked for a person'
       }`;
   }
   if (e.to === 'closed') {
@@ -463,7 +467,9 @@ export function escalationStrip(
   const why =
     e.source === 'unverified'
       ? "A reply couldn't be checked, so the assistant asked the team."
-      : 'The visitor asked for a person.';
+      : e.source === 'data_request'
+        ? 'The visitor asked about their personal data.'
+        : 'The visitor asked for a person.';
   return {
     lead: `Escalated to ${assigneeName(e, meId, 'you')} ${ago}. ${why}`,
     rest: 'The assistant keeps answering until someone takes over.',
@@ -503,12 +509,25 @@ export const LEAD_STATUS: Record<LeadSummary['status'], { label: string; tone: s
 /** "18 Nov 2026, 2:30 pm" (Singapore time). */
 export const dateTime = (iso: string) => `${dayMonthYear.format(new Date(iso))}, ${clockTime(iso)}`;
 
-/** The lead section's lines: consent time and the marketing answer. */
-export function leadLines(lead: LeadSummary): { consent: string; offers: string } {
+/**
+ * The lead section's lines: consent time and the marketing answer; FEAT-051 adds the
+ * withdrawn line ("Consent withdrawn · 18 Nov, 2:31 pm") and "Offers: stopped".
+ */
+export function leadLines(lead: LeadSummary): {
+  consent: string;
+  offers: string;
+  withdrawn: string | null;
+} {
   const m = lead.consent.marketing;
+  const w = lead.consent.withdrawnAt;
   return {
     consent: `Consent · ${dateTime(lead.consent.enquiryAt)}`,
-    offers: m?.agreed ? `Offers · Yes, ${clockTime(m.at)}` : 'Offers · No',
+    offers: m?.withdrawn
+      ? 'Offers: stopped'
+      : m?.agreed
+        ? `Offers · Yes, ${clockTime(m.at)}`
+        : 'Offers · No',
+    withdrawn: w ? `Consent withdrawn · ${shortDate(w)}, ${clockTime(w)}` : null,
   };
 }
 

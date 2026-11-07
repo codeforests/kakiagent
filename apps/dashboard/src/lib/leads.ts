@@ -3,6 +3,8 @@ import {
   LeadStatusFilter,
   type LeadFieldKey,
   type LeadFieldMode,
+  type LeadConsentRecord,
+  type LeadDetail,
   type LeadList,
   type LeadMarketing,
   type LeadScoring,
@@ -258,11 +260,46 @@ export const reasonText = (r: ScoreReason) => REASON_TEXT[r.code](r.detail);
 /** "+2", or "−1" for a deduction. */
 export const pointsText = (n: number) => (n < 0 ? `−${-n}` : `+${n}`);
 
-/** "Offers: Yes · 18 Nov 2026, 2:30 pm" / "Offers: No" / "Offers: Not asked". */
+/**
+ * "Offers: Yes · 18 Nov 2026, 2:30 pm" / "Offers: No" / "Offers: Not asked"; FEAT-051:
+ * "Offers: stopped 18 Nov 2026" after a withdrawal.
+ */
 export function marketingText(m: LeadMarketing): string {
   if (!m) return 'Offers: Not asked';
+  if (m.withdrawn) return `Offers: stopped ${dateTime(m.at).split(',')[0]}`;
   return m.agreed ? `Offers: Yes · ${dateTime(m.at)}` : 'Offers: No';
 }
+
+// ---- Consent withdrawal (SCR-APP-033, -032; FEAT-051 ui-design) ---------------------------
+
+/** The lead page's danger alert text once consent is withdrawn (LED-05, LED-07). */
+export const withdrawnAlertText = (at: string) =>
+  `On ${dateTime(at)} this person withdrew consent. Don't contact them or use their details. They're left out of exports.`;
+
+/**
+ * Where a consent entry came from: a withdrawal names its channel ("Website chat" with the
+ * conversation, or "Recorded by {name}"); other entries keep FEAT-050's chat or form.
+ */
+export function consentWhere(c: LeadConsentRecord): {
+  text: string;
+  conversationId: string | null;
+} {
+  if (c.channel === 'dashboard')
+    return { text: `Recorded by ${c.recordedBy ?? 'a team member'}`, conversationId: null };
+  if (!c.conversationId) return { text: 'Contact form', conversationId: null };
+  return {
+    text: 'Website chat',
+    conversationId: c.decision === 'withdrawn' ? c.conversationId : null,
+  };
+}
+
+/** Owner and Admin record a withdrawal until consent is fully withdrawn. */
+export const canRecordWithdrawal = (lead: Pick<LeadDetail, 'canManage' | 'consentWithdrawnAt'>) =>
+  lead.canManage && !lead.consentWithdrawnAt;
+
+/** "Only stop offers" is offered only when the latest marketing answer is agreed. */
+export const offersWithdrawable = (lead: Pick<LeadDetail, 'marketing'>) =>
+  lead.marketing?.agreed === true;
 
 export const SOURCE_LABEL: Record<LeadSource, string> = {
   chat: 'Chat',

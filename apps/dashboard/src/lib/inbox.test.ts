@@ -449,6 +449,13 @@ describe('escalations (FEAT-044 AC-7)', () => {
     expect(eventText({ ...divider, source: 'unverified' })).toBe(
       "Escalated to Mei Ling · reply couldn't be checked",
     );
+    // FEAT-051: a data request escalation says what the visitor asked about.
+    expect(eventText({ ...divider, source: 'data_request' })).toBe(
+      'Escalated to Mei Ling · visitor asked about their personal data',
+    );
+    expect(escalationStrip(esc({ source: 'data_request' }), ME, now).lead).toBe(
+      'Escalated to Mei Ling 6 min ago. The visitor asked about their personal data.',
+    );
   });
 });
 
@@ -499,7 +506,19 @@ describe('consent and lead in the thread and sidebar (FEAT-049 AC-12)', () => {
     expect(leadLines(lead)).toEqual({
       consent: 'Consent · 18 Nov 2026, 2:30 pm',
       offers: 'Offers · Yes, 2:30 pm',
+      withdrawn: null,
     });
+    // FEAT-051: the withdrawn line and stopped offers.
+    const withdrawn = leadLines({
+      ...lead,
+      consent: {
+        enquiryAt: at,
+        marketing: { agreed: false, at, withdrawn: true },
+        withdrawnAt: at,
+      },
+    });
+    expect(withdrawn.withdrawn).toBe('Consent withdrawn · 18 Nov, 2:30 pm');
+    expect(withdrawn.offers).toBe('Offers: stopped');
     expect(
       leadLines({ ...lead, consent: { enquiryAt: at, marketing: null, withdrawnAt: null } }).offers,
     ).toBe('Offers · No');

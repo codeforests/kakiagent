@@ -12,8 +12,11 @@ import { api, ApiError } from '../lib/api.ts';
 import { useToast } from '../lib/form.ts';
 import { dateTime, LEAD_STATUS, STATE_LABEL } from '../lib/inbox.ts';
 import {
+  canRecordWithdrawal,
+  consentWhere,
   leadKey,
   marketingText,
+  withdrawnAlertText,
   pointsText,
   reasonText,
   SCORE_LABEL,
@@ -21,7 +24,7 @@ import {
   useLead,
 } from '../lib/leads.ts';
 import { CopyRow } from './conversation-parts.tsx';
-import { ScoreChip, StatusChip, StatusMenu } from './leads-parts.tsx';
+import { RecordWithdrawalDialog, ScoreChip, StatusChip, StatusMenu } from './leads-parts.tsx';
 
 /**
  * `/leads/:leadId`: SCR-APP-033 Lead (LED-02, LED-03, LED-05, LED-08; FEAT-050 ui-design).
@@ -73,6 +76,8 @@ function LeadBody({ lead }: { lead: LeadDetail }) {
   const queryClient = useQueryClient();
   const [toast, setToast] = useToast();
   const [conflict, setConflict] = useState<Conflict | null>(null);
+  const [recording, setRecording] = useState(false);
+  const consentRef = useRef<HTMLHeadingElement>(null);
   const alertRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (conflict) alertRef.current?.focus();
@@ -125,6 +130,12 @@ function LeadBody({ lead }: { lead: LeadDetail }) {
           )}
         </div>
       </div>
+      {lead.consentWithdrawnAt && (
+        <div className="alert alert--danger" data-testid="lead-withdrawn">
+          <p className="alert__title">Consent withdrawn</p>
+          <p>{withdrawnAlertText(lead.consentWithdrawnAt)}</p>
+        </div>
+      )}
       {conflict && (
         <div className="alert alert--warning" role="alert" tabIndex={-1} ref={alertRef}>
           <p>
@@ -215,7 +226,7 @@ function LeadBody({ lead }: { lead: LeadDetail }) {
         </div>
         <div className="stack lead-page__aside">
           <section className="card stack" aria-labelledby="lead-consent-title">
-            <h2 className="section-title" id="lead-consent-title">
+            <h2 className="section-title" id="lead-consent-title" tabIndex={-1} ref={consentRef}>
               Consent
             </h2>
             {lead.consents.length === 0 ? (
@@ -226,6 +237,15 @@ function LeadBody({ lead }: { lead: LeadDetail }) {
                   <ConsentEntry key={c.id} c={c} />
                 ))}
               </ul>
+            )}
+            {canRecordWithdrawal(lead) && (
+              <Button
+                variant="secondary"
+                className="lead-consent__record"
+                onClick={() => setRecording(true)}
+              >
+                Record withdrawal
+              </Button>
             )}
           </section>
           <section className="card stack" aria-labelledby="lead-conversations-title">
@@ -248,6 +268,13 @@ function LeadBody({ lead }: { lead: LeadDetail }) {
           </section>
         </div>
       </div>
+      <RecordWithdrawalDialog
+        open={recording}
+        onOpenChange={setRecording}
+        lead={lead}
+        returnTo={consentRef}
+        onToast={setToast}
+      />
       {toast && (
         <div className="toast" role="status">
           {toast}
@@ -273,11 +300,18 @@ const CONSENT_TEXT = {
 } as const;
 
 function ConsentEntry({ c }: { c: LeadConsentRecord }) {
+  const where = consentWhere(c);
   return (
-    <li className="lead-consent" data-testid="lead-consent">
+    <li className="lead-consent" data-testid="lead-consent" data-decision={c.decision}>
       <p className="lead-consent__what">{CONSENT_TEXT[c.purpose][c.decision]}</p>
       <p className="lead-fields__caption">
-        {dateTime(c.at)} · {c.conversationId ? 'Website chat' : 'Contact form'}
+        {dateTime(c.at)} · {where.text}
+        {where.conversationId && (
+          <>
+            {' · '}
+            <Link to={`/inbox/${where.conversationId}`}>See conversation</Link>
+          </>
+        )}
       </p>
       {c.wording && (
         <details className="lead-consent__wording">
