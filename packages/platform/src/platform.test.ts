@@ -35,6 +35,25 @@ describe('config', () => {
       loadConfig(z.object({ A: envSchemas.url, B: envSchemas.secret }), { A: 'x', B: 'short' }),
     ).toThrow(/A: .*B: /);
   });
+  it('reads the LLM provider variables, with JSON fields and defaults', () => {
+    const fake = loadConfig(envSchemas.llm, { LLM_BASE_URL: '', LLM_EXTRA_BODY: '' });
+    expect(fake).toMatchObject({ LLM_PROVIDER: 'fake', LLM_JSON_MODE: 'json_object' });
+    expect(fake.LLM_BASE_URL).toBeUndefined();
+    expect(fake.LLM_EXTRA_BODY).toBeUndefined();
+    const nvidia = loadConfig(envSchemas.llm, {
+      LLM_PROVIDER: 'openai-compat',
+      LLM_BASE_URL: 'https://integrate.api.nvidia.com/v1',
+      LLM_MODEL_SMALL: 'deepseek-ai/deepseek-v4.1-flash',
+      LLM_EXTRA_BODY: '{"chat_template_kwargs":{"thinking":false}}',
+      LLM_PRICES: '{"small":{"input":0.15,"output":0.6}}',
+    });
+    expect(nvidia.LLM_EXTRA_BODY).toEqual({ chat_template_kwargs: { thinking: false } });
+    expect(nvidia.LLM_PRICES).toEqual({ small: { input: 0.15, cacheRead: 0, output: 0.6 } });
+    expect(() => loadConfig(envSchemas.llm, { LLM_EXTRA_BODY: '{nope' })).toThrow(
+      /LLM_EXTRA_BODY: must be valid JSON/,
+    );
+    expect(() => loadConfig(envSchemas.llm, { LLM_PROVIDER: 'other' })).toThrow(/LLM_PROVIDER/);
+  });
 });
 
 describe('channels and health', () => {

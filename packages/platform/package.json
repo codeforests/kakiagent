@@ -6,6 +6,7 @@
   "description": "Shared platform services: config, logging, telemetry, tokens, queues, outbox, pub/sub, PII masking (architecture \u00a75.2).",
   "exports": {
     ".": "./src/index.ts",
+    "./config": "./src/config.ts",
     "./outbox": "./src/outbox.ts",
     "./pii-mask": "./src/pii-mask.ts",
     "./secrets": "./src/secrets.ts",

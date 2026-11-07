@@ -10,7 +10,7 @@ export type LogicalModel =
   | 'judge'
   | 'embed';
 
-export type ProviderId = 'fake' | 'anthropic-dev' | 'bedrock';
+export type ProviderId = 'fake' | 'anthropic-dev' | 'openai-compat' | 'bedrock';
 
 /** A tool the model may propose to call (ADR-025 decision 3). */
 export interface ToolDefinition {
