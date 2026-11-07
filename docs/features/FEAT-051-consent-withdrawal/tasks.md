@@ -16,9 +16,10 @@
 
 ## Build session 2 (UI)
 
-- [ ] T6 — Widget: `WithdrawCard` in `cards.tsx`, `activeCard` and pure view helpers in `chat.ts`, `api.withdraw` → `WithdrawResult`, strings en/zh (ui-design SCR-WGT-003 withdrawn; AC-10)
+- [x] T6 — Widget: `WithdrawCard` in `cards.tsx`, `activeCard` and pure view helpers in `chat.ts`, `api.withdraw` → `WithdrawResult`, strings en/zh (ui-design SCR-WGT-003 withdrawn; AC-10)
       Done when: `pnpm --filter @kaki/widget test` passes (view helper per state; strings complete in both locales), `pnpm --filter @kaki/widget build && pnpm size` stays inside the budget.
       Note: a stubbed Playwright check of the card (static `dist/w/v1`, `page.route` for `/widget/v1/**`) at 375 px: focus after each state, the two-button and three-button layouts.
+      Evidence (2026-11-07): widget typecheck, 57 unit tests, build and `pnpm size` pass. Stubbed Playwright at 375 px: focus stays in the composer when the card arrives; three buttons (offers) wrap "Yes, stop" to a second row, two buttons sit on one row, all 44 px; a 500 shows "Couldn't save your answer. Try again." and a retry succeeds; `all` → "You withdrew consent · time", focus on the stored notice; `marketing` → "You stopped offers"; `already_withdrawn` → withdrawn line, no notice, focus composer; `nothing_held` → "Kaki has no contact details from you in this chat."; Keep → "You kept your details with Kaki.", no request, focus composer.
 - [ ] T7 — Dashboard: SCR-APP-033 withdrawn alert, consent entries, `RecordWithdrawalDialog` (`api.withdrawLead`), SCR-APP-032 chip and export-dialog note, SCR-APP-014 sidebar line, SCR-APP-056 toggle (ui-design; AC-7, AC-10)
       Done when: `pnpm --filter @kaki/dashboard test` passes (consent entry text per decision and channel; the dialog hides "Only stop offers" without agreed offers) and `pnpm --filter @kaki/dashboard typecheck` passes; stubbed Playwright check of the dialog's focus return and the 403 toast.
 - [ ] T8 — E2E and verify: `e2e/tests/consent-withdrawal.e2e.ts` (visitor leaves details, writes "please stop using my details", confirms on the card, sees the notice; the owner sees the withdrawn alert and the export leaves the lead out; an owner records a withdrawal on another lead; axe on both screens at 375 × 5000 and 1280), full `pnpm lint` and `pnpm typecheck`, docs (code-map, manifest) (AC-1–AC-10)

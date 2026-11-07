@@ -25,7 +25,11 @@ import {
   staffHandling,
   withMessage,
   withSegment,
+  withdrawChoices,
+  withdrawLine,
+  withdrawStateOf,
 } from './chat.js';
+import { ALL_STRINGS } from './strings.js';
 
 const CONV = '00000000-0000-4000-8000-000000000000';
 const msg = (
@@ -535,5 +539,59 @@ describe('quote card (SCR-WGT-002; FEAT-055 AC-6, AC-13)', () => {
     const quote = { ...msg('q', 2, 'system'), card };
     expect(activeCard([quote].reduce(withMessage, emptyChat))).toBeNull();
     expect(activeCard([consent, quote].reduce(withMessage, emptyChat))).toBe('c1');
+  });
+});
+
+describe('withdraw card (SCR-WGT-003 withdrawn; FEAT-051 AC-10)', () => {
+  const t = strings('en');
+  const card = (id: string, seq: number) => ({
+    ...msg(id, seq, 'agent'),
+    card: { kind: 'withdraw' as const, offers: true },
+  });
+  const chatOf = (...ms: Message[]) => ms.reduce(withMessage, emptyChat);
+
+  it('stays open until the withdrawal notice arrives', () => {
+    expect(activeCard(chatOf(card('w', 1)))).toBe('w');
+    expect(
+      activeCard(
+        chatOf(card('w', 1), {
+          ...msg('n', 2, 'system'),
+          body: '',
+          notice: 'Done.',
+          noticeKind: 'consent_withdrawn',
+        }),
+      ),
+    ).toBeNull();
+  });
+
+  it('offers "Just stop offers" only when offers were agreed', () => {
+    expect(withdrawChoices(true)).toEqual(['all', 'marketing', 'keep']);
+    expect(withdrawChoices(false)).toEqual(['all', 'keep']);
+  });
+
+  it('collapses an already-withdrawn answer as withdrawn, and says when nothing is held', () => {
+    expect(withdrawStateOf('all', 'withdrawn')).toBe('all');
+    expect(withdrawStateOf('marketing', 'withdrawn')).toBe('marketing');
+    expect(withdrawStateOf('all', 'already_withdrawn')).toBe('all');
+    expect(withdrawStateOf('marketing', 'nothing_held')).toBe('nothing_held');
+  });
+
+  it('has one line per answered state', () => {
+    expect(withdrawLine('asked', t, 'Kaki', '2:31 pm')).toBeNull();
+    expect(withdrawLine('all', t, 'Kaki', '2:31 pm')).toBe('You withdrew consent · 2:31 pm');
+    expect(withdrawLine('marketing', t, 'Kaki', '2:31 pm')).toBe('You stopped offers · 2:31 pm');
+    expect(withdrawLine('nothing_held', t, 'Kaki', '')).toBe(
+      'Kaki has no contact details from you in this chat.',
+    );
+    expect(withdrawLine('kept', t, 'Kaki', '')).toBe('You kept your details with Kaki.');
+  });
+
+  it('has every withdraw string in both locales', () => {
+    const keys = Object.keys(ALL_STRINGS.en).filter((k) =>
+      /withdraw|Withdraw|kept|nothingHeld|offersStopped/.test(k),
+    );
+    expect(keys.length).toBeGreaterThanOrEqual(11);
+    for (const k of keys) expect(ALL_STRINGS['zh-Hans']).toHaveProperty(k);
+    expect(Object.keys(ALL_STRINGS['zh-Hans']).sort()).toEqual(Object.keys(ALL_STRINGS.en).sort());
   });
 });

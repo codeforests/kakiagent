@@ -50,6 +50,21 @@ const STRINGS = {
     consentFailed: "Couldn't save your answer. Try again.",
     wordingChanged: 'The business has updated this statement. Please read it again.',
     notAnswered: 'Not answered',
+    // Consent withdrawal (SCR-WGT-003 withdrawn; FEAT-051)
+    withdrawAsks: (bot: string) => `${bot} asks you to confirm`,
+    withdrawTitle: 'Stop using your details?',
+    withdrawBody: (business: string) =>
+      `${business} will stop using your contact details and won't contact you about your enquiry or send you offers.`,
+    withdrawOffersCaption: (business: string) =>
+      `Just stop offers: ${business} can still reply about your enquiry.`,
+    withdrawYes: 'Yes, stop',
+    withdrawOffersOnly: 'Just stop offers',
+    withdrawKeep: 'Keep my details',
+    withdrawnLine: (time: string) => `You withdrew consent · ${time}`,
+    offersStoppedLine: (time: string) => `You stopped offers · ${time}`,
+    nothingHeldLine: (business: string) =>
+      `${business} has no contact details from you in this chat.`,
+    keptLine: (business: string) => `You kept your details with ${business}.`,
     detailsTitle: 'Your details',
     detailsIntro: (business: string) => `${business} will use these to get back to you.`,
     fieldName: 'Name',
@@ -133,6 +148,20 @@ const STRINGS = {
     consentFailed: '无法保存您的回答，请重试。',
     wordingChanged: '商家已更新这段说明，请重新阅读。',
     notAnswered: '未回答',
+    // 撤回同意 (SCR-WGT-003 withdrawn; FEAT-051)
+    withdrawAsks: (bot: string) => `${bot} 请您确认`,
+    withdrawTitle: '停止使用您的联系方式？',
+    withdrawBody: (business: string) =>
+      `${business}将停止使用您的联系方式，不会再就您的询问联系您，也不会向您发送优惠信息。`,
+    withdrawOffersCaption: (business: string) =>
+      `只停止优惠信息：${business}仍可就您的询问回复您。`,
+    withdrawYes: '是，停止',
+    withdrawOffersOnly: '只停止优惠信息',
+    withdrawKeep: '保留我的联系方式',
+    withdrawnLine: (time: string) => `您已撤回同意 · ${time}`,
+    offersStoppedLine: (time: string) => `您已停止接收优惠信息 · ${time}`,
+    nothingHeldLine: (business: string) => `${business}在此对话中没有您的联系方式。`,
+    keptLine: (business: string) => `您已保留在${business}的联系方式。`,
     detailsTitle: '您的联系方式',
     detailsIntro: (business: string) => `${business}会用这些信息联系您。`,
     fieldName: '姓名',
