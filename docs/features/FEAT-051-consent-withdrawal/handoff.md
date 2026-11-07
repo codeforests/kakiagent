@@ -1,5 +1,5 @@
 # Handoff: FEAT-051 — Consent withdrawal in any channel
-Branch: feat/FEAT-051-consent-withdrawal · PR: (draft, see thread) · Updated: 2026-11-07 by build (UI)
+Branch: feat/FEAT-051-consent-withdrawal · PR: https://github.com/codeforests/kakiagent/pull/57 (draft) · Updated: 2026-11-07 by build (UI)
 Stage done: build (T1–T8 of 8), status developer-done
 Next: verify — kickoff: "Verify FEAT-051 on branch feat/FEAT-051-consent-withdrawal. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
 
