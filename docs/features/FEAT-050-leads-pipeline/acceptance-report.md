@@ -37,7 +37,7 @@ Re-derived from SRS v0.4: LED-03 (score hot/warm/cold from tenant-configurable c
 
 Run here through `scripts/test-env.sh scripts/check-summary.sh`, 2026-11-06:
 
-- `pnpm format:check`, `pnpm lint` (incl. dependency-cruiser and `check-rtm`), `pnpm typecheck`, `pnpm test`: see the PR body for the final run (all PASS).
+- `pnpm format:check`, `pnpm lint` (incl. dependency-cruiser and `check-rtm`), `pnpm typecheck`: PASS. `pnpm test`: PASS, 140 files, 1643 tests.
 - `@kaki/leads` test 29, test:integration 19 (with the added cases), coverage: PASS. `@kaki/contracts` 75, `@kaki/identity` 42, `@kaki/dashboard` 241: PASS. `@kaki/db` test:integration 211 (RLS, seed twice): PASS.
 - `@kaki/api` test:integration: 36 of 37 files (incl. `leads-pipeline.int`, `leads.int`); `uploads.int` fails here with "Could not find a working container runtime strategy" (LocalStack). CI runs it.
 - E2E: in CI only (no Docker here).
@@ -51,12 +51,13 @@ Run here through `scripts/test-env.sh scripts/check-summary.sh`, 2026-11-06:
 ## Findings
 
 - None blocking. F1 (test only, fixed): AC-3's quiet-hours and reopen clauses and AC-7's cap had no test (Corrected tests).
+- F2 (pre-existing test defect, fixed, `5df1f26`): `approval-link.e2e` depended on the time of day: FEAT-052 holds non-urgent alerts from 22:00 to 08:00 SGT. The spec now sets the owner's alert settings with quiet hours off and restores the seeded default after, as `escalation.e2e` does. No assertion changed.
 - Note: GOV-03's Test ref is left as it is, as earlier features did; AC-9 is recorded here.
 
 ## RTM
 
-Test ref appended 2026-11-06: LED-03, LED-04 (partial), LED-05 (partial), LED-08, AUTH-03 (partial), LED-02 (partial). `node scripts/check-rtm.mjs FEAT-050 --stage verify`: RESULT_RTM
+Test ref appended 2026-11-06: LED-03, LED-04 (partial), LED-05 (partial), LED-08, AUTH-03 (partial), LED-02 (partial). `node scripts/check-rtm.mjs FEAT-050 --stage verify`: `RTM check passed (FEAT-050).`
 
 ## CI
 
-RESULT_CI
+GitHub CI run 113 (`workflow_dispatch`, https://github.com/codeforests/kakiagent/actions/runs/42239375588) at `5df1f26`: all 11 jobs green on attempt 2, including E2E on Chromium, Firefox and WebKit (`leads.e2e` 3 tests per browser; WebKit 86 passed) and integration with coverage (`uploads.int`). Attempt 1's WebKit job hit the 30-minute job timeout while installing browsers, before any test ran. Earlier: run 112 at `6b20d29` (cancelled for the fix below): `leads.e2e` passed on WebKit, but `approval-link.e2e` (FEAT-056) failed because it ran at 22:53 SGT, inside the owner's default quiet hours, so the non-urgent `approval_pending` email it waits for was held (F2).
