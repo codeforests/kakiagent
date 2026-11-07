@@ -2885,7 +2885,7 @@ export const EventPref = z.object({ event: AlertEvent, email: z.boolean() });
 export type EventPref = z.infer<typeof EventPref>;
 /**
  * A member's preferences in the current business. `events` lists only the events this member
- * can receive (D9), in the order escalation, approval_pending, hot_lead.
+ * can receive (D9), in the order escalation, approval_pending, hot_lead, consent_withdrawn.
  */
 export const NotificationPrefs = z.object({
   channels: z.array(NotificationChannel),
@@ -2897,7 +2897,7 @@ export const NotificationPrefs = z.object({
 export type NotificationPrefs = z.infer<typeof NotificationPrefs>;
 /** Events not listed keep their stored setting. */
 export const NotificationPrefsBody = z
-  .object({ events: z.array(EventPref).max(3), quietHours: QuietHours })
+  .object({ events: z.array(EventPref).max(AlertEvent.options.length), quietHours: QuietHours })
   .strict()
   .refine((b) => new Set(b.events.map((e) => e.event)).size === b.events.length, {
     path: ['events'],

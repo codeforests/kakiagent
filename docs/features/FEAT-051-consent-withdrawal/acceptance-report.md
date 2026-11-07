@@ -52,6 +52,8 @@ Run fresh on `db30a9c`'s parent (`0bc16f1`) through `scripts/test-env.sh scripts
 
 - **F1 (outside FEAT-051):** `escalation.int` "after hours" expects "reply from (today|tomorrow)"; with the Deepavali holidays the next opening is Tue 10 Nov, and `escalationNotice` (`packages/agent/src/texts.ts`, FEAT-044) renders "reply from on Tue 10 Nov at midnight" ("from on"). A wording bug plus a test that assumes the next opening is within a day; it fails on main too until 10 Nov. Ken chose to fix it in this PR (2026-11-07): commit `f703f99` renders "on Tue 10 Nov at …" (no "from on"), adds a unit case for a later day, and lets the after-hours test accept one.
 
+- **F2 (FEAT-051 defect, found by CI run 115):** `NotificationPrefsBody` capped `events` at `.max(3)` (FEAT-052), so once FEAT-051 added `consent_withdrawn` the My notifications page's save (it sends all four events) got 422 and `notifications.e2e` failed on every browser. No FEAT-051 test sent all four. Fixed in this session (one line: one entry per `AlertEvent`), with a contracts case for the four-event body; a verifier fix to production code, noted here because rerouting a one-line fix to a fresh build thread would cost more than it protects.
+
 ## RTM
 
 Test ref appended 2026-11-07: LED-07 (partial: webhooks FEAT-053), LED-05, LED-06 (partial: seam), GOV-05 (partial: routing), AGT-14 (partial: withdrawal cases). `node scripts/check-rtm.mjs FEAT-051 --stage verify`: `RTM check passed (FEAT-051).`
