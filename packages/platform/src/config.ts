@@ -27,6 +27,59 @@ const url = z.url();
 /** Unset and empty both mean "not configured" (templates list every variable). */
 const optionalUrl = z.preprocess((v) => (v === '' ? undefined : v), url.optional());
 const secret = z.string().min(32, 'must be at least 32 characters');
+const optionalString = z.preprocess((v) => (v === '' ? undefined : v), z.string().optional());
+/** An optional JSON value in one variable; unset or empty is `undefined`. */
+const optionalJson = <S extends z.ZodType>(schema: S) =>
+  z.preprocess((v, ctx) => {
+    if (v === undefined || v === '') return undefined;
+    try {
+      return JSON.parse(String(v));
+    } catch {
+      ctx.addIssue({ code: 'custom', message: 'must be valid JSON' });
+      return z.NEVER;
+    }
+  }, schema.optional());
+/** USD per million tokens for one model tier; unset tiers are priced at zero. */
+const tierPrice = z.object({
+  input: z.number().min(0),
+  cacheRead: z.number().min(0).default(0),
+  output: z.number().min(0),
+});
+
+/**
+ * The model provider (ADR-007 decision 5). `fake` until real-model access (M1.5);
+ * `anthropic-dev` and `openai-compat` carry TEST DATA ONLY (architecture Q1) until a
+ * provider route passes the AGT-14 gate and C2/GOV-07/GOV-11 for production.
+ * `openai-compat` is any Chat Completions endpoint (NVIDIA API catalog, DeepSeek,
+ * OpenRouter, a vLLM server …), named by its base URL and one model per tier.
+ */
+const llm = z.object({
+  LLM_PROVIDER: z.enum(['fake', 'anthropic-dev', 'openai-compat']).default('fake'),
+  ANTHROPIC_API_KEY: optionalString,
+  /** `openai-compat`: e.g. `https://integrate.api.nvidia.com/v1`. */
+  LLM_BASE_URL: optionalUrl,
+  LLM_API_KEY: optionalString,
+  /** Triage, simple replies, chat mining and summaries. */
+  LLM_MODEL_SMALL: optionalString,
+  /** Complex replies and fact extraction; defaults to the small model. */
+  LLM_MODEL_LARGE: optionalString,
+  /** Eval judging (CI only); defaults to the large model. */
+  LLM_MODEL_JUDGE: optionalString,
+  /** How structured output is requested; the schema is always also in the prompt. */
+  LLM_JSON_MODE: z.enum(['json_schema', 'json_object', 'none']).default('json_object'),
+  /** Provider-specific request fields, e.g. `{"chat_template_kwargs":{"thinking":false}}`. */
+  LLM_EXTRA_BODY: optionalJson(z.record(z.string(), z.unknown())),
+  /** `{"small":{"input":0.15,"cacheRead":0.003,"output":0.6},"large":{…}}`; zero when unset. */
+  LLM_PRICES: optionalJson(
+    z.object({
+      small: tierPrice.optional(),
+      large: tierPrice.optional(),
+      judge: tierPrice.optional(),
+    }),
+  ),
+  LLM_TIMEOUT_MS: z.coerce.number().int().min(1000).default(60_000),
+  LLM_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(2),
+});
 
 /** Building blocks shared by the roles' config schemas. */
 export const envSchemas = {
@@ -48,6 +101,8 @@ export const envSchemas = {
   /** The ingestion queue (ADR-018, FEAT-012): scheduler-worker sends, ingest-worker consumes. */
   ingestQueue: z.object({ SQS_INGEST_QUEUE_URL: url }),
   valkey: z.object({ VALKEY_URL: z.string().startsWith('redis') }),
+  llm,
 };
 
 export type Env = z.infer<typeof envSchemas.base>;
+export type LlmEnv = z.infer<typeof llm>;

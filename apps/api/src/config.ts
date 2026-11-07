@@ -4,6 +4,7 @@ import { z } from 'zod';
 export const schema = envSchemas.base
   .extend(envSchemas.valkey.shape)
   .extend(envSchemas.aws.pick({ AWS_REGION: true, AWS_ENDPOINT_URL: true }).shape)
+  .extend(envSchemas.llm.shape)
   .extend({
     PORT: envSchemas.port.default(3000),
     HOST: z.string().default('0.0.0.0'),
@@ -40,9 +41,6 @@ export const schema = envSchemas.base
     GOOGLE_CLIENT_ID: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
     GOOGLE_CLIENT_SECRET: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
     GOOGLE_ISSUER: envSchemas.url.default('https://accounts.google.com'),
-    /** The embedder for fact chunks (FEAT-022 D4); `fake` until real-model access (M1.5, D5). */
-    LLM_PROVIDER: z.enum(['fake', 'anthropic-dev']).default('fake'),
-    ANTHROPIC_API_KEY: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
     /** The page limit a new website source gets, until plans exist (FEAT-012 D8, FEAT-067). */
     CRAWL_PAGE_LIMIT: z.coerce.number().int().min(1).max(2000).default(100),
     /** The file sources a tenant may have, until plans exist (D2 Starter; FEAT-015, FEAT-067). */

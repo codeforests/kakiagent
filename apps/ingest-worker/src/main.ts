@@ -9,7 +9,7 @@ import {
   runIngestJob,
   type FileDeps,
 } from '@kaki/kb';
-import { gatewayFromConfig } from '@kaki/llm-gateway';
+import { gatewayFromEnv } from '@kaki/llm-gateway';
 import {
   createLogger,
   createQueueClient,
@@ -32,12 +32,10 @@ const config = loadConfig(
   envSchemas.base
     .extend(envSchemas.aws.omit({ SQS_TURNS_QUEUE_URL: true }).shape)
     .extend(envSchemas.ingestQueue.shape)
+    .extend(envSchemas.llm.shape)
     .extend({
       HEALTH_PORT: envSchemas.port.default(3003),
       INGEST_DATABASE_URL: z.string().startsWith('postgres'),
-      /** `fake` until real-model access (M1.5); `anthropic-dev` uses test data only (Q1). */
-      LLM_PROVIDER: z.enum(['fake', 'anthropic-dev']).default('fake'),
-      ANTHROPIC_API_KEY: optional,
       /** Pages fetched at once per source, and pages extracted at once (ADR-018 d4). */
       CRAWL_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(4),
       EXTRACT_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(4),
@@ -83,9 +81,7 @@ const logger = createLogger('ingest-worker', config.LOG_LEVEL);
 const dev = process.env.KAKI_BUILD !== 'production';
 const zdb = createZoneDb('ingest', config.INGEST_DATABASE_URL);
 const queue = createQueueClient({ region: config.AWS_REGION, endpoint: config.AWS_ENDPOINT_URL });
-const llm = gatewayFromConfig({
-  provider: config.LLM_PROVIDER,
-  anthropicApiKey: config.ANTHROPIC_API_KEY,
+const llm = gatewayFromEnv(config, {
   // The fake model reads the fixture site's patterns (FEAT-012 §5.3) and mines chat parts
   // (FEAT-017 §5.4).
   fakeScript: (req) => (req.model === 'mine' ? fakeMineScript(req) : fakeExtractScript(req)),

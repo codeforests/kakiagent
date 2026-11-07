@@ -7,7 +7,8 @@
  * deterministically, reports the cost per conversation, and exits non-zero if any
  * subset is below its threshold. Every case runs with the tenant's assistant settings
  * (FEAT-024), the defaults unless its fixture or the case sets them, as the worker does. The fake provider plays each case's recorded output
- * until M1.5; with `LLM_PROVIDER=anthropic-dev` the real model answers instead, and the
+ * until M1.5; with `LLM_PROVIDER=anthropic-dev` or `openai-compat` (the `envSchemas.llm`
+ * variables, from the environment or `evals/.env`) the real model answers instead, and the
  * LLM judge scores the `judge` expectations and its agreement sample (FEAT-023 D8).
  */
 import {
@@ -68,12 +69,14 @@ import {
   DEFAULT_ROUTE_POLICY,
   fakeEmbed,
   gatewayFromConfig,
+  gatewayFromEnv,
   routeReply,
   scriptedOutputs,
   type FakeScript,
   type LlmGateway,
   type UsageEvent,
 } from '@kaki/llm-gateway';
+import { envSchemas, loadConfig } from '@kaki/platform/config';
 import { addBusinessMinutes, DEFAULT_PERSONA, openStatus, type Persona } from '@kaki/tenancy';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -112,11 +115,8 @@ const thresholds = z
 let caseCostUsd = 0;
 const onUsage = async (e: UsageEvent) => void (caseCostUsd += e.costUsd);
 
-const provider = z.enum(['fake', 'anthropic-dev']).parse(process.env.LLM_PROVIDER ?? 'fake');
-const realModel =
-  provider === 'anthropic-dev'
-    ? gatewayFromConfig({ provider, anthropicApiKey: process.env.ANTHROPIC_API_KEY, onUsage })
-    : null;
+const llmEnv = loadConfig(envSchemas.llm);
+const realModel = llmEnv.LLM_PROVIDER === 'fake' ? null : gatewayFromEnv(llmEnv, { onUsage });
 const allCases = loadCases(`${root}cases`);
 const cases = allCases.filter((c) => !fast || c.fast);
 const evalSetVersion = z
@@ -637,7 +637,7 @@ for (const c of cases) {
 
 let failed = false;
 console.log(
-  `eval set ${evalSetVersion}: ${cases.length} case(s)${fast ? ' (fast subset)' : ''}, provider ${provider}`,
+  `eval set ${evalSetVersion}: ${cases.length} case(s)${fast ? ' (fast subset)' : ''}, provider ${llmEnv.LLM_PROVIDER}`,
 );
 if (skipped)
   console.log(`  ${skipped} case(s) skipped: they need the semantic embedder (P3, counted at MD)`);

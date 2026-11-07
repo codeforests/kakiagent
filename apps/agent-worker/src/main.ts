@@ -10,7 +10,7 @@ import {
   toMessage,
   toSummary,
 } from '@kaki/inbox';
-import { gatewayFromConfig, type UsageEvent } from '@kaki/llm-gateway';
+import { gatewayFromEnv, type UsageEvent } from '@kaki/llm-gateway';
 import {
   channels,
   createLogger,
@@ -28,12 +28,10 @@ const config = loadConfig(
   envSchemas.base
     .extend(envSchemas.aws.shape)
     .extend(envSchemas.valkey.shape)
+    .extend(envSchemas.llm.shape)
     .extend({
       HEALTH_PORT: envSchemas.port.default(3002),
       VISITOR_DATABASE_URL: z.string().startsWith('postgres'),
-      /** `fake` until real-model access (M1.5); `anthropic-dev` uses test data only (Q1). */
-      LLM_PROVIDER: z.enum(['fake', 'anthropic-dev']).default('fake'),
-      ANTHROPIC_API_KEY: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
     }),
 );
 const stopTelemetry = startTelemetry('agent-worker', config.OTEL_EXPORTER_OTLP_ENDPOINT);
@@ -56,9 +54,7 @@ async function onUsage(e: UsageEvent) {
   }
   await record(e);
 }
-const llm = gatewayFromConfig({
-  provider: config.LLM_PROVIDER,
-  anthropicApiKey: config.ANTHROPIC_API_KEY,
+const llm = gatewayFromEnv(config, {
   // The fake model plans with keywords and answers from the facts in its prompt, with
   // slots (FEAT-022, FEAT-004).
   fakeScript: fakeAgentScript,

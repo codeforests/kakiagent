@@ -1,4 +1,4 @@
-export { loadConfig, envSchemas, type Env } from './config.js';
+export { loadConfig, envSchemas, type Env, type LlmEnv } from './config.js';
 export { createLogger, type Logger } from './logger.js';
 export { startTelemetry } from './telemetry.js';
 export { signToken, verifyToken, TokenError } from './tokens.js';
