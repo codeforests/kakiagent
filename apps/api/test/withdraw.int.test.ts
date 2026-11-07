@@ -220,7 +220,7 @@ describe('POST /widget/v1/conversations/:id/withdraw (AC-3, AC-4)', () => {
   });
 
   it('marketing only: offers stopped, the lead still exports', async () => {
-    const c = await capturedChat(true);
+    const c = await capturedChat(true, 'offers.only@example.com');
     const messageId = await withdrawCard(c.id, true);
     const res = await post(`/widget/v1/conversations/${c.id}/withdraw`, c.h, {
       messageId,
@@ -233,6 +233,14 @@ describe('POST /widget/v1/conversations/:id/withdraw (AC-3, AC-4)', () => {
     const lead = LeadDetail.parse((await dash(`/api/v1/leads/${c.leadId}`, asA)).json());
     expect(lead.consentWithdrawnAt).toBeNull();
     expect(lead.marketing).toMatchObject({ agreed: false, withdrawn: true });
+    // AC-4 (acceptance correction): the lead still exports, with Marketing consent "No".
+    await owner.query(`update sessions set reauth_at = now() where user_id = $1`, [ownerId]);
+    const csv = await dash('/api/v1/leads/export', asA, { status: 'all' });
+    expect(csv.statusCode).toBe(200);
+    const line = csv.body.split('\n').find((l) => l.includes('offers.only@example.com'));
+    expect(line).toBeDefined();
+    expect(line).toMatch(/,No,/);
+    expect(line).not.toMatch(/,Yes,/);
   });
 
   it('a visitor with no contact: nothing_held, nothing written', async () => {
