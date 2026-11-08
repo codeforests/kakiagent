@@ -4,16 +4,23 @@ import type {
   ConversationThread,
   FactChip,
   LeadScore,
+  MessageAttachment,
   LeadScoring,
   ThreadEvent,
   ThreadMessage,
 } from '@kaki/contracts';
 import { scoreLabel } from '../lib/leads.ts';
+import { Button } from '@kaki/ui';
+import { useMutation } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
+import { api } from '../lib/api.ts';
 import { Link } from 'react-router';
 import {
+  attachmentStatus,
   CHANNEL_LABEL,
   cardCaption,
+  deliveryText,
+  fileSize,
   clockTime,
   dockText,
   LEAD_STATUS,
@@ -118,7 +125,7 @@ export function VisitorAvatar({
     <span className="visitor-avatar" aria-hidden="true">
       {initials(label)}
       <span className="visitor-avatar__badge" title={CHANNEL_LABEL[channel]}>
-        <Glyph name="chat" size={10} />
+        <Glyph name={channel === 'email' ? 'mail' : 'chat'} size={10} />
       </span>
     </span>
   );
@@ -180,17 +187,94 @@ function authorLabel(m: ThreadMessage, meId: string | null): string {
   return m.authorName ?? AUTHOR_LABEL.staff;
 }
 
+/** Under a staff or AI bubble on email (FEAT-036 ui-design): Sending…, or Not delivered + Retry. */
+function DeliveryLine({
+  message,
+  onRetryError,
+}: {
+  message: ThreadMessage;
+  onRetryError?: ((text: string) => void) | undefined;
+}) {
+  const retry = useMutation({
+    mutationFn: () => api.retryDelivery(message.id),
+    onError: () => onRetryError?.("Couldn't retry. Try again."),
+  });
+  const line = deliveryText(message.delivery);
+  if (!line) return null;
+  if (line.status === 'sending')
+    return (
+      <p className="delivery-line" data-testid="delivery-line">
+        <Glyph name="clock" size={14} />
+        {line.text}
+      </p>
+    );
+  return (
+    <p className="delivery-line delivery-line--failed" data-testid="delivery-line">
+      <Glyph name="x-circle" size={14} />
+      {line.text}
+      <Button
+        variant="ghost"
+        className="kaki-btn--sm"
+        disabled={retry.isPending}
+        aria-busy={retry.isPending || undefined}
+        onClick={() => retry.mutate()}
+      >
+        {retry.isPending ? 'Retrying…' : 'Retry'}
+      </Button>
+    </p>
+  );
+}
+
+/** An inbound email's files: a clean one downloads, the rest say why not (FEAT-036 ui-design). */
+function Attachments({ list }: { list: MessageAttachment[] }) {
+  return (
+    <ul className="attachment-chips" aria-label="Attachments">
+      {list.map((a) => {
+        const status = attachmentStatus(a);
+        const label = (
+          <>
+            <Glyph name="paperclip" size={14} />
+            <span className="attachment-chip__name">{a.name}</span>
+            <span className="attachment-chip__size">{fileSize(a.size)}</span>
+          </>
+        );
+        return (
+          <li key={a.id} data-testid="attachment-chip">
+            {status === null ? (
+              <a
+                className="attachment-chip"
+                href={`/api/v1/attachments/${a.id}`}
+                aria-label={`Download ${a.name}`}
+              >
+                {label}
+              </a>
+            ) : (
+              <span className={`attachment-chip attachment-chip--${a.status}`}>
+                {label}
+                <span className="attachment-chip__status">{status}</span>
+              </span>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 export function Bubble({
   message,
   facts,
   meId = null,
   match = false,
+  onRetryError,
 }: {
   message: ThreadMessage;
   facts: Map<string, FactChip>;
   meId?: string | null;
   /** The message a search result opened at (FEAT-046). */
   match?: boolean;
+  /** A failed delivery retry's toast (FEAT-036). */
+  onRetryError?: (text: string) => void;
 }) {
   // A staff joined/left notice has no body: a caption row of what the visitor saw (FEAT-043).
   if (message.body === '' && message.notice)
@@ -222,7 +306,13 @@ export function Bubble({
           {cardCaption(message.card)}
         </p>
       )}
+      {message.attachments && message.attachments.length > 0 && (
+        <Attachments list={message.attachments} />
+      )}
       {message.author === 'agent' && <FactChips ids={message.factIds} facts={facts} />}
+      {message.author !== 'visitor' && (
+        <DeliveryLine message={message} onRetryError={onRetryError} />
+      )}
     </li>
   );
 }

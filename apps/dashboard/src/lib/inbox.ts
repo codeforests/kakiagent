@@ -13,13 +13,16 @@ import type {
   ThreadEvent,
   ThreadMessage,
   LeadSummary,
+  ConversationChannel,
+  MessageAttachment,
+  MessageDelivery,
 } from '@kaki/contracts';
 import type { InfiniteData } from '@tanstack/react-query';
 
 /** The inbox's filters, read from and written to the URL (FEAT-042 §5.5). */
 export interface InboxFilter {
   view: InboxView;
-  channel: 'widget' | null;
+  channel: ConversationChannel | null;
   /** FEAT-043 (D7): the current owner, `me`, `none` (unassigned) or a member's user ID; null = anyone. */
   assignee: string | null;
 }
@@ -41,10 +44,22 @@ export const CHANNEL_LABEL: Record<ConversationSummary['channel'], string> = {
   email: 'Email',
 };
 
+/** The channel filter's options, in order (FEAT-036 adds Email after Website chat). */
+export const CHANNELS: ConversationChannel[] = ['widget', 'email'];
+/** A URL or cache-key value as a channel filter; anything else is all channels. */
+export const channelOf = (v: string | null | undefined): ConversationChannel | null =>
+  (CHANNELS as (string | null | undefined)[]).includes(v) ? (v as ConversationChannel) : null;
+
+/** Who a row or thread is with when there's no contact name: by channel. */
+export const PARTY_LABEL: Record<ConversationChannel, string> = {
+  widget: 'Website visitor',
+  email: 'Email customer',
+};
+
 export function viewFromSearch(search: URLSearchParams): InboxFilter {
   const v = search.get('view');
   const view = (VIEWS as string[]).includes(v ?? '') ? (v as InboxView) : 'open';
-  const channel = search.get('channel') === 'widget' ? 'widget' : null;
+  const channel = channelOf(search.get('channel'));
   return { view, channel, assignee: validAssignee(search.get('assignee')) };
 }
 
@@ -65,7 +80,7 @@ export function filterOfKey(key: readonly unknown[]): InboxFilter {
   const [, view, channel, assignee] = key as [string, InboxView, string, string | undefined];
   return {
     view,
-    channel: channel === 'widget' ? 'widget' : null,
+    channel: channelOf(channel),
     assignee: assignee && assignee !== 'any' ? assignee : null,
   };
 }
@@ -76,7 +91,7 @@ export const threadKey = (id: string) => ['conversation', id] as const;
 export function matchesView(
   s: ConversationSummary,
   view: InboxView,
-  channel: 'widget' | null,
+  channel: ConversationChannel | null,
   assignee: string | null = null,
   meId: string | null = null,
 ): boolean {
@@ -177,7 +192,17 @@ export function appendMessage(
   message: Message | ThreadMessage,
 ): ConversationThread | undefined {
   if (!thread || message.conversationId !== thread.conversation.id) return thread;
-  if (thread.messages.some((m) => m.id === message.id || m.seq === message.seq)) return thread;
+  // A known message: only its delivery can change (FEAT-036: sending → sent or failed, retry).
+  if (thread.messages.some((m) => m.id === message.id)) {
+    if (message.delivery === undefined) return thread;
+    return {
+      ...thread,
+      messages: thread.messages.map((m) =>
+        m.id === message.id ? { ...m, delivery: message.delivery } : m,
+      ),
+    };
+  }
+  if (thread.messages.some((m) => m.seq === message.seq)) return thread;
   const card = message.card;
   const next: ThreadMessage = {
     factIds: [],
@@ -470,7 +495,11 @@ export function escalationStrip(
       ? "A reply couldn't be checked, so the assistant asked the team."
       : e.source === 'data_request'
         ? 'The visitor asked about their personal data.'
-        : 'The visitor asked for a person.';
+        : e.source === 'reply_cap'
+          ? 'AI reply limit reached in this email thread.'
+          : e.source === 'delivery_failed'
+            ? "A reply couldn't be delivered."
+            : 'The visitor asked for a person.';
   return {
     lead: `Escalated to ${assigneeName(e, meId, 'you')} ${ago}. ${why}`,
     rest: 'The assistant keeps answering until someone takes over.',
@@ -543,3 +572,43 @@ export const cardCaption = (card: ThreadMessage['card']) =>
         : card === 'withdraw'
           ? 'Asked to confirm the withdrawal'
           : null;
+
+const FAILED_REASON: Record<NonNullable<MessageDelivery['failedReason']>, string> = {
+  bounced: 'the address bounced',
+  rejected: 'the email was refused',
+  timed_out: "we couldn't send it for 24 hours",
+};
+
+/** The delivery line under a staff or AI bubble (FEAT-036 ui-design); null when sent or none. */
+export function deliveryText(
+  d: MessageDelivery | null | undefined,
+): { status: 'sending' | 'failed'; text: string } | null {
+  if (!d || d.status === 'sent') return null;
+  if (d.status === 'sending') return { status: 'sending', text: 'Sending…' };
+  return {
+    status: 'failed',
+    text: `Not delivered: ${d.failedReason ? FAILED_REASON[d.failedReason] : 'the email was refused'}`,
+  };
+}
+
+const REJECT_REASON: Record<NonNullable<MessageAttachment['rejectReason']>, string> = {
+  unsupported_type: 'file type not allowed',
+  too_large: 'over 10 MB',
+  malware: 'failed the virus check',
+  encrypted: 'password-protected',
+  too_many: 'more than 10 files',
+};
+
+/** "820 B", "14 KB", "2.4 MB". */
+export function fileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/** An attachment chip's state line: null for a clean one (it's a download link). */
+export function attachmentStatus(a: MessageAttachment): string | null {
+  if (a.status === 'clean') return null;
+  if (a.status === 'scanning') return 'Checking…';
+  return `Not stored: ${a.rejectReason ? REJECT_REASON[a.rejectReason] : 'file type not allowed'}`;
+}

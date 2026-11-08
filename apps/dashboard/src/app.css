@@ -833,6 +833,56 @@ a {
   color: var(--color-text-secondary);
   font-size: var(--type-caption-size);
 }
+/* Email conversations (FEAT-036 ui-design SCR-APP-014). */
+.delivery-line {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--type-caption-size);
+}
+.delivery-line--failed {
+  color: var(--color-danger-default);
+}
+.attachment-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.attachment-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--size-control-sm);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  font-size: var(--type-caption-size);
+  overflow-wrap: anywhere;
+}
+.attachment-chip__size,
+.attachment-chip--scanning,
+.attachment-chip--rejected {
+  color: var(--color-text-secondary);
+}
+.conversation-row__subject {
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.thread-header__subject {
+  margin: 0;
+  font-size: var(--type-title-sm-size);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .fact-chips {
   list-style: none;
   margin: 0;

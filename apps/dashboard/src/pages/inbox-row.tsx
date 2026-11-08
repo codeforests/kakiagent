@@ -1,7 +1,7 @@
 import type { ConversationSummary } from '@kaki/contracts';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
-import { escalationText, initials, ownerText, rowTime } from '../lib/inbox.ts';
+import { escalationText, initials, ownerText, PARTY_LABEL, rowTime } from '../lib/inbox.ts';
 import { FlaggedChip, StateChip, UrgentChip, VisitorAvatar } from './conversation-parts.tsx';
 
 /** A conversation row (SCR-APP-014), shared by the list and the search results (FEAT-046). */
@@ -36,9 +36,17 @@ export function Row({
         state={linkState}
         onClick={onOpen}
       >
-        <VisitorAvatar label="Website visitor" channel={c.channel} />
+        <VisitorAvatar label={PARTY_LABEL[c.channel]} channel={c.channel} />
         <span className="conversation-row__main">
-          <span className="conversation-row__title">Website visitor</span>
+          <span className="conversation-row__title">
+            {PARTY_LABEL[c.channel]}
+            {c.channel === 'email' && <span className="sr-only"> · Email</span>}
+          </span>
+          {c.subject && (
+            <span className="conversation-row__subject" data-testid="conversation-subject">
+              {c.subject}
+            </span>
+          )}
           {preview ?? (
             <span className="conversation-row__preview" data-testid="conversation-preview">
               {c.lastMessage ?? 'No messages yet'}
