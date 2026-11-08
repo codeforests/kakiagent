@@ -321,6 +321,34 @@ describe('receiveEmail (FEAT-036 §5.2)', () => {
     expect(jobs.rows.map((j) => j.id).sort()).toEqual(scanning.map((a) => a.id).sort());
   });
 
+  it('an 11 MB PDF is rejected as too_large, never quarantined, and has no scan job (AC-7)', async () => {
+    clock = new Date();
+    const big = Buffer.concat([
+      Buffer.from('%PDF-1.4\n'),
+      Buffer.alloc(11 * 1024 * 1024, 0x20),
+      Buffer.from('\n%%EOF\n'),
+    ]);
+    const b64 = big.toString('base64').replace(/.{76}/g, '$&\r\n');
+    const raw = mail('attachments', 'h3').replace(
+      /--att\r?\nContent-Type: image\/png[\s\S]*--att--/,
+      `--att\r\nContent-Type: application/pdf; name="big.pdf"\r\nContent-Disposition: attachment; filename="big.pdf"\r\nContent-Transfer-Encoding: base64\r\n\r\n${b64}\r\n--att--`,
+    );
+    const one = accepted(await receive(raw));
+    const rows = await owner.query(
+      `select id, name, status, reject_reason from email_attachments where message_id = $1`,
+      [one.message.id],
+    );
+    expect(rows.rows.map((r) => [r.name, r.status, r.reject_reason])).toEqual([
+      ['big.pdf', 'rejected', 'too_large'],
+    ]);
+    expect(quarantine.has(`email/${TENANT_A}/${rows.rows[0].id}`)).toBe(false);
+    expect(
+      await count(`select 1 from outbox where topic = 'ingest' and payload->>'attachmentId' = $1`, [
+        rows.rows[0].id,
+      ]),
+    ).toBe(0);
+  });
+
   it('an attachment-only mail is stored as (no text) and schedules no turn', async () => {
     clock = new Date();
     const raw = mail('attachments', 'h2').replace('Here is the design and the order form.', '');
