@@ -1,7 +1,7 @@
 # Tasks: FEAT-036 — Email channel
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: designed · Last updated: 2026-11-08 (design)
+> Status: in build (T1–T6 done) · Last updated: 2026-11-08 (build, backend 1)
 
 - [x] T1 — Schema: `0053_email_channel.sql` and `schema.ts`: `conversations.channel` + `email`, outbox topic `channel-send`, `ESCALATION_SOURCES` + `reply_cap`/`delivery_failed`, `channel_connections.ai_reply_cap` and the widened offline-mode check, `visitor_channel()` returning the cap; tables `email_settings`, `inbound_events`, `email_messages`, `email_threads`, `message_deliveries`, `email_attachments` with forced RLS, policies, grants and `TENANT_SCOPED_TABLES`; trigger `messages_channel_delivery`; functions `email_route()`, `channel_deliveries_due()` with their NOLOGIN owners; cases in `rls.int.test.ts` (design §4; D2; AC-9, AC-10)
       Done when: `drizzle-kit generate` reports no drift after 0053; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes with: a staff, agent and system message in an email conversation each get one `message_deliveries` row and one `channel-send` outbox row, a widget message and a visitor message get none; `email_route('kaki-bakery')` returns tenant A from a role with no tenant context and nothing for an unknown local part; `channel_deliveries_due()` returns a due row and marks a 25-hour-old one `failed`/`timed_out`; tenant B can't read or write any new table's tenant A rows.
