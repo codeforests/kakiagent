@@ -163,7 +163,10 @@ test('the Owner sets up email, gets threaded AI replies, and sends from their ow
   const card = page.getByRole('region', { name: 'Email', exact: true });
   await expect(card.getByRole('link', { name: 'Email settings' })).toBeVisible();
   await card.getByRole('button', { name: 'Go live' }).click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Go live' }).click();
+  await page
+    .getByRole('alertdialog', { name: 'Go live on Email?' })
+    .getByRole('button', { name: 'Go live' })
+    .click();
   await expect(card.getByText('Live', { exact: true })).toBeVisible();
 
   // A forwarded customer email gets an AI reply that threads to it.
