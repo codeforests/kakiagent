@@ -1086,3 +1086,118 @@ describe('runVisitorTurn while the widget is not live (ONB-10; FEAT-034 §5.3, A
     );
   });
 });
+
+describe('runVisitorTurn on a channel with an AI reply cap (FEAT-036 §5.4, D3; AC-5)', () => {
+  let connectionId: string;
+  beforeAll(async () => {
+    await owner.query(`update channel_connections set state = 'live' where tenant_id = $1`, [
+      TENANT_A,
+    ]);
+    connectionId = (
+      await owner.query<{ id: string }>(
+        `insert into channel_connections (tenant_id, kind, state, offline_mode, health, ai_reply_cap)
+         values ($1, 'email', 'live', 'hidden', 'ok', 2) returning id`,
+        [TENANT_A],
+      )
+    ).rows[0]!.id;
+  });
+  afterAll(async () => {
+    await owner.query(`delete from channel_connections where id = $1`, [connectionId]);
+  });
+
+  async function emailConversationWith(text: string) {
+    const visitorId = randomUUID();
+    const conv = await withTenant(tdb.zone('visitor'), TENANT_A, (tx) =>
+      createConversation(tx, TENANT_A, visitorId, 'email'),
+    );
+    const messageId = await say(conv.id, visitorId, text);
+    return { visitorId, conversationId: conv.id, messageId };
+  }
+  const escalationsOf = async (conversationId: string) =>
+    (
+      await owner.query<{ source: string }>(
+        `select source from escalations where conversation_id = $1`,
+        [conversationId],
+      )
+    ).rows.map((r) => r.source);
+  const repliesOf = async (conversationId: string) =>
+    Number(
+      (
+        await owner.query<{ n: number }>(
+          `select count(*)::int n from messages where conversation_id = $1 and author <> 'visitor'`,
+          [conversationId],
+        )
+      ).rows[0]!.n,
+    );
+
+  it('stops at the cap, escalates once with reply_cap, and stays silent after', async () => {
+    const c = await emailConversationWith('how much is the fudge cake');
+    expect((await turn(c)).result?.outcome).toBe('answered');
+    const second = await say(c.conversationId, c.visitorId, 'and the chocolate cake?');
+    expect((await turn({ ...c, messageId: second })).result?.outcome).toBe('answered');
+    expect(await repliesOf(c.conversationId)).toBe(2);
+
+    const third = await say(c.conversationId, c.visitorId, 'one more question please');
+    const capped = await turn({ ...c, messageId: third });
+    expect(capped.result).toBeNull();
+    expect(capped.calls.generate).toBe(0);
+    expect(await repliesOf(c.conversationId)).toBe(2);
+    expect(await escalationsOf(c.conversationId)).toEqual(['reply_cap']);
+
+    const fourth = await say(c.conversationId, c.visitorId, 'hello?');
+    expect((await turn({ ...c, messageId: fourth })).result).toBeNull();
+    expect(await escalationsOf(c.conversationId)).toEqual(['reply_cap']);
+  });
+
+  it('counts only the last 24 hours', async () => {
+    const c = await emailConversationWith('how much is the fudge cake');
+    await turn(c);
+    const second = await say(c.conversationId, c.visitorId, 'and the chocolate cake?');
+    await turn({ ...c, messageId: second });
+    await owner.query(
+      `update messages set created_at = now() - interval '25 hours'
+        where conversation_id = $1 and author = 'agent'`,
+      [c.conversationId],
+    );
+    const third = await say(c.conversationId, c.visitorId, 'how much is the fudge cake');
+    expect((await turn({ ...c, messageId: third })).result?.outcome).toBe('answered');
+    expect(await escalationsOf(c.conversationId)).toEqual([]);
+  });
+
+  it('leaves a widget conversation (no cap) unaffected', async () => {
+    const c = await conversationWith('how much is the fudge cake');
+    for (const text of ['and the chocolate cake?', 'and the cheesecake?']) {
+      await turn(c);
+      c.messageId = await say(c.conversationId, c.visitorId, text);
+    }
+    expect((await turn(c)).result?.outcome).toBe('answered');
+    expect(await escalationsOf(c.conversationId)).toEqual([]);
+  });
+
+  it('offline and hidden stores nothing; offline with a message stores it once', async () => {
+    await owner.query(`update channel_connections set state = 'offline' where id = $1`, [
+      connectionId,
+    ]);
+    try {
+      const c = await emailConversationWith('how much is the fudge cake');
+      const hidden = await turn(c);
+      expect(hidden.result).toBeNull();
+      expect(hidden.calls.generate).toBe(0);
+      expect(await repliesOf(c.conversationId)).toBe(0);
+
+      await owner.query(`update channel_connections set offline_mode = 'message' where id = $1`, [
+        connectionId,
+      ]);
+      const next = await say(c.conversationId, c.visitorId, 'hello?');
+      expect((await turn({ ...c, messageId: next })).result?.outcome).toBe('not_live');
+      const again = await say(c.conversationId, c.visitorId, 'anyone?');
+      expect((await turn({ ...c, messageId: again })).result).toBeNull();
+      expect(await repliesOf(c.conversationId)).toBe(1);
+    } finally {
+      await owner.query(
+        `update channel_connections set state = 'live', offline_mode = 'hidden' where id = $1`,
+        [connectionId],
+      );
+    }
+  });
+});

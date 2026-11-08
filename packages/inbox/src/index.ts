@@ -619,6 +619,31 @@ export async function visitorMessageCount(
 }
 
 /**
+ * How many AI (`agent`) messages a conversation has had since `since`: the per-conversation
+ * reply cap counts these (FEAT-036 §5.4, D3).
+ */
+export async function agentMessagesSince(
+  tx: Tx,
+  tenantId: string,
+  conversationId: string,
+  since: Date,
+): Promise<number> {
+  const m = schema.messages;
+  const [row] = await tx
+    .select({ n: sql<number>`count(*)::int` })
+    .from(m)
+    .where(
+      and(
+        eq(m.tenantId, tenantId),
+        eq(m.conversationId, conversationId),
+        eq(m.author, 'agent'),
+        gte(m.createdAt, since),
+      ),
+    );
+  return Number(row?.n ?? 0);
+}
+
+/**
  * Past visitor questions whose agent reply rendered one of `factIds` (AGT-01's
  * `fact_ids`), asked before `before`: the questions a correction replays (KB-18; FEAT-018
  * §5.3, D4). Newest first, at most `limit`; `matched` counts them all.

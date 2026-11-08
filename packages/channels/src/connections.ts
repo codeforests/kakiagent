@@ -223,6 +223,8 @@ export interface VisitorChannel {
   /** The stored text or the default, per language. */
   message: { en: string; zh: string };
   contact: { email: string | null; phone: string | null };
+  /** AI replies per conversation per 24 h (FEAT-036 D3); null = no cap (the widget). */
+  aiReplyCap: number | null;
 }
 
 interface VisitorChannelRow extends Record<string, unknown> {
@@ -232,6 +234,7 @@ interface VisitorChannelRow extends Record<string, unknown> {
   offline_message_zh: string | null;
   contact_email: string | null;
   contact_phone: string | null;
+  ai_reply_cap: number | null;
 }
 
 /**
@@ -247,6 +250,7 @@ export async function visitorChannel(tx: Tx, kind: string): Promise<VisitorChann
       mode: 'hidden',
       message: { ...OFFLINE_DEFAULTS },
       contact: { email: null, phone: null },
+      aiReplyCap: null,
     };
   return {
     live: row.state === 'live',
@@ -256,6 +260,7 @@ export async function visitorChannel(tx: Tx, kind: string): Promise<VisitorChann
       zh: row.offline_message_zh ?? OFFLINE_DEFAULTS.zh,
     },
     contact: { email: row.contact_email, phone: row.contact_phone },
+    aiReplyCap: row.ai_reply_cap === null ? null : Number(row.ai_reply_cap),
   };
 }
 
