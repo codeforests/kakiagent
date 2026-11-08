@@ -278,6 +278,9 @@ export const MESSAGE_TASK_KINDS = [
   'correct',
 ] as const;
 
+/** Where a conversation happens (FEAT-036 §4): the widget, or an adapter channel. */
+export const CONVERSATION_CHANNELS = ['widget', 'email'] as const;
+
 export const conversations = pgTable(
   'conversations',
   {
@@ -285,7 +288,7 @@ export const conversations = pgTable(
       .notNull()
       .references(() => tenants.id),
     id: uuid('id').notNull().defaultRandom(),
-    channel: text('channel', { enum: ['widget'] }).notNull(),
+    channel: text('channel', { enum: CONVERSATION_CHANNELS }).notNull(),
     visitorId: uuid('visitor_id').notNull(),
     status: text('status', { enum: CONVERSATION_STATUSES }).notNull().default('ai'),
     /** Bumped by every lifecycle transition: the compare-and-set token (ADR-013 d1). */
@@ -328,6 +331,7 @@ export const conversations = pgTable(
       sql`${t.flagReasons} <@ array['abuse', 'crisis']::text[] and (${t.flaggedAt} is null) = (cardinality(${t.flagReasons}) = 0)`,
     ),
     check('conversations_abuse_turns_ck', sql`cardinality(${t.abuseTurns}) <= 20`),
+    check('conversations_channel_ck', sql`${t.channel} in (${inList(CONVERSATION_CHANNELS)})`),
     check('conversations_status_ck', sql`${t.status} in (${inList(CONVERSATION_STATUSES)})`),
     check(
       'conversations_close_reason_ck',
@@ -870,7 +874,7 @@ export const outbox = pgTable(
   {
     tenantId: uuid('tenant_id').notNull(),
     id: uuid('id').notNull().defaultRandom(),
-    topic: text('topic', { enum: ['conversation-turns', 'ingest'] }).notNull(),
+    topic: text('topic', { enum: ['conversation-turns', 'ingest', 'channel-send'] }).notNull(),
     /** FIFO message group (the conversation ID for turns). */
     groupKey: text('group_key').notNull(),
     payload: jsonb('payload').notNull(),
@@ -1674,6 +1678,8 @@ export const channelConnections = pgTable(
     degradedSince: timestamp('degraded_since', { withTimezone: true }),
     credentialCiphertext: bytea('credential_ciphertext'),
     credentialKeyRef: text('credential_key_ref'),
+    /** AI replies per conversation per 24 h (CHN-10; FEAT-036 §4); null = no cap. */
+    aiReplyCap: smallint('ai_reply_cap'),
     version: integer('version').notNull().default(1),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
@@ -1688,7 +1694,7 @@ export const channelConnections = pgTable(
     check('channel_connections_state_ck', sql`${t.state} in ('live', 'offline')`),
     check(
       'channel_connections_offline_mode_ck',
-      sql`${t.offlineMode} in ('hidden', 'message') and (${t.kind} = 'widget' or ${t.offlineMode} = 'message')`,
+      sql`${t.offlineMode} in ('hidden', 'message') and (${t.kind} in ('widget', 'email') or ${t.offlineMode} = 'message')`,
     ),
     check(
       'channel_connections_offline_message_ck',
@@ -1697,6 +1703,10 @@ export const channelConnections = pgTable(
     check(
       'channel_connections_health_ck',
       sql`${t.health} in ('ok', 'degraded', 'unknown') and (${t.healthReason} is null or ${t.healthReason} in ('credential_revoked', 'credential_invalid', 'unreachable', 'send_rejected')) and ${t.healthFailures} >= 0`,
+    ),
+    check(
+      'channel_connections_reply_cap_ck',
+      sql`${t.aiReplyCap} is null or ${t.aiReplyCap} between 1 and 50`,
     ),
     check(
       'channel_connections_credential_ck',
@@ -1916,6 +1926,8 @@ export const ESCALATION_SOURCES = [
   'unverified',
   'approval_sla',
   'data_request',
+  'reply_cap',
+  'delivery_failed',
 ] as const;
 export const ESCALATION_RESOLUTIONS = ['claimed', 'closed', 'returned'] as const;
 export const ESCALATION_MODES = ['round_robin', 'person'] as const;
@@ -2383,6 +2395,244 @@ export const usedLinkNonces = pgTable(
   ],
 );
 
+/**
+ * The email channel's settings (CHN-04; FEAT-036 §4). One row per tenant. `forwarding_local`
+ * is globally unique (the inbound route) and never changes after setup. The custom sending
+ * domain is used only while `domain_state = 'verified'` (D4).
+ */
+export const EMAIL_DOMAIN_STATES = ['pending', 'verified', 'failing'] as const;
+export const emailSettings = pgTable(
+  'email_settings',
+  {
+    tenantId: uuid('tenant_id')
+      .primaryKey()
+      .references(() => tenants.id),
+    connectionId: uuid('connection_id').notNull(),
+    forwardingLocal: text('forwarding_local').notNull(),
+    domainAddress: text('domain_address'),
+    domain: text('domain'),
+    domainState: text('domain_state', { enum: EMAIL_DOMAIN_STATES }),
+    dkimTokens: text('dkim_tokens')
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    mailFromDomain: text('mail_from_domain'),
+    domainCheckedAt: timestamp('domain_checked_at', { withTimezone: true }),
+    domainVerifiedAt: timestamp('domain_verified_at', { withTimezone: true }),
+    domainFailingSince: timestamp('domain_failing_since', { withTimezone: true }),
+    lastReceivedAt: timestamp('last_received_at', { withTimezone: true }),
+    /** Gmail's forwarding confirmation (D5): `{ code, link, receivedAt }`. */
+    forwardingConfirmation: jsonb('forwarding_confirmation').$type<Record<string, unknown>>(),
+    version: integer('version').notNull().default(1),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('email_settings_forwarding_local_uq').on(t.forwardingLocal),
+    foreignKey({
+      name: 'email_settings_connection_fk',
+      columns: [t.tenantId, t.connectionId],
+      foreignColumns: [channelConnections.tenantId, channelConnections.id],
+    }),
+    check('email_settings_local_ck', sql`${t.forwardingLocal} ~ '^[a-z0-9][a-z0-9-]{0,62}$'`),
+    check(
+      'email_settings_domain_ck',
+      sql`(${t.domain} is null) = (${t.domainAddress} is null) and (${t.domain} is null) = (${t.domainState} is null) and (${t.domainState} is null or ${t.domainState} in (${inList(EMAIL_DOMAIN_STATES)}))`,
+    ),
+    check(
+      'email_settings_confirmation_ck',
+      sql`${t.forwardingConfirmation} is null or jsonb_typeof(${t.forwardingConfirmation}) = 'object'`,
+    ),
+    check('email_settings_version_ck', sql`${t.version} > 0`),
+  ],
+);
+
+/** Why an inbound email got no conversation (CHN-10; FEAT-036 §3 `EmailIgnoreReason`). */
+export const EMAIL_IGNORE_REASONS = [
+  'auto_reply',
+  'bounce',
+  'bulk',
+  'list',
+  'spam',
+  'unsafe',
+  'echo',
+  'loop',
+] as const;
+
+/**
+ * One row per inbound provider event (ADR-011): the redelivery guard and the page's ignored
+ * counts. No headers, addresses or body (ADR-015). Purged after 30 days.
+ */
+export const inboundEvents = pgTable(
+  'inbound_events',
+  {
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id),
+    id: uuid('id').notNull().defaultRandom(),
+    connectionId: uuid('connection_id').notNull(),
+    providerEventId: text('provider_event_id').notNull(),
+    receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
+    outcome: text('outcome', { enum: ['accepted', 'ignored', 'failed'] }).notNull(),
+    ignoreReason: text('ignore_reason', { enum: EMAIL_IGNORE_REASONS }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.id] }),
+    uniqueIndex('inbound_events_provider_uq').on(t.tenantId, t.connectionId, t.providerEventId),
+    index('inbound_events_received_idx').on(t.tenantId, t.receivedAt.desc()),
+    check(
+      'inbound_events_outcome_ck',
+      sql`${t.outcome} in ('accepted', 'ignored', 'failed') and (${t.outcome} = 'ignored') = (${t.ignoreReason} is not null) and (${t.ignoreReason} is null or ${t.ignoreReason} in (${inList(EMAIL_IGNORE_REASONS)}))`,
+    ),
+    check('inbound_events_provider_ck', sql`char_length(${t.providerEventId}) between 1 and 200`),
+  ],
+);
+
+/** RFC 5322 Message-IDs of a conversation's mail, both ways: threading and echo detection (§5.1). */
+export const emailMessages = pgTable(
+  'email_messages',
+  {
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id),
+    rfcMessageId: text('rfc_message_id').notNull(),
+    conversationId: uuid('conversation_id').notNull(),
+    messageId: uuid('message_id'),
+    direction: text('direction', { enum: ['in', 'out'] }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.rfcMessageId] }),
+    foreignKey({
+      name: 'email_messages_conversation_fk',
+      columns: [t.tenantId, t.conversationId],
+      foreignColumns: [conversations.tenantId, conversations.id],
+    }).onDelete('cascade'),
+    index('email_messages_conversation_idx').on(t.tenantId, t.conversationId, t.createdAt.desc()),
+    index('email_messages_message_idx').on(t.tenantId, t.messageId),
+    check('email_messages_direction_ck', sql`${t.direction} in ('in', 'out')`),
+    check('email_messages_id_ck', sql`char_length(${t.rfcMessageId}) between 1 and 998`),
+  ],
+);
+
+/** A conversation's email thread: the subject and the References chain the next reply carries. */
+export const emailThreads = pgTable(
+  'email_threads',
+  {
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id),
+    conversationId: uuid('conversation_id').notNull(),
+    subject: text('subject').notNull(),
+    references: text('references')
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    lastInboundId: text('last_inbound_id'),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.conversationId] }),
+    foreignKey({
+      name: 'email_threads_conversation_fk',
+      columns: [t.tenantId, t.conversationId],
+      foreignColumns: [conversations.tenantId, conversations.id],
+    }).onDelete('cascade'),
+    check('email_threads_subject_ck', sql`char_length(${t.subject}) <= 200`),
+    check('email_threads_references_ck', sql`cardinality(${t.references}) <= 20`),
+  ],
+);
+
+export const DELIVERY_STATUSES = ['pending', 'sent', 'failed'] as const;
+export const DELIVERY_FAILED_REASONS = ['bounced', 'rejected', 'timed_out'] as const;
+
+/**
+ * One delivery per staff, agent or system message in an adapter-channel conversation (D2),
+ * written by the `messages_channel_delivery` trigger in the writer's transaction (ADR-012).
+ */
+export const messageDeliveries = pgTable(
+  'message_deliveries',
+  {
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id),
+    messageId: uuid('message_id').notNull(),
+    conversationId: uuid('conversation_id').notNull(),
+    connectionId: uuid('connection_id').notNull(),
+    status: text('status', { enum: DELIVERY_STATUSES }).notNull().default('pending'),
+    attempts: integer('attempts').notNull().default(0),
+    firstAttemptAt: timestamp('first_attempt_at', { withTimezone: true }).notNull().defaultNow(),
+    nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }),
+    failedReason: text('failed_reason', { enum: DELIVERY_FAILED_REASONS }),
+    externalId: text('external_id'),
+    sentAt: timestamp('sent_at', { withTimezone: true }),
+    version: integer('version').notNull().default(1),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.messageId] }),
+    foreignKey({
+      name: 'message_deliveries_message_fk',
+      columns: [t.tenantId, t.messageId],
+      foreignColumns: [messages.tenantId, messages.id],
+    }).onDelete('cascade'),
+    index('message_deliveries_due_idx')
+      .on(t.nextAttemptAt)
+      .where(sql`${t.status} = 'pending'`),
+    index('message_deliveries_conversation_idx').on(t.tenantId, t.conversationId),
+    check(
+      'message_deliveries_status_ck',
+      sql`${t.status} in (${inList(DELIVERY_STATUSES)}) and (${t.status} = 'failed') = (${t.failedReason} is not null) and (${t.failedReason} is null or ${t.failedReason} in (${inList(DELIVERY_FAILED_REASONS)})) and (${t.status} <> 'sent' or ${t.sentAt} is not null)`,
+    ),
+    check('message_deliveries_attempts_ck', sql`${t.attempts} >= 0 and ${t.version} > 0`),
+  ],
+);
+
+export const ATTACHMENT_STATUSES = ['scanning', 'clean', 'rejected'] as const;
+export const ATTACHMENT_REJECT_REASONS = [
+  'unsupported_type',
+  'too_large',
+  'malware',
+  'encrypted',
+  'too_many',
+] as const;
+
+/** An inbound email's attachments (CHN-04, KB-11; FEAT-036 §5.2 step 4, D9). */
+export const emailAttachments = pgTable(
+  'email_attachments',
+  {
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id),
+    id: uuid('id').notNull().defaultRandom(),
+    conversationId: uuid('conversation_id').notNull(),
+    messageId: uuid('message_id').notNull(),
+    name: text('name').notNull(),
+    contentType: text('content_type'),
+    size: integer('size').notNull(),
+    status: text('status', { enum: ATTACHMENT_STATUSES }).notNull().default('scanning'),
+    rejectReason: text('reject_reason', { enum: ATTACHMENT_REJECT_REASONS }),
+    objectKey: text('object_key'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.id] }),
+    foreignKey({
+      name: 'email_attachments_message_fk',
+      columns: [t.tenantId, t.messageId],
+      foreignColumns: [messages.tenantId, messages.id],
+    }).onDelete('cascade'),
+    index('email_attachments_message_idx').on(t.tenantId, t.messageId),
+    index('email_attachments_conversation_idx').on(t.tenantId, t.conversationId),
+    check(
+      'email_attachments_status_ck',
+      sql`${t.status} in (${inList(ATTACHMENT_STATUSES)}) and (${t.status} = 'rejected') = (${t.rejectReason} is not null) and (${t.rejectReason} is null or ${t.rejectReason} in (${inList(ATTACHMENT_REJECT_REASONS)})) and (${t.objectKey} is null or ${t.status} = 'clean')`,
+    ),
+    check(
+      'email_attachments_name_ck',
+      sql`char_length(${t.name}) between 1 and 200 and ${t.size} >= 0`,
+    ),
+  ],
+);
+
 /** Tables with `tenant_id` + forced RLS. The cross-tenant suite asserts this list is complete. */
 export const TENANT_SCOPED_TABLES = [
   'tenants',
@@ -2426,4 +2676,10 @@ export const TENANT_SCOPED_TABLES = [
   'lead_settings',
   'approvals',
   'used_link_nonces',
+  'email_settings',
+  'inbound_events',
+  'email_messages',
+  'email_threads',
+  'message_deliveries',
+  'email_attachments',
 ] as const;

@@ -2430,11 +2430,21 @@ describe('channel connections (FEAT-034 §4)', () => {
     await expect(
       asRole('app_agent_visitor', TENANT_A, (c) => c.query(`select id from channel_connections`)),
     ).rejects.toThrow(/permission denied/);
+    // FEAT-036 lets the dashboard set up an adapter channel; it can still never add a widget
+    // or write a credential.
     await expect(
       asRole('app_dashboard', TENANT_A, (c) =>
-        c.query(`insert into channel_connections (tenant_id, kind) values ($1, 'email')`, [
+        c.query(`insert into channel_connections (tenant_id, kind) values ($1, 'widget')`, [
           TENANT_A,
         ]),
+      ),
+    ).rejects.toThrow(/row-level security/);
+    await expect(
+      asRole('app_dashboard', TENANT_A, (c) =>
+        c.query(
+          `insert into channel_connections (tenant_id, kind, credential_key_ref) values ($1, 'telegram', 'k')`,
+          [TENANT_A],
+        ),
       ),
     ).rejects.toThrow(/permission denied/);
   });
@@ -2471,10 +2481,10 @@ describe('channel connections (FEAT-034 §4)', () => {
     }
   });
 
-  it('the checks reject hidden for a non-widget kind and a 301-character message', async () => {
+  it('the checks reject hidden for a kind other than widget and email (FEAT-036 D3) and a 301-character message', async () => {
     await expect(
       owner.query(
-        `insert into channel_connections (tenant_id, kind, offline_mode) values ($1, 'email', 'hidden')`,
+        `insert into channel_connections (tenant_id, kind, offline_mode) values ($1, 'telegram', 'hidden')`,
         [TENANT_A],
       ),
     ).rejects.toThrow(/channel_connections_offline_mode_ck/);
@@ -4676,5 +4686,291 @@ describe('consent withdrawals (FEAT-051)', () => {
       async (c) => (await c.query(`select id from consents`)).rowCount,
     );
     expect(seen).toBe(0);
+  });
+});
+
+describe('email channel (FEAT-036)', () => {
+  const connections: Record<string, string> = {};
+  const emailConversation = async (t: string) =>
+    (
+      await owner.query<{ id: string }>(
+        `insert into conversations (tenant_id, channel, visitor_id) values ($1, 'email', gen_random_uuid()) returning id`,
+        [t],
+      )
+    ).rows[0]!.id;
+  const deliveries = (conversationId: string) =>
+    owner
+      .query<{ message_id: string; status: string }>(
+        `select message_id, status from message_deliveries where conversation_id = $1`,
+        [conversationId],
+      )
+      .then((r) => r.rows);
+  const jobs = (conversationId: string) =>
+    owner
+      .query<{ topic: string; payload: { messageId: string } }>(
+        `select topic, payload from outbox where group_key = $1 and topic = 'channel-send'`,
+        [conversationId],
+      )
+      .then((r) => r.rows);
+
+  beforeAll(async () => {
+    for (const [t, local] of [
+      [TENANT_A, 'kaki-bakery-rls'],
+      [TENANT_B, 'second-tenant-rls'],
+    ] as const) {
+      const c = await owner.query<{ id: string }>(
+        `insert into channel_connections (tenant_id, kind, state, offline_mode, health, ai_reply_cap)
+         values ($1, 'email', 'live', 'hidden', 'ok', 10)
+         on conflict (tenant_id, kind) do update set ai_reply_cap = 10 returning id`,
+        [t],
+      );
+      connections[t] = c.rows[0]!.id;
+      await owner.query(
+        `insert into email_settings (tenant_id, connection_id, forwarding_local) values ($1, $2, $3)
+         on conflict (tenant_id) do nothing`,
+        [t, connections[t], local],
+      );
+    }
+  });
+
+  afterAll(async () => {
+    await owner.query(
+      `delete from outbox where topic = 'channel-send' or payload->>'kind' = 'delivery_failed'`,
+    );
+    for (const table of [
+      'message_deliveries',
+      'email_attachments',
+      'email_messages',
+      'email_threads',
+      'inbound_events',
+      'email_settings',
+    ])
+      await owner.query(`delete from ${table}`);
+  });
+
+  it('a staff, agent and system message in an email conversation each get one delivery and job; widget and visitor rows none', async () => {
+    const conv = await emailConversation(TENANT_A);
+    const ids: string[] = [];
+    await asRole('app_agent_visitor', TENANT_A, async (c) => {
+      for (const author of ['agent', 'system', 'visitor'])
+        ids.push(
+          (
+            await c.query<{ id: string }>(
+              `insert into messages (tenant_id, conversation_id, author, body) values ($1, $2, $3, 'hi') returning id`,
+              [TENANT_A, conv, author],
+            )
+          ).rows[0]!.id,
+        );
+      await c.query('commit');
+    });
+    await asRole('app_dashboard', TENANT_A, async (c) => {
+      ids.push(
+        (
+          await c.query<{ id: string }>(
+            `insert into messages (tenant_id, conversation_id, author, body) values ($1, $2, 'staff', 'hello') returning id`,
+            [TENANT_A, conv],
+          )
+        ).rows[0]!.id,
+      );
+      await c.query('commit');
+    });
+    const expected = [ids[0], ids[1], ids[3]].sort();
+    expect((await deliveries(conv)).map((d) => d.message_id).sort()).toEqual(expected);
+    expect((await deliveries(conv)).every((d) => d.status === 'pending')).toBe(true);
+    expect((await jobs(conv)).map((j) => j.payload.messageId).sort()).toEqual(expected);
+
+    const widget = (
+      await owner.query<{ id: string }>(
+        `insert into conversations (tenant_id, channel, visitor_id) values ($1, 'widget', gen_random_uuid()) returning id`,
+        [TENANT_A],
+      )
+    ).rows[0]!.id;
+    await owner.query(
+      `insert into messages (tenant_id, conversation_id, author, body) values ($1, $2, 'agent', 'hi')`,
+      [TENANT_A, widget],
+    );
+    expect(await deliveries(widget)).toEqual([]);
+    expect(await jobs(widget)).toEqual([]);
+  });
+
+  it('email_route() resolves a local part without tenant context; unknown is nothing; only the visitor zone runs it', async () => {
+    const hit = await asRole(
+      'app_agent_visitor',
+      null,
+      async (c) => (await c.query(`select * from email_route('Kaki-Bakery-RLS')`)).rows,
+    );
+    expect(hit).toEqual([{ tenant_id: TENANT_A, connection_id: connections[TENANT_A] }]);
+    const miss = await asRole(
+      'app_agent_visitor',
+      null,
+      async (c) => (await c.query(`select * from email_route('nobody')`)).rows,
+    );
+    expect(miss).toEqual([]);
+    await expect(
+      asRole('app_dashboard', null, (c) => c.query(`select * from email_route('x')`)),
+    ).rejects.toThrow(/permission denied/);
+  });
+
+  it('channel_deliveries_due() queues a due retry once and times out a 25-hour-old delivery', async () => {
+    const conv = await emailConversation(TENANT_A);
+    const [due, old] = await Promise.all(
+      ['due', 'old'].map(
+        async (body) =>
+          (
+            await owner.query<{ id: string }>(
+              `insert into messages (tenant_id, conversation_id, author, body) values ($1, $2, 'agent', $3) returning id`,
+              [TENANT_A, conv, body],
+            )
+          ).rows[0]!.id,
+      ),
+    );
+    await owner.query(
+      `update message_deliveries set next_attempt_at = now() - interval '1 minute' where message_id = $1`,
+      [due],
+    );
+    await owner.query(
+      `update message_deliveries set first_attempt_at = now() - interval '25 hours' where message_id = $1`,
+      [old],
+    );
+    const swept = await asRole('app_outbox', null, async (c) => {
+      const first = (await c.query(`select * from channel_deliveries_due()`)).rows;
+      const second = (await c.query(`select * from channel_deliveries_due()`)).rows;
+      await c.query('commit');
+      return { first, second };
+    });
+    expect(
+      swept.first
+        .filter((r: { conversation_id: string }) => r.conversation_id === conv)
+        .map((r: { message_id: string; outcome: string }) => [r.message_id, r.outcome])
+        .sort(),
+    ).toEqual(
+      [
+        [due, 'due'],
+        [old, 'timed_out'],
+      ].sort(),
+    );
+    expect(
+      swept.second.filter((r: { conversation_id: string }) => r.conversation_id === conv),
+    ).toEqual([]);
+    const rows = await owner.query(
+      `select message_id, status, failed_reason from message_deliveries where conversation_id = $1`,
+      [conv],
+    );
+    expect(rows.rows).toEqual(
+      expect.arrayContaining([
+        { message_id: due, status: 'pending', failed_reason: null },
+        { message_id: old, status: 'failed', failed_reason: 'timed_out' },
+      ]),
+    );
+    const escalate = await owner.query(
+      `select payload->>'messageId' as id from outbox where payload->>'kind' = 'delivery_failed' and group_key = $1`,
+      [conv],
+    );
+    expect(escalate.rows).toEqual([{ id: old }]);
+    for (const role of ['app_agent_visitor', 'app_dashboard', 'app_ingest'] as const)
+      await expect(
+        asRole(role, TENANT_A, (c) => c.query(`select * from channel_deliveries_due()`)),
+      ).rejects.toThrow(/permission denied/);
+    const login = await owner.query(
+      `select rolname, rolcanlogin from pg_roles where rolname in ('kaki_channel_timer', 'kaki_channel_delivery', 'kaki_email_route') order by 1`,
+    );
+    expect(login.rows.every((r: { rolcanlogin: boolean }) => !r.rolcanlogin)).toBe(true);
+    expect(login.rows).toHaveLength(3);
+  });
+
+  it("tenant B reads and writes none of tenant A's email rows", async () => {
+    const conv = await emailConversation(TENANT_A);
+    const msg = (
+      await owner.query<{ id: string }>(
+        `insert into messages (tenant_id, conversation_id, author, body) values ($1, $2, 'visitor', 'in') returning id`,
+        [TENANT_A, conv],
+      )
+    ).rows[0]!.id;
+    await owner.query(
+      `insert into inbound_events (tenant_id, connection_id, provider_event_id, outcome) values ($1, $2, 'ses-1', 'accepted')`,
+      [TENANT_A, connections[TENANT_A]],
+    );
+    await owner.query(
+      `insert into email_messages (tenant_id, rfc_message_id, conversation_id, message_id, direction) values ($1, '<a@x>', $2, $3, 'in')`,
+      [TENANT_A, conv, msg],
+    );
+    await owner.query(
+      `insert into email_threads (tenant_id, conversation_id, subject) values ($1, $2, 'Cake')`,
+      [TENANT_A, conv],
+    );
+    await owner.query(
+      `insert into email_attachments (tenant_id, conversation_id, message_id, name, size) values ($1, $2, $3, 'a.pdf', 10)`,
+      [TENANT_A, conv, msg],
+    );
+    await owner.query(
+      `insert into messages (tenant_id, conversation_id, author, body) values ($1, $2, 'agent', 'out')`,
+      [TENANT_A, conv],
+    );
+    const tables = [
+      'email_settings',
+      'inbound_events',
+      'email_messages',
+      'email_threads',
+      'message_deliveries',
+      'email_attachments',
+    ];
+    for (const role of ['app_dashboard', 'app_agent_visitor'] as const) {
+      const seen = await asRole(role, TENANT_B, async (c) => {
+        const out: Record<string, number> = {};
+        for (const t of tables)
+          out[t] = (await c.query(`select 1 from ${t} where tenant_id = $1`, [TENANT_A])).rowCount!;
+        return out;
+      });
+      expect(seen).toEqual(Object.fromEntries(tables.map((t) => [t, 0])));
+    }
+    const upd = await asRole('app_dashboard', TENANT_B, (c) =>
+      c.query(`update message_deliveries set attempts = 0 where tenant_id = $1`, [TENANT_A]),
+    );
+    expect(upd.rowCount).toBe(0);
+    await expect(
+      asRole('app_agent_visitor', TENANT_B, (c) =>
+        c.query(
+          `insert into inbound_events (tenant_id, connection_id, provider_event_id, outcome) values ($1, $2, 'ses-x', 'accepted')`,
+          [TENANT_A, connections[TENANT_A]],
+        ),
+      ),
+    ).rejects.toThrow(/row-level security|violates/);
+    await expect(
+      asRole('app_dashboard', TENANT_B, (c) =>
+        c.query(
+          `insert into channel_connections (tenant_id, kind, state, offline_mode, health) values ($1, 'telegram', 'offline', 'message', 'ok')`,
+          [TENANT_A],
+        ),
+      ),
+    ).rejects.toThrow(/row-level security|violates/);
+  });
+
+  it('the dashboard may add an email connection but never a widget one; the cap is 1–50; email may be hidden offline', async () => {
+    await asRole('app_dashboard', TENANT_B, async (c) => {
+      await expect(
+        c.query(
+          `insert into channel_connections (tenant_id, kind, state, offline_mode, health) values ($1, 'widget', 'offline', 'hidden', 'ok')`,
+          [TENANT_B],
+        ),
+      ).rejects.toThrow(/row-level security/);
+    });
+    await expect(
+      owner.query(`update channel_connections set ai_reply_cap = 51 where id = $1`, [
+        connections[TENANT_A],
+      ]),
+    ).rejects.toThrow(/channel_connections_reply_cap_ck/);
+    await expect(
+      owner.query(
+        `insert into channel_connections (tenant_id, kind, state, offline_mode, health) values ($1, 'telegram', 'offline', 'hidden', 'ok')`,
+        [TENANT_A],
+      ),
+    ).rejects.toThrow(/channel_connections_offline_mode_ck/);
+    const cap = await asRole(
+      'app_agent_visitor',
+      TENANT_A,
+      async (c) =>
+        (await c.query(`select ai_reply_cap, offline_mode from visitor_channel('email')`)).rows,
+    );
+    expect(cap).toEqual([{ ai_reply_cap: 10, offline_mode: 'hidden' }]);
   });
 });
