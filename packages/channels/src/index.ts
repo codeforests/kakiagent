@@ -112,3 +112,4 @@ export {
   type WidgetContext,
   type WidgetUrls,
 } from './widget-settings.js';
+export * from './email/index.js';

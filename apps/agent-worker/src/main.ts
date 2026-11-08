@@ -1,8 +1,10 @@
 import { fakeAgentScript, runVisitorTurn } from '@kaki/agent';
+import { receiveEmail } from '@kaki/channels';
 import { usageSink } from '@kaki/analytics';
 import { runApprovalTimer } from '@kaki/approvals';
 import { TurnQueueJob, type RealtimeEvent } from '@kaki/contracts';
 import { createZoneDb, ping, withTenant } from '@kaki/db';
+import * as inbox from '@kaki/inbox';
 import {
   autoCloseIdle,
   conversationSummary,
@@ -23,12 +25,14 @@ import {
 } from '@kaki/platform';
 import { visitorTenantState } from '@kaki/tenancy';
 import { z } from 'zod';
+import { s3MailStore } from './mail-store.js';
 
 const config = loadConfig(
   envSchemas.base
     .extend(envSchemas.aws.shape)
     .extend(envSchemas.valkey.shape)
     .extend(envSchemas.llm.shape)
+    .extend(envSchemas.emailInbound.shape)
     .extend({
       HEALTH_PORT: envSchemas.port.default(3002),
       VISITOR_DATABASE_URL: z.string().startsWith('postgres'),
@@ -302,9 +306,82 @@ const consuming = queue.consume<unknown>(
 );
 logger.info({ provider: config.LLM_PROVIDER }, 'agent-worker consuming conversation turns');
 
+/**
+ * Consumes `email-inbound` (CHN-04; FEAT-036 §5.2): SES-stored mail announced through SNS.
+ * `inbound_events` makes a redelivery a no-op; a thrown error leaves the message for retry
+ * and, after 5 receives, the DLQ (NFR-17).
+ */
+const mailStore = s3MailStore({
+  quarantineBucket: config.QUARANTINE_BUCKET,
+  region: config.AWS_REGION,
+  endpoint: config.AWS_ENDPOINT_URL,
+});
+const receivingMail = queue.consume<unknown>(
+  {
+    queueUrl: config.SQS_EMAIL_INBOUND_QUEUE_URL,
+    signal: abort.signal,
+    onError: (err, raw) =>
+      logger.error({ err, sqsMessageId: raw.MessageId }, 'inbound email failed; will be retried'),
+  },
+  async (msg) => {
+    const r = await receiveEmail(
+      {
+        zdb: visitorDb,
+        store: mailStore,
+        inbox,
+        config: {
+          topicArn: config.EMAIL_SNS_TOPIC_ARN,
+          inboundBucket: config.EMAIL_INBOUND_BUCKET,
+          inboundDomain: config.EMAIL_INBOUND_DOMAIN,
+        },
+      },
+      msg.body,
+    );
+    const log = logger.child({ sqsMessageId: msg.id });
+    if ('rejected' in r) {
+      log.warn({ rejected: r.rejected }, 'inbound email rejected');
+      return;
+    }
+    if ('notification' in r) {
+      log.info({ notification: r.notification }, 'email notification');
+      return;
+    }
+    for (const one of r.recipients) {
+      if (one.outcome !== 'accepted') {
+        log.info(
+          { outcome: one.outcome, reason: 'reason' in one ? one.reason : null },
+          'inbound email',
+        );
+        continue;
+      }
+      const t = one.tenantId;
+      // The inbox shows the mail at once; the turn (when scheduled) replies after.
+      const summary =
+        (await withTenant(visitorDb, t, (tx) =>
+          conversationSummary(tx, t, one.conversation.id),
+        ).catch(() => null)) ?? toSummary(one.conversation, one.message.body);
+      if (one.created)
+        await publishAll(
+          [
+            [
+              [channels.conversation(t, one.conversation.id), channels.inbox(t)],
+              { type: 'message', message: toMessage(one.message) },
+            ],
+            [[channels.inbox(t)], { type: 'conversation', conversation: summary }],
+          ],
+          log,
+        );
+      log.info(
+        { tenantId: t, conversationId: one.conversation.id, created: one.created },
+        'inbound email accepted',
+      );
+    }
+  },
+);
+
 async function shutdown() {
   abort.abort();
-  await consuming.catch(() => {});
+  await Promise.all([consuming.catch(() => {}), receivingMail.catch(() => {})]);
   health.close();
   await Promise.all([visitorDb.pool.end(), publisher.close()]);
   await stopTelemetry();

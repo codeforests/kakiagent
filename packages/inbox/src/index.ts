@@ -28,10 +28,11 @@ export async function createConversation(
   tx: Tx,
   tenantId: string,
   visitorId: string,
+  channel: ConversationRow['channel'] = 'widget',
 ): Promise<ConversationRow> {
   const [row] = await tx
     .insert(schema.conversations)
-    .values({ tenantId, visitorId, channel: 'widget' })
+    .values({ tenantId, visitorId, channel })
     .returning();
   await audit.append(tx, tenantId, {
     action: 'conversation.started',
@@ -76,6 +77,8 @@ export async function appendVisitorMessage(
     visitorId: string;
     text: string;
     clientMessageId: string;
+    /** False for a message with nothing to answer, e.g. an attachment-only email (FEAT-036 §5.1). */
+    scheduleTurn?: boolean;
   },
 ): Promise<{ message: MessageRow; created: boolean; conversation: ConversationRow }> {
   const conversation = await visitorConversation(
@@ -137,16 +140,17 @@ export async function appendVisitorMessage(
       ),
     )
     .returning();
-  await enqueue(tx, {
-    tenantId: input.tenantId,
-    topic: 'conversation-turns',
-    groupKey: input.conversationId,
-    payload: {
+  if (input.scheduleTurn !== false)
+    await enqueue(tx, {
       tenantId: input.tenantId,
-      conversationId: input.conversationId,
-      messageId: inserted.id,
-    },
-  });
+      topic: 'conversation-turns',
+      groupKey: input.conversationId,
+      payload: {
+        tenantId: input.tenantId,
+        conversationId: input.conversationId,
+        messageId: inserted.id,
+      },
+    });
   await audit.append(tx, input.tenantId, {
     action: 'message.received',
     actorType: 'visitor',

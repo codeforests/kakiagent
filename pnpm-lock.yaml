@@ -44,6 +44,12 @@ importers:
 
   apps/agent-worker:
     dependencies:
+      '@aws-sdk/client-s3':
+        specifier: 3.1152.0
+        version: 3.1152.0
+      '@aws-sdk/client-sqs':
+        specifier: 3.1152.0
+        version: 3.1152.0
       '@kaki/agent':
         specifier: workspace:*
         version: link:../../packages/agent
@@ -53,6 +59,9 @@ importers:
       '@kaki/approvals':
         specifier: workspace:*
         version: link:../../packages/approvals
+      '@kaki/channels':
+        specifier: workspace:*
+        version: link:../../packages/channels
       '@kaki/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
@@ -702,6 +711,9 @@ importers:
         specifier: 3.12.4
         version: 3.12.4
     devDependencies:
+      '@kaki/inbox':
+        specifier: workspace:*
+        version: link:../inbox
       '@types/mailparser':
         specifier: 3.9.0
         version: 3.9.0

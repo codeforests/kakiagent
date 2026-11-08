@@ -9,12 +9,16 @@
     "start": "node --enable-source-maps dist/main.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
-    "test": "vitest run --project unit --passWithNoTests"
+    "test": "vitest run --project unit --passWithNoTests",
+    "email:receive": "node --env-file-if-exists=.env scripts/email-receive.mjs"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "3.1152.0",
+    "@aws-sdk/client-sqs": "3.1152.0",
     "@kaki/agent": "workspace:*",
     "@kaki/analytics": "workspace:*",
     "@kaki/approvals": "workspace:*",
+    "@kaki/channels": "workspace:*",
     "@kaki/contracts": "workspace:*",
     "@kaki/db": "workspace:*",
     "@kaki/inbox": "workspace:*",

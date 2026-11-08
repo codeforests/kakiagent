@@ -102,6 +102,14 @@ export const envSchemas = {
   ingestQueue: z.object({ SQS_INGEST_QUEUE_URL: url }),
   /** Adapter-channel deliveries (FEAT-036 §5.3): scheduler-worker sends, agent-worker consumes. */
   channelSendQueue: z.object({ SQS_CHANNEL_SEND_QUEUE_URL: url }),
+  /** Inbound email (FEAT-036 §5.2, §5.6): SES → S3 → SNS → SQS `email-inbound`. */
+  emailInbound: z.object({
+    EMAIL_INBOUND_DOMAIN: z.string().min(3),
+    EMAIL_INBOUND_BUCKET: z.string().min(3),
+    EMAIL_SNS_TOPIC_ARN: z.string().startsWith('arn:'),
+    SQS_EMAIL_INBOUND_QUEUE_URL: url,
+    QUARANTINE_BUCKET: z.string().min(3),
+  }),
   valkey: z.object({ VALKEY_URL: z.string().startsWith('redis') }),
   llm,
 };

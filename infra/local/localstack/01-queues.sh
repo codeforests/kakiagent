@@ -17,4 +17,11 @@ fifo_queue conversation-turns 60 5
 fifo_queue ingest 1800 6
 # FEAT-036 §5.3: adapter-channel deliveries, in order per conversation.
 fifo_queue channel-send 60 5
+# FEAT-036 §5.2: inbound email notifications (standard, as SNS delivers them), DLQ after 5.
+awslocal sqs create-queue --queue-name email-inbound-dlq >/dev/null
+inbound_dlq_arn=$(awslocal sqs get-queue-attributes \
+  --queue-url "$(awslocal sqs get-queue-url --queue-name email-inbound-dlq --query QueueUrl --output text)" \
+  --attribute-names QueueArn --query Attributes.QueueArn --output text)
+awslocal sqs create-queue --queue-name email-inbound \
+  --attributes "{\"VisibilityTimeout\":\"120\",\"RedrivePolicy\":\"{\\\"deadLetterTargetArn\\\":\\\"${inbound_dlq_arn}\\\",\\\"maxReceiveCount\\\":\\\"5\\\"}\"}" >/dev/null
 echo "localstack: queues ready"

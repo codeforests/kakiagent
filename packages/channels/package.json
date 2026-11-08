@@ -26,6 +26,7 @@
     "mailparser": "3.12.4"
   },
   "devDependencies": {
+    "@kaki/inbox": "workspace:*",
     "@types/mailparser": "3.9.0",
     "@types/node": "22.20.5",
     "@types/pg": "8.23.1",
