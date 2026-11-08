@@ -31,6 +31,7 @@ export {
   CHANNEL_REGISTRY,
   connectable,
   registryEntry,
+  withAdapter,
   type ChannelRegistry,
   type ChannelRegistryEntry,
   type OfflineMode,

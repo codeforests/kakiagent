@@ -25,3 +25,32 @@ export {
 export { lookupIds, replySubject, threadKey, threadSubject } from './thread.js';
 export { EMAIL_CAPABILITIES } from './capabilities.js';
 export { classifySmtp, emailSender, type EmailSenderConfig } from './send.js';
+export { emailAdapter, type EmailAdapterDeps } from './adapter.js';
+export {
+  checkEmailDomain,
+  withEmailHealth,
+  type DomainCheckDeps,
+  type DomainCheckResult,
+} from './domain.js';
+export {
+  allPass,
+  checkDomain,
+  domainHealth,
+  domainOf,
+  FREE_MAIL_DOMAINS,
+  fixtureIdentities,
+  fixtureTxtResolver,
+  hasDmarc,
+  identityProvider,
+  IdentityProviderError,
+  nextDomainState,
+  nodeTxtResolver,
+  records,
+  refusedDomain,
+  sesIdentities,
+  type DomainChecks,
+  type IdentityProviderKind,
+  type IdentityStatus,
+  type SendingIdentities,
+  type TxtResolver,
+} from './identity.js';

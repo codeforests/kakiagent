@@ -19,6 +19,12 @@ import { sendDueNotifications } from '@kaki/platform/notifications';
 import { approvalLinkKey } from '@kaki/approvals';
 import { alertLinkOf } from './alert-links.js';
 import { createDispatcher } from '@kaki/platform/outbox';
+import {
+  CHANNEL_REGISTRY,
+  identityProvider,
+  runChannelHealth,
+  withEmailHealth,
+} from '@kaki/channels';
 import { z } from 'zod';
 import { channelHealthOnce } from './channel-health.js';
 import { gapClusterOnce } from './gap-cluster.js';
@@ -93,6 +99,9 @@ const config = loadConfig(
       APPROVAL_SWEEP_MS: z.coerce.number().int().positive().default(30_000),
       /** Adapter-channel delivery retries and timeouts (FEAT-036 §5.3). */
       DELIVERY_SWEEP_MS: z.coerce.number().int().positive().default(60_000),
+      /** The custom sending domain's checks (FEAT-036 §5.1): SES v2, or `fixture` locally. */
+      EMAIL_IDENTITY_PROVIDER: z.enum(['ses', 'fixture']).default('ses'),
+      SES_CONFIGURATION_SET: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
     }),
 );
 const stopTelemetry = startTelemetry('scheduler-worker', config.OTEL_EXPORTER_OTLP_ENDPOINT);
@@ -232,9 +241,18 @@ const gapTimer = setInterval(
 
 // Channel health (FEAT-034 §5.2): checks every health-checked connection and marks a broken
 // one degraded (two checks 5 minutes apart meet CHN-12's 15 minutes).
-const channelRun = channelHealthOnce(outboxDb, logger);
+// FEAT-036: email's check is the custom sending domain (SES identity and DMARC).
+const healthRegistry = withEmailHealth(CHANNEL_REGISTRY, {
+  zdb: outboxDb,
+  ...identityProvider(config.EMAIL_IDENTITY_PROVIDER, {
+    region: config.AWS_REGION,
+    configurationSet: config.SES_CONFIGURATION_SET,
+  }),
+});
+const runHealth = (zdb: typeof outboxDb) => runChannelHealth(zdb, { registry: healthRegistry });
+const channelRun = channelHealthOnce(outboxDb, logger, runHealth);
 const channelTimer = setInterval(
-  () => void channelHealthOnce(outboxDb, logger),
+  () => void channelHealthOnce(outboxDb, logger, runHealth),
   config.CHANNEL_HEALTH_INTERVAL_MS,
 );
 

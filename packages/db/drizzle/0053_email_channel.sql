@@ -161,6 +161,10 @@ GRANT SELECT, INSERT, UPDATE (subject, "references", last_inbound_id, updated_at
 GRANT SELECT, UPDATE (status, attempts, next_attempt_at, failed_reason, external_id, sent_at, version)
   ON message_deliveries TO app_agent_visitor;--> statement-breakpoint
 
+-- Outbox zone: the channel health job checks the custom sending domain (§5.1 `checkHealth`).
+GRANT SELECT (tenant_id, domain, domain_state, domain_failing_since), UPDATE (domain_state,
+  domain_checked_at, domain_verified_at, domain_failing_since) ON email_settings TO app_outbox;--> statement-breakpoint
+
 -- Ingest zone: the attachment scan (§5.2 step 4) moves an attachment out of `scanning`.
 GRANT SELECT, UPDATE (status, reject_reason, object_key, content_type) ON email_attachments TO app_ingest;--> statement-breakpoint
 

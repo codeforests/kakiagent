@@ -35,11 +35,12 @@ describe('channel registry (ADR-011)', () => {
   });
 
   it('connectable leaves out connected kinds and kinds without a connect flow', () => {
-    expect(connectable(registry, ['widget'])).toEqual([
+    expect(connectable(registry, ['widget', 'email'])).toEqual([
       { kind: 'telegram', name: 'Telegram', connectPath: '/settings/channels/telegram' },
     ]);
-    expect(connectable(registry, ['widget', 'telegram'])).toEqual([]);
-    expect(connectable(CHANNEL_REGISTRY, [])).toEqual([]);
+    expect(connectable(registry, ['widget', 'email', 'telegram'])).toEqual([]);
+    // FEAT-036: email is the first registered kind with a connect flow.
+    expect(connectable(CHANNEL_REGISTRY, ['email'])).toEqual([]);
   });
 });
 

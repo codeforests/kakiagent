@@ -17,6 +17,7 @@
     "test:coverage": "vitest run --coverage --passWithNoTests"
   },
   "dependencies": {
+    "@aws-sdk/client-sesv2": "3.1152.0",
     "@kaki/contracts": "workspace:*",
     "@kaki/db": "workspace:*",
     "@kaki/design-tokens": "workspace:*",
