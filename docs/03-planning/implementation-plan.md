@@ -1,6 +1,7 @@
 # Implementation Plan: KakiAgent MVP
 
 > Status: **Signed off by the product owner, 2026-10-19** · Last updated: 2026-10-19 (revised after owner review: Team and My account moved to M3, alerts split by channel, NFR ownership added in §7; then MD, M6, FEAT-071 and CI/CD aligned with the launch environment, ADR-023 and ADR-024; 2026-10-20 turn plan and task dispatch per ADR-025 noted in §4)
+> Amended 2026-11-08 (M3 close, `docs/pipeline-verify-report.md`): §4 FRs columns of FEAT-007, 019, 035, 043, 044, 045, 049, 050, 051 and 054 now list the requirements their detailed designs and acceptance reports took on (already in the RTM Plan refs).
 > Inputs (all found, all signed off): [SRS v0.4](../01-requirements/SRS.md) · [use-cases.md](../01-requirements/use-cases.md) · [rtm.md](../01-requirements/rtm.md) · [architecture.md](../02-design/architecture.md) + [ADR-001..025](../02-design/adr/) · [ux-foundations.md](../02-design/ux-foundations.md) · [design.md](../02-design/design.md) · [design-manifest.json](../design-manifest.json)
 > Fidelity: full. Every FR, UC and SCR ID below resolves in those documents.
 
@@ -127,7 +128,7 @@ Feature IDs are in definition order and are permanent: they are never renumbered
 |---|---|---|---|---|---|---|---|
 | FEAT-005 | Sign up, sign in and sessions (magic link, Google, terms acceptance, sign-out everywhere) | M | ONB-01, AUTH-01, AUTH-02 (p), AUTH-08 | UC-01, UC-02 | SCR-APP-001, -002, -003, -059 (session expired) | `/auth/*`; SES via Mailpit locally | users, sessions, memberships, tenants, terms_acceptances |
 | FEAT-006 | Two-step verification and re-authentication for sensitive actions | M | AUTH-03 | UC-02 | SCR-APP-005 | `identity.requireReauth` | mfa_factors, recovery_codes |
-| FEAT-007 | Team, invitations, roles, approval-rights grants, tenant switcher | M | DSH-03, AUTH-04 | UC-06 | SCR-APP-004, -045 | `/team/*` | invitations, memberships |
+| FEAT-007 | Team, invitations, roles, approval-rights grants, tenant switcher | M | DSH-03, AUTH-04, AUTH-02 (p) | UC-06 | SCR-APP-004, -045 | `/team/*` | invitations, memberships |
 | FEAT-008 | My account: profile, email change, sessions list | M | AUTH-05, AUTH-02 (p) | UC-02 | SCR-APP-055 | `/me/*` | users, sessions |
 | FEAT-009 | Business profile, hours, SG holidays, F&B industry template (D1): suggested FAQs only; FEAT-054 adds the template's boundary rules and FEAT-049 its lead fields | M | ONB-03, ONB-06 (p, F&B only) | UC-03 | SCR-APP-044, SCR-APP-006 (p) | `tenancy` | business_profiles, holidays |
 | FEAT-010 | Ownership transfer and tenant deletion with 30-day grace and restore | M | AUTH-06, AUTH-07 | UC-07, UC-08 | SCR-APP-053, -060 | scheduler hard-delete job | tenants (all tables on delete) |
@@ -144,7 +145,7 @@ Feature IDs are in definition order and are permanent: they are never renumbered
 | FEAT-016 | Spreadsheet import with column mapping and preview | M | KB-03 | UC-10 | SCR-APP-025 | deterministic import path | kb_sources, facts |
 | FEAT-017 | Chat-history import (WhatsApp, Telegram) to suggested FAQs, with redaction | M | KB-04 | UC-11 | SCR-APP-026 | quarantine → mine → redact → delete | facts (FAQ) |
 | FEAT-018 | Correction queue, stale-fact scan and old-versus-new answer replay | M | KB-18, KB-17 | UC-16 | SCR-APP-021, -022 | `kb.proposeCorrection`; scheduler stale scan | corrections, fact_versions |
-| FEAT-019 | Coverage report (template topics before go-live, gaps after) | M | KB-09 | UC-03, UC-16 | SCR-APP-029 | `kb.coverage` | facts, conversations |
+| FEAT-019 | Coverage report (template topics before go-live, gaps after) | M | KB-09, KB-18 (p) | UC-03, UC-16 | SCR-APP-029 | `kb.coverage` | facts, conversations |
 | FEAT-020 | Scheduled re-crawl and change diff | S | KB-08 | UC-14 | SCR-APP-024 (p) | scheduler re-crawl | kb_sources, facts |
 | FEAT-021 | Fact history and restore | S | KB-14 | UC-13 | SCR-APP-028 (p) | `kb.restore` | fact_versions |
 
@@ -170,7 +171,7 @@ Feature IDs are in definition order and are permanent: they are never renumbered
 | FEAT-032 | Widget install, theme matching, allowed origins, install check | M | ONB-07, CHN-11, CHN-14, CHN-02 (p) | UC-05 | SCR-APP-011, -037, SCR-WGT-001 | theme detection + clamp; origin check | widget_settings, allowed_origins |
 | FEAT-033 | Widget visitor controls (privacy link, end chat; "talk to a person" built but hidden until FEAT-044 enables it) and EN / 中文 chrome (UX-Q4) | M | CHN-13, CHN-02 (p) | UC-20 | SCR-WGT-002 (p), SCR-WGT-006 | widget string table | — |
 | FEAT-034 | Channel framework: adapter contract, go-live and go-offline per channel, health and degraded alerts | M | CHN-01, ONB-10, CHN-12 | UC-25 | SCR-APP-036, SCR-WGT-005 (p: not live) | `ChannelAdapter`; scheduler health checks | channel_connections |
-| FEAT-035 | Onboarding wizard frame and go-live readiness check | M | ONB-02, ONB-09, ONB-08 (p: instrumented) | UC-03 | SCR-APP-012, wizard frames of SCR-APP-006..011 | `tenancy.readiness` | onboarding_progress |
+| FEAT-035 | Onboarding wizard frame and go-live readiness check | M | ONB-02, ONB-09, ONB-08 (p: instrumented), ONB-10, AGT-08, AGT-11 | UC-03 | SCR-APP-012, wizard frames of SCR-APP-006..011 | `tenancy.readiness` | onboarding_progress |
 | FEAT-036 | Email channel: forwarding address, custom domain (SPF/DKIM/DMARC), threading, loop safety | M | CHN-04, CHN-10 | UC-27 | SCR-APP-038 | SES inbound → S3 → SQS; email adapter | channel_connections, messages |
 | FEAT-037 | Telegram channel (1:1), owner alerts via Telegram (completes LED-04) | M | CHN-05, LED-04 (p: Telegram alerts) | UC-25 | SCR-APP-039 | Telegram adapter; webhook | channel_connections |
 | FEAT-038 | Continue on another channel with the history | M | CHN-07, AGT-06 (p: `handoff_channel`) | UC-26 | SCR-WGT-004 | deep link + linking token | conversations, contacts |
@@ -183,9 +184,9 @@ Feature IDs are in definition order and are permanent: they are never renumbered
 | ID | Feature | Pri | FRs | UCs | Screens | Blocks / endpoints | Data |
 |---|---|---|---|---|---|---|---|
 | FEAT-042 | Real-time inbox, conversation view, context sidebar, lifecycle and auto-close; flagged filter for FEAT-025's flags | M | INB-01, INB-04, INB-08, AGT-13 (p: flagged filter) | UC-23 | SCR-APP-014, -015 | `inbox.transition`; WS; scheduler auto-close | conversations, messages |
-| FEAT-043 | Take over and hand back, single owner | M | INB-02, INB-09 | UC-23 | SCR-APP-015 (p), SCR-WGT-002 (p) | `inbox.takeOver`; send gate | conversation_owners |
-| FEAT-044 | Escalation routing to team members, enabling the widget's "talk to a person" control, reminders | M | INB-05, AGT-06 (p: `escalate_to_human`) | UC-23 | SCR-APP-014 (p), SCR-WGT-002 (p) | routing; scheduler reminders | escalations |
-| FEAT-045 | AI-suggested replies for staff (verified) | M | INB-03 | UC-23 | SCR-APP-015 (p) | `agent.suggestReply` | suggestions, corrections (staff edits) |
+| FEAT-043 | Take over and hand back, single owner | M | INB-02, INB-09, INB-01 | UC-23 | SCR-APP-015 (p), SCR-WGT-002 (p) | `inbox.takeOver`; send gate | conversation_owners |
+| FEAT-044 | Escalation routing to team members, enabling the widget's "talk to a person" control, reminders | M | INB-05, AGT-06 (p: `escalate_to_human`), AGT-04 (p), AGT-09 (p), CHN-13, INB-01 | UC-23 | SCR-APP-014 (p), SCR-WGT-002 (p) | routing; scheduler reminders | escalations |
+| FEAT-045 | AI-suggested replies for staff (verified) | M | INB-03, KB-18 (p), AGT-02 (p) | UC-23 | SCR-APP-015 (p) | `agent.suggestReply` | suggestions, corrections (staff edits) |
 | FEAT-046 | Conversation search | M | INB-11 | UC-23 | SCR-APP-014 (p) | Postgres FTS + `pg_trgm` | messages |
 | FEAT-047 | Internal notes, tags and saved replies | S | INB-07, INB-10 | UC-23 | SCR-APP-015 (p) | `/inbox/notes`, `/saved-replies` | notes, tags, saved_replies |
 | FEAT-048 | PWA install and web push | S | INB-06, LED-04 (p: web push) | UC-23 | SCR-APP-014 (p), -056 (p) | service worker; Web Push | push_subscriptions |
@@ -194,9 +195,9 @@ Feature IDs are in definition order and are permanent: they are never renumbered
 
 | ID | Feature | Pri | FRs | UCs | Screens | Blocks / endpoints | Data |
 |---|---|---|---|---|---|---|---|
-| FEAT-049 | Consent and lead capture in conversation; duplicate-lead update; marketing opt-in | M | LED-01, LED-02, LED-09, LED-08, AGT-06 (p: `capture_lead`) | UC-21 | SCR-WGT-003, SCR-APP-043 | `leads.captureLead` | contacts (created here; ADR-015), leads, consents |
-| FEAT-050 | Leads list, pipeline, scoring and CSV export | M | LED-03, LED-05 | UC-21 | SCR-APP-032, -033 | `/leads/*`; export (re-auth) | leads |
-| FEAT-051 | Consent withdrawal in any channel | M | LED-07 | UC-28 | SCR-WGT-003 (p), SCR-APP-033 (p) | `leads.withdrawConsent` | consents, leads |
+| FEAT-049 | Consent and lead capture in conversation; duplicate-lead update; marketing opt-in | M | LED-01, LED-02, LED-09, LED-08, AGT-06 (p: `capture_lead`), INB-11, GOV-08 | UC-21 | SCR-WGT-003, SCR-APP-043 | `leads.captureLead` | contacts (created here; ADR-015), leads, consents |
+| FEAT-050 | Leads list, pipeline, scoring and CSV export | M | LED-03, LED-05, AUTH-03 (p), LED-02 (p), LED-04 (p), LED-08 | UC-21 | SCR-APP-032, -033 | `/leads/*`; export (re-auth) | leads |
+| FEAT-051 | Consent withdrawal in any channel | M | LED-07, AGT-14 (p), LED-05, LED-06 (p), GOV-05 (p) | UC-28 | SCR-WGT-003 (p), SCR-APP-033 (p) | `leads.withdrawConsent` | consents, leads |
 | FEAT-052 | Owner alerts by email, quiet hours, digest, notification preferences (Telegram alerts arrive with FEAT-037) | M | LED-04 (p: email), DSH-09 | UC-22, UC-23 | SCR-APP-056 | notifications queue; email (SPF/DKIM/DMARC, NFR-18) | notification_prefs |
 | FEAT-053 | Outbound lead webhooks | S | LED-06 | UC-21 | SCR-APP-043 (p) | signed webhooks; retries | webhooks |
 
@@ -204,7 +205,7 @@ Feature IDs are in definition order and are permanent: they are never renumbered
 
 | ID | Feature | Pri | FRs | UCs | Screens | Blocks / endpoints | Data |
 |---|---|---|---|---|---|---|---|
-| FEAT-054 | Boundary rules with safe defaults | M | APR-01 | UC-29 | SCR-APP-042, -009 | `/settings/rules` (re-auth) | boundary_rules |
+| FEAT-054 | Boundary rules with safe defaults | M | APR-01, ONB-06 (p), ONB-09 (p), AUTH-03, GOV-01 (p) | UC-29 | SCR-APP-042, -009 | `/settings/rules` (re-auth) | boundary_rules |
 | FEAT-055 | Approval drafts, queue, decisions, SLA, expiry | M | APR-02, APR-04, APR-06, AGT-06 (p: `draft_approval`) | UC-22 | SCR-APP-017, -018, SCR-WGT-002 (p) | `approvals.draft/decide/expire`; Postgres timers | approvals |
 | FEAT-056 | Signed mobile approval links | M | APR-03 | UC-22 | SCR-APP-018 (p) | signed single-use links | approval_links |
 

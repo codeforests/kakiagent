@@ -3,6 +3,14 @@
 > Generated: 2026-11-07, at `main` 7f48eae (after FEAT-051) · Scope: full sweep, M3 close · Verdict: **26 errors, 15 warnings** (one root cause behind all 26 errors)
 > Derived view, regenerable; the pipeline artifacts are the truth. Nothing else was changed by this sweep.
 
+## Follow-up, 2026-11-08 (docs fix after the M3 close)
+
+Re-run on the fixed tree: **0 errors, 4 warnings** (the 6 unresolved IDs are the "next free" and gap notes, info as before).
+
+- **Fixed:** the 26 plan §4 pairs (FRs columns of FEAT-007, 019, 035, 043, 044, 045, 049, 050, 051, 054; `(p)` wherever the RTM Test ref for that feature is partial). FEAT-035's "Implements:" now lists ONB-10, AGT-08 and AGT-11. Manifest `extended_by` added for SCR-APP-036 (FEAT-035) and SCR-WGT-002 (FEAT-003). NFR Test refs appended where the accepted report verifies an AC for that NFR, all partial: NFR-04 (FEAT-049), NFR-06 (FEAT-015), NFR-10 (FEAT-009, FEAT-023), NFR-11 (FEAT-034), NFR-16 (FEAT-012, FEAT-015, FEAT-016), with the matching Design refs from `check-rtm.mjs --fix`.
+- **Left as they are (3 warnings):** NFR-03 (FEAT-004: its report says it doesn't trace NFR-03; k6 at M6) and NFR-05 (FEAT-006, FEAT-034: neither report verifies the ASVS baseline; the ASVS L1 checklist at M6 does). They stay pending until M6.
+- **Withdrawn (1 warning):** SCR-APP-023 *is* on FEAT-012's row, written as `SCR-APP-007 (p), -023`; the sweep script didn't expand shorthand after a `(p)`.
+
 ## Verdict and counts
 
 **26 errors, 15 warnings, 58 info.** Every error is the same seam: an RTM Plan ref names a feature whose implementation-plan §4 row doesn't list that requirement. Detailed designs (and owner decisions such as FEAT-049 D1) widened feature scope, `check-rtm.mjs` appended the Plan ref, and the plan rows were never amended. Nothing downstream is wrong about *what was built*; the plan's §4 rows just under-report it. `check-rtm.mjs` checks design → RTM but not RTM → plan, which is why `pnpm lint` stays green.
