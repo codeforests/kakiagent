@@ -100,6 +100,8 @@ export const envSchemas = {
   }),
   /** The ingestion queue (ADR-018, FEAT-012): scheduler-worker sends, ingest-worker consumes. */
   ingestQueue: z.object({ SQS_INGEST_QUEUE_URL: url }),
+  /** Adapter-channel deliveries (FEAT-036 §5.3): scheduler-worker sends, agent-worker consumes. */
+  channelSendQueue: z.object({ SQS_CHANNEL_SEND_QUEUE_URL: url }),
   valkey: z.object({ VALKEY_URL: z.string().startsWith('redis') }),
   llm,
 };

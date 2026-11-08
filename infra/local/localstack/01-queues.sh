@@ -15,4 +15,6 @@ fifo_queue() {
 }
 fifo_queue conversation-turns 60 5
 fifo_queue ingest 1800 6
+# FEAT-036 §5.3: adapter-channel deliveries, in order per conversation.
+fifo_queue channel-send 60 5
 echo "localstack: queues ready"

@@ -30,7 +30,7 @@ describe('inbox contracts (FEAT-042 §3)', () => {
     expect(ConversationListQuery.parse({ view: 'closed', limit: '50', channel: 'widget' })).toEqual(
       { view: 'closed', limit: 50, channel: 'widget' },
     );
-    for (const bad of [{ view: 'mine' }, { limit: '51' }, { limit: '0' }, { channel: 'email' }])
+    for (const bad of [{ view: 'mine' }, { limit: '51' }, { limit: '0' }, { channel: 'telegram' }])
       expect(() => ConversationListQuery.parse(bad)).toThrow();
   });
 

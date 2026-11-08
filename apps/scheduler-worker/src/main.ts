@@ -31,6 +31,7 @@ const config = loadConfig(
   envSchemas.base
     .extend(envSchemas.aws.shape)
     .extend(envSchemas.ingestQueue.shape)
+    .extend(envSchemas.channelSendQueue.shape)
     .extend({
       HEALTH_PORT: envSchemas.port.default(3004),
       OUTBOX_DATABASE_URL: z.string().startsWith('postgres'),
@@ -108,6 +109,7 @@ const dispatcher = createDispatcher({
   queueUrls: {
     'conversation-turns': config.SQS_TURNS_QUEUE_URL,
     ingest: config.SQS_INGEST_QUEUE_URL,
+    'channel-send': config.SQS_CHANNEL_SEND_QUEUE_URL,
   },
   logger,
   sweepIntervalMs: config.OUTBOX_SWEEP_MS,

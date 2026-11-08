@@ -118,7 +118,7 @@ export type AssigneeFilter = { kind: 'user'; userId: string } | { kind: 'none' }
 export interface ListQuery {
   view: InboxView;
   assignee?: AssigneeFilter | undefined;
-  channel?: 'widget' | undefined;
+  channel?: ConversationSummary['channel'] | undefined;
   cursor?: string | undefined;
   limit: number;
 }

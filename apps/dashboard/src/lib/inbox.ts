@@ -38,6 +38,7 @@ export const VIEW_LABEL: Record<InboxView, string> = {
 };
 export const CHANNEL_LABEL: Record<ConversationSummary['channel'], string> = {
   widget: 'Website chat',
+  email: 'Email',
 };
 
 export function viewFromSearch(search: URLSearchParams): InboxFilter {
