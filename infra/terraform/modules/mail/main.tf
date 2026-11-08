@@ -1,7 +1,8 @@
 # Email authentication for outgoing mail (NFR-18; FEAT-052 §5.6, D14): an SES domain
 # identity signed with Easy DKIM (RSA 2048), a custom MAIL FROM domain for SPF alignment,
 # a DMARC record, and a bounce-rate alarm. DNS lives outside AWS, so the records are an
-# output to add by hand. Written now; applied at milestone MD.
+# output to add by hand. Written now; applied at milestone MD. The email channel's receiving
+# side and its in. sending identity are in inbound.tf (FEAT-036).
 
 locals {
   mail_from_domain = "mail.${var.mail_domain}"

@@ -70,7 +70,7 @@ run "launch_profile" {
     error_message = "GuardDuty Malware Protection scans and tags quarantine uploads (FEAT-015 §5.3)."
   }
   assert {
-    condition     = toset(module.storage.upload_scanning.object_prefixes) == toset(["uploads/"])
+    condition     = contains(module.storage.upload_scanning.object_prefixes, "uploads/")
     error_message = "GuardDuty scans every object under uploads/ (FEAT-015 §5.3)."
   }
   assert {
@@ -139,5 +139,94 @@ run "mail" {
   assert {
     condition     = module.mail.from_address == "no-reply@example.sg"
     error_message = "Email is sent from no-reply@<mail_domain>."
+  }
+}
+
+# The email channel (FEAT-036 §5.6; NFR-18).
+run "email_channel" {
+  command = plan
+
+  # The queue URL and topic ARN are only known after apply; fixed here so the wiring is checked.
+  override_resource {
+    target          = module.mail.aws_sns_topic.inbound
+    override_during = plan
+    values          = { arn = "arn:aws:sns:ap-southeast-1:000000000000:kaki-prod-email-inbound" }
+  }
+  override_resource {
+    target          = module.mail.aws_sqs_queue.inbound
+    override_during = plan
+    values = {
+      arn = "arn:aws:sqs:ap-southeast-1:000000000000:kaki-prod-email-inbound"
+      url = "https://sqs.ap-southeast-1.amazonaws.com/000000000000/kaki-prod-email-inbound"
+    }
+  }
+  override_resource {
+    target          = module.mail.aws_sqs_queue.inbound_dlq
+    override_during = plan
+    values          = { arn = "arn:aws:sqs:ap-southeast-1:000000000000:kaki-prod-email-inbound-dlq" }
+  }
+  override_resource {
+    target          = module.queues.aws_sqs_queue.this["channel-send"]
+    override_during = plan
+    values          = { url = "https://sqs.ap-southeast-1.amazonaws.com/000000000000/kaki-prod-channel-send.fifo" }
+  }
+
+  assert {
+    condition     = module.mail.inbound.domain == "in.example.sg" && module.service["api"].environment.EMAIL_INBOUND_DOMAIN == "in.example.sg" && module.service["agent-worker"].environment.EMAIL_INBOUND_DOMAIN == "in.example.sg"
+    error_message = "Mail is forwarded to in.<mail_domain>, and the api and agent-worker agree on it (FEAT-036)."
+  }
+  assert {
+    condition     = module.mail.inbound.mx_record == { name = "in.example.sg", type = "MX", value = "10 inbound-smtp.ap-southeast-1.amazonaws.com" }
+    error_message = "The in. domain's MX points at SES receiving in ap-southeast-1 (FEAT-036, NFR-07)."
+  }
+  assert {
+    condition     = module.mail.inbound.rule_set_active && module.mail.inbound.rule_recipients == toset(["in.example.sg"]) && module.mail.inbound.rule_scan_enabled && module.mail.inbound.rule_tls_policy == "Require"
+    error_message = "One active receipt rule takes the whole in. domain, scans it and requires TLS (FEAT-036 §5.6)."
+  }
+  assert {
+    condition     = module.mail.inbound.rule_bucket == module.mail.inbound.bucket_name && module.mail.inbound.rule_topic_arn == module.mail.inbound.topic_arn
+    error_message = "The receipt rule stores raw mail in the inbound bucket and notifies the inbound topic (FEAT-036 §5.2)."
+  }
+  assert {
+    condition     = module.mail.inbound.retention_days == 7
+    error_message = "Raw received mail expires after 7 days (FEAT-036 §5.6)."
+  }
+  assert {
+    condition     = module.mail.inbound.max_receive_count == 5 && module.mail.inbound.dead_letter_target == module.mail.inbound.dlq_arn && module.mail.inbound.raw_delivery == false
+    error_message = "The email-inbound queue has a DLQ after 5 receives and gets the SNS envelope (the consumer checks TopicArn)."
+  }
+  assert {
+    condition     = module.mail.inbound.feedback_events == toset(["BOUNCE", "COMPLAINT"]) && module.mail.inbound.feedback_topic_arn == module.mail.inbound.topic_arn
+    error_message = "The configuration set sends bounces and complaints to the inbound topic (FEAT-036 §5.3)."
+  }
+  assert {
+    condition     = module.mail.inbound.identity == "in.example.sg" && module.mail.inbound.identity_dkim == "RSA_2048_BIT" && module.mail.inbound.identity_mail_from == "mail.in.example.sg"
+    error_message = "Replies from the in. domain are signed with DKIM RSA 2048 and use their own MAIL FROM (NFR-18)."
+  }
+  assert {
+    condition     = contains(keys(module.queues.queue_urls), "channel-send") && module.service["agent-worker"].environment.SQS_CHANNEL_SEND_QUEUE_URL == module.queues.queue_urls["channel-send"] && module.service["scheduler-worker"].environment.SQS_CHANNEL_SEND_QUEUE_URL == module.queues.queue_urls["channel-send"]
+    error_message = "channel-send.fifo exists; the agent-worker consumes it and the scheduler's sweep enqueues to it (FEAT-036 §5.3)."
+  }
+  assert {
+    condition     = module.service["agent-worker"].environment.SQS_EMAIL_INBOUND_QUEUE_URL == module.mail.inbound.queue_url && module.service["agent-worker"].environment.EMAIL_SNS_TOPIC_ARN == module.mail.inbound.topic_arn && module.service["agent-worker"].environment.EMAIL_INBOUND_BUCKET == module.mail.inbound.bucket_name
+    error_message = "The agent-worker reads the inbound queue, checks the topic and fetches from the inbound bucket (FEAT-036 §5.2)."
+  }
+  assert {
+    condition     = module.service["agent-worker"].environment.SES_MESSAGE_ID_DOMAIN == "ap-southeast-1.amazonses.com" && contains(module.service["agent-worker"].task_policy_names, "mail")
+    error_message = "The agent-worker knows SES's Message-ID domain and has the mail-receiver policy (FEAT-036)."
+  }
+  assert {
+    condition = alltrue([for r in ["api", "scheduler-worker"] :
+      module.service[r].environment.EMAIL_IDENTITY_PROVIDER == "ses" && module.service[r].environment.SES_CONFIGURATION_SET == module.mail.configuration_set_name && contains(module.service[r].task_policy_names, "identities")
+    ])
+    error_message = "The api and scheduler manage SES identities on the configuration set, never the fixture provider (FEAT-036 D1)."
+  }
+  assert {
+    condition     = module.service["api"].environment.ATTACHMENTS_BUCKET == module.storage.bucket_names["attachments"] && contains(module.service["api"].task_policy_names, "attachments") && module.service["ingest-worker"].environment.ATTACHMENTS_BUCKET == module.storage.bucket_names["attachments"] && contains(module.service["ingest-worker"].task_policy_names, "attachments")
+    error_message = "The ingest worker copies scanned attachments to the attachments bucket and the api signs their downloads (FEAT-036 §5.2, §5.5)."
+  }
+  assert {
+    condition     = contains(module.storage.upload_scanning.object_prefixes, "email/")
+    error_message = "GuardDuty also scans quarantined email attachments (FEAT-036 D9)."
   }
 }

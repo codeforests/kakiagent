@@ -30,3 +30,14 @@ variable "alarm_topic_arns" {
   type        = list(string)
   default     = []
 }
+
+variable "inbound_bucket_name" {
+  description = "Bucket SES writes received mail to (FEAT-036); bucket names are global, so include the account."
+  type        = string
+}
+
+variable "inbound_retention_days" {
+  description = "Raw received mail expires after this many days, even if the agent-worker never deleted it (FEAT-036 §5.6)."
+  type        = number
+  default     = 7
+}
