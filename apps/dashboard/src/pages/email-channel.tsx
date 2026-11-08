@@ -12,7 +12,8 @@ export function EmailChannelPage() {
   const queryClient = useQueryClient();
   const [toast, setToast] = useToast();
   const [generation, setGeneration] = useState(0);
-  const [justSetUp, setJustSetUp] = useState(false);
+  // Focus moves to the forwarding card once setup's answer has rendered it.
+  const focusForwarding = useRef(false);
   const forwardingRef = useRef<HTMLHeadingElement>(null);
   const loaded = useEmailChannel();
   const reload = () =>
@@ -22,10 +23,10 @@ export function EmailChannelPage() {
 
   const connected = loaded.data?.connected ?? false;
   useEffect(() => {
-    if (!justSetUp || !connected) return;
+    if (!focusForwarding.current || !connected) return;
+    focusForwarding.current = false;
     forwardingRef.current?.focus();
-    setJustSetUp(false);
-  }, [justSetUp, connected]);
+  }, [connected]);
 
   let body;
   if (loaded.error instanceof ApiError && loaded.error.status === 403)
@@ -60,7 +61,7 @@ export function EmailChannelPage() {
     body = (
       <SetUpEmail
         onDone={() => {
-          setJustSetUp(true);
+          focusForwarding.current = true;
           setToast('Email is set up. Next, forward your mail.');
         }}
       />

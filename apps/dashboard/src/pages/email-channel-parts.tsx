@@ -304,15 +304,16 @@ export function ReplyFromCard({
   const [stale, setStale] = useState(false);
   const [caption, setCaption] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
-  const [refocus, setRefocus] = useState(false);
+  // Back to the email field once removing the domain has brought it back.
+  const refocus = useRef(false);
   const forwarding = data.forwardingAddress ?? 'your forwarding address';
   const domain = data.domain;
 
   useEffect(() => {
-    if (!refocus || domain) return;
+    if (!refocus.current || domain) return;
+    refocus.current = false;
     fieldRef.current?.focus();
-    setRefocus(false);
-  }, [refocus, domain]);
+  }, [domain]);
 
   const onStale = (err: unknown) => {
     if (isStale(err)) setStale(true);
@@ -356,7 +357,7 @@ export function ReplyFromCard({
       update(res);
       setConfirming(false);
       setCaption(null);
-      setRefocus(true);
+      refocus.current = true;
     },
     onError: (err) => {
       if (onStale(err)) setConfirming(false);

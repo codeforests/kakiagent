@@ -1,5 +1,5 @@
 # Handoff: FEAT-036 — Email channel
-Branch: feat/FEAT-036-email-channel · PR: (draft, see below) · Updated: 2026-11-08 by build (UI)
+Branch: feat/FEAT-036-email-channel · PR: https://github.com/codeforests/kakiagent/pull/61 (draft) · Updated: 2026-11-08 by build (UI)
 Stage done: build (T1–T14 of 14), status developer-done
 Next: verify — kickoff: "Verify FEAT-036 on branch feat/FEAT-036-email-channel. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
 
