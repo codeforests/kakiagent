@@ -1,0 +1,34 @@
+Return-Path: <tan.mei@gmail.com>
+From: Tan Mei <tan.mei@gmail.com>
+To: kaki-bakery@in.kaki.test
+Subject: Cake design
+Date: Mon, 3 Nov 2026 13:00:00 +0800
+Message-ID: <CAF5attach@mail.gmail.com>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="att"
+
+--att
+Content-Type: text/plain; charset="UTF-8"
+
+Here is the design and the order form.
+--att
+Content-Type: image/png; name="design.png"
+Content-Disposition: attachment; filename="design.png"
+Content-Transfer-Encoding: base64
+
+iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9
+awAAAABJRU5ErkJggg==
+--att
+Content-Type: application/pdf; name="order.pdf"
+Content-Disposition: attachment; filename="order.pdf"
+Content-Transfer-Encoding: base64
+
+JVBERi0xLjQKMSAwIG9iajw8Pj5lbmRvYmoKdHJhaWxlcjw8Pj4KJSVFT0YK
+--att
+Content-Type: application/pdf; name="invoice.pdf"
+Content-Disposition: attachment; filename="invoice.pdf"
+Content-Transfer-Encoding: base64
+
+TVqQAAMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+AAAAAAAAAA==
+--att--

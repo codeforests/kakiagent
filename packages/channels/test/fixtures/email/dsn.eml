@@ -1,0 +1,20 @@
+Return-Path: <>
+From: Mail Delivery Subsystem <mailer-daemon@googlemail.com>
+To: kaki-bakery@in.kaki.test
+Subject: Delivery Status Notification (Failure)
+Date: Mon, 3 Nov 2026 10:07:00 +0800
+Message-ID: <dsn-1@mx.google.com>
+MIME-Version: 1.0
+Content-Type: multipart/report; report-type=delivery-status; boundary="dsnb"
+
+--dsnb
+Content-Type: text/plain; charset="UTF-8"
+
+Address not found.
+--dsnb
+Content-Type: message/delivery-status
+
+Final-Recipient: rfc822; nobody@example.test
+Action: failed
+Status: 5.1.1
+--dsnb--
