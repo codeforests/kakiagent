@@ -3,10 +3,12 @@ import type {
   InboxCounts,
   InboxView,
   IntentSignal,
+  MessageAttachment,
+  MessageDelivery,
   ThreadEvent,
   ThreadMessage,
 } from '@kaki/contracts';
-import { and, desc, eq, lt, schema, sql, type Tx } from '@kaki/db';
+import { and, desc, eq, inArray, lt, schema, sql, type Tx } from '@kaki/db';
 
 type SQL = ReturnType<typeof eq>;
 import { cardKind, toMessage, toSummary, type SummaryOwner } from './mappers.js';
@@ -141,6 +143,10 @@ export async function listConversations(
         select coalesce(nullif(m.body, ''), m.notice) from messages m
         where m.tenant_id = "conversations"."tenant_id" and m.conversation_id = "conversations"."id"
         order by m.seq desc limit 1)`,
+      // FEAT-036 §5.5: the email thread's subject (no row for the widget).
+      subject: sql<string | null>`(
+        select t.subject from email_threads t
+        where t.tenant_id = "conversations"."tenant_id" and t.conversation_id = "conversations"."id")`,
     })
     .from(c)
     .where(
@@ -185,6 +191,7 @@ export async function listConversations(
         r.lastMessage,
         owners.get(r.conversation.id) ?? null,
         escalations.get(r.conversation.id) ?? null,
+        r.subject,
       ),
     ),
     nextCursor:
@@ -208,6 +215,10 @@ export async function conversationSummary(
         select coalesce(nullif(m.body, ''), m.notice) from messages m
         where m.tenant_id = "conversations"."tenant_id" and m.conversation_id = "conversations"."id"
         order by m.seq desc limit 1)`,
+      // FEAT-036 §5.5: the email thread's subject (no row for the widget).
+      subject: sql<string | null>`(
+        select t.subject from email_threads t
+        where t.tenant_id = "conversations"."tenant_id" and t.conversation_id = "conversations"."id")`,
     })
     .from(c)
     .where(and(eq(c.tenantId, tenantId), eq(c.id, conversationId)));
@@ -218,6 +229,7 @@ export async function conversationSummary(
     row.lastMessage,
     owners.get(conversationId) ?? null,
     escalations.get(conversationId) ?? null,
+    row.subject,
   );
 }
 
@@ -242,6 +254,56 @@ export async function inboxCounts(tx: Tx, tenantId: string): Promise<InboxCounts
 
 const m = schema.messages;
 
+const md = schema.messageDeliveries;
+const ea = schema.emailAttachments;
+
+/**
+ * A page's deliveries and attachments (FEAT-036 §5.5), two queries for the page: a delivery
+ * shows `pending` as `sending`; widget and visitor rows have none.
+ */
+export async function messageExtras(
+  tx: Tx,
+  tenantId: string,
+  messageIds: string[],
+): Promise<{
+  deliveries: Map<string, MessageDelivery>;
+  attachments: Map<string, MessageAttachment[]>;
+}> {
+  const deliveries = new Map<string, MessageDelivery>();
+  const attachments = new Map<string, MessageAttachment[]>();
+  if (!messageIds.length) return { deliveries, attachments };
+  const [ds, as] = await Promise.all([
+    tx
+      .select()
+      .from(md)
+      .where(and(eq(md.tenantId, tenantId), inArray(md.messageId, messageIds))),
+    tx
+      .select()
+      .from(ea)
+      .where(and(eq(ea.tenantId, tenantId), inArray(ea.messageId, messageIds)))
+      .orderBy(ea.createdAt, ea.id),
+  ]);
+  for (const d of ds)
+    deliveries.set(d.messageId, {
+      status: d.status === 'pending' ? 'sending' : d.status,
+      failedReason: d.failedReason,
+      sentAt: d.sentAt?.toISOString() ?? null,
+    });
+  for (const a of as) {
+    const list = attachments.get(a.messageId) ?? [];
+    list.push({
+      id: a.id,
+      name: a.name,
+      contentType: a.contentType,
+      size: a.size,
+      status: a.status,
+      rejectReason: a.rejectReason,
+    });
+    attachments.set(a.messageId, list);
+  }
+  return { deliveries, attachments };
+}
+
 /** The latest `limit` messages (before `seq` `before`, when given), ascending. */
 export async function getThread(
   tx: Tx,
@@ -263,12 +325,19 @@ export async function getThread(
     .orderBy(desc(m.seq))
     .limit(limit + 1);
   const page = rows.slice(0, limit).reverse();
+  const { deliveries, attachments } = await messageExtras(
+    tx,
+    tenantId,
+    page.map((r) => r.id),
+  );
   return {
     messages: page.map((r) => ({
       ...toMessage(r),
       factIds: r.factIds,
       authorUserId: r.authorUserId,
       card: cardKind(r),
+      delivery: deliveries.get(r.id) ?? null,
+      attachments: attachments.get(r.id) ?? [],
     })),
     hasEarlier: rows.length > limit,
   };

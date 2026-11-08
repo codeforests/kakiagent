@@ -1,11 +1,6 @@
 import { visitorChannel, type VisitorChannel } from '@kaki/channels';
 import type { Tx } from '@kaki/db';
-import {
-  agentMessagesSince,
-  getConversation,
-  ownerOf,
-  type ConversationStatus,
-} from '@kaki/inbox';
+import { agentMessagesSince, getConversation, ownerOf, type ConversationStatus } from '@kaki/inbox';
 import { visitorTenantState, type VisitorTenantState } from '@kaki/tenancy';
 
 export type GateResult =

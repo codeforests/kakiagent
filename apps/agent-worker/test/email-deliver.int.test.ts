@@ -15,7 +15,7 @@ import {
   escalateTimedOut,
   recordBounce,
   type DeliverDeps,
-} from '../src/index.js';
+} from '@kaki/channels';
 
 const DOMAIN = 'in.kaki.test';
 const SES_DOMAIN = 'ap-southeast-1.amazonses.com';

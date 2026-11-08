@@ -121,6 +121,7 @@ import { registerCoverageRoutes } from './coverage.js';
 import { registerSettingsRoutes } from './settings.js';
 import { registerWidgetRoutes, widgetErrorReply } from './widget.js';
 import { channelErrorReply, registerChannelRoutes } from './channels.js';
+import { emailErrorReply, registerEmailChannelRoutes } from './email-channel.js';
 import { onboardingErrorReply, registerOnboardingRoutes } from './onboarding.js';
 import { registerApprovalRoutes } from './approvals.js';
 import { registerApprovalLinkRoutes } from './approval-links.js';
@@ -398,7 +399,7 @@ export async function buildApp(deps: Deps) {
     if (notifications) return reply.code(notifications.status).send(notifications.body);
     const onboarding = onboardingErrorReply(err);
     if (onboarding) return reply.code(onboarding.status).send(onboarding.body);
-    const channel = channelErrorReply(err);
+    const channel = channelErrorReply(err) ?? emailErrorReply(err);
     if (channel) return reply.code(channel.status).send(channel.body);
     const leads = leadsErrorReply(err) ?? leadSettingsErrorReply(err);
     if (leads) return reply.code(leads.status).send(leads.body);
@@ -686,6 +687,7 @@ export async function buildApp(deps: Deps) {
   registerWidgetRoutes(app, deps, sessionFrom);
   registerPrivacyRoutes(app, deps, sessionFrom);
   registerChannelRoutes(app, deps, sessionFrom);
+  registerEmailChannelRoutes(app, deps, sessionFrom);
   registerAiRoutes(app, deps, sessionFrom, notify);
   registerRuleRoutes(app, deps, sessionFrom);
   registerOnboardingRoutes(app, deps, sessionFrom);

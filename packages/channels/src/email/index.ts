@@ -54,3 +54,19 @@ export {
   type SendingIdentities,
   type TxtResolver,
 } from './identity.js';
+export {
+  cleanAttachment,
+  clearDomain,
+  DEFAULT_REPLY_CAP,
+  DOMAIN_CHECK_MS,
+  domainToAdd,
+  domainToCheck,
+  domainToRemove,
+  EmailChannelError,
+  emailChannelView,
+  retryDelivery,
+  saveReplyCap,
+  setupEmail,
+  storeDomain,
+  type EmailSettingsConfig,
+} from './settings.js';

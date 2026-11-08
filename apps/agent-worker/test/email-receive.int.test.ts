@@ -8,7 +8,7 @@ import { startTestDatabase, TENANT_A, TENANT_B, type TestDatabase } from '@kaki/
 import * as inbox from '@kaki/inbox';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { receiveEmail, type MailObjectStore, type ReceiveDeps } from '../src/index.js';
+import { receiveEmail, type MailObjectStore, type ReceiveDeps } from '@kaki/channels';
 
 const TOPIC = 'arn:aws:sns:ap-southeast-1:000000000000:email-inbound';
 const BUCKET = 'kaki-local-inbound-mail';
@@ -39,9 +39,11 @@ const store: MailObjectStore = {
 
 /** A fixture with its Message-IDs made unique to the test (`<x@…>` → `<x-tag@…>`). */
 const mail = (name: string, tag: string) =>
-  readFileSync(new URL(`./fixtures/email/${name}.eml`, import.meta.url), 'utf8').replace(
-    /^(Message-ID|In-Reply-To|References):.*$/gim,
-    (line) => line.replace(/<([^<>@\s]+)@/g, `<$1-${tag}@`),
+  readFileSync(
+    new URL(`../../../packages/channels/test/fixtures/email/${name}.eml`, import.meta.url),
+    'utf8',
+  ).replace(/^(Message-ID|In-Reply-To|References):.*$/gim, (line) =>
+    line.replace(/<([^<>@\s]+)@/g, `<$1-${tag}@`),
   );
 
 function envelope(
