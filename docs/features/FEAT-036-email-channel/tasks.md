@@ -27,7 +27,7 @@
 
 ## Build session 2 (UI)
 
-- [ ] T11 — Dashboard SCR-APP-038 Email channel at `/settings/channels/email`: `pages/email-channel.tsx` + `email-channel-parts.tsx` (setup, forwarding card with how-to tabs and the Gmail code, reply-from card with the dns-record-table, reply cap form, ignored mail), `lib/email-channel.ts` (data, `replyCapError`, `domainErrorText`, `recordStatusText`); Channels' Connect entry (from the registry) (ui-design SCR-APP-038, SCR-APP-036; AC-11)
+- [x] T11 — Dashboard SCR-APP-038 Email channel at `/settings/channels/email`: `pages/email-channel.tsx` + `email-channel-parts.tsx` (setup, forwarding card with how-to tabs and the Gmail code, reply-from card with the dns-record-table, reply cap form, ignored mail), `lib/email-channel.ts` (data, `replyCapError`, `domainErrorText`, `recordStatusText`); Channels' Connect entry (from the registry) (ui-design SCR-APP-038, SCR-APP-036; AC-11)
       Done when: `pnpm --filter @kaki/dashboard test` passes (helpers per state and error code) and `pnpm --filter @kaki/dashboard typecheck` passes; stubbed Playwright check at 375 and 1280 of each state (not set up, forwarding only, Gmail code, pending, verified, failing) and focus after setup, add domain, check, remove.
 - [ ] T12 — Inbox: Email in the channel filter, the email glyph on rows, the thread header's subject, `DeliveryLine` under staff/AI bubbles (Sending…, Not delivered + Retry), attachment chips with download, `reply_cap`/`delivery_failed` escalation text (ui-design SCR-APP-014; AC-8, AC-11)
       Done when: `pnpm --filter @kaki/dashboard test` passes (`deliveryText`, `attachmentText`, escalation labels) and typecheck passes; stubbed Playwright check of Retry's busy and failed states.

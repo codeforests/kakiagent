@@ -36,6 +36,7 @@ const ICONS = {
   pause: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM10 15V9M14 15V9',
   alert: 'm21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3zM12 9v4M12 17h.01',
   message: 'M7.9 20A9 9 0 1 0 4 16.1L2 22z',
+  mail: 'M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM22 6l-10 7L2 6',
 } as const;
 
 export function ChannelIcon({ name, size = 16 }: { name: keyof typeof ICONS; size?: number }) {
@@ -128,7 +129,7 @@ export function ChannelCard({
     <section className="card channel-card" aria-labelledby={headingId}>
       <div className="channel-card__head">
         <span className="channel-card__icon">
-          <ChannelIcon name="message" size={20} />
+          <ChannelIcon name={item.kind === 'email' ? 'mail' : 'message'} size={20} />
         </span>
         <div className="channel-card__title">
           <h2 className="section-title" id={headingId}>
@@ -138,6 +139,11 @@ export function ChannelCard({
             {status.since}
             {status.checked && <> · {status.checked}</>}
           </p>
+          {item.kind === 'email' && (
+            <p className="channel-card__meta">
+              <Link to="/settings/channels/email">Email settings</Link>
+            </p>
+          )}
         </div>
         <StatusChips item={item} />
         <div className="channel-card__action">
@@ -269,9 +275,17 @@ function DegradedAlert({
     <div className="alert alert--warning channel-card__degraded">
       <p className="alert__title">This channel isn't working</p>
       <p>
-        {reason} {FIX_LINE}
+        {reason}{' '}
+        {item.kind === 'email' ? (
+          <>
+            Check the DNS records on the Email page.{' '}
+            <Link to="/settings/channels/email">Email settings</Link>
+          </>
+        ) : (
+          FIX_LINE
+        )}
       </p>
-      {item.checksHealth && (
+      {item.checksHealth && item.kind !== 'email' && (
         <Button
           variant="secondary"
           className="kaki-btn--sm"
@@ -291,13 +305,19 @@ function DegradedAlert({
   );
 }
 
-const MODE_COPY = {
+const WIDGET_MODES = {
   hidden: ['Hide the chat button', "Visitors don't see the chat on your website."],
   message: [
     'Show a message',
     "Visitors see the chat button, your message and your contact details, but can't chat.",
   ],
 } as const;
+// FEAT-036 ui-design SCR-APP-036: email's words for the same two modes.
+const EMAIL_MODES = {
+  hidden: ["Don't reply", 'Emails wait in your inbox for your team.'],
+  message: ['Reply with a message', 'Each new email gets your message once.'],
+} as const;
+const modeCopy = (item: ChannelItem) => (item.kind === 'email' ? EMAIL_MODES : WIDGET_MODES);
 
 /** "While it's offline": the mode, the two texts, the contact line and the preview. */
 function OfflineForm({
@@ -408,9 +428,9 @@ function OfflineForm({
               onChange={() => set({ mode })}
             />
             <span>
-              <span className="channel-offline__mode-label">{MODE_COPY[mode][0]}</span>
+              <span className="channel-offline__mode-label">{modeCopy(item)[mode][0]}</span>
               <span className="field__help" id={`${prefix}-${mode}-help`}>
-                {MODE_COPY[mode][1]}
+                {modeCopy(item)[mode][1]}
               </span>
             </span>
           </label>
@@ -440,7 +460,11 @@ function OfflineForm({
               : 'Add an email or phone in your Business profile so visitors can reach you. '}
             <Link to="/settings/business-profile">Business profile</Link>
           </p>
-          <div className="channel-preview" role="region" aria-label="What visitors see">
+          <div
+            className="channel-preview"
+            role="region"
+            aria-label={item.kind === 'email' ? 'What customers get' : 'What visitors see'}
+          >
             <p>{preview.en}</p>
             {contacts.email && <p>Email: {contacts.email}</p>}
             {contacts.phone && <p>Phone: {formatSgPhone(contacts.phone)}</p>}
