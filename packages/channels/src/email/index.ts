@@ -23,3 +23,5 @@ export {
   type RecipientOutcome,
 } from './receive.js';
 export { lookupIds, replySubject, threadKey, threadSubject } from './thread.js';
+export { EMAIL_CAPABILITIES } from './capabilities.js';
+export { classifySmtp, emailSender, type EmailSenderConfig } from './send.js';

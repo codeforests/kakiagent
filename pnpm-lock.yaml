@@ -68,6 +68,9 @@ importers:
       '@kaki/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@kaki/governance':
+        specifier: workspace:*
+        version: link:../../packages/governance
       '@kaki/inbox':
         specifier: workspace:*
         version: link:../../packages/inbox

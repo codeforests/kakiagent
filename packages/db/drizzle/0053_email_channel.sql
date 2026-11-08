@@ -331,3 +331,53 @@ CREATE FUNCTION inbound_events_purge()
 ALTER FUNCTION inbound_events_purge() OWNER TO kaki_channel_timer;--> statement-breakpoint
 REVOKE ALL ON FUNCTION inbound_events_purge() FROM PUBLIC;--> statement-breakpoint
 GRANT EXECUTE ON FUNCTION inbound_events_purge() TO app_outbox;
+--> statement-breakpoint
+
+-- The send path (§5.3, CHN-12): a 401/403 from a channel degrades its connection at once.
+-- The visitor zone reads no connection row (FEAT-034), so it reports through this function,
+-- owned by kaki_channels; it returns 'degraded' when the connection was healthy before.
+GRANT SELECT (health, health_failures, degraded_since),
+  UPDATE (health, health_reason, health_failures, health_checked_at, degraded_since, updated_at)
+  ON channel_connections TO kaki_channels;--> statement-breakpoint
+CREATE POLICY channels_owner_update ON channel_connections FOR UPDATE TO kaki_channels USING (true) WITH CHECK (true);--> statement-breakpoint
+CREATE FUNCTION channel_send_rejected(p_connection uuid)
+  RETURNS TABLE (transition text, kind text)
+  LANGUAGE plpgsql VOLATILE SECURITY DEFINER
+  SET search_path = public, pg_temp
+  AS $$
+  #variable_conflict use_column
+  DECLARE
+    v_was text;
+    v_kind text;
+  BEGIN
+    SELECT c.health, c.kind INTO v_was, v_kind FROM channel_connections c
+      WHERE c.id = p_connection AND c.tenant_id = app_current_tenant() FOR UPDATE;
+    IF v_was IS NULL THEN RETURN; END IF;
+    UPDATE channel_connections c SET
+      health = 'degraded', health_reason = 'send_rejected',
+      health_failures = c.health_failures + 1,
+      degraded_since = coalesce(c.degraded_since, now()),
+      health_checked_at = now(), updated_at = now()
+    WHERE c.id = p_connection AND c.tenant_id = app_current_tenant();
+    RETURN QUERY SELECT CASE WHEN v_was = 'degraded' THEN NULL ELSE 'degraded' END, v_kind;
+  END
+  $$;--> statement-breakpoint
+ALTER FUNCTION channel_send_rejected(uuid) OWNER TO kaki_channels;--> statement-breakpoint
+REVOKE ALL ON FUNCTION channel_send_rejected(uuid) FROM PUBLIC;--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION channel_send_rejected(uuid) TO app_agent_visitor, app_outbox, app_dashboard;--> statement-breakpoint
+
+-- A configuration-set bounce names only SES's ID for our reply (§5.3): its tenant and
+-- message, before any tenant context, from the `out` rows (the email_route pattern).
+GRANT SELECT (tenant_id, rfc_message_id, message_id, direction) ON email_messages TO kaki_email_route;--> statement-breakpoint
+CREATE POLICY email_route_read ON email_messages FOR SELECT TO kaki_email_route USING (true);--> statement-breakpoint
+CREATE FUNCTION email_bounce_route(p_rfc_id text)
+  RETURNS TABLE (tenant_id uuid, message_id uuid)
+  LANGUAGE sql STABLE SECURITY DEFINER
+  SET search_path = public, pg_temp
+  AS $$
+    SELECT m.tenant_id, m.message_id FROM email_messages m
+    WHERE m.rfc_message_id = p_rfc_id AND m.direction = 'out' AND m.message_id IS NOT NULL
+  $$;--> statement-breakpoint
+ALTER FUNCTION email_bounce_route(text) OWNER TO kaki_email_route;--> statement-breakpoint
+REVOKE ALL ON FUNCTION email_bounce_route(text) FROM PUBLIC;--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION email_bounce_route(text) TO app_agent_visitor;

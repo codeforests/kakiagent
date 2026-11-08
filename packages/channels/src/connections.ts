@@ -320,9 +320,26 @@ export async function reportSendFailure(
   result: { ok: true } | { ok: false; failed: 'auth' | 'transient' | 'permanent' },
 ): Promise<HealthTransition> {
   if (result.ok || result.failed !== 'auth') return null;
-  const [row] = await tx.select(columns).from(cc).where(eq(cc.id, connectionId));
-  if (!row) return null;
-  return recordHealth(tx, row, { ok: false, reason: 'send_rejected' });
+  // Through channel_send_rejected() (FEAT-036 §5.3): the visitor zone reads no connection row.
+  const res = await tx.execute<{ transition: string | null; kind: string | null }>(
+    sql`select transition, kind from channel_send_rejected(${connectionId})`,
+  );
+  const row = res.rows[0];
+  if (row?.transition !== 'degraded') return null;
+  const tenantId = (await tx.execute<{ t: string }>(sql`select app_current_tenant()::text as t`))
+    .rows[0]!.t;
+  await audit.append(tx, tenantId, {
+    action: 'channel.degraded',
+    actorType: 'system',
+    subjectType: 'channel',
+    subjectId: connectionId,
+    payload: {
+      kind: auditCode(row.kind ?? 'unknown'),
+      connectionId: auditId(connectionId),
+      reason: auditCode('send_rejected'),
+    },
+  });
+  return 'degraded';
 }
 
 /** Runs an adapter's check with a timeout; a throw or a timeout counts as unreachable. */

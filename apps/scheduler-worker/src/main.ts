@@ -24,6 +24,7 @@ import { channelHealthOnce } from './channel-health.js';
 import { gapClusterOnce } from './gap-cluster.js';
 import { staleScanOnce } from './stale-scan.js';
 import { approvalTimersOnce } from './approval-timers.js';
+import { channelDeliveriesOnce } from './channel-deliveries.js';
 import { autoCloseOnce } from './auto-close.js';
 import { escalationRemindersOnce } from './escalation-reminders.js';
 
@@ -90,6 +91,8 @@ const config = loadConfig(
       ESCALATION_SWEEP_MS: z.coerce.number().int().positive().default(30_000),
       /** Approval timers (APR-04, APR-06; FEAT-055 §5.4): every 30 seconds, first run at start-up. */
       APPROVAL_SWEEP_MS: z.coerce.number().int().positive().default(30_000),
+      /** Adapter-channel delivery retries and timeouts (FEAT-036 §5.3). */
+      DELIVERY_SWEEP_MS: z.coerce.number().int().positive().default(60_000),
     }),
 );
 const stopTelemetry = startTelemetry('scheduler-worker', config.OTEL_EXPORTER_OTLP_ENDPOINT);
@@ -259,6 +262,14 @@ const approvalTimer = setInterval(
   config.APPROVAL_SWEEP_MS,
 );
 
+// Delivery retries and 24-hour timeouts (NFR-17; FEAT-036 §5.3): due retries go back on
+// channel-send; timed-out ones are escalated by the agent-worker.
+const deliveryRun = channelDeliveriesOnce(outboxDb, logger);
+const deliveryTimer = setInterval(
+  () => void channelDeliveriesOnce(outboxDb, logger),
+  config.DELIVERY_SWEEP_MS,
+);
+
 async function shutdown() {
   abort.abort();
   clearInterval(anchorTimer);
@@ -271,6 +282,7 @@ async function shutdown() {
   clearInterval(autoCloseTimer);
   clearInterval(escalationTimer);
   clearInterval(approvalTimer);
+  clearInterval(deliveryTimer);
   await Promise.all([
     running.catch(() => {}),
     anchorRun,
@@ -283,6 +295,7 @@ async function shutdown() {
     autoCloseRun,
     escalationRun,
     approvalRun,
+    deliveryRun,
   ]);
   health.close();
   await mailer.close();

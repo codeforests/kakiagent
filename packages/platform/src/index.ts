@@ -17,7 +17,7 @@ export {
   type Subscriber,
 } from './pubsub.js';
 export { startHealthServer, runChecks, type HealthCheck } from './health.js';
-export { createSmtpMailer, type Email, type Mailer } from './mailer.js';
+export { createSmtpMailer, smtpCode, type Email, type Mailer, type SentEmail } from './mailer.js';
 export {
   createRateLimiter,
   memoryRateLimiter,

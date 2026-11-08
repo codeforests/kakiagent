@@ -21,6 +21,7 @@
     "@kaki/channels": "workspace:*",
     "@kaki/contracts": "workspace:*",
     "@kaki/db": "workspace:*",
+    "@kaki/governance": "workspace:*",
     "@kaki/inbox": "workspace:*",
     "@kaki/llm-gateway": "workspace:*",
     "@kaki/platform": "workspace:*",
