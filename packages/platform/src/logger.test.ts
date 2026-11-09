@@ -23,6 +23,15 @@ describe('logger PII scrubbing (GOV-04, FEAT-003 AC-7)', () => {
     expect(lines[1]!.conversationId).toBe('c1');
   });
 
+  it('redacts a Telegram bot token in messages and errors (FEAT-037 §5.1)', () => {
+    const { log, lines } = capture();
+    const token = '123456789:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw0';
+    log.info(`POST https://api.telegram.org/bot${token}/sendMessage failed`);
+    log.error({ err: new Error(`fetch https://api.telegram.org/bot${token}/getMe`) }, 'x');
+    expect(lines[0]!.msg).toBe('POST https://api.telegram.org/bot[redacted]/sendMessage failed');
+    expect(JSON.stringify(lines)).not.toContain('AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw0');
+  });
+
   it('masks error messages and stacks', () => {
     const { log, lines } = capture();
     log.error({ err: new Error('duplicate key (S1234567D)') }, 'insert failed');

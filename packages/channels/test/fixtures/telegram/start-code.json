@@ -1,0 +1,30 @@
+{
+  "update_id": 1010,
+  "message": {
+    "message_id": 1010,
+    "from": {
+      "id": 5550001,
+      "is_bot": false,
+      "first_name": "Mei",
+      "last_name": "Tan",
+      "username": "meitan",
+      "language_code": "en"
+    },
+    "chat": {
+      "id": 5550001,
+      "first_name": "Mei",
+      "last_name": "Tan",
+      "username": "meitan",
+      "type": "private"
+    },
+    "date": 1763445900,
+    "text": "/start Zq3kVb8sTq1",
+    "entities": [
+      {
+        "type": "bot_command",
+        "offset": 0,
+        "length": 6
+      }
+    ]
+  }
+}

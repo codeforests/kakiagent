@@ -1,0 +1,35 @@
+{
+  "update_id": 1007,
+  "my_chat_member": {
+    "chat": {
+      "id": -4001,
+      "title": "Bakery fans",
+      "type": "group"
+    },
+    "from": {
+      "id": 5550001,
+      "is_bot": false,
+      "first_name": "Mei",
+      "last_name": "Tan",
+      "username": "meitan",
+      "language_code": "en"
+    },
+    "date": 1763445900,
+    "old_chat_member": {
+      "status": "left",
+      "user": {
+        "id": 1,
+        "is_bot": true,
+        "first_name": "Bot"
+      }
+    },
+    "new_chat_member": {
+      "status": "member",
+      "user": {
+        "id": 1,
+        "is_bot": true,
+        "first_name": "Bot"
+      }
+    }
+  }
+}
