@@ -64,4 +64,3 @@ No design tool is connected and the manifest policy is `code-native`, so the scr
 ## Gaps and escalations
 
 - Inline-keyboard cards (consent, withdraw) on Telegram are a follow-up (technical-design D11); the screens show none.
-- If Ken picks the platform alerts bot (technical-design D1), the "Alerts on Telegram" card moves to SCR-APP-056 only and SCR-APP-039 loses it.

@@ -5,7 +5,7 @@ Next: build (backend) — kickoff: "Build FEAT-037 (backend) on branch feat/FEAT
 
 ## What the next stage needs
 - Backend is T1–T8, UI is T9–T12 (split at `## Build session 2 (UI)`).
-- D1 (alerts from the business's own bot, linked per member by a `t.me/<bot>?start=<code>` link) was put to Ken on a decision card; the design follows the recommended option. If Ken picks the platform bot instead, D1, §5.5 and the SCR-APP-039 alerts card change before T7.
+- D1 (alerts from the business's own bot, linked per member by a `t.me/<bot>?start=<code>` link) was chosen by Ken on 2026-11-09.
 - Reuse FEAT-036's delivery trigger, `deliverMessage` and `inbound_events`; rename `EmailInboxPort` to `InboxPort` with a `channel` parameter.
 - Receive runs in the api's webhook transaction (D10), no new queue; service replies (group notice + leave, link confirmations, greeting) are `channel-send` jobs of `type: 'service'`.
 - Telegram 403 "blocked by the user" is `permanent`/`blocked`, never `auth` (a blocked customer is not a revoked token).
@@ -17,4 +17,4 @@ Next: build (backend) — kickoff: "Build FEAT-037 (backend) on branch feat/FEAT
 - Live bot checks at MD.
 
 ## Pending for Ken
-- D1 decision card (Telegram alerts from the business's bot vs a KakiAgent bot); also in pending-actions.md.
+- None.

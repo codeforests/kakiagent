@@ -124,7 +124,7 @@ Nothing new in the path: every message the agent, staff, notices or approvals wr
 
 ## 7. Decisions
 
-- **D1 — Alerts come from the business's own bot** (recommended to Ken on a decision card, 2026-11-09; the design proceeds on it). Each member links their Telegram account to the bot the business connected, by a one-time `t.me/<bot>?start=<code>` link (15 minutes, hashed at rest). It needs no platform bot, keeps Telegram a recipient at the tenant's instruction (ADR-019), and puts alerts where SCR-APP-039 and UC-25 step 4 put them. *Cost:* a business without a Telegram channel gets email alerts only. *Rejected:* one KakiAgent alerts bot (makes Telegram a platform sub-processor; needs an ADR).
+- **D1 — Alerts come from the business's own bot** (Ken chose it on a decision card, 2026-11-09). Each member links their Telegram account to the bot the business connected, by a one-time `t.me/<bot>?start=<code>` link (15 minutes, hashed at rest). It needs no platform bot, keeps Telegram a recipient at the tenant's instruction (ADR-019), and puts alerts where SCR-APP-039 and UC-25 step 4 put them. *Cost:* a business without a Telegram channel gets email alerts only. *Rejected:* one KakiAgent alerts bot (makes Telegram a platform sub-processor; needs an ADR).
 - **D2 — Groups: say it once, then leave.** CHN-05 asks for a reply in groups; answering every group message would spam the group, so the bot replies once and calls `leaveChat`. The page suggests turning off "Allow Groups" in BotFather (`/setjoingroups`), which only BotFather can do.
 - **D3 — Webhook secret by hash.** Telegram echoes `secret_token` on every webhook; we compare its sha256 with `telegram_settings.webhook_secret_hash`, so receiving never unseals a credential (no KMS call per message). The secret also sits sealed with the token, so a token replacement can rotate both.
 - **D4 — Connected offline and silent.** As for email (FEAT-036 D3): setup creates the channel offline with mode `hidden`, so nobody's messages are auto-answered before go-live; going live is FEAT-034's Channels action through `goLiveOne` (readiness unchanged).
@@ -138,7 +138,6 @@ Nothing new in the path: every message the agent, staff, notices or approvals wr
 
 ## 8. Escalations and open items
 
-- D1 is Ken's call (decision card posted); option 2 would need an ADR-019 amendment and a platform bot token, and would move the link flow out of the tenant bot.
 - At-least-once sends: Telegram has no idempotency key; a crash after Telegram accepted a message and before our commit re-sends it. Accepted (rare, and a duplicate is visible, not lost).
 - Live checks at MD: a real BotFather bot, webhook over the public URL, revoke and replace.
 - CHN-12's degraded alert also covers the email channel from now on (it is generic in `recordHealth`); FEAT-036's acceptance listed it as outstanding.
