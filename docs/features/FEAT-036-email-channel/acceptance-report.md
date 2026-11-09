@@ -4,7 +4,7 @@
 
 ## Verdict summary
 
-**Accepted** (2026-11-08), subject to the CI run recorded under CI. Every criterion AC-1..AC-11 has a test that asserts what it says; one part of AC-7 (the 11 MB file) had no test and now has one (Corrected tests). Full local checks are green apart from failures outside this feature: the time-of-day tests `language-hours.int` "closed today" and `escalation.int` (run at 23:00 SGT on a Sunday before the Deepavali holiday) and the container-only `uploads.int` and `rate-limit.int` (Testcontainers; CI runs them). E2E and screen renders ran only in GitHub CI.
+**Accepted** (2026-11-08; merge approved by Ken 2026-11-09). Every criterion AC-1..AC-11 has a test that asserts what it says; one part of AC-7 (the 11 MB file) had no test and now has one (Corrected tests). Full local checks are green apart from failures outside this feature: the time-of-day tests `language-hours.int` "closed today" and `escalation.int` (run at 23:00 SGT on a Sunday before the Deepavali holiday) and the container-only `uploads.int` and `rate-limit.int` (Testcontainers; CI runs them). E2E and screen renders ran only in GitHub CI.
 
 ## Audit standard
 
@@ -66,4 +66,4 @@ Test ref appended 2026-11-08: CHN-04 (partial: live Gmail/Outlook threading at M
 ## CI
 
 - Run 117 at `f31548e`: `email-channel.e2e` timed out on all three browsers waiting for `role=dialog` (the confirm is an `alertdialog`); corrected in `67efa32` (Corrected tests). Also red: F1's two holiday-only tests.
-- Run 118 (https://github.com/codeforests/kakiagent/actions/runs/42509704569) at `67efa32`: `email-channel.e2e` passes on Chromium, Firefox and WebKit; every other job green except F1's `business-profile.e2e` (all browsers) and agent `language-hours.int`. Failed jobs re-run after the Deepavali holidays: RERUN_LINE
+- Run 118 (https://github.com/codeforests/kakiagent/actions/runs/42509704569) at `67efa32`: `email-channel.e2e` passes on Chromium, Firefox and WebKit; every other job green except F1's `business-profile.e2e` (all browsers) and agent `language-hours.int`. Not re-run: Ken accepted the two holiday-only F1 failures as outside FEAT-036 and approved the merge on 2026-11-09 (still Deepavali); they are recorded in pending actions for a date-safe fix.
