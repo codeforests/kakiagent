@@ -36,6 +36,7 @@ export function toSummary(
   lastMessage: string | null,
   owner: SummaryOwner = null,
   escalation: ConversationSummary['escalation'] = null,
+  subject: string | null = null,
 ): ConversationSummary {
   return {
     id: row.id,
@@ -49,5 +50,7 @@ export function toSummary(
     closedAt: row.closedAt?.toISOString() ?? null,
     owner,
     escalation,
+    // FEAT-036 §5.5: the email thread's subject (null for the widget).
+    subject,
   };
 }

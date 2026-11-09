@@ -197,6 +197,13 @@ export {
 export { sniffType, type Sniffed } from './ingest/files/sniff.js';
 export { parseFile, type ParsedPage, type ParseOutcome } from './ingest/files/parse.js';
 export { scanFile, type ScanOutcome } from './ingest/files/scan-stage.js';
+export {
+  attachmentKey,
+  runAttachmentScan,
+  type AttachmentObjects,
+  type AttachmentScanDeps,
+  type AttachmentScanOutcome,
+} from './ingest/files/attachment-scan.js';
 // Spreadsheets (FEAT-016).
 export { readCsv } from './ingest/sheets/csv.js';
 export { readXlsx, type XlsxOutcome } from './ingest/sheets/xlsx.js';

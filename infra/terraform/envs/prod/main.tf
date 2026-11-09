@@ -125,7 +125,7 @@ locals {
 data "aws_iam_policy_document" "turns_consumer" {
   statement {
     actions   = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:ChangeMessageVisibility", "sqs:GetQueueAttributes"]
-    resources = [module.queues.queue_arns["conversation-turns"]]
+    resources = [module.queues.queue_arns["conversation-turns"], module.queues.queue_arns["channel-send"], module.mail.inbound.queue_arn]
   }
 }
 
@@ -190,6 +190,72 @@ data "aws_iam_policy_document" "file_store" {
   }
 }
 
+# The email channel (FEAT-036 §5.6). The api and the scheduler manage tenants' own sending
+# domains (create, check, remove; D1); new identities join the configuration set so their
+# bounces reach the inbound topic.
+data "aws_iam_policy_document" "email_identities" {
+  statement {
+    actions = [
+      "ses:CreateEmailIdentity", "ses:GetEmailIdentity", "ses:DeleteEmailIdentity",
+      "ses:PutEmailIdentityMailFromAttributes",
+    ]
+    resources = [
+      "arn:aws:ses:${local.region}:${data.aws_caller_identity.current.account_id}:identity/*",
+      module.mail.configuration_set_arn,
+    ]
+  }
+}
+
+# The api signs attachment downloads (presigned GETs, FEAT-036 §5.5).
+data "aws_iam_policy_document" "attachment_reader" {
+  statement {
+    actions   = ["s3:GetObject"]
+    resources = ["${module.storage.bucket_arns["attachments"]}/email/*"]
+  }
+  statement {
+    actions   = ["kms:Decrypt"]
+    resources = [module.data.kms_key_arn]
+  }
+}
+
+# The agent-worker reads and deletes raw mail, and puts attachments into quarantine for the
+# scan (FEAT-036 §5.2). ListBucket lets a missing raw object read as 404, not 403.
+data "aws_iam_policy_document" "mail_receiver" {
+  statement {
+    actions   = ["s3:GetObject", "s3:DeleteObject"]
+    resources = ["${module.mail.inbound.bucket_arn}/${module.mail.inbound.object_prefix}*"]
+  }
+  statement {
+    actions   = ["s3:ListBucket"]
+    resources = [module.mail.inbound.bucket_arn]
+  }
+  statement {
+    actions   = ["s3:PutObject"]
+    resources = ["${module.storage.bucket_arns["quarantine"]}/email/*"]
+  }
+  statement {
+    actions   = ["kms:Decrypt"]
+    resources = [module.mail.inbound.kms_key_arn]
+  }
+  statement {
+    actions   = ["kms:GenerateDataKey"]
+    resources = [module.data.kms_key_arn]
+  }
+}
+
+# The ingest worker scans quarantined attachments and copies clean ones to the attachments
+# bucket under the same key (FEAT-036 §5.2 step 4).
+data "aws_iam_policy_document" "attachment_scanner" {
+  statement {
+    actions   = ["s3:GetObject", "s3:GetObjectTagging", "s3:DeleteObject"]
+    resources = ["${module.storage.bucket_arns["quarantine"]}/email/*"]
+  }
+  statement {
+    actions   = ["s3:PutObject"]
+    resources = ["${module.storage.bucket_arns["attachments"]}/email/*"]
+  }
+}
+
 module "service" {
   source   = "../../modules/service"
   for_each = local.roles
@@ -213,15 +279,24 @@ module "service" {
   # Extraction jobs run for minutes; a minute's wait before scaling out is fine (NFR-16).
   queue_age_target_seconds = each.key == "ingest-worker" ? 60 : 1
   task_policies = lookup({
-    api          = { uploads = data.aws_iam_policy_document.upload_signer.json }
-    agent-worker = { sqs = data.aws_iam_policy_document.turns_consumer.json }
+    api = {
+      uploads     = data.aws_iam_policy_document.upload_signer.json
+      identities  = data.aws_iam_policy_document.email_identities.json
+      attachments = data.aws_iam_policy_document.attachment_reader.json
+    }
+    agent-worker = {
+      sqs  = data.aws_iam_policy_document.turns_consumer.json
+      mail = data.aws_iam_policy_document.mail_receiver.json
+    }
     ingest-worker = {
-      sqs   = data.aws_iam_policy_document.ingest_consumer.json
-      files = data.aws_iam_policy_document.file_store.json
+      sqs         = data.aws_iam_policy_document.ingest_consumer.json
+      files       = data.aws_iam_policy_document.file_store.json
+      attachments = data.aws_iam_policy_document.attachment_scanner.json
     }
     scheduler-worker = {
-      sqs   = data.aws_iam_policy_document.turns_producer.json
-      audit = data.aws_iam_policy_document.audit_anchor_writer.json
+      sqs        = data.aws_iam_policy_document.turns_producer.json
+      audit      = data.aws_iam_policy_document.audit_anchor_writer.json
+      identities = data.aws_iam_policy_document.email_identities.json
     }
   }, each.key, {})
 
@@ -240,6 +315,10 @@ module "service" {
         AWS_REGION                = local.region
         QUARANTINE_BUCKET         = module.storage.bucket_names["quarantine"]
         EMAIL_FROM                = "KakiAgent <${module.mail.from_address}>"
+        EMAIL_INBOUND_DOMAIN      = module.mail.inbound.domain
+        ATTACHMENTS_BUCKET        = module.storage.bucket_names["attachments"]
+        EMAIL_IDENTITY_PROVIDER   = "ses"
+        SES_CONFIGURATION_SET     = module.mail.configuration_set_name
       }
       realtime = { PORT = "3001", VALKEY_URL = local.valkey }
       agent-worker = {
@@ -248,6 +327,15 @@ module "service" {
         SQS_TURNS_QUEUE_URL = module.queues.queue_urls["conversation-turns"]
         VALKEY_URL          = local.valkey
         LLM_PROVIDER        = "fake" # the Bedrock au. provider arrives at MD (ADR-006)
+        # The email channel (FEAT-036 §5.2, §5.3).
+        EMAIL_INBOUND_DOMAIN        = module.mail.inbound.domain
+        EMAIL_INBOUND_BUCKET        = module.mail.inbound.bucket_name
+        EMAIL_SNS_TOPIC_ARN         = module.mail.inbound.topic_arn
+        SQS_EMAIL_INBOUND_QUEUE_URL = module.mail.inbound.queue_url
+        QUARANTINE_BUCKET           = module.storage.bucket_names["quarantine"]
+        SQS_CHANNEL_SEND_QUEUE_URL  = module.queues.queue_urls["channel-send"]
+        EMAIL_FROM                  = "KakiAgent <${module.mail.from_address}>"
+        SES_MESSAGE_ID_DOMAIN       = module.mail.message_id_domain
       }
       ingest-worker = {
         HEALTH_PORT          = "3003"
@@ -257,6 +345,7 @@ module "service" {
         LLM_PROVIDER         = "fake"                      # the Bedrock au. provider arrives at MD (ADR-006)
         QUARANTINE_BUCKET    = module.storage.bucket_names["quarantine"]
         SOURCES_BUCKET       = module.storage.bucket_names["sources"]
+        ATTACHMENTS_BUCKET   = module.storage.bucket_names["attachments"]
         MALWARE_SCANNER      = "guardduty" # FEAT-015 §5.3; ClamAV is the local stand-in
       }
       scheduler-worker = {
@@ -267,6 +356,10 @@ module "service" {
         AUDIT_ANCHOR_BUCKET  = module.storage.bucket_names["audit-anchors"]
         PUBLIC_APP_URL       = local.public_url
         EMAIL_FROM           = "KakiAgent <${module.mail.from_address}>"
+        # FEAT-036: the delivery sweep re-enqueues due sends; domain checks use SES.
+        SQS_CHANNEL_SEND_QUEUE_URL = module.queues.queue_urls["channel-send"]
+        EMAIL_IDENTITY_PROVIDER    = "ses"
+        SES_CONFIGURATION_SET      = module.mail.configuration_set_name
       }
     }[each.key] : k => v },
   )
@@ -288,7 +381,10 @@ module "service" {
       IDENTITY_DATABASE_URL  = local.secret["identity-database-url"]
       VISITOR_TOKEN_SECRET   = local.secret["visitor-token-secret"]
     }
-    agent-worker  = { VISITOR_DATABASE_URL = local.secret["visitor-database-url"] }
+    agent-worker = {
+      VISITOR_DATABASE_URL = local.secret["visitor-database-url"]
+      SMTP_URL             = local.secret["smtp-url"] # email channel replies (FEAT-036 §5.3)
+    }
     ingest-worker = { INGEST_DATABASE_URL = local.secret["ingest-database-url"] }
     scheduler-worker = {
       OUTBOX_DATABASE_URL   = local.secret["outbox-database-url"]
@@ -300,13 +396,15 @@ module "service" {
 }
 
 # Email authentication (NFR-18; FEAT-052 §5.6): DKIM, MAIL FROM (SPF), DMARC and the
-# bounce-rate alarm. The api and scheduler send as no-reply@<mail_domain>.
+# bounce-rate alarm. The api and scheduler send as no-reply@<mail_domain>. The email
+# channel (FEAT-036) receives at in.<mail_domain> and replies from it.
 module "mail" {
   source               = "../../modules/mail"
   name                 = var.name
   mail_domain          = var.mail_domain
   dmarc_report_address = var.dmarc_report_address
   region               = local.region
+  inbound_bucket_name  = "${local.bucket_pfx}-inbound-mail"
 }
 
 module "ci" {

@@ -30,7 +30,25 @@ export const CHANNEL_REGISTRY: ChannelRegistry = [
     checksHealth: false,
     offlineModes: ['hidden', 'message'],
   },
+  {
+    // FEAT-036 §5.1: the adapter needs the SES and DNS ports, so each role that checks health
+    // binds it with `withAdapter` (scheduler, api); unbound, a check counts as unreachable.
+    kind: 'email',
+    name: 'Email',
+    checksHealth: true,
+    offlineModes: ['hidden', 'message'],
+    connectPath: '/settings/channels/email',
+  },
 ];
+
+/** The registry with `kind`'s adapter bound to this role's dependencies. */
+export function withAdapter(
+  registry: ChannelRegistry,
+  kind: ChannelKind,
+  adapter: () => ChannelAdapter | Promise<ChannelAdapter>,
+): ChannelRegistry {
+  return registry.map((e) => (e.kind === kind ? { ...e, adapter: async () => adapter() } : e));
+}
 
 export function registryEntry(
   kind: string,

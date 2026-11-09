@@ -5,7 +5,11 @@ import { Link } from 'react-router';
 import { api, ApiError } from '../lib/api.ts';
 import { CHANNELS_KEY, useChannels } from '../lib/channels.ts';
 import { useToast } from '../lib/form.ts';
-import { ChannelCard, type Contacts } from './channels-parts.tsx';
+import { ChannelCard, ChannelIcon, type Contacts } from './channels-parts.tsx';
+
+const CONNECT_CAPTION: Partial<Record<string, string>> = {
+  email: 'Answer customer emails in the same thread.',
+};
 
 /** SCR-APP-036 Channels (ONB-10, CHN-12; FEAT-034 ui-design). */
 export function ChannelsPage() {
@@ -69,13 +73,26 @@ export function ChannelsPage() {
             <h2 className="section-title" id="channels-connect">
               Connect a channel
             </h2>
-            <div className="channels-connect">
+            <ul className="channels-connect">
               {loaded.data.connectable.map((c) => (
-                <Button asChild variant="secondary" key={c.kind}>
-                  <Link to={c.connectPath}>{c.name}</Link>
-                </Button>
+                <li className="channels-connect__row" key={c.kind}>
+                  <span className="channel-card__icon">
+                    <ChannelIcon name={c.kind === 'email' ? 'mail' : 'message'} size={20} />
+                  </span>
+                  <span className="channels-connect__text">
+                    <span className="channels-connect__name">{c.name}</span>
+                    {CONNECT_CAPTION[c.kind] && (
+                      <span className="channel-card__meta">{CONNECT_CAPTION[c.kind]}</span>
+                    )}
+                  </span>
+                  <Button asChild variant="secondary">
+                    <Link to={c.connectPath} aria-label={`Set up ${c.name}`}>
+                      Set up
+                    </Link>
+                  </Button>
+                </li>
               ))}
-            </div>
+            </ul>
           </section>
         )}
       </div>

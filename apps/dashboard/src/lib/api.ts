@@ -39,6 +39,9 @@ import {
   BusinessProfileResponse,
   ChannelItem,
   ChannelsResponse,
+  EmailChannelResponse,
+  type EmailDomainBody,
+  type EmailReplyCapBody,
   OnboardingProgress,
   ReadinessResponse,
   type GoLiveBody,
@@ -58,6 +61,7 @@ import {
   type PrivacyNoticeBody,
   type PurposeStatementBody,
   ConversationList,
+  type ConversationChannel,
   ConversationThread,
   ThreadPage,
   CloseConversationResponse,
@@ -281,7 +285,7 @@ export const api = {
   // Inbox (FEAT-042 §3): views, the thread with older pages, and close.
   conversations: (q: {
     view: InboxView;
-    channel: 'widget' | null;
+    channel: ConversationChannel | null;
     assignee?: string | null;
     cursor?: string | undefined;
     limit?: number;
@@ -376,6 +380,20 @@ export const api = {
   saveChannelOffline: (id: string, body: ChannelOfflineBody) =>
     request('PUT', `/api/v1/channels/${id}/offline-settings`, ChannelItem, body),
   checkChannel: (id: string) => request('POST', `/api/v1/channels/${id}/check`, ChannelItem),
+  /** FEAT-036 §3: SCR-APP-038 Email channel; every write answers the fresh settings. */
+  emailChannel: () => getJson('/api/v1/channels/email', EmailChannelResponse),
+  setupEmail: () => request('POST', '/api/v1/channels/email', EmailChannelResponse),
+  saveEmailReplyCap: (body: EmailReplyCapBody) =>
+    request('PUT', '/api/v1/channels/email/reply-cap', EmailChannelResponse, body),
+  addEmailDomain: (body: EmailDomainBody) =>
+    request('POST', '/api/v1/channels/email/domain', EmailChannelResponse, body),
+  checkEmailDomain: () =>
+    request('POST', '/api/v1/channels/email/domain/check', EmailChannelResponse),
+  removeEmailDomain: (settingsVersion: number) =>
+    request('DELETE', '/api/v1/channels/email/domain', EmailChannelResponse, { settingsVersion }),
+  /** A failed email delivery, sent again (FEAT-036 §3): 202, the thread follows by socket. */
+  retryDelivery: async (messageId: string) =>
+    void (await send('POST', `/api/v1/messages/${encodeURIComponent(messageId)}/delivery/retry`)),
   /** FEAT-035 §3: the wizard's progress and the go-live check (SCR-APP-012). */
   getProgress: () => getJson('/api/v1/onboarding/progress', OnboardingProgress),
   recordStep: (step: OnboardingStep, outcome: StepOutcomeBody['outcome']) =>

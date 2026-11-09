@@ -223,6 +223,8 @@ export interface VisitorChannel {
   /** The stored text or the default, per language. */
   message: { en: string; zh: string };
   contact: { email: string | null; phone: string | null };
+  /** AI replies per conversation per 24 h (FEAT-036 D3); null = no cap (the widget). */
+  aiReplyCap: number | null;
 }
 
 interface VisitorChannelRow extends Record<string, unknown> {
@@ -232,6 +234,7 @@ interface VisitorChannelRow extends Record<string, unknown> {
   offline_message_zh: string | null;
   contact_email: string | null;
   contact_phone: string | null;
+  ai_reply_cap: number | null;
 }
 
 /**
@@ -247,6 +250,7 @@ export async function visitorChannel(tx: Tx, kind: string): Promise<VisitorChann
       mode: 'hidden',
       message: { ...OFFLINE_DEFAULTS },
       contact: { email: null, phone: null },
+      aiReplyCap: null,
     };
   return {
     live: row.state === 'live',
@@ -256,6 +260,7 @@ export async function visitorChannel(tx: Tx, kind: string): Promise<VisitorChann
       zh: row.offline_message_zh ?? OFFLINE_DEFAULTS.zh,
     },
     contact: { email: row.contact_email, phone: row.contact_phone },
+    aiReplyCap: row.ai_reply_cap === null ? null : Number(row.ai_reply_cap),
   };
 }
 
@@ -320,9 +325,26 @@ export async function reportSendFailure(
   result: { ok: true } | { ok: false; failed: 'auth' | 'transient' | 'permanent' },
 ): Promise<HealthTransition> {
   if (result.ok || result.failed !== 'auth') return null;
-  const [row] = await tx.select(columns).from(cc).where(eq(cc.id, connectionId));
-  if (!row) return null;
-  return recordHealth(tx, row, { ok: false, reason: 'send_rejected' });
+  // Through channel_send_rejected() (FEAT-036 §5.3): the visitor zone reads no connection row.
+  const res = await tx.execute<{ transition: string | null; kind: string | null }>(
+    sql`select transition, kind from channel_send_rejected(${connectionId})`,
+  );
+  const row = res.rows[0];
+  if (row?.transition !== 'degraded') return null;
+  const tenantId = (await tx.execute<{ t: string }>(sql`select app_current_tenant()::text as t`))
+    .rows[0]!.t;
+  await audit.append(tx, tenantId, {
+    action: 'channel.degraded',
+    actorType: 'system',
+    subjectType: 'channel',
+    subjectId: connectionId,
+    payload: {
+      kind: auditCode(row.kind ?? 'unknown'),
+      connectionId: auditId(connectionId),
+      reason: auditCode('send_rejected'),
+    },
+  });
+  return 'degraded';
 }
 
 /** Runs an adapter's check with a timeout; a throw or a timeout counts as unreachable. */

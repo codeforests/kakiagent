@@ -6,11 +6,29 @@ export interface Email {
   subject: string;
   text: string;
   html: string;
+  /** Overrides the mailer's default sender (FEAT-036: a tenant's reply-from address). */
+  from?: string | undefined;
+  /** Extra headers, e.g. `In-Reply-To`, `References`, `Auto-Submitted` (FEAT-036 §5.1). */
+  headers?: Record<string, string> | undefined;
+  /** Our `Message-ID` (with angle brackets); the provider may replace it. */
+  messageId?: string | undefined;
+}
+
+/** What the provider said: SES SMTP answers `250 Ok <SES message ID>`. */
+export interface SentEmail {
+  providerId: string | null;
+  response: string | null;
+}
+
+/** An SMTP failure's reply code (e.g. 535 for a rejected login, 554 for a rejected message). */
+export function smtpCode(err: unknown): number | null {
+  const code = (err as { responseCode?: unknown } | null)?.responseCode;
+  return typeof code === 'number' ? code : null;
 }
 
 export interface Mailer {
   /** Resolves once the provider accepted the message; rejects if it didn't. */
-  send(email: Email): Promise<void>;
+  send(email: Email): Promise<SentEmail | void>;
   close(): Promise<void>;
 }
 
@@ -28,7 +46,9 @@ export function createSmtpMailer(url: string, from: string, timeoutMs = 5000): M
   });
   return {
     async send(email) {
-      await transport.sendMail(buildMessage(from, email));
+      const info = (await transport.sendMail(buildMessage(from, email))) as { response?: string };
+      const response = info.response ?? null;
+      return { response, providerId: /^250\s+Ok\s+(\S+)/i.exec(response ?? '')?.[1] ?? null };
     },
     async close() {
       transport.close();
@@ -38,5 +58,13 @@ export function createSmtpMailer(url: string, from: string, timeoutMs = 5000): M
 
 /** The message nodemailer sends; separate so it can be unit-tested. */
 export function buildMessage(from: string, email: Email) {
-  return { from, to: email.to, subject: email.subject, text: email.text, html: email.html };
+  return {
+    from: email.from ?? from,
+    to: email.to,
+    subject: email.subject,
+    text: email.text,
+    html: email.html,
+    ...(email.headers ? { headers: email.headers } : {}),
+    ...(email.messageId ? { messageId: email.messageId } : {}),
+  };
 }

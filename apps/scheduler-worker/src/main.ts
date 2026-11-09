@@ -19,11 +19,18 @@ import { sendDueNotifications } from '@kaki/platform/notifications';
 import { approvalLinkKey } from '@kaki/approvals';
 import { alertLinkOf } from './alert-links.js';
 import { createDispatcher } from '@kaki/platform/outbox';
+import {
+  CHANNEL_REGISTRY,
+  identityProvider,
+  runChannelHealth,
+  withEmailHealth,
+} from '@kaki/channels';
 import { z } from 'zod';
 import { channelHealthOnce } from './channel-health.js';
 import { gapClusterOnce } from './gap-cluster.js';
 import { staleScanOnce } from './stale-scan.js';
 import { approvalTimersOnce } from './approval-timers.js';
+import { channelDeliveriesOnce } from './channel-deliveries.js';
 import { autoCloseOnce } from './auto-close.js';
 import { escalationRemindersOnce } from './escalation-reminders.js';
 
@@ -31,6 +38,7 @@ const config = loadConfig(
   envSchemas.base
     .extend(envSchemas.aws.shape)
     .extend(envSchemas.ingestQueue.shape)
+    .extend(envSchemas.channelSendQueue.shape)
     .extend({
       HEALTH_PORT: envSchemas.port.default(3004),
       OUTBOX_DATABASE_URL: z.string().startsWith('postgres'),
@@ -89,6 +97,11 @@ const config = loadConfig(
       ESCALATION_SWEEP_MS: z.coerce.number().int().positive().default(30_000),
       /** Approval timers (APR-04, APR-06; FEAT-055 §5.4): every 30 seconds, first run at start-up. */
       APPROVAL_SWEEP_MS: z.coerce.number().int().positive().default(30_000),
+      /** Adapter-channel delivery retries and timeouts (FEAT-036 §5.3). */
+      DELIVERY_SWEEP_MS: z.coerce.number().int().positive().default(60_000),
+      /** The custom sending domain's checks (FEAT-036 §5.1): SES v2, or `fixture` locally. */
+      EMAIL_IDENTITY_PROVIDER: z.enum(['ses', 'fixture']).default('ses'),
+      SES_CONFIGURATION_SET: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
     }),
 );
 const stopTelemetry = startTelemetry('scheduler-worker', config.OTEL_EXPORTER_OTLP_ENDPOINT);
@@ -108,6 +121,7 @@ const dispatcher = createDispatcher({
   queueUrls: {
     'conversation-turns': config.SQS_TURNS_QUEUE_URL,
     ingest: config.SQS_INGEST_QUEUE_URL,
+    'channel-send': config.SQS_CHANNEL_SEND_QUEUE_URL,
   },
   logger,
   sweepIntervalMs: config.OUTBOX_SWEEP_MS,
@@ -227,9 +241,18 @@ const gapTimer = setInterval(
 
 // Channel health (FEAT-034 §5.2): checks every health-checked connection and marks a broken
 // one degraded (two checks 5 minutes apart meet CHN-12's 15 minutes).
-const channelRun = channelHealthOnce(outboxDb, logger);
+// FEAT-036: email's check is the custom sending domain (SES identity and DMARC).
+const healthRegistry = withEmailHealth(CHANNEL_REGISTRY, {
+  zdb: outboxDb,
+  ...identityProvider(config.EMAIL_IDENTITY_PROVIDER, {
+    region: config.AWS_REGION,
+    configurationSet: config.SES_CONFIGURATION_SET,
+  }),
+});
+const runHealth = (zdb: typeof outboxDb) => runChannelHealth(zdb, { registry: healthRegistry });
+const channelRun = channelHealthOnce(outboxDb, logger, runHealth);
 const channelTimer = setInterval(
-  () => void channelHealthOnce(outboxDb, logger),
+  () => void channelHealthOnce(outboxDb, logger, runHealth),
   config.CHANNEL_HEALTH_INTERVAL_MS,
 );
 
@@ -257,6 +280,14 @@ const approvalTimer = setInterval(
   config.APPROVAL_SWEEP_MS,
 );
 
+// Delivery retries and 24-hour timeouts (NFR-17; FEAT-036 §5.3): due retries go back on
+// channel-send; timed-out ones are escalated by the agent-worker.
+const deliveryRun = channelDeliveriesOnce(outboxDb, logger);
+const deliveryTimer = setInterval(
+  () => void channelDeliveriesOnce(outboxDb, logger),
+  config.DELIVERY_SWEEP_MS,
+);
+
 async function shutdown() {
   abort.abort();
   clearInterval(anchorTimer);
@@ -269,6 +300,7 @@ async function shutdown() {
   clearInterval(autoCloseTimer);
   clearInterval(escalationTimer);
   clearInterval(approvalTimer);
+  clearInterval(deliveryTimer);
   await Promise.all([
     running.catch(() => {}),
     anchorRun,
@@ -281,6 +313,7 @@ async function shutdown() {
     autoCloseRun,
     escalationRun,
     approvalRun,
+    deliveryRun,
   ]);
   health.close();
   await mailer.close();

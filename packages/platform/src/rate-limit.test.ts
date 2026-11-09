@@ -34,4 +34,22 @@ describe('buildMessage', () => {
       html: '<p>T</p>',
     });
   });
+
+  it("uses a reply's own sender, headers and Message-ID (FEAT-036 §5.1)", () => {
+    expect(
+      buildMessage('KakiAgent <no-reply@kakiagent.test>', {
+        to: 'a@b.sg',
+        subject: 'Re: S',
+        text: 'T',
+        html: '<p>T</p>',
+        from: '"Kaki Bakery" <kaki-bakery@in.kaki.test>',
+        headers: { 'In-Reply-To': '<a@b>', 'Auto-Submitted': 'auto-replied' },
+        messageId: '<m@in.kaki.test>',
+      }),
+    ).toMatchObject({
+      from: '"Kaki Bakery" <kaki-bakery@in.kaki.test>',
+      headers: { 'In-Reply-To': '<a@b>', 'Auto-Submitted': 'auto-replied' },
+      messageId: '<m@in.kaki.test>',
+    });
+  });
 });

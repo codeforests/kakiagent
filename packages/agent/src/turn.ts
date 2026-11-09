@@ -130,7 +130,7 @@ export async function runVisitorTurn(
     const message = await getMessage(tx, tenantId, job.messageId);
     if (!message || message.author !== 'visitor') return null;
     if (await replyExists(tx, tenantId, message.id)) return null;
-    const gate = await aiAllowed(tx, tenantId, conversationId);
+    const gate = await aiAllowed(tx, tenantId, conversationId, wall);
     // APR-01 (FEAT-054 §5.3): read every turn, no cache, so a save applies to the next reply.
     const rules = await rulesInForce(tx, tenantId);
     const history = await recentMessages(tx, {
@@ -358,6 +358,26 @@ export async function runVisitorTurn(
       const text = textsFor(language, persona).fallback;
       return prep.lastReply === text ? null : store('paused', 'system', text, null);
     }
+    // FEAT-036 §5.4: a capped channel (email) stops replying and asks staff once; an open
+    // escalation already makes `requestEscalation` a no-op.
+    if (gate.reason === 'reply_cap') {
+      await withTenant(zdb, tenantId, (tx) =>
+        requestEscalation(tx, {
+          tenantId,
+          conversationId,
+          source: 'reply_cap',
+          now: wall,
+          hours: {
+            hours: gate.tenant.hours,
+            openOnPublicHolidays: gate.tenant.openOnPublicHolidays,
+            holidays: gate.tenant.holidays,
+          },
+        }),
+      );
+      return null;
+    }
+    // Offline and hidden: nothing is said; the message waits in the inbox for staff.
+    if (gate.reason === 'not_live' && gate.offline.mode === 'hidden') return null;
     if (gate.reason === 'not_live') {
       const text = offlineText(gate.offline);
       return prep.lastReply === text ? null : store('not_live', 'system', text, null);

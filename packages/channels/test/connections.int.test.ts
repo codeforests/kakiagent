@@ -102,9 +102,11 @@ afterEach(async () => {
 transport = fakeTransport();
 
 describe('go live and go offline (ONB-10, AC-2)', () => {
-  it('lists the widget with its defaults and nothing to connect', async () => {
+  it('lists the widget with its defaults, and email (FEAT-036) to connect', async () => {
     const res = await dash(TENANT_A, (tx) => listChannels(tx));
-    expect(res.connectable).toEqual([]);
+    expect(res.connectable).toEqual([
+      { kind: 'email', name: 'Email', connectPath: '/settings/channels/email' },
+    ]);
     expect(res.channels).toHaveLength(1);
     expect(res.channels[0]).toMatchObject({
       kind: 'widget',
@@ -276,6 +278,7 @@ describe('visitorChannel', () => {
       mode: 'message',
       message: { en: OFFLINE_DEFAULTS.en, zh: '下月开张' },
       contact: { email: 'hello@kaki-bakery.test', phone: expect.anything() },
+      aiReplyCap: null,
     });
     expect(await visitor(TENANT_B, (tx) => visitorChannel(tx, 'widget'))).toMatchObject({
       live: true,
@@ -285,6 +288,7 @@ describe('visitorChannel', () => {
       mode: 'hidden',
       message: OFFLINE_DEFAULTS,
       contact: { email: null, phone: null },
+      aiReplyCap: null,
     });
   });
 });

@@ -75,7 +75,8 @@ export interface InboundEvent {
   extensions: Record<string, unknown>;
 }
 
-export type IgnoreReason = 'auto_reply' | 'group' | 'bulk' | 'echo' | 'unsupported';
+export type IgnoreReason =
+  'auto_reply' | 'group' | 'bulk' | 'echo' | 'unsupported' | 'spam' | 'unsafe' | 'bounce';
 
 export type ExternalThreadKey = string;
 

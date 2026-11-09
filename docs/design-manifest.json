@@ -328,7 +328,12 @@
             "strategy": "code-native",
             "source": "features/FEAT-050-leads-pipeline/ui-design.md#scr-app-014--inbox-partial"
           },
-          "features/FEAT-051-consent-withdrawal/ui-design.md#scr-app-014--inbox-sidebar-lead-section"
+          "features/FEAT-051-consent-withdrawal/ui-design.md#scr-app-014--inbox-sidebar-lead-section",
+          {
+            "state": "email conversations: subject, delivery line, attachments",
+            "strategy": "code-native",
+            "source": "features/FEAT-036-email-channel/ui-design.md#scr-app-014--inbox-partial-email-conversations"
+          }
         ]
       },
       "contract_bindings": [
@@ -341,7 +346,9 @@
         "GET /api/v1/inbox/members",
         "POST /api/v1/conversations/search",
         "GET /api/v1/conversations/:id (sidebar.contact, sidebar.lead, events)",
-        "GET /api/v1/conversations/:id (sidebar.approval, approval events)"
+        "GET /api/v1/conversations/:id (sidebar.approval, approval events)",
+        "POST /api/v1/messages/:id/delivery/retry",
+        "GET /api/v1/attachments/:id"
       ],
       "conformance": {
         "result": "pass",
@@ -1365,6 +1372,56 @@
         "escalations": []
       }
     },
+    "SCR-APP-038": {
+      "name": "Email channel",
+      "surface": "APP",
+      "feature": "FEAT-036",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-036-email-channel/ui-design.md#scr-app-038--email-channel"
+      },
+      "states": {
+        "covered": [
+          "loading",
+          "error",
+          "permission",
+          "not set up",
+          "setting up",
+          "forwarding only",
+          "waiting for first email",
+          "forwarding works",
+          "Gmail confirmation code",
+          "domain pending",
+          "verified",
+          "failing",
+          "checking",
+          "check too soon",
+          "stop using address (confirm)",
+          "reply cap saving",
+          "validation errors",
+          "conflict",
+          "ignored mail counts",
+          "nothing ignored"
+        ],
+        "gaps": [],
+        "supplements": []
+      },
+      "contract_bindings": [
+        "GET /api/v1/channels/email",
+        "POST /api/v1/channels/email",
+        "PUT /api/v1/channels/email/reply-cap",
+        "POST /api/v1/channels/email/domain",
+        "POST /api/v1/channels/email/domain/check",
+        "DELETE /api/v1/channels/email/domain"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-11-08"
+    },
     "SCR-APP-011": {
       "name": "Wizard · Add to your website",
       "surface": "APP",
@@ -1589,12 +1646,17 @@
           "permission"
         ],
         "gaps": [
-          "Connect a channel entries (FEAT-036, FEAT-037, FEAT-040)",
           "Reconnect from the degraded alert (each channel's screen)",
-          "Go-live readiness blockers (FEAT-035)"
+          "Go-live readiness blockers (FEAT-035)",
+          "Connect a channel entries for Telegram and Meta (FEAT-037, FEAT-040)"
         ],
         "supplements": [
-          "Degraded-channel banner in the app shell (features/FEAT-034-channels/ui-design.md#banner--degraded-channel-app-shell-shellbannerstsx)"
+          "Degraded-channel banner in the app shell (features/FEAT-034-channels/ui-design.md#banner--degraded-channel-app-shell-shellbannerstsx)",
+          {
+            "state": "Connect entry, email card and offline modes",
+            "strategy": "code-native",
+            "source": "features/FEAT-036-email-channel/ui-design.md#scr-app-036--channels-partial"
+          }
         ]
       },
       "contract_bindings": [

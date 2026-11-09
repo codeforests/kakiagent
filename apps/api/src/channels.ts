@@ -1,4 +1,5 @@
 import {
+  CHANNEL_REGISTRY,
   ChannelConflictError,
   ChannelNotFoundError,
   checkChannelNow,
@@ -10,6 +11,7 @@ import {
   setChannelState,
   TooSoonError,
   visitorChannel,
+  withEmailHealth,
 } from '@kaki/channels';
 import {
   ChannelItem,
@@ -24,6 +26,7 @@ import { goLiveOne, sgDay } from '@kaki/tenancy';
 import type { FastifyRequest } from 'fastify';
 import type { ZodError } from 'zod';
 import type { TenantSession } from './auth.js';
+import { emailDepsFrom } from './email-channel.js';
 import { ForbiddenError } from './facts.js';
 import type { App, Deps } from './server.js';
 
@@ -97,6 +100,7 @@ export function registerChannelRoutes(
   sessionFrom: (req: FastifyRequest) => Promise<TenantSession>,
 ) {
   const { dashboardDb } = deps;
+  const email = emailDepsFrom(deps);
 
   async function manager(req: FastifyRequest) {
     const s = await sessionFrom(req);
@@ -153,6 +157,12 @@ export function registerChannelRoutes(
   app.post<{ Params: { id: string } }>('/api/v1/channels/:id/check', async (req) => {
     const s = await manager(req);
     const id = idOf(req.params);
-    return ChannelItem.parse(await inTenant(s, (tx) => checkChannelNow(tx, { id })));
+    // FEAT-036: email's check is its custom sending domain, through the same ports.
+    const registry = withEmailHealth(CHANNEL_REGISTRY, {
+      zdb: dashboardDb,
+      identities: email.identities,
+      resolver: email.resolver,
+    });
+    return ChannelItem.parse(await inTenant(s, (tx) => checkChannelNow(tx, { id, registry })));
   });
 }

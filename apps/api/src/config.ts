@@ -47,6 +47,13 @@ export const schema = envSchemas.base
     FILE_LIMIT: z.coerce.number().int().min(1).max(1000).default(50),
     /** Browsers PUT uploads here through presigned URLs (FEAT-015 §3.2). */
     QUARANTINE_BUCKET: z.string().min(3),
+    /** The email channel (FEAT-036 §3): `in.<platform domain>` of the forwarding addresses. */
+    EMAIL_INBOUND_DOMAIN: z.string().min(3),
+    /** Scanned email attachments; staff download them through 5-minute presigned GETs. */
+    ATTACHMENTS_BUCKET: z.string().min(3),
+    /** The custom sending domain's provider: SES v2, or `fixture` locally (refused in production). */
+    EMAIL_IDENTITY_PROVIDER: z.enum(['ses', 'fixture']).default('ses'),
+    SES_CONFIGURATION_SET: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
     /** Dev-only: accept hosts on private addresses, such as the fixture site (FEAT-012 §5.6). */
     CRAWL_ALLOW_PRIVATE_HOSTS: z
       .preprocess((v) => v === 'true' || v === '1', z.boolean())

@@ -9,6 +9,9 @@ import { describe, expect, it } from 'vitest';
 import {
   appendMessage,
   applySummary,
+  attachmentStatus,
+  deliveryText,
+  fileSize,
   dockMode,
   dockText,
   cardCaption,
@@ -554,5 +557,83 @@ describe('approvals in the thread (FEAT-055 ui-design SCR-APP-014)', () => {
       'The approval expired',
     );
     expect(cardCaption('quote')).toBe('Sent after approval');
+  });
+});
+
+describe('email conversations (FEAT-036)', () => {
+  it('filters by the email channel from the URL and cache keys', () => {
+    const f = { view: 'open' as const, channel: 'email' as const, assignee: null };
+    expect(searchFromView(f)).toBe('?channel=email');
+    expect(viewFromSearch(new URLSearchParams('?channel=email'))).toEqual(f);
+    expect(filterOfKey(listKey(f))).toEqual(f);
+    expect(matchesView(summary(1, { channel: 'email' }), 'open', 'email')).toBe(true);
+    expect(matchesView(summary(1), 'open', 'email')).toBe(false);
+  });
+
+  it('updates a known message when only its delivery changes', () => {
+    const sent = message(1, {
+      author: 'agent',
+      delivery: { status: 'failed', failedReason: 'bounced', sentAt: null },
+    });
+    const t = thread([sent]);
+    const next = appendMessage(t, {
+      ...sent,
+      delivery: { status: 'sending', failedReason: null, sentAt: null },
+    });
+    expect(next?.messages).toHaveLength(1);
+    expect(next?.messages[0]?.delivery?.status).toBe('sending');
+    expect(appendMessage(t, { ...sent, delivery: undefined })).toBe(t);
+  });
+
+  it('words the delivery line', () => {
+    expect(deliveryText(null)).toBeNull();
+    expect(deliveryText({ status: 'sent', failedReason: null, sentAt: null })).toBeNull();
+    expect(deliveryText({ status: 'sending', failedReason: null, sentAt: null })?.text).toBe(
+      'Sending…',
+    );
+    expect(deliveryText({ status: 'failed', failedReason: 'bounced', sentAt: null })?.text).toBe(
+      'Not delivered: the address bounced',
+    );
+    expect(deliveryText({ status: 'failed', failedReason: 'timed_out', sentAt: null })?.text).toBe(
+      "Not delivered: we couldn't send it for 24 hours",
+    );
+  });
+
+  it('words attachments and their sizes', () => {
+    const a = {
+      id: id(5),
+      name: 'menu.pdf',
+      contentType: 'application/pdf',
+      size: 2_400_000,
+      status: 'clean' as const,
+      rejectReason: null,
+    };
+    expect(attachmentStatus(a)).toBeNull();
+    expect(attachmentStatus({ ...a, status: 'scanning' })).toBe('Checking…');
+    expect(attachmentStatus({ ...a, status: 'rejected', rejectReason: 'too_large' })).toBe(
+      'Not stored: over 10 MB',
+    );
+    expect(fileSize(820)).toBe('820 B');
+    expect(fileSize(14_000)).toBe('14 KB');
+    expect(fileSize(a.size)).toBe('2.3 MB');
+  });
+
+  it('explains the two email escalation sources in the strip', () => {
+    const e = {
+      id: id(6),
+      assignee: null,
+      since: '2026-11-08T06:00:00.000Z',
+      source: 'reply_cap' as const,
+      urgent: false,
+      afterHours: false,
+      reminders: 0,
+    };
+    const now = new Date('2026-11-08T06:00:10.000Z');
+    expect(escalationStrip(e, null, now).lead).toMatch(
+      /AI reply limit reached in this email thread\./,
+    );
+    expect(escalationStrip({ ...e, source: 'delivery_failed' }, null, now).lead).toMatch(
+      /A reply couldn't be delivered\./,
+    );
   });
 });

@@ -6,6 +6,8 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { api } from '../lib/api.ts';
 import {
   CHANNEL_LABEL,
+  CHANNELS,
+  channelOf,
   COUNTS_KEY,
   flattenPages,
   listKey,
@@ -186,13 +188,15 @@ function InboxList({
                 className="input"
                 value={filter.channel ?? ''}
                 onChange={(e) =>
-                  void navigate(
-                    to({ ...filter, channel: e.target.value === 'widget' ? 'widget' : null }),
-                  )
+                  void navigate(to({ ...filter, channel: channelOf(e.target.value) }))
                 }
               >
                 <option value="">All channels</option>
-                <option value="widget">{CHANNEL_LABEL.widget}</option>
+                {CHANNELS.map((ch) => (
+                  <option value={ch} key={ch}>
+                    {CHANNEL_LABEL[ch]}
+                  </option>
+                ))}
               </select>
             </label>
             <label className="field field--inline">

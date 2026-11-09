@@ -14,7 +14,7 @@ import {
 } from '@kaki/platform';
 import { buildApp } from '../src/app.js';
 import { schema as configSchema } from '../src/config.js';
-import type { UploadSigner } from '../src/server.js';
+import type { EmailDeps, UploadSigner } from '../src/server.js';
 
 export const APP_URL = 'http://localhost:5173';
 
@@ -69,6 +69,9 @@ export function testConfig(tdb: TestDatabase, env: Record<string, string> = {}) 
     MFA_SECRET_KEY: Buffer.alloc(32, 7).toString('base64url'),
     SMTP_URL: 'smtp://localhost:1025',
     QUARANTINE_BUCKET: 'kaki-test-quarantine',
+    EMAIL_INBOUND_DOMAIN: 'in.kaki.test',
+    ATTACHMENTS_BUCKET: 'kaki-test-attachments',
+    EMAIL_IDENTITY_PROVIDER: 'fixture',
     ...env,
   });
 }
@@ -86,11 +89,13 @@ export async function testApp(
     llm?: LlmGateway;
     rateLimiter?: RateLimiter;
     logger?: ReturnType<typeof createLogger>;
+    email?: EmailDeps;
   } = {},
 ) {
   return buildApp({
     config: testConfig(tdb, opts.env),
-    logger: opts.logger ?? createLogger('api-test', 'silent'),
+    logger:
+      opts.logger ?? createLogger('api-test', (process.env.API_TEST_LOG as 'error') ?? 'silent'),
     dashboardDb: tdb.zone('dashboard'),
     visitorDb: tdb.zone('visitor'),
     identityDb: tdb.zone('identity'),
@@ -101,6 +106,7 @@ export async function testApp(
     google: opts.google ?? null,
     uploads: opts.uploads ?? fakeSigner(),
     ...(opts.resolve ? { resolve: opts.resolve } : {}),
+    ...(opts.email ? { email: opts.email } : {}),
   });
 }
 

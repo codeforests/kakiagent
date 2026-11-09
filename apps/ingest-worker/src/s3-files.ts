@@ -6,7 +6,7 @@ import {
   S3Client,
   S3ServiceException,
 } from '@aws-sdk/client-s3';
-import type { Bucket, FileStore } from '@kaki/kb';
+import type { AttachmentObjects, Bucket, FileStore } from '@kaki/kb';
 
 const notFound = (err: unknown) =>
   err instanceof S3ServiceException &&
@@ -63,6 +63,42 @@ export function s3FileStore(cfg: {
     async delete(bucket, key) {
       // S3 answers 204 for a missing key too, so a second purge is a no-op.
       await s3.send(new DeleteObjectCommand({ Bucket: name(bucket), Key: key }));
+    },
+  };
+}
+
+/** Inbound email attachments (FEAT-036 §5.2 step 4): quarantine → the attachments bucket. */
+export function s3AttachmentObjects(cfg: {
+  s3: S3Client;
+  quarantineBucket: string;
+  attachmentsBucket: string;
+}): AttachmentObjects {
+  const { s3 } = cfg;
+  return {
+    async getQuarantine(key) {
+      try {
+        const out = await s3.send(new GetObjectCommand({ Bucket: cfg.quarantineBucket, Key: key }));
+        return out.Body ? await out.Body.transformToByteArray() : null;
+      } catch (err) {
+        if (notFound(err)) return null;
+        throw err;
+      }
+    },
+    async copyToAttachments(fromKey, toKey) {
+      await s3.send(
+        new CopyObjectCommand({
+          Bucket: cfg.attachmentsBucket,
+          Key: toKey,
+          CopySource: `${cfg.quarantineBucket}/${encodeURIComponent(fromKey).replace(/%2F/g, '/')}`,
+          // The sender's Content-Type isn't trusted; downloads are served as attachments.
+          MetadataDirective: 'REPLACE',
+          ContentType: 'application/octet-stream',
+          TaggingDirective: 'REPLACE',
+        }),
+      );
+    },
+    async deleteQuarantine(key) {
+      await s3.send(new DeleteObjectCommand({ Bucket: cfg.quarantineBucket, Key: key }));
     },
   };
 }

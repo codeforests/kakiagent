@@ -13,7 +13,8 @@ if ! awslocal s3api head-bucket --bucket kaki-local-audit-anchors >/dev/null 2>&
   awslocal s3api put-object-lock-configuration --bucket kaki-local-audit-anchors \
     --object-lock-configuration '{"ObjectLockEnabled":"Enabled","Rule":{"DefaultRetention":{"Mode":"COMPLIANCE","Days":1}}}'
 fi
-for bucket in kaki-local-quarantine kaki-local-sources; do
+# FEAT-036: raw inbound mail (deleted after processing, 7-day backstop) and clean attachments.
+for bucket in kaki-local-quarantine kaki-local-sources kaki-local-inbound-mail kaki-local-attachments; do
   if ! awslocal s3api head-bucket --bucket "$bucket" >/dev/null 2>&1; then
     awslocal s3api create-bucket --bucket "$bucket" \
       --create-bucket-configuration LocationConstraint=ap-southeast-1 >/dev/null
@@ -21,6 +22,8 @@ for bucket in kaki-local-quarantine kaki-local-sources; do
 done
 awslocal s3api put-bucket-lifecycle-configuration --bucket kaki-local-quarantine \
   --lifecycle-configuration '{"Rules":[{"ID":"expire-uploads","Status":"Enabled","Filter":{"Prefix":"uploads/"},"Expiration":{"Days":1}}]}'
+awslocal s3api put-bucket-lifecycle-configuration --bucket kaki-local-inbound-mail \
+  --lifecycle-configuration '{"Rules":[{"ID":"expire-mail","Status":"Enabled","Filter":{"Prefix":""},"Expiration":{"Days":7}}]}'
 awslocal s3api put-bucket-cors --bucket kaki-local-quarantine \
   --cors-configuration '{"CORSRules":[{"AllowedOrigins":["http://localhost:5173"],"AllowedMethods":["PUT"],"AllowedHeaders":["*"],"MaxAgeSeconds":3000}]}'
 echo "localstack: buckets ready"

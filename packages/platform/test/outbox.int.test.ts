@@ -58,7 +58,11 @@ describe('transactional outbox (ADR-012)', () => {
     const dispatcher = createDispatcher({
       zdb: tdb.zone('outbox'),
       queue,
-      queueUrls: { 'conversation-turns': 'q://turns', ingest: 'q://ingest' },
+      queueUrls: {
+        'conversation-turns': 'q://turns',
+        ingest: 'q://ingest',
+        'channel-send': 'q://send',
+      },
       logger: createLogger('test', 'silent'),
     });
     expect(await dispatcher.dispatchPending()).toBe(2);
@@ -84,7 +88,11 @@ describe('transactional outbox (ADR-012)', () => {
     const dispatcher = createDispatcher({
       zdb: tdb.zone('outbox'),
       queue,
-      queueUrls: { 'conversation-turns': 'q://turns', ingest: 'q://ingest' },
+      queueUrls: {
+        'conversation-turns': 'q://turns',
+        ingest: 'q://ingest',
+        'channel-send': 'q://send',
+      },
       logger: createLogger('test', 'silent'),
     });
     expect(await dispatcher.dispatchPending()).toBe(0);
@@ -105,7 +113,11 @@ describe('transactional outbox (ADR-012)', () => {
     const dispatcher = createDispatcher({
       zdb: tdb.zone('outbox'),
       queue,
-      queueUrls: { 'conversation-turns': 'q://turns', ingest: 'q://ingest' },
+      queueUrls: {
+        'conversation-turns': 'q://turns',
+        ingest: 'q://ingest',
+        'channel-send': 'q://send',
+      },
       logger: createLogger('test', 'silent'),
     });
     expect(await dispatcher.dispatchPending()).toBe(1);
@@ -119,7 +131,11 @@ describe('transactional outbox (ADR-012)', () => {
     const dispatcher = createDispatcher({
       zdb: tdb.zone('outbox'),
       queue,
-      queueUrls: { 'conversation-turns': 'q://turns', ingest: 'q://ingest' },
+      queueUrls: {
+        'conversation-turns': 'q://turns',
+        ingest: 'q://ingest',
+        'channel-send': 'q://send',
+      },
       logger: createLogger('test', 'silent'),
       sweepIntervalMs: 60_000,
     });

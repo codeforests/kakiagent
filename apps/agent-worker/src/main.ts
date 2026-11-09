@@ -1,12 +1,27 @@
 import { fakeAgentScript, runVisitorTurn } from '@kaki/agent';
+import {
+  deliverMessage,
+  deliveryView,
+  emailSender,
+  escalateTimedOut,
+  receiveEmail,
+  recordBounce,
+  type DeliverDeps,
+  type DeliveryRow,
+} from '@kaki/channels';
+import { visitorPrivacy } from '@kaki/governance';
 import { usageSink } from '@kaki/analytics';
 import { runApprovalTimer } from '@kaki/approvals';
-import { TurnQueueJob, type RealtimeEvent } from '@kaki/contracts';
+import { ChannelSendJob, TurnQueueJob, type RealtimeEvent } from '@kaki/contracts';
 import { createZoneDb, ping, withTenant } from '@kaki/db';
+import * as inbox from '@kaki/inbox';
 import {
   autoCloseIdle,
+  ConversationClosedError,
   conversationSummary,
+  getMessage,
   remindEscalation,
+  requestEscalation,
   toMessage,
   toSummary,
 } from '@kaki/inbox';
@@ -14,6 +29,7 @@ import { gatewayFromEnv, type UsageEvent } from '@kaki/llm-gateway';
 import {
   channels,
   createLogger,
+  createSmtpMailer,
   createPublisher,
   createQueueClient,
   envSchemas,
@@ -23,13 +39,21 @@ import {
 } from '@kaki/platform';
 import { visitorTenantState } from '@kaki/tenancy';
 import { z } from 'zod';
+import { s3MailStore } from './mail-store.js';
 
 const config = loadConfig(
   envSchemas.base
     .extend(envSchemas.aws.shape)
     .extend(envSchemas.valkey.shape)
     .extend(envSchemas.llm.shape)
+    .extend(envSchemas.emailInbound.shape)
+    .extend(envSchemas.channelSendQueue.shape)
     .extend({
+      /** Replies on adapter channels go out through SMTP (Mailpit locally, SES at MD). */
+      SMTP_URL: z.string().regex(/^smtps?:\/\//),
+      EMAIL_FROM: z.string().min(3).default('KakiAgent <no-reply@kakiagent.local>'),
+      /** SES replaces our Message-ID with `<id>@<this>` (FEAT-036 §8; checked at MD). */
+      SES_MESSAGE_ID_DOMAIN: z.string().min(3).default('ap-southeast-1.amazonses.com'),
       HEALTH_PORT: envSchemas.port.default(3002),
       VISITOR_DATABASE_URL: z.string().startsWith('postgres'),
     }),
@@ -71,6 +95,69 @@ async function publishAll(
       log.warn({ err }, 'publish failed; clients will resume from Postgres'),
     );
   }
+}
+
+/**
+ * Adapter-channel deliveries (D2; FEAT-036 §5.3): the trigger's and the sweep's `channel-send`
+ * jobs. The thread's message carries its delivery state, so the inbox shows Sending… and
+ * Not delivered as they change; a summary refresh follows an escalation.
+ */
+const mailer = createSmtpMailer(config.SMTP_URL, config.EMAIL_FROM, 15_000);
+const deliverDeps: DeliverDeps = {
+  zdb: visitorDb,
+  senders: {
+    email: emailSender({
+      mailer,
+      inboundDomain: config.EMAIL_INBOUND_DOMAIN,
+      sesMessageIdDomain: config.SES_MESSAGE_ID_DOMAIN,
+    }),
+  },
+  async footer(tx) {
+    const [tenant, privacy] = await Promise.all([visitorTenantState(tx), visitorPrivacy(tx)]);
+    // GOV-14: the tenant's own notice link; the hosted template page needs the widget key,
+    // which the visitor zone can't read, so it shows the business name only (handoff).
+    const notice = privacy?.notice ?? null;
+    return {
+      businessName: tenant?.businessName ?? privacy?.businessName ?? 'Our team',
+      privacyUrl: notice?.mode === 'link' ? notice.url : null,
+    };
+  },
+  async escalate(tx, tenantId, conversationId, source) {
+    const tenant = await visitorTenantState(tx);
+    await requestEscalation(tx, {
+      tenantId,
+      conversationId,
+      source,
+      hours: tenant
+        ? {
+            hours: tenant.hours,
+            openOnPublicHolidays: tenant.openOnPublicHolidays,
+            holidays: tenant.holidays,
+          }
+        : null,
+      log: logger,
+    }).catch((err: unknown) => {
+      // A closed conversation has nobody to alert in the inbox; the delivery still shows failed.
+      if (!(err instanceof ConversationClosedError)) throw err;
+    });
+  },
+};
+
+async function publishDelivery(tenantId: string, row: DeliveryRow | null) {
+  if (!row) return;
+  const out = await withTenant(visitorDb, tenantId, async (tx) => ({
+    message: await getMessage(tx, tenantId, row.messageId),
+    summary: await conversationSummary(tx, tenantId, row.conversationId).catch(() => null),
+  }));
+  const events: [string[], RealtimeEvent][] = [];
+  if (out.message)
+    events.push([
+      [channels.inbox(tenantId)],
+      { type: 'message', message: { ...toMessage(out.message), delivery: deliveryView(row) } },
+    ]);
+  if (out.summary)
+    events.push([[channels.inbox(tenantId)], { type: 'conversation', conversation: out.summary }]);
+  await publishAll(events, logger);
 }
 
 const health = startHealthServer(config.HEALTH_PORT, { database: () => ping(visitorDb) });
@@ -141,6 +228,16 @@ const consuming = queue.consume<unknown>(
         ]);
       await publishAll(events, log);
       log.info({ outcome: r.outcome }, 'approval timer');
+      return;
+    }
+    // A delivery the sweep timed out (UC-27 3c; FEAT-036 §5.3): escalate once and refresh the thread.
+    if ('kind' in parsed && parsed.kind === 'delivery_failed') {
+      const row = await escalateTimedOut(deliverDeps, parsed);
+      await publishDelivery(parsed.tenantId, row);
+      logger.info(
+        { outboxId: msg.id, tenantId: parsed.tenantId, messageId: parsed.messageId, found: !!row },
+        'delivery timed out',
+      );
       return;
     }
     if ('kind' in parsed && parsed.kind === 'escalation_reminder') {
@@ -302,9 +399,116 @@ const consuming = queue.consume<unknown>(
 );
 logger.info({ provider: config.LLM_PROVIDER }, 'agent-worker consuming conversation turns');
 
+/**
+ * Consumes `email-inbound` (CHN-04; FEAT-036 §5.2): SES-stored mail announced through SNS.
+ * `inbound_events` makes a redelivery a no-op; a thrown error leaves the message for retry
+ * and, after 5 receives, the DLQ (NFR-17).
+ */
+const mailStore = s3MailStore({
+  quarantineBucket: config.QUARANTINE_BUCKET,
+  region: config.AWS_REGION,
+  endpoint: config.AWS_ENDPOINT_URL,
+});
+const receivingMail = queue.consume<unknown>(
+  {
+    queueUrl: config.SQS_EMAIL_INBOUND_QUEUE_URL,
+    signal: abort.signal,
+    onError: (err, raw) =>
+      logger.error({ err, sqsMessageId: raw.MessageId }, 'inbound email failed; will be retried'),
+  },
+  async (msg) => {
+    const r = await receiveEmail(
+      {
+        zdb: visitorDb,
+        store: mailStore,
+        inbox,
+        config: {
+          topicArn: config.EMAIL_SNS_TOPIC_ARN,
+          inboundBucket: config.EMAIL_INBOUND_BUCKET,
+          inboundDomain: config.EMAIL_INBOUND_DOMAIN,
+        },
+      },
+      msg.body,
+    );
+    const log = logger.child({ sqsMessageId: msg.id });
+    if ('rejected' in r) {
+      log.warn({ rejected: r.rejected }, 'inbound email rejected');
+      return;
+    }
+    if ('notification' in r) {
+      // A permanent bounce of one of our replies (§5.3); other notifications are logged.
+      if (r.notification === 'bounce' && r.permanent && r.sesMessageId) {
+        const b = await recordBounce(
+          deliverDeps,
+          `<${r.sesMessageId}@${config.SES_MESSAGE_ID_DOMAIN}>`,
+        );
+        if (b) await publishDelivery(b.tenantId, b.delivery);
+        log.info({ notification: 'bounce', matched: !!b }, 'email bounce');
+        return;
+      }
+      log.info({ notification: r.notification }, 'email notification');
+      return;
+    }
+    for (const one of r.recipients) {
+      if (one.outcome !== 'accepted') {
+        log.info(
+          { outcome: one.outcome, reason: 'reason' in one ? one.reason : null },
+          'inbound email',
+        );
+        continue;
+      }
+      const t = one.tenantId;
+      // The inbox shows the mail at once; the turn (when scheduled) replies after.
+      const summary =
+        (await withTenant(visitorDb, t, (tx) =>
+          conversationSummary(tx, t, one.conversation.id),
+        ).catch(() => null)) ?? toSummary(one.conversation, one.message.body);
+      if (one.created)
+        await publishAll(
+          [
+            [
+              [channels.conversation(t, one.conversation.id), channels.inbox(t)],
+              { type: 'message', message: toMessage(one.message) },
+            ],
+            [[channels.inbox(t)], { type: 'conversation', conversation: summary }],
+          ],
+          log,
+        );
+      log.info(
+        { tenantId: t, conversationId: one.conversation.id, created: one.created },
+        'inbound email accepted',
+      );
+    }
+  },
+);
+
+const delivering = queue.consume<unknown>(
+  {
+    queueUrl: config.SQS_CHANNEL_SEND_QUEUE_URL,
+    signal: abort.signal,
+    onError: (err, raw) =>
+      logger.error({ err, sqsMessageId: raw.MessageId }, 'delivery failed; will be retried'),
+  },
+  async (msg) => {
+    const job = ChannelSendJob.parse(msg.body);
+    const r = await deliverMessage(deliverDeps, job);
+    if (r.outcome !== 'already_done' && r.outcome !== 'not_found')
+      await publishDelivery(job.tenantId, r.delivery);
+    logger.info(
+      { outboxId: msg.id, tenantId: job.tenantId, messageId: job.messageId, outcome: r.outcome },
+      'delivery',
+    );
+  },
+);
+
 async function shutdown() {
   abort.abort();
-  await consuming.catch(() => {});
+  await Promise.all([
+    consuming.catch(() => {}),
+    receivingMail.catch(() => {}),
+    delivering.catch(() => {}),
+  ]);
+  await mailer.close();
   health.close();
   await Promise.all([visitorDb.pool.end(), publisher.close()]);
   await stopTelemetry();

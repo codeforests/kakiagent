@@ -13,6 +13,7 @@ import {
   STATE_LABEL,
   takeoverErrorText,
   threadKey,
+  PARTY_LABEL,
 } from '../lib/inbox.ts';
 import { useMedia } from '../lib/media.ts';
 import { onConversation } from '../lib/realtime.ts';
@@ -149,6 +150,11 @@ export function ConversationPane({ id, backTo }: { id: string; backTo: string })
   const open = c.status !== 'closed' && dock.mode !== 'other';
   const startClose = () => close.mutate(c.version);
   const sidebar = <ContextSidebar thread={t} />;
+  // Email: the contact's name or address (FEAT-036); the widget keeps "Website visitor".
+  const party =
+    c.channel === 'email'
+      ? (t.sidebar.contact.name ?? t.sidebar.contact.email ?? PARTY_LABEL.email)
+      : PARTY_LABEL.widget;
 
   return (
     <div className="conversation">
@@ -157,17 +163,23 @@ export function ConversationPane({ id, backTo }: { id: string; backTo: string })
           <Link to={backTo} className="icon-button thread-header__back" aria-label="Back to inbox">
             <Glyph name="arrow-left" size={20} />
           </Link>
-          <VisitorAvatar label="Website visitor" channel={c.channel} />
+          <VisitorAvatar label={party} channel={c.channel} />
           <div className="thread-header__text">
             <div className="thread-header__title">
               <h2 ref={titleRef} tabIndex={-1}>
-                Website visitor
+                {party}
               </h2>
               <StateChip status={c.status} />
               {c.flaggedAt && <FlaggedChip />}
             </div>
+            {c.subject && (
+              <p className="thread-header__subject" title={c.subject} data-testid="thread-subject">
+                {c.subject}
+              </p>
+            )}
             <p className="thread-header__caption">
-              {CHANNEL_LABEL[c.channel]} · started {clockTime(c.createdAt)}
+              {c.channel === 'email' ? 'By email' : CHANNEL_LABEL[c.channel]} · started{' '}
+              {clockTime(c.createdAt)}
             </p>
           </div>
           {open &&
@@ -243,6 +255,7 @@ export function ConversationPane({ id, backTo }: { id: string; backTo: string })
           loadingEarlier={loadEarlier.isPending}
           earlierFailed={loadEarlier.isError}
           onEarlier={() => messages[0] && loadEarlier.mutate(messages[0].seq)}
+          onRetryError={setToast}
           meId={me.data?.user.id ?? null}
           matchId={matchId}
         />
@@ -291,7 +304,9 @@ function ThreadLog({
   onEarlier,
   meId,
   matchId,
+  onRetryError,
 }: {
+  onRetryError: (text: string) => void;
   messages: ThreadMessage[];
   events: ThreadEvent[];
   facts: FactChip[];
@@ -381,6 +396,7 @@ function ThreadLog({
                 facts={factMap}
                 meId={meId}
                 match={item.message.id === matchId}
+                onRetryError={onRetryError}
               />
             ) : (
               <Divider key={item.key} event={item.event} />

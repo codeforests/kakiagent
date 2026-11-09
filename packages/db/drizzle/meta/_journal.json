@@ -372,6 +372,13 @@
       "when": 1794013117984,
       "tag": "0052_consent_withdrawal",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1794145050259,
+      "tag": "0053_email_channel",
+      "breakpoints": true
     }
   ]
 }

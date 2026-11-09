@@ -60,6 +60,34 @@ export type MessageCard = z.infer<typeof MessageCard>;
 
 export const MessageAuthor = z.enum(['visitor', 'agent', 'staff', 'system']);
 
+/** Where a conversation happens (FEAT-036 §3). */
+export const ConversationChannel = z.enum(['widget', 'email']);
+export type ConversationChannel = z.infer<typeof ConversationChannel>;
+
+/**
+ * A staff, agent or system message's delivery on an adapter channel (NFR-17; FEAT-036 §3):
+ * `sending` until the channel accepts it, `failed` after a bounce, a rejection or 24 hours.
+ */
+export const MessageDelivery = z.object({
+  status: z.enum(['sending', 'sent', 'failed']),
+  failedReason: z.enum(['bounced', 'rejected', 'timed_out']).nullable(),
+  sentAt: z.iso.datetime({ offset: true }).nullable(),
+});
+export type MessageDelivery = z.infer<typeof MessageDelivery>;
+
+/** An inbound email's attachment (CHN-04, KB-11; FEAT-036 §3): staff download a `clean` one. */
+export const MessageAttachment = z.object({
+  id: z.uuid(),
+  name: z.string(),
+  contentType: z.string().nullable(),
+  size: z.number().int().min(0),
+  status: z.enum(['scanning', 'clean', 'rejected']),
+  rejectReason: z
+    .enum(['unsupported_type', 'too_large', 'malware', 'encrypted', 'too_many'])
+    .nullable(),
+});
+export type MessageAttachment = z.infer<typeof MessageAttachment>;
+
 export const Message = z.object({
   id: z.uuid(),
   conversationId: z.uuid(),
@@ -103,6 +131,10 @@ export const Message = z.object({
   authorName: z.string().nullable(),
   /** The reply's language as the agent decided it (FEAT-033): sets the widget's chrome locale. Null on visitor and staff messages. */
   language: z.enum(['en', 'zh']).nullable(),
+  /** The delivery on an adapter channel (FEAT-036); absent or null for the widget and visitor rows. */
+  delivery: MessageDelivery.nullable().optional(),
+  /** An inbound email's attachments (FEAT-036); absent: none. */
+  attachments: z.array(MessageAttachment).optional(),
   createdAt: z.iso.datetime({ offset: true }),
 });
 export type Message = z.infer<typeof Message>;
@@ -127,6 +159,8 @@ export const EscalationSource = z.enum([
   'unverified',
   'approval_sla',
   'data_request',
+  'reply_cap',
+  'delivery_failed',
 ]);
 export type EscalationSource = z.infer<typeof EscalationSource>;
 
@@ -144,7 +178,9 @@ export type OpenEscalation = z.infer<typeof OpenEscalation>;
 
 export const ConversationSummary = z.object({
   id: z.uuid(),
-  channel: z.enum(['widget']),
+  channel: ConversationChannel,
+  /** The email thread's subject (FEAT-036); null on other channels. */
+  subject: z.string().nullable().optional(),
   status: ConversationStatus,
   lastMessageAt: z.iso.datetime({ offset: true }),
   lastMessage: z.string().nullable(),
@@ -1995,11 +2031,20 @@ export const ApprovalTimerJob = z.object({
   timer: z.enum(['urgent', 'sla', 'expire']),
 });
 export type ApprovalTimerJob = z.infer<typeof ApprovalTimerJob>;
-/** Everything on `conversation-turns`: an auto-close, escalation reminder or approval timer job, or a visitor turn. */
+/** Queued by `channel_deliveries_due()` for a delivery that timed out (UC-27 3c; FEAT-036 §5.3). */
+export const DeliveryFailedJob = z.object({
+  kind: z.literal('delivery_failed'),
+  tenantId: z.uuid(),
+  conversationId: z.uuid(),
+  messageId: z.uuid(),
+});
+export type DeliveryFailedJob = z.infer<typeof DeliveryFailedJob>;
+/** Everything on `conversation-turns`: an auto-close, escalation reminder, approval timer or delivery-failed job, or a visitor turn. */
 export const TurnQueueJob = z.union([
   AutoCloseJob,
   EscalationReminderJob,
   ApprovalTimerJob,
+  DeliveryFailedJob,
   TurnJob,
 ]);
 export type TurnQueueJob = z.infer<typeof TurnQueueJob>;
@@ -2023,6 +2068,18 @@ export const IngestJob = z.union([
   }),
 ]);
 export type IngestJob = z.infer<typeof IngestJob>;
+
+/** One message's delivery on `channel-send` (D2; FEAT-036 §5.3), queued by the trigger or the sweep. */
+export const ChannelSendJob = z.object({ tenantId: z.uuid(), messageId: z.uuid() });
+export type ChannelSendJob = z.infer<typeof ChannelSendJob>;
+
+/** The ingest-worker's scan of one inbound email attachment (KB-11; FEAT-036 §5.2 step 4). */
+export const AttachmentScanJob = z.object({
+  kind: z.literal('attachment_scan'),
+  tenantId: z.uuid(),
+  attachmentId: z.uuid(),
+});
+export type AttachmentScanJob = z.infer<typeof AttachmentScanJob>;
 
 /** The ingest-worker's theme detection for a tenant's site (FEAT-032 §5.4, D4). */
 export const ThemeDetectJob = z.object({
@@ -2591,7 +2648,7 @@ export type InboxCounts = z.infer<typeof InboxCounts>;
 
 export const ConversationListQuery = z.object({
   view: InboxView.default('open'),
-  channel: z.enum(['widget']).optional(),
+  channel: ConversationChannel.optional(),
   /** Opaque keyset cursor from `nextCursor`; a malformed one is 400 `bad_cursor`. */
   cursor: z.string().min(1).max(200).optional(),
   limit: z.coerce.number().int().min(1).max(50).default(25),
@@ -2774,7 +2831,7 @@ export const ContextSidebar = z.object({
     firstSeenAt: z.iso.datetime({ offset: true }),
     previousConversations: z.number().int().min(0),
   }),
-  channel: z.enum(['widget']),
+  channel: ConversationChannel,
   intents: z.array(z.object({ signal: IntentSignal, count: z.number().int().min(1) })),
   lead: LeadSummary.nullable(),
   facts: z.array(FactChip.extend({ uses: z.number().int().min(1) })),
@@ -3401,3 +3458,101 @@ export type WithdrawResponse = z.infer<typeof WithdrawResponse>;
 /** `POST /api/v1/leads/:id/withdraw` (UC-28 1a; `leads.manage`): answers the `LeadDetail`. */
 export const LeadWithdrawBody = z.strictObject({ scope: WithdrawScope });
 export type LeadWithdrawBody = z.infer<typeof LeadWithdrawBody>;
+
+// ---- Dashboard API: email channel (CHN-04, CHN-10; FEAT-036 §3) ----------------------------
+
+/** Why an inbound email got no reply and no conversation (CHN-10). */
+export const EmailIgnoreReason = z.enum([
+  'auto_reply',
+  'bounce',
+  'bulk',
+  'list',
+  'spam',
+  'unsafe',
+  'echo',
+  'loop',
+]);
+export type EmailIgnoreReason = z.infer<typeof EmailIgnoreReason>;
+
+/** One DNS record the custom sending domain needs (NFR-18). */
+export const EmailDomainRecord = z.object({
+  purpose: z.enum(['dkim', 'mail_from_mx', 'mail_from_spf', 'dmarc']),
+  type: z.enum(['CNAME', 'MX', 'TXT']),
+  host: z.string(),
+  value: z.string(),
+  status: z.enum(['pending', 'ok', 'failing']),
+});
+export type EmailDomainRecord = z.infer<typeof EmailDomainRecord>;
+
+export const EmailDomainState = z.enum(['pending', 'verified', 'failing']);
+export type EmailDomainState = z.infer<typeof EmailDomainState>;
+
+/** `GET /api/v1/channels/email` and every email-channel write's response. */
+export const EmailChannelResponse = z.object({
+  /** False → the page shows "Set up email". */
+  connected: z.boolean(),
+  connection: z
+    .object({ id: z.uuid(), state: z.enum(['live', 'offline']), version: z.number().int() })
+    .nullable(),
+  /** `kaki-bakery@in.<domain>`. */
+  forwardingAddress: z.string().nullable(),
+  /** The last accepted inbound mail: "forwarding works". */
+  lastReceivedAt: z.iso.datetime({ offset: true }).nullable(),
+  /** Gmail's forwarding confirmation mail (D5). */
+  forwardingConfirmation: z
+    .object({
+      code: z.string().nullable(),
+      link: z.string().nullable(),
+      receivedAt: z.iso.datetime({ offset: true }),
+    })
+    .nullable(),
+  /** The address replies use now. */
+  replyFrom: z.string(),
+  domain: z
+    .object({
+      address: z.string(),
+      domain: z.string(),
+      state: EmailDomainState,
+      checkedAt: z.iso.datetime({ offset: true }).nullable(),
+      verifiedAt: z.iso.datetime({ offset: true }).nullable(),
+      failingSince: z.iso.datetime({ offset: true }).nullable(),
+      records: z.array(EmailDomainRecord),
+    })
+    .nullable(),
+  /** AI replies per thread per 24 hours. */
+  replyCap: z.number().int(),
+  /** The last 7 days, from `inbound_events`. */
+  ignored: z.array(z.object({ reason: EmailIgnoreReason, count: z.number().int().min(1) })),
+  settingsVersion: z.number().int(),
+});
+export type EmailChannelResponse = z.infer<typeof EmailChannelResponse>;
+
+/** `PUT /api/v1/channels/email/reply-cap`. */
+export const EmailReplyCapBody = z.object({
+  replyCap: z.number().int().min(1).max(50),
+  settingsVersion: z.number().int(),
+});
+export type EmailReplyCapBody = z.infer<typeof EmailReplyCapBody>;
+
+/** `POST /api/v1/channels/email/domain`: a mailbox on the tenant's own domain. */
+export const EmailDomainBody = z.object({
+  address: z.email().max(254),
+  settingsVersion: z.number().int(),
+});
+export type EmailDomainBody = z.infer<typeof EmailDomainBody>;
+
+/** `DELETE /api/v1/channels/email/domain`. */
+export const EmailDomainRemoveBody = z.object({ settingsVersion: z.number().int() });
+export type EmailDomainRemoveBody = z.infer<typeof EmailDomainRemoveBody>;
+
+/** Error codes of the email-channel routes (FEAT-036 §3). */
+export const EmailChannelErrorCode = z.enum([
+  'already_connected',
+  'not_connected',
+  'stale',
+  'platform_domain',
+  'provider_unavailable',
+  'too_soon',
+  'not_failed',
+]);
+export type EmailChannelErrorCode = z.infer<typeof EmailChannelErrorCode>;

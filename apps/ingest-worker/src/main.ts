@@ -1,11 +1,12 @@
 import { usageSink } from '@kaki/analytics';
 import { runThemeDetect } from '@kaki/channels';
-import { IngestJob, ThemeDetectJob } from '@kaki/contracts';
+import { AttachmentScanJob, IngestJob, ThemeDetectJob } from '@kaki/contracts';
 import { createZoneDb, ping } from '@kaki/db';
 import {
   DEFAULT_FILE_LIMITS,
   fakeExtractScript,
   fakeMineScript,
+  runAttachmentScan,
   runIngestJob,
   type FileDeps,
 } from '@kaki/kb';
@@ -23,7 +24,7 @@ import { chromiumFetchers, parseHostMap } from './chromium.js';
 import { clamavScanner } from './clamav.js';
 import { guarddutyScanner } from './guardduty.js';
 import { pdftoppmRasterizer } from './pdf-raster.js';
-import { s3FileStore } from './s3-files.js';
+import { s3AttachmentObjects, s3FileStore } from './s3-files.js';
 import { tesseractOcr } from './tesseract.js';
 
 const flag = z.preprocess((v) => v === 'true' || v === '1', z.boolean());
@@ -52,6 +53,8 @@ const config = loadConfig(
       /** Uploads wait in quarantine; only clean files reach sources (FEAT-015 §5.3). */
       QUARANTINE_BUCKET: z.string().min(3),
       SOURCES_BUCKET: z.string().min(3),
+      /** Clean inbound email attachments (FEAT-036 §5.2 step 4). */
+      ATTACHMENTS_BUCKET: z.string().min(3),
       /** ClamAV locally (and ADR-019's fallback); GuardDuty Malware Protection at MD. */
       MALWARE_SCANNER: z.enum(['clamav', 'guardduty']).default('clamav'),
       CLAMAV_HOST: z.string().default('127.0.0.1'),
@@ -120,6 +123,11 @@ const files: FileDeps = {
     chatParts: config.CHAT_PART_LIMIT,
   },
 };
+const attachmentObjects = s3AttachmentObjects({
+  s3: store.s3,
+  quarantineBucket: config.QUARANTINE_BUCKET,
+  attachmentsBucket: config.ATTACHMENTS_BUCKET,
+});
 // Tesseract's languages don't change while the worker runs: checked once (§5.8).
 const ocrReady = ocr.healthy();
 void ocrReady.then((ok) => {
@@ -166,6 +174,19 @@ const consuming = queue.consume<unknown>(
   },
   async (msg) => {
     // Theme detection rides the same queue (FEAT-032 §5.4); source jobs carry no `kind`.
+    // An inbound email attachment's scan (FEAT-036 §5.2 step 4) rides the same queue.
+    if ((msg.body as { kind?: unknown } | null)?.kind === 'attachment_scan') {
+      const job = AttachmentScanJob.parse(msg.body);
+      const outcome = await runAttachmentScan(
+        { zdb, objects: attachmentObjects, scanner: files.scanner },
+        job,
+      );
+      logger.info(
+        { outboxId: msg.id, tenantId: job.tenantId, attachmentId: job.attachmentId, outcome },
+        'attachment scan done',
+      );
+      return;
+    }
     if ((msg.body as { kind?: unknown } | null)?.kind === 'theme_detect') {
       const job = ThemeDetectJob.parse(msg.body);
       const script = await loadDetectScript();

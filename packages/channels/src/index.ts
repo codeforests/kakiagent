@@ -31,6 +31,7 @@ export {
   CHANNEL_REGISTRY,
   connectable,
   registryEntry,
+  withAdapter,
   type ChannelRegistry,
   type ChannelRegistryEntry,
   type OfflineMode,
@@ -112,3 +113,17 @@ export {
   type WidgetContext,
   type WidgetUrls,
 } from './widget-settings.js';
+export * from './email/index.js';
+export {
+  backoffMs,
+  deliverMessage,
+  deliveryView,
+  escalateTimedOut,
+  recordBounce,
+  type ChannelSender,
+  type DeliverDeps,
+  type DeliverOutcome,
+  type DeliverResult,
+  type DeliveryRow,
+} from './deliver.js';
+export { shapeOutbound, UNSENT_NOTICE_KINDS, type Shaped, type ShapeInput } from './shape.js';
