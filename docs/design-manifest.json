@@ -333,6 +333,11 @@
             "state": "email conversations: subject, delivery line, attachments",
             "strategy": "code-native",
             "source": "features/FEAT-036-email-channel/ui-design.md#scr-app-014--inbox-partial-email-conversations"
+          },
+          {
+            "state": "Telegram conversations",
+            "strategy": "code-native",
+            "source": "features/FEAT-037-telegram-channel/ui-design.md#scr-app-014--inbox-partial-telegram-conversations"
           }
         ]
       },
@@ -1422,6 +1427,61 @@
       "status": "designed",
       "designed_at": "2026-11-08"
     },
+    "SCR-APP-039": {
+      "name": "Telegram",
+      "surface": "APP",
+      "feature": "FEAT-037",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-037-telegram-channel/ui-design.md#scr-app-039--telegram"
+      },
+      "states": {
+        "covered": [
+          "loading",
+          "error",
+          "agent view",
+          "not connected",
+          "connecting",
+          "invalid format",
+          "token rejected",
+          "bot in use",
+          "provider unavailable",
+          "connected offline",
+          "connected live",
+          "no messages yet",
+          "degraded revoked",
+          "degraded elsewhere",
+          "degraded unreachable",
+          "replace token (dialog)",
+          "different bot",
+          "disconnect (confirm)",
+          "alert link not linked",
+          "alert link pending",
+          "alert link expired",
+          "alert link linked",
+          "ignored counts",
+          "nothing ignored",
+          "conflict"
+        ],
+        "gaps": [],
+        "supplements": []
+      },
+      "contract_bindings": [
+        "GET /api/v1/channels/telegram",
+        "POST /api/v1/channels/telegram",
+        "PUT /api/v1/channels/telegram/token",
+        "DELETE /api/v1/channels/telegram",
+        "POST /api/v1/me/notifications/telegram/link",
+        "DELETE /api/v1/me/notifications/telegram"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-11-09"
+    },
     "SCR-APP-011": {
       "name": "Wizard · Add to your website",
       "surface": "APP",
@@ -1656,6 +1716,11 @@
             "state": "Connect entry, email card and offline modes",
             "strategy": "code-native",
             "source": "features/FEAT-036-email-channel/ui-design.md#scr-app-036--channels-partial"
+          },
+          {
+            "state": "Telegram connect entry and card",
+            "strategy": "code-native",
+            "source": "features/FEAT-037-telegram-channel/ui-design.md#scr-app-036--channels-partial"
           }
         ]
       },
@@ -1892,7 +1957,12 @@
         ],
         "gaps": [],
         "supplements": [
-          "features/FEAT-051-consent-withdrawal/ui-design.md#scr-app-056--my-notifications-new-toggle"
+          "features/FEAT-051-consent-withdrawal/ui-design.md#scr-app-056--my-notifications-new-toggle",
+          {
+            "state": "Telegram column and link",
+            "strategy": "code-native",
+            "source": "features/FEAT-037-telegram-channel/ui-design.md#scr-app-056--my-notifications-partial"
+          }
         ]
       },
       "contract_bindings": [
