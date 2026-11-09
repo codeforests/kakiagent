@@ -2711,6 +2711,8 @@ export const telegramChats = pgTable(
       .notNull()
       .references(() => tenants.id),
     chatId: bigint('chat_id', { mode: 'number' }).notNull(),
+    /** The bot the chat is with: a different bot's chats mean nothing to a new one (§5.2). */
+    botId: bigint('bot_id', { mode: 'number' }).notNull(),
     contactId: uuid('contact_id').notNull(),
     conversationId: uuid('conversation_id'),
     lastInboundAt: timestamp('last_inbound_at', { withTimezone: true }).notNull().defaultNow(),

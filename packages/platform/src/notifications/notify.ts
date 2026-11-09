@@ -1,5 +1,5 @@
 import { sql, type Tx } from '@kaki/db';
-import type { NotificationKind, Subject } from './kinds.js';
+import { CHANNELS, type NotificationKind, type Subject } from './kinds.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -17,7 +17,8 @@ export interface NotifyInput {
 /**
  * Queues an alert for each recipient, in the producer's transaction (FEAT-052 §5.1, D2), so
  * nothing is sent unless the change commits. Preferences and quiet hours apply at send time
- * (D3). Returns the number of rows written.
+ * (D3). One row per channel in `CHANNELS` (FEAT-037 D8), so each channel has its own status,
+ * retries and digest. Returns the number of rows written.
  */
 export async function notify(tx: Tx, n: NotifyInput): Promise<number> {
   const recipients = [...new Set(n.recipients)];
@@ -25,11 +26,12 @@ export async function notify(tx: Tx, n: NotifyInput): Promise<number> {
   if (!recipients.every((r) => UUID.test(r))) throw new Error('notify: recipient is not a user ID');
   const res = await tx.execute(
     sql`insert into notifications
-          (tenant_id, user_id, kind, urgent, subject_type, subject_id, dedupe_key)
-        select ${n.tenantId}, r, ${n.kind}, ${n.urgent ?? false}, ${n.subject.type},
+          (tenant_id, user_id, channel, kind, urgent, subject_type, subject_id, dedupe_key)
+        select ${n.tenantId}, r, ch, ${n.kind}, ${n.urgent ?? false}, ${n.subject.type},
                ${n.subject.id}, ${n.dedupeKey}
-        from unnest(${`{${recipients.join(',')}}`}::uuid[]) r
-        on conflict (tenant_id, user_id, dedupe_key) do nothing`,
+        from unnest(${`{${recipients.join(',')}}`}::uuid[]) r,
+             unnest(${`{${CHANNELS.join(',')}}`}::text[]) ch
+        on conflict (tenant_id, user_id, channel, dedupe_key) do nothing`,
   );
   return res.rowCount ?? 0;
 }

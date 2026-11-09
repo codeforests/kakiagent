@@ -39,3 +39,13 @@ export {
   telegramAdapter,
   type TelegramAdapterDeps,
 } from './adapter.js';
+export {
+  connectTelegram,
+  disconnectTelegram,
+  replaceTelegramToken,
+  TelegramChannelError,
+  telegramChannelView,
+  telegramCredentialOf,
+  type TelegramChannelErrorCode,
+  type TelegramSettingsDeps,
+} from './settings.js';

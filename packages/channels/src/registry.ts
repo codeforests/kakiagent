@@ -19,6 +19,11 @@ export interface ChannelRegistryEntry {
   offlineModes: readonly OfflineMode[];
   /** The dashboard route that connects it (FEAT-036+). */
   connectPath?: string | undefined;
+  /**
+   * The handler the generic `/hooks/:kind/:connectionId` route runs for this kind (ADR-011;
+   * FEAT-037 §3); a kind without one answers 404 there.
+   */
+  hook?: 'telegram' | undefined;
 }
 
 export type ChannelRegistry = readonly ChannelRegistryEntry[];
@@ -38,6 +43,16 @@ export const CHANNEL_REGISTRY: ChannelRegistry = [
     checksHealth: true,
     offlineModes: ['hidden', 'message'],
     connectPath: '/settings/channels/email',
+  },
+  {
+    // FEAT-037 §5.1: the adapter needs the sealer and the hook URL, so each role that checks
+    // health or sends binds it with `withAdapter`; unbound, a check counts as unreachable.
+    kind: 'telegram',
+    name: 'Telegram',
+    checksHealth: true,
+    offlineModes: ['hidden', 'message'],
+    connectPath: '/settings/channels/telegram',
+    hook: 'telegram',
   },
 ];
 

@@ -13,6 +13,7 @@ import {
 } from '@kaki/contracts';
 import { and, eq, schema, sql, withTenant, type Tx, type ZoneDb } from '@kaki/db';
 import { audit, auditCode, auditId } from '@kaki/governance';
+import { cancelNotifications, notify } from '@kaki/platform/notifications';
 import type { CredentialRef, HealthStatus } from './adapter.js';
 import {
   CHANNEL_REGISTRY,
@@ -267,6 +268,36 @@ export async function visitorChannel(tx: Tx, kind: string): Promise<VisitorChann
 export type HealthTransition = 'degraded' | 'recovered' | null;
 
 /**
+ * CHN-12's alert (FEAT-037 §5.5): entering degraded alerts the tenant's active Owners and
+ * Admins (email, and Telegram when linked), once per degraded period; recovering cancels
+ * what hasn't gone out. Generic: every health-checked channel, in any zone that records health.
+ */
+async function alertTransition(
+  tx: Tx,
+  tenantId: string,
+  connectionId: string,
+  transition: HealthTransition,
+  degradedSince: Date,
+): Promise<void> {
+  const subject = { type: 'channel' as const, id: connectionId };
+  if (transition === 'recovered') {
+    await cancelNotifications(tx, tenantId, subject, 'channel_degraded');
+    return;
+  }
+  if (transition !== 'degraded') return;
+  const { rows } = await tx.execute<{ user_id: string }>(
+    sql`select user_id from channel_alert_recipients()`,
+  );
+  await notify(tx, {
+    tenantId,
+    kind: 'channel_degraded',
+    recipients: rows.map((r) => r.user_id),
+    subject,
+    dedupeKey: `channel_degraded:${connectionId}:${degradedSince.toISOString()}`,
+  });
+}
+
+/**
  * Applies one health result (CHN-12, AC-6). A revoked or invalid credential or a rejected
  * send degrades at once; `unreachable` only at the second consecutive failure; `ok`
  * recovers. Entering and leaving degraded are audited once each.
@@ -300,6 +331,13 @@ export async function recordHealth(
     .update(cc)
     .set({ ...set, healthCheckedAt: now, updatedAt: now })
     .where(eq(cc.id, connection.id));
+  await alertTransition(
+    tx,
+    connection.tenantId,
+    connection.id,
+    transition,
+    connection.degradedSince ?? now,
+  );
   if (transition)
     await audit.append(tx, connection.tenantId, {
       action: transition === 'degraded' ? 'channel.degraded' : 'channel.recovered',
@@ -344,6 +382,7 @@ export async function reportSendFailure(
       reason: auditCode('send_rejected'),
     },
   });
+  await alertTransition(tx, tenantId, connectionId, 'degraded', new Date());
   return 'degraded';
 }
 

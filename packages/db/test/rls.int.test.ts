@@ -5014,7 +5014,7 @@ describe('telegram channel (FEAT-037)', () => {
         [t, bot + 10],
       );
       await owner.query(
-        `insert into telegram_chats (tenant_id, chat_id, contact_id) values ($1, $2, $3)`,
+        `insert into telegram_chats (tenant_id, chat_id, bot_id, contact_id) values ($1, $2, 1, $3)`,
         [t, bot + 10, contact.rows[0]!.id],
       );
     }
@@ -5180,7 +5180,7 @@ describe('telegram channel (FEAT-037)', () => {
     await expect(
       asRole('app_agent_visitor', TENANT_B, (c) =>
         c.query(
-          `insert into telegram_chats (tenant_id, chat_id, contact_id) values ($1, 1, gen_random_uuid())`,
+          `insert into telegram_chats (tenant_id, chat_id, bot_id, contact_id) values ($1, 1, 1, gen_random_uuid())`,
           [TENANT_A],
         ),
       ),

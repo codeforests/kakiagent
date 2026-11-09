@@ -23,7 +23,7 @@ module.exports = {
           '^packages/db/src/(setup|testing)\\.ts$',
           '^packages/identity/src/testing\\.ts$',
           '^packages/kb/src/(stale|gap-cluster)\\.ts$',
-          '^packages/channels/src/(theme/index|contract-suite)\\.ts$',
+          '^packages/channels/src/(theme/index|contract-suite|telegram/fake)\\.ts$',
           '^packages/ui/src/styles\\.css$',
           '^packages/contracts/src/lead-check\\.ts$',
           '^packages/contracts/src/quote\\.ts$',
@@ -49,7 +49,7 @@ module.exports = {
       comment: 'Testcontainers helpers never ship in a runtime role.',
       severity: 'error',
       from: { pathNot: '(^|/)(test|e2e)/|\\.test\\.ts$' },
-      to: { path: '^packages/((db|identity)/src/testing|channels/src/contract-suite)\\.ts$' },
+      to: { path: '^packages/((db|identity)/src/testing|channels/src/(contract-suite|telegram/fake))\\.ts$' },
     },
     {
       name: 'not-to-unresolvable',

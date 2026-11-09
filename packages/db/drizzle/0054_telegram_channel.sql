@@ -14,6 +14,7 @@ CREATE TABLE "telegram_alert_links" (
 CREATE TABLE "telegram_chats" (
 	"tenant_id" uuid NOT NULL,
 	"chat_id" bigint NOT NULL,
+	"bot_id" bigint NOT NULL,
 	"contact_id" uuid NOT NULL,
 	"conversation_id" uuid,
 	"last_inbound_at" timestamp with time zone DEFAULT now() NOT NULL,

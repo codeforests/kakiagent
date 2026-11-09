@@ -35,8 +35,9 @@ const visitor = <T>(tenantId: string, fn: (tx: Tx) => Promise<T>) =>
   withTenant(tdb.zone('visitor'), tenantId, fn);
 
 let transport: FakeTransport;
+// The fake stands in for Telegram's adapter (FEAT-037 registers the real one unbound).
 const registry = (): ChannelRegistry => [
-  ...CHANNEL_REGISTRY,
+  ...CHANNEL_REGISTRY.filter((e) => e.kind !== 'telegram'),
   {
     kind: 'telegram',
     name: 'Telegram',
@@ -102,10 +103,11 @@ afterEach(async () => {
 transport = fakeTransport();
 
 describe('go live and go offline (ONB-10, AC-2)', () => {
-  it('lists the widget with its defaults, and email (FEAT-036) to connect', async () => {
+  it('lists the widget with its defaults, and email (FEAT-036) and Telegram (FEAT-037) to connect', async () => {
     const res = await dash(TENANT_A, (tx) => listChannels(tx));
     expect(res.connectable).toEqual([
       { kind: 'email', name: 'Email', connectPath: '/settings/channels/email' },
+      { kind: 'telegram', name: 'Telegram', connectPath: '/settings/channels/telegram' },
     ]);
     expect(res.channels).toHaveLength(1);
     expect(res.channels[0]).toMatchObject({
@@ -367,8 +369,9 @@ describe('health (CHN-12, AC-6)', () => {
       health: 'degraded',
       health_reason: 'credential_revoked',
     });
+    // The default registry's Telegram entry is unbound (FEAT-037): a first unreachable each.
     expect(await runChannelHealth(tdb.zone('outbox'))).toEqual({
-      checked: 0,
+      checked: 2,
       degraded: 0,
       recovered: 0,
       failed: 0,

@@ -1,5 +1,5 @@
 {
-  "id": "0c18dc0e-2869-418e-9f3b-873f82cf95df",
+  "id": "fed06c20-e3f7-471e-8815-47bc08b37a6d",
   "prevId": "28506875-20f4-4bad-844d-ebba8f056f60",
   "version": "7",
   "dialect": "postgresql",
@@ -7938,6 +7938,12 @@
         },
         "chat_id": {
           "name": "chat_id",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "bot_id": {
+          "name": "bot_id",
           "type": "bigint",
           "primaryKey": false,
           "notNull": true
