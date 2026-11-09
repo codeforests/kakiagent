@@ -2430,8 +2430,8 @@ describe('channel connections (FEAT-034 §4)', () => {
     await expect(
       asRole('app_agent_visitor', TENANT_A, (c) => c.query(`select id from channel_connections`)),
     ).rejects.toThrow(/permission denied/);
-    // FEAT-036 lets the dashboard set up an adapter channel; it can still never add a widget
-    // or write a credential.
+    // FEAT-036 lets the dashboard set up an adapter channel; it can still never add a widget.
+    // FEAT-037 lets it write a sealed credential (never read one), and both halves together.
     await expect(
       asRole('app_dashboard', TENANT_A, (c) =>
         c.query(`insert into channel_connections (tenant_id, kind) values ($1, 'widget')`, [
@@ -2446,7 +2446,7 @@ describe('channel connections (FEAT-034 §4)', () => {
           [TENANT_A],
         ),
       ),
-    ).rejects.toThrow(/permission denied/);
+    ).rejects.toThrow(/channel_connections_credential_ck/);
   });
 
   it('the seeded tenants are live; a new tenant starts with one offline, hidden widget', async () => {
@@ -2481,10 +2481,10 @@ describe('channel connections (FEAT-034 §4)', () => {
     }
   });
 
-  it('the checks reject hidden for a kind other than widget and email (FEAT-036 D3) and a 301-character message', async () => {
+  it('the checks reject hidden for a kind other than widget, email and telegram (FEAT-036 D3, FEAT-037 D4) and a 301-character message', async () => {
     await expect(
       owner.query(
-        `insert into channel_connections (tenant_id, kind, offline_mode) values ($1, 'telegram', 'hidden')`,
+        `insert into channel_connections (tenant_id, kind, offline_mode) values ($1, 'messenger', 'hidden')`,
         [TENANT_A],
       ),
     ).rejects.toThrow(/channel_connections_offline_mode_ck/);
@@ -3376,9 +3376,20 @@ describe('notification prefs and notifications (FEAT-052)', () => {
       c.query(`delete from notifications where tenant_id = $1`, [TENANT_A]),
     );
     expect(purged.rowCount).toBe(0);
-    // The outbox zone has no access at all.
+    // The outbox zone (the health job's channel_degraded alert, FEAT-037 §5.5) inserts and
+    // cancels in its own tenant only, and never deletes.
+    const outboxSeen = await asRole('app_outbox', TENANT_B, async (c) => ({
+      rows: (await c.query(`select tenant_id from notifications where tenant_id = $1`, [TENANT_A]))
+        .rowCount,
+      cancelled: (
+        await c.query(`update notifications set status = 'cancelled' where tenant_id = $1`, [
+          TENANT_A,
+        ])
+      ).rowCount,
+    }));
+    expect(outboxSeen).toEqual({ rows: 0, cancelled: 0 });
     await expect(
-      asRole('app_outbox', TENANT_A, (c) => c.query(`select * from notifications`)),
+      asRole('app_outbox', TENANT_A, (c) => c.query(`delete from notifications`)),
     ).rejects.toThrow(/permission denied/);
   });
 
@@ -4961,7 +4972,7 @@ describe('email channel (FEAT-036)', () => {
     ).rejects.toThrow(/channel_connections_reply_cap_ck/);
     await expect(
       owner.query(
-        `insert into channel_connections (tenant_id, kind, state, offline_mode, health) values ($1, 'telegram', 'offline', 'hidden', 'ok')`,
+        `insert into channel_connections (tenant_id, kind, state, offline_mode, health) values ($1, 'messenger', 'offline', 'hidden', 'ok')`,
         [TENANT_A],
       ),
     ).rejects.toThrow(/channel_connections_offline_mode_ck/);
@@ -4972,5 +4983,229 @@ describe('email channel (FEAT-036)', () => {
         (await c.query(`select ai_reply_cap, offline_mode from visitor_channel('email')`)).rows,
     );
     expect(cap).toEqual([{ ai_reply_cap: 10, offline_mode: 'hidden' }]);
+  });
+});
+
+// ---- FEAT-037: Telegram channel (FEAT-037 §4; AC-7) ------------------------------------------
+describe('telegram channel (FEAT-037)', () => {
+  const connections: Record<string, string> = {};
+  const members: string[] = [];
+  const hash = Buffer.alloc(32, 7);
+
+  beforeAll(async () => {
+    for (const [t, bot] of [
+      [TENANT_A, 900001],
+      [TENANT_B, 900002],
+    ] as const) {
+      const c = await owner.query<{ id: string }>(
+        `insert into channel_connections (tenant_id, kind, state, offline_mode, health)
+         values ($1, 'telegram', 'live', 'hidden', 'ok')
+         on conflict (tenant_id, kind) do update set state = 'live' returning id`,
+        [t],
+      );
+      connections[t] = c.rows[0]!.id;
+      await owner.query(
+        `insert into telegram_settings (tenant_id, connection_id, bot_id, bot_username, bot_name, webhook_secret_hash)
+         values ($1, $2, $3, $4, 'Bot', $5)`,
+        [t, connections[t], bot, `bot_${bot}`, t === TENANT_A ? hash : Buffer.alloc(32, 9)],
+      );
+      const contact = await owner.query<{ id: string }>(
+        `insert into contacts (tenant_id, name, telegram_id, telegram_username) values ($1, 'Tg', $2, 'tg') returning id`,
+        [t, bot + 10],
+      );
+      await owner.query(
+        `insert into telegram_chats (tenant_id, chat_id, contact_id) values ($1, $2, $3)`,
+        [t, bot + 10, contact.rows[0]!.id],
+      );
+    }
+    for (const email of ['tg-one@kaki-bakery.test', 'tg-two@kaki-bakery.test']) {
+      const u = await owner.query<{ id: string }>(
+        `insert into users (email) values ($1) returning id`,
+        [email],
+      );
+      members.push(u.rows[0]!.id);
+      await owner.query(
+        `insert into memberships (tenant_id, user_id, role) values ($1, $2, 'agent')`,
+        [TENANT_A, u.rows[0]!.id],
+      );
+      await owner.query(
+        `insert into telegram_alert_links (tenant_id, user_id, chat_id, linked_at, telegram_name)
+         values ($1, $2, $3, now(), 'Me')`,
+        [TENANT_A, u.rows[0]!.id, members.length],
+      );
+    }
+  });
+
+  afterAll(async () => {
+    await owner.query(`delete from outbox where topic = 'channel-send'`);
+    for (const table of [
+      'message_deliveries',
+      'telegram_alert_links',
+      'telegram_chats',
+      'telegram_settings',
+    ])
+      await owner.query(`delete from ${table}`);
+    await owner.query(`delete from contacts where telegram_id is not null`);
+    await owner.query(`delete from channel_connections where kind = 'telegram'`);
+    await owner.query(`delete from memberships where user_id = any($1)`, [members]);
+    await owner.query(`delete from users where id = any($1)`, [members]);
+  });
+
+  it('channel_hook_route() resolves a connection without tenant context; another kind or ID is nothing; only the visitor zone runs it', async () => {
+    const route = (id: string, kind: string) =>
+      asRole(
+        'app_agent_visitor',
+        null,
+        async (c) =>
+          (
+            await c.query<{ tenant_id: string; secret_hash: Buffer }>(
+              `select * from channel_hook_route($1, $2)`,
+              [id, kind],
+            )
+          ).rows,
+      );
+    const hit = await route(connections[TENANT_A]!, 'telegram');
+    expect(hit).toHaveLength(1);
+    expect(hit[0]!.tenant_id).toBe(TENANT_A);
+    expect(Buffer.compare(hit[0]!.secret_hash, hash)).toBe(0);
+    expect(await route(connections[TENANT_A]!, 'email')).toEqual([]);
+    expect(await route(randomUUID(), 'telegram')).toEqual([]);
+    await expect(
+      asRole('app_dashboard', null, (c) =>
+        c.query(`select * from channel_hook_route($1, 'telegram')`, [connections[TENANT_A]]),
+      ),
+    ).rejects.toThrow(/permission denied/);
+  });
+
+  it('a bot is connected to one business only', async () => {
+    await expect(
+      owner.query(`update telegram_settings set bot_id = 900001 where tenant_id = $1`, [TENANT_B]),
+    ).rejects.toThrow(/telegram_settings_bot_uq/);
+  });
+
+  it('a staff message in a Telegram conversation gets a delivery and a channel-send job', async () => {
+    const conv = (
+      await owner.query<{ id: string }>(
+        `insert into conversations (tenant_id, channel, visitor_id) values ($1, 'telegram', gen_random_uuid()) returning id`,
+        [TENANT_A],
+      )
+    ).rows[0]!.id;
+    await asRole('app_dashboard', TENANT_A, async (c) => {
+      await c.query(
+        `insert into messages (tenant_id, conversation_id, author, body) values ($1, $2, 'staff', 'hello')`,
+        [TENANT_A, conv],
+      );
+      await c.query('commit');
+    });
+    const d = await owner.query(
+      `select connection_id from message_deliveries where conversation_id = $1`,
+      [conv],
+    );
+    expect(d.rows).toEqual([{ connection_id: connections[TENANT_A] }]);
+    const jobs = await owner.query(
+      `select 1 from outbox where topic = 'channel-send' and group_key = $1`,
+      [conv],
+    );
+    expect(jobs.rowCount).toBe(1);
+  });
+
+  it("the dashboard sees a member's own alert link only; the count and clear functions see the business", async () => {
+    const asMember = (userId: string | null) =>
+      asRole('app_dashboard', TENANT_A, async (c) => {
+        if (userId) await c.query(`select set_config('app.user_id', $1, true)`, [userId]);
+        return {
+          rows: (await c.query<{ user_id: string }>(`select user_id from telegram_alert_links`))
+            .rows,
+          updated: (
+            await c.query(
+              `update telegram_alert_links set code_hash = null, code_expires_at = null`,
+            )
+          ).rowCount,
+          count: (await c.query<{ n: number }>(`select telegram_alert_link_count() as n`)).rows[0]!
+            .n,
+        };
+      });
+    const one = await asMember(members[0]!);
+    expect(one.rows).toEqual([{ user_id: members[0] }]);
+    expect(one.updated).toBe(1);
+    expect(one.count).toBe(2);
+    const none = await asMember(null);
+    expect(none.rows).toEqual([]);
+    expect(none.updated).toBe(0);
+    await expect(
+      asRole('app_dashboard', TENANT_A, async (c) => {
+        await c.query(`select set_config('app.user_id', $1, true)`, [members[0]]);
+        await c.query(
+          `insert into telegram_alert_links (tenant_id, user_id) values ($1, $2)
+           on conflict (tenant_id, user_id) do nothing`,
+          [TENANT_A, members[1]],
+        );
+      }),
+    ).rejects.toThrow(/row-level security/);
+    const cleared = await asRole('app_dashboard', TENANT_B, async (c) => {
+      return (await c.query<{ n: number }>(`select telegram_alert_links_clear() as n`)).rows[0]!.n;
+    });
+    expect(cleared).toBe(0);
+    const visitor = await asRole('app_agent_visitor', TENANT_A, async (c) => {
+      return (await c.query(`select user_id from telegram_alert_links`)).rowCount;
+    });
+    expect(visitor).toBe(2);
+    await expect(
+      asRole('app_identity', TENANT_A, (c) => c.query(`select 1 from telegram_alert_links`)),
+    ).rejects.toThrow(/permission denied/);
+  });
+
+  it("tenant B can't read or write tenant A's Telegram rows", async () => {
+    for (const role of ['app_dashboard', 'app_agent_visitor'] as const) {
+      const seen = await asRole(role, TENANT_B, async (c) => {
+        if (role === 'app_dashboard')
+          await c.query(`select set_config('app.user_id', $1, true)`, [members[0]]);
+        return {
+          settings: (await c.query(`select tenant_id from telegram_settings`)).rows,
+          chats: (await c.query(`select tenant_id from telegram_chats`)).rows,
+          links: (await c.query(`select tenant_id from telegram_alert_links`)).rows,
+          updated: (
+            await c.query(
+              `update telegram_settings set last_received_at = now() where tenant_id = $1`,
+              [TENANT_A],
+            )
+          ).rowCount,
+        };
+      });
+      expect(seen.settings).toEqual([{ tenant_id: TENANT_B }]);
+      expect(seen.chats).toEqual([{ tenant_id: TENANT_B }]);
+      expect(seen.links).toEqual([]);
+      expect(seen.updated).toBe(0);
+    }
+    await expect(
+      asRole('app_agent_visitor', TENANT_B, (c) =>
+        c.query(
+          `insert into telegram_chats (tenant_id, chat_id, contact_id) values ($1, 1, gen_random_uuid())`,
+          [TENANT_A],
+        ),
+      ),
+    ).rejects.toThrow(/row-level security/);
+  });
+
+  it('the visitor zone reads its own sealed credential only through channel_credential()', async () => {
+    await owner.query(
+      `update channel_connections set credential_ciphertext = '\\x01', credential_key_ref = 'local' where id = $1`,
+      [connections[TENANT_A]],
+    );
+    const mine = await asRole('app_agent_visitor', TENANT_A, async (c) => {
+      return (await c.query(`select key_ref from channel_credential($1)`, [connections[TENANT_A]]))
+        .rows;
+    });
+    expect(mine).toEqual([{ key_ref: 'local' }]);
+    const other = await asRole('app_agent_visitor', TENANT_B, async (c) => {
+      return (await c.query(`select key_ref from channel_credential($1)`, [connections[TENANT_A]]))
+        .rows;
+    });
+    expect(other).toEqual([]);
+    await expect(
+      asRole('app_dashboard', TENANT_A, (c) =>
+        c.query(`select credential_ciphertext from channel_connections`),
+      ),
+    ).rejects.toThrow(/permission denied/);
   });
 });

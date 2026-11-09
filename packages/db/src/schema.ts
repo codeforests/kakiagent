@@ -246,6 +246,7 @@ export const NOTICE_KINDS = [
   'approval_rejected',
   'approval_expired',
   'consent_withdrawn',
+  'text_only',
 ] as const;
 /** Embedding dimensions: Cohere Embed Multilingual v3 (ADR-019). */
 export const EMBEDDING_DIMENSIONS = 1024;
@@ -279,7 +280,7 @@ export const MESSAGE_TASK_KINDS = [
 ] as const;
 
 /** Where a conversation happens (FEAT-036 §4): the widget, or an adapter channel. */
-export const CONVERSATION_CHANNELS = ['widget', 'email'] as const;
+export const CONVERSATION_CHANNELS = ['widget', 'email', 'telegram'] as const;
 
 export const conversations = pgTable(
   'conversations',
@@ -1694,7 +1695,7 @@ export const channelConnections = pgTable(
     check('channel_connections_state_ck', sql`${t.state} in ('live', 'offline')`),
     check(
       'channel_connections_offline_mode_ck',
-      sql`${t.offlineMode} in ('hidden', 'message') and (${t.kind} in ('widget', 'email') or ${t.offlineMode} = 'message')`,
+      sql`${t.offlineMode} in ('hidden', 'message') and (${t.kind} in ('widget', 'email', 'telegram') or ${t.offlineMode} = 'message')`,
     ),
     check(
       'channel_connections_offline_message_ck',
@@ -1810,7 +1811,10 @@ export const ALERT_EVENTS = [
   'approval_pending',
   'hot_lead',
   'consent_withdrawn',
+  'channel_degraded',
 ] as const;
+/** Where an alert goes (FEAT-037 D8): one `notifications` row per recipient per channel. */
+export const NOTIFICATION_CHANNELS = ['email', 'telegram'] as const;
 /**
  * `escalation_reminder` is muted with `escalation` (FEAT-044 D6) and `approval_undeliverable`
  * with `approval_pending` (FEAT-055 §4), so neither is an alert event.
@@ -1829,7 +1833,13 @@ export const NOTIFICATION_STATUSES = [
   'cancelled',
   'failed',
 ] as const;
-export const NOTIFICATION_SUBJECTS = ['conversation', 'approval', 'lead', 'user'] as const;
+export const NOTIFICATION_SUBJECTS = [
+  'conversation',
+  'approval',
+  'lead',
+  'user',
+  'channel',
+] as const;
 
 /**
  * A member's alert preferences in one business (DSH-09; FEAT-052 §4, D4). Stores opt-outs:
@@ -1846,6 +1856,11 @@ export const notificationPrefs = pgTable(
       .array()
       .notNull()
       .default(sql`'{}'`),
+    /** Events turned off for Telegram (FEAT-037 §4). */
+    telegramMuted: text('telegram_muted')
+      .array()
+      .notNull()
+      .default(sql`'{}'`),
     quietEnabled: boolean('quiet_enabled').notNull().default(true),
     quietStart: smallint('quiet_start').notNull().default(1320),
     quietEnd: smallint('quiet_end').notNull().default(480),
@@ -1859,7 +1874,7 @@ export const notificationPrefs = pgTable(
     }).onDelete('cascade'),
     check(
       'notification_prefs_muted_ck',
-      sql`${t.emailMuted} <@ array['escalation','approval_pending','hot_lead','consent_withdrawn']::text[]`,
+      sql`${t.emailMuted} <@ array['escalation','approval_pending','hot_lead','consent_withdrawn','channel_degraded']::text[] and ${t.telegramMuted} <@ array['escalation','approval_pending','hot_lead','consent_withdrawn','channel_degraded']::text[]`,
     ),
     check(
       'notification_prefs_quiet_ck',
@@ -1884,8 +1899,9 @@ export const notifications = pgTable(
     subjectType: text('subject_type', { enum: NOTIFICATION_SUBJECTS }).notNull(),
     subjectId: uuid('subject_id').notNull(),
     dedupeKey: text('dedupe_key').notNull(),
+    channel: text('channel', { enum: NOTIFICATION_CHANNELS }).notNull().default('email'),
     status: text('status', { enum: NOTIFICATION_STATUSES }).notNull().default('pending'),
-    skipReason: text('skip_reason', { enum: ['muted', 'inactive'] }),
+    skipReason: text('skip_reason', { enum: ['muted', 'inactive', 'no_channel'] }),
     /** Sent inside a digest. */
     digest: boolean('digest').notNull().default(false),
     attempts: integer('attempts').notNull().default(0),
@@ -1896,7 +1912,7 @@ export const notifications = pgTable(
   },
   (t) => [
     primaryKey({ columns: [t.tenantId, t.id] }),
-    uniqueIndex('notifications_dedupe_uq').on(t.tenantId, t.userId, t.dedupeKey),
+    uniqueIndex('notifications_dedupe_uq').on(t.tenantId, t.userId, t.channel, t.dedupeKey),
     index('notifications_due_idx')
       .on(t.nextAttemptAt)
       .where(sql`${t.status} in ('pending', 'held')`),
@@ -1907,15 +1923,16 @@ export const notifications = pgTable(
     check('notifications_kind_ck', sql`${t.kind} in (${inList(NOTIFICATION_KINDS)})`),
     check(
       'notifications_subject_ck',
-      sql`${t.subjectType} in ('conversation', 'approval', 'lead', 'user')`,
+      sql`${t.subjectType} in ('conversation', 'approval', 'lead', 'user', 'channel')`,
     ),
+    check('notifications_channel_ck', sql`${t.channel} in ('email', 'telegram')`),
     check(
       'notifications_status_ck',
       sql`${t.status} in ('pending', 'held', 'sent', 'skipped', 'cancelled', 'failed')`,
     ),
     check(
       'notifications_skip_ck',
-      sql`(${t.skipReason} is null or ${t.skipReason} in ('muted', 'inactive')) and (${t.skipReason} is not null) = (${t.status} = 'skipped')`,
+      sql`(${t.skipReason} is null or ${t.skipReason} in ('muted', 'inactive', 'no_channel')) and (${t.skipReason} is not null) = (${t.status} = 'skipped')`,
     ),
   ],
 );
@@ -2095,11 +2112,21 @@ export const contacts = pgTable(
     name: text('name'),
     email: text('email'),
     phone: text('phone'),
+    /** One Telegram user is one contact per business (FEAT-037 D5). */
+    telegramId: bigint('telegram_id', { mode: 'number' }),
+    telegramUsername: text('telegram_username'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     primaryKey({ columns: [t.tenantId, t.id] }),
+    uniqueIndex('contacts_telegram_uq')
+      .on(t.tenantId, t.telegramId)
+      .where(sql`${t.telegramId} is not null`),
+    check(
+      'contacts_telegram_ck',
+      sql`${t.telegramUsername} is null or char_length(${t.telegramUsername}) between 1 and 32`,
+    ),
     uniqueIndex('contacts_email_uq')
       .on(t.tenantId, t.email)
       .where(sql`${t.email} is not null`),
@@ -2457,6 +2484,12 @@ export const EMAIL_IGNORE_REASONS = [
   'echo',
   'loop',
 ] as const;
+/** Why a Telegram update got no conversation (CHN-05; FEAT-037 §3 `TelegramIgnoreReason`). */
+export const TELEGRAM_IGNORE_REASONS = ['group', 'unsupported', 'staff_chat'] as const;
+export const INBOUND_IGNORE_REASONS = [
+  ...EMAIL_IGNORE_REASONS,
+  ...TELEGRAM_IGNORE_REASONS,
+] as const;
 
 /**
  * One row per inbound provider event (ADR-011): the redelivery guard and the page's ignored
@@ -2473,7 +2506,7 @@ export const inboundEvents = pgTable(
     providerEventId: text('provider_event_id').notNull(),
     receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
     outcome: text('outcome', { enum: ['accepted', 'ignored', 'failed'] }).notNull(),
-    ignoreReason: text('ignore_reason', { enum: EMAIL_IGNORE_REASONS }),
+    ignoreReason: text('ignore_reason', { enum: INBOUND_IGNORE_REASONS }),
   },
   (t) => [
     primaryKey({ columns: [t.tenantId, t.id] }),
@@ -2481,7 +2514,7 @@ export const inboundEvents = pgTable(
     index('inbound_events_received_idx').on(t.tenantId, t.receivedAt.desc()),
     check(
       'inbound_events_outcome_ck',
-      sql`${t.outcome} in ('accepted', 'ignored', 'failed') and (${t.outcome} = 'ignored') = (${t.ignoreReason} is not null) and (${t.ignoreReason} is null or ${t.ignoreReason} in (${inList(EMAIL_IGNORE_REASONS)}))`,
+      sql`${t.outcome} in ('accepted', 'ignored', 'failed') and (${t.outcome} = 'ignored') = (${t.ignoreReason} is not null) and (${t.ignoreReason} is null or ${t.ignoreReason} in (${inList(INBOUND_IGNORE_REASONS)}))`,
     ),
     check('inbound_events_provider_ck', sql`char_length(${t.providerEventId}) between 1 and 200`),
   ],
@@ -2543,7 +2576,7 @@ export const emailThreads = pgTable(
 );
 
 export const DELIVERY_STATUSES = ['pending', 'sent', 'failed'] as const;
-export const DELIVERY_FAILED_REASONS = ['bounced', 'rejected', 'timed_out'] as const;
+export const DELIVERY_FAILED_REASONS = ['bounced', 'rejected', 'timed_out', 'blocked'] as const;
 
 /**
  * One delivery per staff, agent or system message in an adapter-channel conversation (D2),
@@ -2634,6 +2667,102 @@ export const emailAttachments = pgTable(
 );
 
 /** Tables with `tenant_id` + forced RLS. The cross-tenant suite asserts this list is complete. */
+/**
+ * The business's Telegram bot (CHN-05; FEAT-037 §4, D3, D6). The token and webhook secret are
+ * sealed in `channel_connections.credential_ciphertext`; only the secret's sha256 is here, so
+ * receiving never unseals. `bot_id` is unique across tenants: one business per bot.
+ */
+export const telegramSettings = pgTable(
+  'telegram_settings',
+  {
+    tenantId: uuid('tenant_id')
+      .primaryKey()
+      .references(() => tenants.id),
+    connectionId: uuid('connection_id').notNull(),
+    botId: bigint('bot_id', { mode: 'number' }).notNull(),
+    botUsername: text('bot_username').notNull(),
+    botName: text('bot_name').notNull(),
+    webhookSecretHash: bytea('webhook_secret_hash').notNull(),
+    lastReceivedAt: timestamp('last_received_at', { withTimezone: true }),
+    connectedBy: uuid('connected_by'),
+    connectedAt: timestamp('connected_at', { withTimezone: true }).notNull().defaultNow(),
+    version: integer('version').notNull().default(1),
+  },
+  (t) => [
+    uniqueIndex('telegram_settings_bot_uq').on(t.botId),
+    foreignKey({
+      name: 'telegram_settings_connection_fk',
+      columns: [t.tenantId, t.connectionId],
+      foreignColumns: [channelConnections.tenantId, channelConnections.id],
+    }),
+    check(
+      'telegram_settings_bot_ck',
+      sql`char_length(${t.botUsername}) between 1 and 64 and char_length(${t.botName}) between 1 and 128 and octet_length(${t.webhookSecretHash}) = 32`,
+    ),
+    check('telegram_settings_version_ck', sql`${t.version} > 0`),
+  ],
+);
+
+/** A customer's private chat with the bot (FEAT-037 §4): the chat to reply to, and blocks. */
+export const telegramChats = pgTable(
+  'telegram_chats',
+  {
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id),
+    chatId: bigint('chat_id', { mode: 'number' }).notNull(),
+    contactId: uuid('contact_id').notNull(),
+    conversationId: uuid('conversation_id'),
+    lastInboundAt: timestamp('last_inbound_at', { withTimezone: true }).notNull().defaultNow(),
+    blockedAt: timestamp('blocked_at', { withTimezone: true }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.chatId] }),
+    index('telegram_chats_conversation_idx').on(t.tenantId, t.conversationId),
+    foreignKey({
+      name: 'telegram_chats_contact_fk',
+      columns: [t.tenantId, t.contactId],
+      foreignColumns: [contacts.tenantId, contacts.id],
+    }).onDelete('cascade'),
+  ],
+);
+
+/**
+ * A member's Telegram link for alerts (LED-04, DSH-09; FEAT-037 D1). The dashboard zone sees
+ * only the member's own row; the visitor zone (the webhook, the alert sender) links, unlinks
+ * and reads the chat. The one-time code is stored as its sha256.
+ */
+export const telegramAlertLinks = pgTable(
+  'telegram_alert_links',
+  {
+    tenantId: uuid('tenant_id').notNull(),
+    userId: uuid('user_id').notNull(),
+    chatId: bigint('chat_id', { mode: 'number' }),
+    telegramName: text('telegram_name'),
+    codeHash: bytea('code_hash'),
+    codeExpiresAt: timestamp('code_expires_at', { withTimezone: true }),
+    linkedAt: timestamp('linked_at', { withTimezone: true }),
+    staffNoticeAt: timestamp('staff_notice_at', { withTimezone: true }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.userId] }),
+    uniqueIndex('telegram_alert_links_chat_uq')
+      .on(t.tenantId, t.chatId)
+      .where(sql`${t.chatId} is not null`),
+    uniqueIndex('telegram_alert_links_code_uq')
+      .on(t.codeHash)
+      .where(sql`${t.codeHash} is not null`),
+    foreignKey({
+      columns: [t.tenantId, t.userId],
+      foreignColumns: [memberships.tenantId, memberships.userId],
+    }).onDelete('cascade'),
+    check(
+      'telegram_alert_links_state_ck',
+      sql`(${t.chatId} is null) = (${t.linkedAt} is null) and (${t.codeHash} is null) = (${t.codeExpiresAt} is null) and (${t.telegramName} is null or char_length(${t.telegramName}) between 1 and 64)`,
+    ),
+  ],
+);
+
 export const TENANT_SCOPED_TABLES = [
   'tenants',
   'conversations',
@@ -2682,4 +2811,7 @@ export const TENANT_SCOPED_TABLES = [
   'email_threads',
   'message_deliveries',
   'email_attachments',
+  'telegram_settings',
+  'telegram_chats',
+  'telegram_alert_links',
 ] as const;
