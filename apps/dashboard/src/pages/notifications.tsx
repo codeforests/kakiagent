@@ -23,7 +23,10 @@ import {
 
 type OnToast = (t: string) => void;
 
-const CHANNEL_LABEL: Record<NotificationChannel, string> = { email: 'Email' };
+const CHANNEL_LABEL: Record<NotificationChannel, string> = {
+  email: 'Email',
+  telegram: 'Telegram',
+};
 
 export function NotificationsPage() {
   const me = useQuery({ queryKey: ['me'], queryFn: api.me });
@@ -203,8 +206,12 @@ function EventRow({
               {CHANNEL_LABEL[c]}
             </span>
             <SaveSwitch
-              checked={value[c]}
-              change={{ event, email: !value[c] }}
+              checked={value[c] ?? true}
+              change={
+                c === 'email'
+                  ? { event, email: !value.email }
+                  : { event, email: value.email, telegram: !(value.telegram ?? true) }
+              }
               aria-label={`${CHANNEL_LABEL[c]} alerts: ${text.label}`}
               onSaved={onSaved}
               onFailed={onFailed}

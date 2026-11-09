@@ -158,6 +158,7 @@ const thread = (messages: Message[]): ConversationThread => ({
       name: null,
       email: null,
       phone: null,
+      telegramUsername: null,
       label: 'Website visitor',
       firstSeenAt: '2026-10-31T01:00:00.000Z',
       previousConversations: 0,

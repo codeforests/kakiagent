@@ -56,7 +56,7 @@ describe('email channel contracts (FEAT-036 §3)', () => {
 
   it('widens the channel, adds the subject and the two escalation sources', () => {
     expect(ConversationListQuery.parse({ channel: 'email' }).channel).toBe('email');
-    expect(ConversationListQuery.safeParse({ channel: 'telegram' }).success).toBe(false);
+    expect(ConversationListQuery.safeParse({ channel: 'messenger' }).success).toBe(false);
     const summary = ConversationSummary.parse({
       id: ID,
       channel: 'email',

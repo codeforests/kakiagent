@@ -21,6 +21,10 @@ export const EVENT_TEXT: Record<AlertEvent, { label: string; help: string }> = {
     label: 'Consent withdrawn',
     help: 'When a customer asks you to stop using their details.',
   },
+  channel_degraded: {
+    label: 'A channel stops working',
+    help: "When a channel like Telegram or email can't send or receive.",
+  },
 };
 
 type Times = { start: string; end: string };

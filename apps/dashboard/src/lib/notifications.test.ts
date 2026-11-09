@@ -23,7 +23,7 @@ const prefs: NotificationPrefs = {
   ],
   quietHours: { enabled: true, start: '22:00', end: '08:00' },
   timeZone: 'Asia/Singapore',
-  sendTo: { email: 'owner@kaki-bakery.test' },
+  sendTo: { email: 'owner@kaki-bakery.test', telegram: null },
 };
 
 describe('EVENT_TEXT', () => {
@@ -31,8 +31,14 @@ describe('EVENT_TEXT', () => {
     expect(EVENT_TEXT.escalation.label).toBe('A customer asks for a person');
     expect(EVENT_TEXT.approval_pending.label).toBe('A reply needs approval');
     expect(EVENT_TEXT.hot_lead.label).toBe('New hot lead');
-    for (const t of Object.values(EVENT_TEXT))
-      expect(`${t.label} ${t.help}`).not.toMatch(/notification event|channel|mute/i);
+    expect(EVENT_TEXT.channel_degraded.label).toBe('A channel stops working');
+    // FEAT-037's channel_degraded is about a channel, so only it may say "channel".
+    for (const [event, t] of Object.entries(EVENT_TEXT))
+      expect(`${t.label} ${t.help}`).not.toMatch(
+        event === 'channel_degraded'
+          ? /notification event|mute/i
+          : /notification event|channel|mute/i,
+      );
   });
 });
 

@@ -42,6 +42,7 @@ export const VIEW_LABEL: Record<InboxView, string> = {
 export const CHANNEL_LABEL: Record<ConversationSummary['channel'], string> = {
   widget: 'Website chat',
   email: 'Email',
+  telegram: 'Telegram',
 };
 
 /** The channel filter's options, in order (FEAT-036 adds Email after Website chat). */
@@ -54,6 +55,7 @@ export const channelOf = (v: string | null | undefined): ConversationChannel | n
 export const PARTY_LABEL: Record<ConversationChannel, string> = {
   widget: 'Website visitor',
   email: 'Email customer',
+  telegram: 'Telegram customer',
 };
 
 export function viewFromSearch(search: URLSearchParams): InboxFilter {
@@ -577,6 +579,7 @@ const FAILED_REASON: Record<NonNullable<MessageDelivery['failedReason']>, string
   bounced: 'the address bounced',
   rejected: 'the email was refused',
   timed_out: "we couldn't send it for 24 hours",
+  blocked: 'the customer blocked the bot',
 };
 
 /** The delivery line under a staff or AI bubble (FEAT-036 ui-design); null when sent or none. */

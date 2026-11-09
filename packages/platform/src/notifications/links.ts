@@ -27,6 +27,8 @@ export function linkFor(kind: NotificationKind, subject: Subject, appUrl: string
     case 'hot_lead':
     case 'consent_withdrawn':
       return `${base}/leads/${subject.id}`;
+    case 'channel_degraded':
+      return `${base}/settings/channels`;
     case 'test':
       return `${base}${SETTINGS_PATH}`;
   }

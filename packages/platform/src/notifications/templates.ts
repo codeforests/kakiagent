@@ -24,6 +24,7 @@ const SUBJECT: Record<NotificationKind, string> = {
   approval_pending: 'A reply is waiting for your approval',
   hot_lead: 'New hot lead',
   consent_withdrawn: 'A contact withdrew consent',
+  channel_degraded: 'A channel stopped working',
   escalation_reminder: 'Reminder: a customer is still waiting for a person',
   approval_undeliverable: "An approved reply couldn't reach the customer",
   test: 'Test alert from KakiAgent',
@@ -35,6 +36,8 @@ const LINE: Record<NotificationKind, string> = {
   hot_lead: 'A new hot lead came in.',
   consent_withdrawn:
     "A customer asked you to stop using their contact details. Don't contact them or use their details; they're left out of exports.",
+  channel_degraded:
+    'One of your channels stopped working, so customers there get no replies. Check it on the Channels page.',
   escalation_reminder: 'A customer who asked for a person is still waiting.',
   approval_undeliverable:
     'A decision was made after the chat closed, and the customer left no email or phone. Contact them another way if you can.',
