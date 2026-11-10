@@ -1,5 +1,5 @@
 # Handoff: FEAT-039 — Contact identity, verified merge and undo
-Branch: feat/FEAT-039-contact-identity · PR: draft (see the branch's PR) · Updated: 2026-11-10 by build (UI)
+Branch: feat/FEAT-039-contact-identity · PR: https://github.com/codeforests/kakiagent/pull/63 (draft) · Updated: 2026-11-10 by build (UI)
 Stage done: build (T1–T9 of 10), status `developer-done`
 Next: verify — kickoff: "Verify FEAT-039 on branch feat/FEAT-039-contact-identity. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
 
