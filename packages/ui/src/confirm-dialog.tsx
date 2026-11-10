@@ -24,6 +24,8 @@ export interface ConfirmDialogProps {
   cancelLabel?: string;
   /** Where focus goes on close; `preventDefault()` keeps Radix from returning it to the trigger. */
   onCloseAutoFocus?: (e: Event) => void;
+  /** First focus on the title instead of Cancel: a long preview read from the top (FEAT-039). */
+  focusTitle?: boolean;
 }
 
 /**
@@ -46,8 +48,10 @@ export function ConfirmDialog({
   alert,
   cancelLabel = 'Cancel',
   onCloseAutoFocus,
+  focusTitle = false,
 }: ConfirmDialogProps) {
   const cancelRef = useRef<HTMLButtonElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
   const block = (e: Event) => {
     if (busy) e.preventDefault();
   };
@@ -60,14 +64,20 @@ export function ConfirmDialog({
           role="alertdialog"
           onOpenAutoFocus={(e) => {
             e.preventDefault();
-            cancelRef.current?.focus();
+            (focusTitle ? titleRef : cancelRef).current?.focus();
           }}
           onCloseAutoFocus={onCloseAutoFocus}
           onEscapeKeyDown={block}
           onPointerDownOutside={block}
           onInteractOutside={block}
         >
-          <Dialog.Title className="kaki-dialog__title">{title}</Dialog.Title>
+          <Dialog.Title
+            className="kaki-dialog__title"
+            ref={titleRef}
+            tabIndex={focusTitle ? -1 : undefined}
+          >
+            {title}
+          </Dialog.Title>
           <Dialog.Description asChild>
             <div className="kaki-dialog__body">{children}</div>
           </Dialog.Description>
