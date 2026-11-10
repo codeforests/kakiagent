@@ -298,12 +298,14 @@ export function SearchDialog({
     const t = setTimeout(() => setQ(text.trim()), 300);
     return () => clearTimeout(t);
   }, [text]);
-  useEffect(() => {
-    if (!open) {
-      setText('');
-      setQ('');
-    }
-  }, [open]);
+  const reset = () => {
+    setText('');
+    setQ('');
+  };
+  const change = (next: boolean) => {
+    if (!next) reset();
+    onOpenChange(next);
+  };
   const results = useQuery({
     queryKey: ['contact-search', contactId, q],
     queryFn: () => api.searchContacts(q, contactId),
@@ -313,7 +315,7 @@ export function SearchDialog({
   return (
     <FormDialog
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={change}
       title="Find the other contact"
       onCloseAutoFocus={onCloseAutoFocus}
     >
@@ -354,7 +356,10 @@ export function SearchDialog({
                     className="contact-result"
                     aria-labelledby={`r-${r.contactId}`}
                     aria-describedby={`d-${r.contactId}`}
-                    onClick={() => onChoose({ contactId: r.contactId, label: r.label })}
+                    onClick={() => {
+                      reset();
+                      onChoose({ contactId: r.contactId, label: r.label });
+                    }}
                   >
                     <span className="contact-result__text">
                       <span className="sidebar-strong" id={`r-${r.contactId}`}>
@@ -374,7 +379,7 @@ export function SearchDialog({
           )}
         </div>
         <div className="kaki-dialog__actions">
-          <Button variant="secondary" onClick={() => onOpenChange(false)}>
+          <Button variant="secondary" onClick={() => change(false)}>
             Cancel
           </Button>
         </div>
