@@ -5,7 +5,9 @@ import { useId, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { api, ApiError } from '../lib/api.ts';
 import { notReadyMissing } from '../lib/onboarding.ts';
+import { useTelegramChannel } from '../lib/telegram-channel.ts';
 import {
+  channelIconOf,
   channelStatus,
   CHANNELS_KEY,
   FIX_LINE,
@@ -37,6 +39,7 @@ const ICONS = {
   alert: 'm21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3zM12 9v4M12 17h.01',
   message: 'M7.9 20A9 9 0 1 0 4 16.1L2 22z',
   mail: 'M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM22 6l-10 7L2 6',
+  send: 'M22 2 11 13M22 2l-7 20-4-9-9-4z',
 } as const;
 
 export function ChannelIcon({ name, size = 16 }: { name: keyof typeof ICONS; size?: number }) {
@@ -129,7 +132,7 @@ export function ChannelCard({
     <section className="card channel-card" aria-labelledby={headingId}>
       <div className="channel-card__head">
         <span className="channel-card__icon">
-          <ChannelIcon name={item.kind === 'email' ? 'mail' : 'message'} size={20} />
+          <ChannelIcon name={channelIconOf(item.kind)} size={20} />
         </span>
         <div className="channel-card__title">
           <h2 className="section-title" id={headingId}>
@@ -144,6 +147,7 @@ export function ChannelCard({
               <Link to="/settings/channels/email">Email settings</Link>
             </p>
           )}
+          {item.kind === 'telegram' && <TelegramMeta />}
         </div>
         <StatusChips item={item} />
         <div className="channel-card__action">
@@ -281,6 +285,11 @@ function DegradedAlert({
             Check the DNS records on the Email page.{' '}
             <Link to="/settings/channels/email">Email settings</Link>
           </>
+        ) : item.kind === 'telegram' ? (
+          <>
+            Replace the bot token on the Telegram page.{' '}
+            <Link to="/settings/channels/telegram">Telegram settings</Link>
+          </>
         ) : (
           FIX_LINE
         )}
@@ -317,7 +326,24 @@ const EMAIL_MODES = {
   hidden: ["Don't reply", 'Emails wait in your inbox for your team.'],
   message: ['Reply with a message', 'Each new email gets your message once.'],
 } as const;
-const modeCopy = (item: ChannelItem) => (item.kind === 'email' ? EMAIL_MODES : WIDGET_MODES);
+// FEAT-037 ui-design SCR-APP-036: Telegram's words.
+const TELEGRAM_MODES = {
+  hidden: ["Don't reply", 'Messages wait in your inbox for your team.'],
+  message: ['Reply with a message', 'Each new chat gets your message once.'],
+} as const;
+const modeCopy = (item: ChannelItem) =>
+  item.kind === 'email' ? EMAIL_MODES : item.kind === 'telegram' ? TELEGRAM_MODES : WIDGET_MODES;
+
+/** The Telegram card's "@bot" and settings link (FEAT-037); the bot comes from its own route. */
+function TelegramMeta() {
+  const bot = useTelegramChannel().data?.bot;
+  return (
+    <p className="channel-card__meta">
+      {bot && <>@{bot.username} · </>}
+      <Link to="/settings/channels/telegram">Telegram settings</Link>
+    </p>
+  );
+}
 
 /** "While it's offline": the mode, the two texts, the contact line and the preview. */
 function OfflineForm({

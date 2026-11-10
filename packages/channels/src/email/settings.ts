@@ -77,7 +77,14 @@ export async function emailChannelView(
     ? await tx
         .select({ reason: ie.ignoreReason, count: sql<number>`count(*)::int` })
         .from(ie)
-        .where(and(eq(ie.tenantId, tenantId), eq(ie.outcome, 'ignored'), gte(ie.receivedAt, since)))
+        .where(
+          and(
+            eq(ie.tenantId, tenantId),
+            eq(ie.connectionId, settings.connectionId),
+            eq(ie.outcome, 'ignored'),
+            gte(ie.receivedAt, since),
+          ),
+        )
         .groupBy(ie.ignoreReason)
         .orderBy(desc(sql`count(*)`), ie.ignoreReason)
     : [];

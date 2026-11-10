@@ -25,6 +25,7 @@ import { InboxPage } from './pages/inbox.tsx';
 import { LegalPage } from './pages/legal.tsx';
 import { ChannelsPage } from './pages/channels.tsx';
 import { EmailChannelPage } from './pages/email-channel.tsx';
+import { TelegramChannelPage } from './pages/telegram-channel.tsx';
 import { PrivacyPage } from './pages/privacy.tsx';
 import { LeadsSettingsPage } from './pages/leads-settings.tsx';
 import { LeadsPage } from './pages/leads.tsx';
@@ -134,6 +135,7 @@ export const router = createBrowserRouter([
       { path: 'settings/channels', element: <ChannelsPage /> },
       // Email channel (FEAT-036, SCR-APP-038).
       { path: 'settings/channels/email', element: <EmailChannelPage /> },
+      { path: 'settings/channels/telegram', element: <TelegramChannelPage /> },
       // Website widget (FEAT-032, SCR-APP-037).
       { path: 'settings/widget', element: <WidgetSettingsPage /> },
       // My account (SCR-APP-055): name, email and devices (FEAT-008), two-step (FEAT-006).

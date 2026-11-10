@@ -3,6 +3,7 @@ export { TENANT_SCOPED_TABLES } from './schema.js';
 export {
   createZoneDb,
   withTenant,
+  withMember,
   ping,
   type Db,
   type Tx,

@@ -112,6 +112,7 @@ resource "aws_secretsmanager_secret" "app" {
     "ingest-database-url",
     "visitor-token-secret", "session-secret", "magic-link-secret", "smtp-url",
     "mfa-secret-key",
+    "channel-secret-key", # seals channel credentials (FEAT-037 §5.2) until the KMS sealer at MD
   ])
   name       = "${var.name}/${each.key}"
   kms_key_id = module.data.kms_key_arn
@@ -319,6 +320,8 @@ module "service" {
         ATTACHMENTS_BUCKET        = module.storage.bucket_names["attachments"]
         EMAIL_IDENTITY_PROVIDER   = "ses"
         SES_CONFIGURATION_SET     = module.mail.configuration_set_name
+        # The Telegram channel (FEAT-037 §5.6): webhooks arrive at /hooks/telegram/<id>.
+        PUBLIC_HOOKS_URL = local.public_url
       }
       realtime = { PORT = "3001", VALKEY_URL = local.valkey }
       agent-worker = {
@@ -360,6 +363,8 @@ module "service" {
         SQS_CHANNEL_SEND_QUEUE_URL = module.queues.queue_urls["channel-send"]
         EMAIL_IDENTITY_PROVIDER    = "ses"
         SES_CONFIGURATION_SET      = module.mail.configuration_set_name
+        # FEAT-037: Telegram's health check re-registers a missing webhook here.
+        PUBLIC_HOOKS_URL = local.public_url
       }
     }[each.key] : k => v },
   )
@@ -374,6 +379,7 @@ module "service" {
       MAGIC_LINK_SECRET      = local.secret["magic-link-secret"]
       SMTP_URL               = local.secret["smtp-url"]
       MFA_SECRET_KEY         = local.secret["mfa-secret-key"]
+      CHANNEL_SECRET_KEY     = local.secret["channel-secret-key"]
     }
     realtime = {
       DASHBOARD_DATABASE_URL = local.secret["dashboard-database-url"]
@@ -383,7 +389,8 @@ module "service" {
     }
     agent-worker = {
       VISITOR_DATABASE_URL = local.secret["visitor-database-url"]
-      SMTP_URL             = local.secret["smtp-url"] # email channel replies (FEAT-036 §5.3)
+      SMTP_URL             = local.secret["smtp-url"]           # email channel replies (FEAT-036 §5.3)
+      CHANNEL_SECRET_KEY   = local.secret["channel-secret-key"] # Telegram sends (FEAT-037)
     }
     ingest-worker = { INGEST_DATABASE_URL = local.secret["ingest-database-url"] }
     scheduler-worker = {
@@ -391,6 +398,9 @@ module "service" {
       IDENTITY_DATABASE_URL = local.secret["identity-database-url"]
       MAGIC_LINK_SECRET     = local.secret["magic-link-secret"]
       SMTP_URL              = local.secret["smtp-url"]
+      # Telegram alerts and health (FEAT-037 §5.5, D9): links and the bot credential.
+      VISITOR_DATABASE_URL = local.secret["visitor-database-url"]
+      CHANNEL_SECRET_KEY   = local.secret["channel-secret-key"]
     }
   }[each.key]
 }

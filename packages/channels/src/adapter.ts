@@ -27,6 +27,11 @@ export interface ChannelCapabilities {
   /** Meta and WhatsApp: how long after the visitor's last message a free-form reply is allowed. */
   replyWindow?: { hours: number } | undefined;
   typing: boolean;
+  /**
+   * Where the GOV-14 privacy line goes (FEAT-037 D7): under `every` message (email, the
+   * default) or only the one carrying the AI disclosure (chat apps).
+   */
+  footer?: 'every' | 'with_disclosure' | undefined;
 }
 
 /** A sealed credential (`secrets.ts`) and the connection it belongs to. */
@@ -96,7 +101,15 @@ export interface SendContext {
 
 export type SendResult =
   | { ok: true; externalId: string }
-  | { ok: false; failed: 'auth' | 'transient' | 'permanent'; status?: number | undefined };
+  | {
+      ok: false;
+      failed: 'auth' | 'transient' | 'permanent';
+      status?: number | undefined;
+      /** `permanent` because the recipient blocked the bot (Telegram, FEAT-037 §5.4). */
+      reason?: 'blocked' | undefined;
+      /** The provider asked us to wait this long (Telegram 429). */
+      retryAfterSeconds?: number | undefined;
+    };
 
 export type HealthStatus = { ok: true } | { ok: false; reason: ChannelHealthReason };
 

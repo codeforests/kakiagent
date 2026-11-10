@@ -42,6 +42,8 @@ import {
   EmailChannelResponse,
   type EmailDomainBody,
   type EmailReplyCapBody,
+  TelegramChannelResponse,
+  TelegramLinkStart,
   OnboardingProgress,
   ReadinessResponse,
   type GoLiveBody,
@@ -391,6 +393,21 @@ export const api = {
     request('POST', '/api/v1/channels/email/domain/check', EmailChannelResponse),
   removeEmailDomain: (settingsVersion: number) =>
     request('DELETE', '/api/v1/channels/email/domain', EmailChannelResponse, { settingsVersion }),
+  /** FEAT-037 §3: SCR-APP-039 Telegram; every write answers the fresh settings. */
+  telegramChannel: () => getJson('/api/v1/channels/telegram', TelegramChannelResponse),
+  connectTelegram: (token: string) =>
+    request('POST', '/api/v1/channels/telegram', TelegramChannelResponse, { token }),
+  replaceTelegramToken: (token: string, settingsVersion: number) =>
+    request('PUT', '/api/v1/channels/telegram/token', TelegramChannelResponse, {
+      token,
+      settingsVersion,
+    }),
+  disconnectTelegram: (settingsVersion: number) =>
+    request('DELETE', '/api/v1/channels/telegram', TelegramChannelResponse, { settingsVersion }),
+  /** The member's own Telegram link for alerts (D1): a `t.me` start link for 15 minutes. */
+  startTelegramLink: () =>
+    request('POST', '/api/v1/me/notifications/telegram/link', TelegramLinkStart),
+  unlinkTelegram: async () => void (await send('DELETE', '/api/v1/me/notifications/telegram')),
   /** A failed email delivery, sent again (FEAT-036 §3): 202, the thread follows by socket. */
   retryDelivery: async (messageId: string) =>
     void (await send('POST', `/api/v1/messages/${encodeURIComponent(messageId)}/delivery/retry`)),

@@ -69,12 +69,13 @@ const lastAudit = async () =>
   ).rows[0];
 
 describe('GET /api/v1/channels', () => {
-  it('lists the widget with its defaults, email to connect (FEAT-036), and no credential fields', async () => {
+  it('lists the widget with its defaults, email and Telegram to connect (FEAT-036, FEAT-037), and no credential fields', async () => {
     const res = await call('GET', '/api/v1/channels', asA);
     expect(res.statusCode).toBe(200);
     const body = res.json();
     expect(body.connectable).toEqual([
       { kind: 'email', name: 'Email', connectPath: '/settings/channels/email' },
+      { kind: 'telegram', name: 'Telegram', connectPath: '/settings/channels/telegram' },
     ]);
     expect(body.channels).toEqual([
       expect.objectContaining({

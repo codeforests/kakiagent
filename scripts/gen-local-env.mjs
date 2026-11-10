@@ -33,6 +33,13 @@ const s = {
   SESSION_SECRET: prev.SESSION_SECRET ?? rand() + rand(),
   MAGIC_LINK_SECRET: prev.MAGIC_LINK_SECRET ?? rand() + rand(),
   MFA_SECRET_KEY: prev.MFA_SECRET_KEY ?? randomBytes(32).toString('base64url'),
+  // Seals channel credentials (FEAT-037); the api, agent-worker and scheduler share it.
+  CHANNEL_SECRET_KEY: prev.CHANNEL_SECRET_KEY ?? randomBytes(32).toString('base64url'),
+};
+// The fake Telegram Bot API (`pnpm fixtures:telegram`, FEAT-037 §5.6).
+const telegram = {
+  TELEGRAM_API_BASE: 'http://localhost:5177',
+  CHANNEL_SECRET_KEY: s.CHANNEL_SECRET_KEY,
 };
 const pg = (user, pw) => `postgres://${user}:${pw}@localhost:5432/kakiagent`;
 const mail = {
@@ -68,6 +75,7 @@ const files = {
     VISITOR_TOKEN_SECRET: s.VISITOR_TOKEN_SECRET,
     SESSION_SECRET: s.SESSION_SECRET,
     MFA_SECRET_KEY: s.MFA_SECRET_KEY,
+    ...telegram,
     // `https://kakibakery.test` (the fixture site) is accepted locally (FEAT-012 §5.6).
     CRAWL_ALLOW_PRIVATE_HOSTS: 'true',
     // LocalStack signs upload URLs with these (FEAT-015).
@@ -83,12 +91,16 @@ const files = {
   'apps/agent-worker/.env': {
     VISITOR_DATABASE_URL: pg('app_agent_visitor', s.APP_AGENT_VISITOR_PASSWORD),
     SQS_TURNS_QUEUE_URL: queue,
+    ...telegram,
     AWS_ACCESS_KEY_ID: 'test',
     AWS_SECRET_ACCESS_KEY: 'test',
   },
   'apps/scheduler-worker/.env': {
     OUTBOX_DATABASE_URL: pg('app_outbox', s.APP_OUTBOX_PASSWORD),
     IDENTITY_DATABASE_URL: pg('app_identity', s.APP_IDENTITY_PASSWORD),
+    VISITOR_DATABASE_URL: pg('app_agent_visitor', s.APP_AGENT_VISITOR_PASSWORD),
+    ...telegram,
+    PUBLIC_HOOKS_URL: 'http://localhost:3000',
     ...mail,
     SQS_TURNS_QUEUE_URL: queue,
     SQS_INGEST_QUEUE_URL: ingestQueue,

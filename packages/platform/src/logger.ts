@@ -14,6 +14,10 @@ const REDACTED_FIELDS = [
   'texts',
 ];
 
+/** A Telegram bot token in a URL path (`/bot<id>:<secret>/`, FEAT-037 §5.1). */
+const BOT_TOKEN = /bot\d{3,}:[A-Za-z0-9_-]{10,}/g;
+const scrub = (s: string) => maskLogText(s.replace(BOT_TOKEN, 'bot[redacted]'));
+
 /**
  * Structured JSON logs carrying IDs only (ADR-021). Message text, emails and phone
  * numbers must never be logged; the redaction list is a backstop, not the rule. Strings
@@ -48,15 +52,15 @@ export function createLogger(
             : args;
         method.apply(
           this,
-          normalised.map((a) => (typeof a === 'string' ? maskLogText(a) : a)),
+          normalised.map((a) => (typeof a === 'string' ? scrub(a) : a)),
         );
       },
     },
     serializers: {
       err(e: Error) {
         const s = pino.stdSerializers.err(e);
-        s.message = maskLogText(s.message);
-        if (s.stack) s.stack = maskLogText(s.stack);
+        s.message = scrub(s.message);
+        if (s.stack) s.stack = scrub(s.stack);
         return s;
       },
     },

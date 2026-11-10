@@ -148,3 +148,7 @@ export function degradedBannerText(list: readonly ChannelItem[]): string | null 
   if (list.length === 1) return `${first.name} isn't working. Visitors there may not get replies.`;
   return `${list.length} channels aren't working. Visitors there may not get replies.`;
 }
+
+/** The channel's icon by kind (FEAT-037 adds Telegram's `send`). */
+export const channelIconOf = (kind: string): 'mail' | 'send' | 'message' =>
+  kind === 'email' ? 'mail' : kind === 'telegram' ? 'send' : 'message';

@@ -30,6 +30,19 @@ export const schema = envSchemas.base
     MFA_SECRET_KEY: z
       .string()
       .refine((v) => Buffer.from(v, 'base64url').length === 32, 'must be 32 bytes, base64url'),
+    /**
+     * Seals channel credentials (a Telegram bot token, FEAT-037 §5.2): 32 random bytes,
+     * base64url, the same in the api, agent-worker and scheduler. KMS replaces it at MD.
+     */
+    CHANNEL_SECRET_KEY: z
+      .string()
+      .refine((v) => Buffer.from(v, 'base64url').length === 32, 'must be 32 bytes, base64url'),
+    /** Where channel webhooks reach this api: `<url>/hooks/<kind>/<connection id>` (FEAT-037). */
+    PUBLIC_HOOKS_URL: envSchemas.url.transform((u) => u.replace(/\/+$/, '')),
+    /** The Telegram Bot API; the local fake (`pnpm fixtures:telegram`) in dev and E2E. */
+    TELEGRAM_API_BASE: envSchemas.url.default('https://api.telegram.org'),
+    /** Webhook requests per connection per minute (FEAT-037 §5.6). */
+    HOOK_RATE_LIMIT: z.coerce.number().int().min(10).max(100_000).default(600),
     /** The product name authenticator apps show as the issuer (D4 placeholder name). */
     APP_NAME: z.string().min(1).max(40).default('KakiAgent'),
     /** `smtp://localhost:1025` (Mailpit) locally; the SES SMTP endpoint in AWS (MD). */

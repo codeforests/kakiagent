@@ -42,7 +42,16 @@ export function shapeOutbound(m: ShapeInput, ctx: ShapeContext): Shaped {
     ? `${ctx.businessName} · Privacy notice: ${ctx.privacyUrl}`
     : ctx.businessName;
   let text = parts.join('\n\n');
-  const room = ctx.capabilities.maxLength - footer.length - 6;
+  // D7 (FEAT-037): a chat app carries the privacy line once, with the AI disclosure; email
+  // signs every message with it.
+  const chat = ctx.capabilities.footer === 'with_disclosure';
+  if (chat && !m.disclosure) {
+    const max = ctx.capabilities.maxLength;
+    if (text.length > max) text = `${text.slice(0, max - 3).trimEnd()}[…]`;
+    return { send: true, text };
+  }
+  const sep = chat ? '\n\n' : '\n\n-- \n';
+  const room = ctx.capabilities.maxLength - footer.length - sep.length;
   if (text.length > room) text = `${text.slice(0, Math.max(0, room - 3)).trimEnd()}[…]`;
-  return { send: true, text: `${text}\n\n-- \n${footer}` };
+  return { send: true, text: `${text}${sep}${footer}` };
 }

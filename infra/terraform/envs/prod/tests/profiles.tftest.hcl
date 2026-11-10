@@ -85,6 +85,21 @@ run "launch_profile" {
     condition     = module.service["api"].environment.QUARANTINE_BUCKET == module.storage.bucket_names["quarantine"] && contains(module.service["api"].task_policy_names, "uploads") && contains(module.service["ingest-worker"].task_policy_names, "files")
     error_message = "The api signs uploads into quarantine and the ingest worker has the file-store policy (FEAT-015)."
   }
+  # FEAT-037 §5.6: Telegram webhooks reach the api through CloudFront and the ALB, past the
+  # common rule set's 8 KB body limit (the api caps them at 64 KB); the roles that call
+  # Telegram know the hook URL and get the channel secret.
+  assert {
+    condition     = contains(module.edge.routes.api_paths, "/hooks/*") && contains(module.edge.routes.alb_paths, "/hooks/*")
+    error_message = "POST /hooks/* must reach the api (FEAT-037 §5.6)."
+  }
+  assert {
+    condition     = contains(module.edge.routes.waf_rules, "body-size")
+    error_message = "The WAF must keep the 8 KB body limit outside /hooks/*."
+  }
+  assert {
+    condition     = alltrue([for r in ["api", "scheduler-worker"] : contains(keys(module.service[r].environment), "PUBLIC_HOOKS_URL")]) && alltrue([for r in ["api", "agent-worker", "scheduler-worker"] : contains(module.service[r].secret_names, "CHANNEL_SECRET_KEY")])
+    error_message = "The api and the scheduler need the hook URL, and every role that calls Telegram the channel secret."
+  }
 }
 
 run "full_profile" {

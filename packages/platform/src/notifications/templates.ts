@@ -24,6 +24,7 @@ const SUBJECT: Record<NotificationKind, string> = {
   approval_pending: 'A reply is waiting for your approval',
   hot_lead: 'New hot lead',
   consent_withdrawn: 'A contact withdrew consent',
+  channel_degraded: 'A channel stopped working',
   escalation_reminder: 'Reminder: a customer is still waiting for a person',
   approval_undeliverable: "An approved reply couldn't reach the customer",
   test: 'Test alert from KakiAgent',
@@ -35,6 +36,8 @@ const LINE: Record<NotificationKind, string> = {
   hot_lead: 'A new hot lead came in.',
   consent_withdrawn:
     "A customer asked you to stop using their contact details. Don't contact them or use their details; they're left out of exports.",
+  channel_degraded:
+    'One of your channels stopped working, so customers there get no replies. Check it on the Channels page.',
   escalation_reminder: 'A customer who asked for a person is still waiting.',
   approval_undeliverable:
     'A decision was made after the chat closed, and the customer left no email or phone. Contact them another way if you can.',
@@ -107,4 +110,42 @@ export function digestEmail(items: AlertItem[], ctx: EmailContext): Email {
       (note ? `<p><small>Approval links: ${escapeHtml(APPROVAL_LINK_NOTE)}</small></p>` : '') +
       footerHtml(ctx),
   };
+}
+
+/** Telegram's limit for one message. */
+export const TELEGRAM_TEXT_MAX = 4096;
+
+/**
+ * The Telegram alert (FEAT-037 §5.5): the email's plain text without the email furniture, so
+ * still only the event, the business and a link (D12). Plain text, no parse mode.
+ */
+export function alertText(item: AlertItem, ctx: { businessName: string }): string {
+  const text =
+    `${item.urgent ? 'Urgent: ' : ''}${ctx.businessName}: ${LINE[item.kind]}\n` +
+    `${buttonText(item.kind)}: ${item.link}` +
+    (item.kind === 'approval_pending' ? `\n${APPROVAL_LINK_NOTE}` : '');
+  return text.slice(0, TELEGRAM_TEXT_MAX);
+}
+
+/** One Telegram message for everything held during quiet hours, oldest first. */
+export function digestText(items: AlertItem[], ctx: { businessName: string }): string {
+  const sorted = [...items].sort((a, b) => a.at.getTime() - b.at.getTime());
+  const n = sorted.length;
+  const head = `${ctx.businessName}: ${n} ${n === 1 ? 'alert' : 'alerts'} came in while your quiet hours were on.`;
+  const lines = sorted.map(
+    (i) => `- ${sgTimeOfDay(i.at)}: ${i.urgent ? 'Urgent: ' : ''}${LINE[i.kind]} ${i.link}`,
+  );
+  const note = sorted.some((i) => i.kind === 'approval_pending')
+    ? `\n\nApproval links: ${APPROVAL_LINK_NOTE}`
+    : '';
+  let out = head;
+  for (const [k, line] of lines.entries()) {
+    const more = `\n...and ${lines.length - k} more in KakiAgent.`;
+    if (out.length + 1 + line.length + note.length + more.length > TELEGRAM_TEXT_MAX) {
+      out += more;
+      return out + note;
+    }
+    out += `\n${line}`;
+  }
+  return out + note;
 }

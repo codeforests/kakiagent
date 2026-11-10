@@ -1,10 +1,17 @@
 # CloudFront + WAF in front of the ALB and the static bucket (ADR-003, architecture §7).
-# Static builds (widget, dashboard, operator) come from S3 through OAC. /api, /widget
-# and /ws go to the ALB uncached, over HTTPS to the origin name on the ALB's
+# Static builds (widget, dashboard, operator) come from S3 through OAC. /api, /widget,
+# /hooks (channel webhooks, FEAT-037) and /ws go to the ALB uncached, over HTTPS to the origin name on the ALB's
 # certificate. The ALB only accepts CloudFront's addresses and its secret header.
 
 data "aws_ec2_managed_prefix_list" "cloudfront" {
   name = "com.amazonaws.global.cloudfront.origin-facing"
+}
+
+locals {
+  # Paths the ALB sends to the api; `/hooks/*` is the channel webhooks (FEAT-037, ADR-011).
+  api_paths = ["/api/*", "/widget/v1/*", "/hooks/*", "/healthz", "/readyz"]
+  # Paths CloudFront sends to the ALB uncached.
+  alb_paths = ["/api/*", "/widget/v1/*", "/hooks/*", "/ws"]
 }
 
 resource "random_password" "origin_verify" {
@@ -111,7 +118,7 @@ resource "aws_lb_listener_rule" "api" {
   }
   condition {
     path_pattern {
-      values = ["/api/*", "/widget/v1/*", "/healthz", "/readyz"]
+      values = local.api_paths
     }
   }
   condition {
@@ -139,6 +146,13 @@ resource "aws_wafv2_web_acl" "this" {
       managed_rule_group_statement {
         name        = "AWSManagedRulesCommonRuleSet"
         vendor_name = "AWS"
+        # Counted here and blocked by "body-size" below, except on channel webhooks.
+        rule_action_override {
+          name = "SizeRestrictions_BODY"
+          action_to_use {
+            count {}
+          }
+        }
       }
     }
     visibility_config {
@@ -162,6 +176,47 @@ resource "aws_wafv2_web_acl" "this" {
     visibility_config {
       cloudwatch_metrics_enabled = true
       metric_name                = "${var.name}-ip-reputation"
+      sampled_requests_enabled   = true
+    }
+  }
+  # The common rule set's 8 KB body limit everywhere but `/hooks/*` (FEAT-037 §5.6): a
+  # Telegram update can be larger, and the api caps a webhook body at 64 KB itself.
+  rule {
+    name     = "body-size"
+    priority = 4
+    action {
+      block {}
+    }
+    statement {
+      and_statement {
+        statement {
+          label_match_statement {
+            scope = "LABEL"
+            key   = "awswaf:managed:aws:core-rule-set:SizeRestrictions_Body"
+          }
+        }
+        statement {
+          not_statement {
+            statement {
+              byte_match_statement {
+                search_string         = "/hooks/"
+                positional_constraint = "STARTS_WITH"
+                field_to_match {
+                  uri_path {}
+                }
+                text_transformation {
+                  priority = 0
+                  type     = "NONE"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "${var.name}-body-size"
       sampled_requests_enabled   = true
     }
   }
@@ -244,7 +299,7 @@ resource "aws_cloudfront_distribution" "this" {
   }
 
   dynamic "ordered_cache_behavior" {
-    for_each = ["/api/*", "/widget/v1/*", "/ws"]
+    for_each = local.alb_paths
     content {
       path_pattern             = ordered_cache_behavior.value
       target_origin_id         = "alb"

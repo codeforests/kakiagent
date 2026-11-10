@@ -14,7 +14,7 @@ import {
 } from '@kaki/platform';
 import { buildApp } from '../src/app.js';
 import { schema as configSchema } from '../src/config.js';
-import type { EmailDeps, UploadSigner } from '../src/server.js';
+import type { EmailDeps, TelegramDeps, UploadSigner } from '../src/server.js';
 
 export const APP_URL = 'http://localhost:5173';
 
@@ -67,6 +67,8 @@ export function testConfig(tdb: TestDatabase, env: Record<string, string> = {}) 
     SESSION_SECRET: 's'.repeat(32),
     MAGIC_LINK_SECRET: 'm'.repeat(32),
     MFA_SECRET_KEY: Buffer.alloc(32, 7).toString('base64url'),
+    CHANNEL_SECRET_KEY: Buffer.alloc(32, 9).toString('base64url'),
+    PUBLIC_HOOKS_URL: 'http://localhost:3000',
     SMTP_URL: 'smtp://localhost:1025',
     QUARANTINE_BUCKET: 'kaki-test-quarantine',
     EMAIL_INBOUND_DOMAIN: 'in.kaki.test',
@@ -90,6 +92,7 @@ export async function testApp(
     rateLimiter?: RateLimiter;
     logger?: ReturnType<typeof createLogger>;
     email?: EmailDeps;
+    telegram?: TelegramDeps;
   } = {},
 ) {
   return buildApp({
@@ -107,6 +110,7 @@ export async function testApp(
     uploads: opts.uploads ?? fakeSigner(),
     ...(opts.resolve ? { resolve: opts.resolve } : {}),
     ...(opts.email ? { email: opts.email } : {}),
+    ...(opts.telegram ? { telegram: opts.telegram } : {}),
   });
 }
 

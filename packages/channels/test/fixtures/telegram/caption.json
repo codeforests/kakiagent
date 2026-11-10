@@ -1,0 +1,31 @@
+{
+  "update_id": 1002,
+  "message": {
+    "message_id": 1002,
+    "from": {
+      "id": 5550001,
+      "is_bot": false,
+      "first_name": "Mei",
+      "last_name": "Tan",
+      "username": "meitan",
+      "language_code": "en"
+    },
+    "chat": {
+      "id": 5550001,
+      "first_name": "Mei",
+      "last_name": "Tan",
+      "username": "meitan",
+      "type": "private"
+    },
+    "date": 1763445900,
+    "caption": "Is this cake available?",
+    "photo": [
+      {
+        "file_id": "x",
+        "file_unique_id": "y",
+        "width": 1,
+        "height": 1
+      }
+    ]
+  }
+}

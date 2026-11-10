@@ -197,6 +197,7 @@ describe('email registry entry (FEAT-036 §5.1)', () => {
     });
     expect(connectable(CHANNEL_REGISTRY, ['widget'])).toEqual([
       { kind: 'email', name: 'Email', connectPath: '/settings/channels/email' },
+      { kind: 'telegram', name: 'Telegram', connectPath: '/settings/channels/telegram' },
     ]);
     expect(registryEntry('email')?.adapter).toBeUndefined();
     const bound = withAdapter(CHANNEL_REGISTRY, 'email', () => adapter());

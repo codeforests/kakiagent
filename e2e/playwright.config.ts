@@ -38,6 +38,15 @@ export default defineConfig({
   ],
   webServer: [
     {
+      // The Telegram Bot API stand-in, TELEGRAM_API_BASE locally (FEAT-037 T11).
+      command: 'pnpm fixtures:telegram',
+      cwd: '..',
+      url: 'http://localhost:5177/healthz',
+      reuseExistingServer: true,
+      stdout: 'ignore',
+      stderr: 'pipe',
+    },
+    {
       // The crawler's fixture site, `https://kakibakery.test` to the worker (FEAT-012 §5.8).
       command: 'pnpm fixtures:site',
       cwd: '..',

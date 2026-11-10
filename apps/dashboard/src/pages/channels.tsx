@@ -3,12 +3,13 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { api, ApiError } from '../lib/api.ts';
-import { CHANNELS_KEY, useChannels } from '../lib/channels.ts';
+import { CHANNELS_KEY, channelIconOf, useChannels } from '../lib/channels.ts';
 import { useToast } from '../lib/form.ts';
 import { ChannelCard, ChannelIcon, type Contacts } from './channels-parts.tsx';
 
 const CONNECT_CAPTION: Partial<Record<string, string>> = {
   email: 'Answer customer emails in the same thread.',
+  telegram: 'Answer customers who message your Telegram bot.',
 };
 
 /** SCR-APP-036 Channels (ONB-10, CHN-12; FEAT-034 ui-design). */
@@ -77,7 +78,7 @@ export function ChannelsPage() {
               {loaded.data.connectable.map((c) => (
                 <li className="channels-connect__row" key={c.kind}>
                   <span className="channel-card__icon">
-                    <ChannelIcon name={c.kind === 'email' ? 'mail' : 'message'} size={20} />
+                    <ChannelIcon name={channelIconOf(c.kind)} size={20} />
                   </span>
                   <span className="channels-connect__text">
                     <span className="channels-connect__name">{c.name}</span>

@@ -49,6 +49,24 @@ export async function withTenant<T>(
   });
 }
 
+/**
+ * `withTenant` plus `app.user_id` (FEAT-037 §4): tables with an own-row policy (a member's
+ * Telegram alert link) show the dashboard zone that member's rows only. The user ID comes
+ * from the verified session, never a request body.
+ */
+export async function withMember<T>(
+  zdb: ZoneDb,
+  tenantId: string,
+  userId: string,
+  fn: (tx: Tx) => Promise<T>,
+): Promise<T> {
+  if (!UUID_RE.test(userId)) throw new Error('withMember: userId must be a UUID');
+  return withTenant(zdb, tenantId, async (tx) => {
+    await tx.execute(sql`select set_config('app.user_id', ${userId}, true)`);
+    return fn(tx);
+  });
+}
+
 export async function ping(zdb: ZoneDb): Promise<boolean> {
   const res = await zdb.pool.query('select 1 as ok');
   return res.rows[0]?.ok === 1;

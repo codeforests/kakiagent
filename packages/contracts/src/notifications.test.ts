@@ -21,7 +21,7 @@ describe('notification contracts (FEAT-052 §3)', () => {
         ],
         quietHours: quiet,
         timeZone: 'Asia/Singapore',
-        sendTo: { email: 'owner@kaki-bakery.test' },
+        sendTo: { email: 'owner@kaki-bakery.test', telegram: null },
       }).events,
     ).toHaveLength(3);
   });
@@ -59,7 +59,10 @@ describe('notification contracts (FEAT-052 §3)', () => {
   });
 
   it('test alert result and the rate-limit error', () => {
-    expect(TestAlertResult.parse({ sentTo: 'a@b.test' })).toEqual({ sentTo: 'a@b.test' });
+    expect(TestAlertResult.parse({ sentTo: 'a@b.test', telegram: false })).toEqual({
+      sentTo: 'a@b.test',
+      telegram: false,
+    });
     expect(
       RateLimitedError.safeParse({ error: 'rate_limited', message: 'm', retryAfterSeconds: 42 })
         .success,

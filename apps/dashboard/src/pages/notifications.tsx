@@ -6,12 +6,14 @@ import { Link } from 'react-router';
 import { api } from '../lib/api.ts';
 import { Field } from '../lib/field.tsx';
 import { describedBy, useToast } from '../lib/form.ts';
+import { linkStateText } from '../lib/telegram-channel.ts';
 import {
   EVENT_TEXT,
   quietError,
   quietHelp,
   quietServerError,
   testErrorText,
+  testSentText,
   useNotificationPrefs,
   useSaveNotificationPrefs,
   useSendTestAlert,
@@ -23,7 +25,10 @@ import {
 
 type OnToast = (t: string) => void;
 
-const CHANNEL_LABEL: Record<NotificationChannel, string> = { email: 'Email' };
+const CHANNEL_LABEL: Record<NotificationChannel, string> = {
+  email: 'Email',
+  telegram: 'Telegram',
+};
 
 export function NotificationsPage() {
   const me = useQuery({ queryKey: ['me'], queryFn: api.me });
@@ -84,12 +89,15 @@ function SaveSwitch({
   change,
   onSaved,
   onFailed,
+  disabled,
   ...aria
 }: {
   checked: boolean;
   change: PrefsChange;
   onSaved: () => void;
   onFailed: () => void;
+  disabled?: boolean;
+  'aria-describedby'?: string;
   'aria-label'?: string;
   'aria-labelledby'?: string;
 }) {
@@ -101,6 +109,7 @@ function SaveSwitch({
       className="toggle toggle--touch"
       aria-checked={checked}
       aria-busy={save.isPending || undefined}
+      disabled={disabled}
       {...aria}
       onClick={() => {
         if (save.isPending) return;
@@ -122,7 +131,11 @@ function AlertsCard({
   onToast: OnToast;
 }) {
   const [failed, setFailed] = useState(false);
-  const allOff = prefs.events.every((e) => prefs.channels.every((c) => !e[c]));
+  // The email alert stays FEAT-052's: Telegram switches don't change it (FEAT-037 ui-design).
+  const allOff = prefs.events.every((e) => !e.email);
+  const telegram = prefs.sendTo.telegram
+    ? linkStateText(prefs.sendTo.telegram, prefs.sendTo.email)
+    : null;
   const saved = () => {
     setFailed(false);
     onToast('Saved.');
@@ -143,6 +156,17 @@ function AlertsCard({
           Change email
         </Link>
       </p>
+      {telegram && (
+        <p className="notif-sendto" id="notif-telegram-help" data-testid="notif-telegram-help">
+          {telegram.help}
+          {prefs.sendTo.telegram?.state === 'not_linked' && (
+            <>
+              {' '}
+              <Link to="/settings/channels/telegram#alerts">Link Telegram</Link>
+            </>
+          )}
+        </p>
+      )}
       <div className="notif-list">
         <div className="notif-list__head" aria-hidden="true">
           {prefs.channels.map((c) => (
@@ -157,6 +181,7 @@ function AlertsCard({
               key={e.event}
               event={e.event}
               channels={prefs.channels}
+              telegramEnabled={telegram?.enabled ?? false}
               value={e}
               onSaved={saved}
               onFailed={() => setFailed(true)}
@@ -179,12 +204,14 @@ function AlertsCard({
 function EventRow({
   event,
   channels,
+  telegramEnabled,
   value,
   onSaved,
   onFailed,
 }: {
   event: AlertEvent;
   channels: NotificationChannel[];
+  telegramEnabled: boolean;
   value: NotificationPrefs['events'][number];
   onSaved: () => void;
   onFailed: () => void;
@@ -203,8 +230,16 @@ function EventRow({
               {CHANNEL_LABEL[c]}
             </span>
             <SaveSwitch
-              checked={value[c]}
-              change={{ event, email: !value[c] }}
+              checked={value[c] ?? true}
+              change={
+                c === 'email'
+                  ? { event, email: !value.email }
+                  : { event, email: value.email, telegram: !(value.telegram ?? true) }
+              }
+              disabled={c === 'telegram' && !telegramEnabled}
+              aria-describedby={
+                c === 'telegram' && !telegramEnabled ? 'notif-telegram-help' : undefined
+              }
               aria-label={`${CHANNEL_LABEL[c]} alerts: ${text.label}`}
               onSaved={onSaved}
               onFailed={onFailed}
@@ -218,6 +253,7 @@ function EventRow({
 
 function QuietHoursCard({ prefs, onToast }: { prefs: NotificationPrefs; onToast: OnToast }) {
   const q = prefs.quietHours;
+  const linked = prefs.sendTo.telegram?.state === 'linked';
   const save = useSaveNotificationPrefs();
   const [draft, setDraft] = useState({ start: q.start, end: q.end });
   const [error, setError] = useState<QuietError | null>(null);
@@ -317,7 +353,7 @@ function QuietHoursCard({ prefs, onToast }: { prefs: NotificationPrefs; onToast:
               <input ref={endRef} {...to.input} />
             </Field>
           </div>
-          <p className="field__help">{quietHelp({ ...q, ...draft })}</p>
+          <p className="field__help">{quietHelp({ ...q, ...draft }, linked)}</p>
           <div className="account-card__actions">
             <Button type="submit" disabled={!dirty} aria-disabled={save.isPending || undefined}>
               {save.isPending ? 'Saving…' : 'Save quiet hours'}
@@ -347,8 +383,7 @@ function TestCard({ onToast }: { onToast: OnToast }) {
           onClick={() => {
             if (send.isPending) return;
             send.mutate(undefined, {
-              onSuccess: (res) =>
-                onToast(`Test alert sent to ${res.sentTo}. It should arrive within a minute.`),
+              onSuccess: (res) => onToast(testSentText(res)),
             });
           }}
         >

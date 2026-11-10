@@ -1,10 +1,17 @@
 import { sql, withTenant, type Tx, type ZoneDb } from '@kaki/db';
 import type { Mailer } from '../mailer.js';
-import { muteEvent, type NotificationKind, type SubjectType } from './kinds.js';
+import { muteEvent, type AlertChannel, type NotificationKind, type SubjectType } from './kinds.js';
 import { alertLink, settingsLink, type LinkOf } from './links.js';
 import { prefsOf, type Prefs } from './prefs.js';
 import { inQuietHours } from './quiet.js';
-import { alertEmail, digestEmail, type AlertItem, type EmailContext } from './templates.js';
+import {
+  alertEmail,
+  alertText,
+  digestEmail,
+  digestText,
+  type AlertItem,
+  type EmailContext,
+} from './templates.js';
 
 /** Retry delay after `attempts` failed sends: 10 s, doubling, at most 30 minutes. */
 export const alertBackoffSeconds = (attempts: number) =>
@@ -25,6 +32,19 @@ export const DIGEST_MAX_ATTEMPTS = (() => {
   return n;
 })();
 
+/** What the Telegram port did with one message (FEAT-037 §5.5). */
+export type TelegramAlertOutcome = 'sent' | 'no_channel' | { failed: 'transient' | 'auth' };
+
+/**
+ * Sends one alert to a member's linked Telegram chat (FEAT-037 §5.5, D9). The scheduler binds
+ * it to `@kaki/channels`' `telegramAlerts`, which reads the link and the bot's credential in the
+ * visitor zone, so the identity zone never sees a bot token and platform never imports channels.
+ * `no_channel`: the member has no linked chat, or the business no bot.
+ */
+export interface TelegramAlertSender {
+  send(m: { tenantId: string; userId: string; text: string }): Promise<TelegramAlertOutcome>;
+}
+
 export interface SendOptions {
   /** `PUBLIC_APP_URL`, the dashboard origin the links open. */
   appUrl: string;
@@ -38,6 +58,8 @@ export interface SendOptions {
    * `null` (or no callback) falls back to `linkFor`.
    */
   linkOf?: LinkOf;
+  /** Telegram rows go through this port; without it they are skipped as `no_channel`. */
+  telegram?: TelegramAlertSender | undefined;
 }
 
 export interface SendResult {
@@ -52,6 +74,7 @@ export interface SendResult {
 type Row = {
   id: string;
   user_id: string;
+  channel: AlertChannel;
   kind: NotificationKind;
   urgent: boolean;
   subject_type: SubjectType;
@@ -62,14 +85,15 @@ type Row = {
   email: string;
   business: string;
   email_muted: string[] | null;
+  telegram_muted: string[] | null;
   quiet_enabled: boolean | null;
   quiet_start: number | null;
   quiet_end: number | null;
 };
 
-const COLUMNS = sql`n.id, n.user_id, n.kind, n.urgent, n.subject_type, n.subject_id, n.attempts,
+const COLUMNS = sql`n.id, n.user_id, n.channel, n.kind, n.urgent, n.subject_type, n.subject_id, n.attempts,
   n.created_at, (m.status = 'active' and u.status = 'active') as active, u.email,
-  t.name as business, p.email_muted, p.quiet_enabled, p.quiet_start, p.quiet_end`;
+  t.name as business, p.email_muted, p.telegram_muted, p.quiet_enabled, p.quiet_start, p.quiet_end`;
 const FROM = sql`notifications n
   join memberships m on m.tenant_id = n.tenant_id and m.user_id = n.user_id
   join users u on u.id = n.user_id
@@ -126,8 +150,41 @@ const itemOf = (r: Row, tenantId: string, opts: SendOptions): AlertItem => {
 };
 const mutedFor = (prefs: Prefs, r: Row) => {
   const event = muteEvent(r.kind);
-  return event !== null && prefs.emailMuted.includes(event);
+  const muted = r.channel === 'telegram' ? prefs.telegramMuted : prefs.emailMuted;
+  return event !== null && muted.includes(event);
 };
+
+type Delivered = 'sent' | 'no_channel' | 'failed';
+
+/** Sends one alert or one digest on the rows' channel (they share user and channel). */
+async function deliver(
+  rows: Row[],
+  tenantId: string,
+  mailer: Mailer,
+  opts: SendOptions,
+  digest: boolean,
+): Promise<Delivered> {
+  const first = rows[0]!;
+  const items = rows.map((r) => itemOf(r, tenantId, opts));
+  if (first.channel === 'telegram') {
+    if (!opts.telegram) return 'no_channel';
+    const ctx = { businessName: first.business };
+    const text = digest ? digestText(items, ctx) : alertText(items[0]!, ctx);
+    try {
+      const out = await opts.telegram.send({ tenantId, userId: first.user_id, text });
+      return out === 'sent' || out === 'no_channel' ? out : 'failed';
+    } catch {
+      return 'failed';
+    }
+  }
+  try {
+    const ctx = ctxOf(first, opts.appUrl);
+    await mailer.send(digest ? digestEmail(items, ctx) : alertEmail(items[0]!, ctx));
+    return 'sent';
+  } catch {
+    return 'failed';
+  }
+}
 
 async function sendPending(
   tx: Tx,
@@ -151,6 +208,9 @@ async function sendPending(
     } else if (mutedFor(prefs, r)) {
       await skip(tx, tenantId, [r.id], 'muted');
       out.skipped++;
+    } else if (r.channel === 'telegram' && !opts.telegram) {
+      await skip(tx, tenantId, [r.id], 'no_channel');
+      out.skipped++;
     } else if (!r.urgent && r.kind !== 'test' && inQuietHours(prefs.quiet, now)) {
       await tx.execute(
         sql`update notifications set status = 'held', held_at = ${now}
@@ -158,20 +218,26 @@ async function sendPending(
       );
       out.held++;
     } else {
-      try {
-        await mailer.send(alertEmail(itemOf(r, tenantId, opts), ctxOf(r, opts.appUrl)));
+      const done = await deliver([r], tenantId, mailer, opts, false);
+      if (done === 'sent') {
         await tx.execute(
           sql`update notifications set status = 'sent', sent_at = ${now}, attempts = attempts + 1
               where tenant_id = ${tenantId} and id = ${r.id}`,
         );
         out.sent++;
-      } catch {
+      } else if (done === 'no_channel') {
+        await skip(tx, tenantId, [r.id], 'no_channel');
+        out.skipped++;
+      } else {
         const attempts = r.attempts + 1;
         const giveUp = now.getTime() - createdAt(r).getTime() >= GIVE_UP_MS;
         await retryOrFail(tx, tenantId, [r.id], attempts, giveUp, now);
         if (giveUp) {
           out.failed++;
-          opts.log?.warn({ tenantId, notificationId: r.id, kind: r.kind }, 'alert email failed');
+          opts.log?.warn(
+            { tenantId, notificationId: r.id, kind: r.kind, channel: r.channel },
+            `alert ${r.channel} failed`,
+          );
         }
       }
     }
@@ -189,10 +255,14 @@ async function sendDigests(
   const { rows } = await tx.execute<Row>(
     sql`select ${COLUMNS} from ${FROM}
         where n.tenant_id = ${tenantId} and n.status = 'held' and n.next_attempt_at <= ${now}
-        order by n.user_id, n.created_at for update of n skip locked`,
+        order by n.user_id, n.channel, n.created_at for update of n skip locked`,
   );
+  // One digest per member, business and channel (FEAT-037 D8).
   const byUser = new Map<string, Row[]>();
-  for (const r of rows) byUser.set(r.user_id, [...(byUser.get(r.user_id) ?? []), r]);
+  for (const r of rows) {
+    const key = `${r.user_id}:${r.channel}`;
+    byUser.set(key, [...(byUser.get(key) ?? []), r]);
+  }
   for (const group of byUser.values()) {
     const first = group[0]!;
     const prefs = prefsOf(first);
@@ -221,13 +291,8 @@ async function sendDigests(
     const items = group.filter((r) => !mutedFor(prefs, r));
     if (items.length === 0) continue;
     const ids = items.map((r) => r.id);
-    try {
-      await mailer.send(
-        digestEmail(
-          items.map((r) => itemOf(r, tenantId, opts)),
-          ctxOf(first, opts.appUrl),
-        ),
-      );
+    const done = await deliver(items, tenantId, mailer, opts, true);
+    if (done === 'sent') {
       await tx.execute(
         sql`update notifications
             set status = 'sent', digest = true, sent_at = ${now}, attempts = attempts + 1
@@ -235,19 +300,30 @@ async function sendDigests(
       );
       out.digests++;
       out.sent += items.length;
-    } catch {
+    } else if (done === 'no_channel') {
+      await skip(tx, tenantId, ids, 'no_channel');
+      out.skipped += items.length;
+    } else {
       const attempts = Math.max(...items.map((r) => r.attempts)) + 1;
       const giveUp = attempts >= DIGEST_MAX_ATTEMPTS;
       await retryOrFail(tx, tenantId, ids, attempts, giveUp, now);
       if (giveUp) {
         out.failed += items.length;
-        opts.log?.warn({ tenantId, notificationIds: ids, kind: 'digest' }, 'digest email failed');
+        opts.log?.warn(
+          { tenantId, notificationIds: ids, kind: 'digest', channel: first.channel },
+          `digest ${first.channel} failed`,
+        );
       }
     }
   }
 }
 
-async function skip(tx: Tx, tenantId: string, ids: string[], reason: 'muted' | 'inactive') {
+async function skip(
+  tx: Tx,
+  tenantId: string,
+  ids: string[],
+  reason: 'muted' | 'inactive' | 'no_channel',
+) {
   await tx.execute(
     sql`update notifications set status = 'skipped', skip_reason = ${reason}
         where tenant_id = ${tenantId} and id = any(${`{${ids.join(',')}}`}::uuid[])`,

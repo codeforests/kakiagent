@@ -42,10 +42,11 @@ export const VIEW_LABEL: Record<InboxView, string> = {
 export const CHANNEL_LABEL: Record<ConversationSummary['channel'], string> = {
   widget: 'Website chat',
   email: 'Email',
+  telegram: 'Telegram',
 };
 
-/** The channel filter's options, in order (FEAT-036 adds Email after Website chat). */
-export const CHANNELS: ConversationChannel[] = ['widget', 'email'];
+/** The channel filter's options, in order (FEAT-036 adds Email, FEAT-037 Telegram after it). */
+export const CHANNELS: ConversationChannel[] = ['widget', 'email', 'telegram'];
 /** A URL or cache-key value as a channel filter; anything else is all channels. */
 export const channelOf = (v: string | null | undefined): ConversationChannel | null =>
   (CHANNELS as (string | null | undefined)[]).includes(v) ? (v as ConversationChannel) : null;
@@ -54,6 +55,7 @@ export const channelOf = (v: string | null | undefined): ConversationChannel | n
 export const PARTY_LABEL: Record<ConversationChannel, string> = {
   widget: 'Website visitor',
   email: 'Email customer',
+  telegram: 'Telegram customer',
 };
 
 export function viewFromSearch(search: URLSearchParams): InboxFilter {
@@ -573,10 +575,33 @@ export const cardCaption = (card: ThreadMessage['card']) =>
           ? 'Asked to confirm the withdrawal'
           : null;
 
+/**
+ * A Telegram message without text arrives as a placeholder like "[Sticker]" (FEAT-037 D11): the
+ * caption's kind ("sticker", "voice message"), or null for an ordinary message.
+ */
+export function placeholderKind(
+  body: string,
+  author: ThreadMessage['author'],
+  channel: ConversationChannel | undefined,
+): string | null {
+  if (channel !== 'telegram' || author !== 'visitor') return null;
+  const m = /^\[([A-Z][A-Za-z ]{1,30})\]$/.exec(body.trim());
+  return m?.[1] ? m[1].toLowerCase() : null;
+}
+
+/** The thread header's caption line before "· started …" (FEAT-036/037 ui-design). */
+export function channelCaption(channel: ConversationChannel, telegramUsername: string | null) {
+  if (channel === 'email') return 'By email';
+  if (channel === 'telegram')
+    return telegramUsername ? `On Telegram · @${telegramUsername}` : 'On Telegram';
+  return CHANNEL_LABEL[channel];
+}
+
 const FAILED_REASON: Record<NonNullable<MessageDelivery['failedReason']>, string> = {
   bounced: 'the address bounced',
   rejected: 'the email was refused',
   timed_out: "we couldn't send it for 24 hours",
+  blocked: 'the customer blocked the bot',
 };
 
 /** The delivery line under a staff or AI bubble (FEAT-036 ui-design); null when sent or none. */

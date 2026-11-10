@@ -9,7 +9,9 @@ import { schema } from '@kaki/db';
  */
 export const ALERT_EVENTS = schema.ALERT_EVENTS;
 export const NOTIFICATION_KINDS = schema.NOTIFICATION_KINDS;
-export const CHANNELS = ['email'] as const;
+/** Alert channels (FEAT-037 D8): one row per recipient per channel. */
+export const CHANNELS = ['email', 'telegram'] as const;
+export type AlertChannel = (typeof CHANNELS)[number];
 
 export type AlertEvent = (typeof ALERT_EVENTS)[number];
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];

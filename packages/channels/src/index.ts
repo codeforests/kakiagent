@@ -127,3 +127,4 @@ export {
   type DeliveryRow,
 } from './deliver.js';
 export { shapeOutbound, UNSENT_NOTICE_KINDS, type Shaped, type ShapeInput } from './shape.js';
+export * from './telegram/index.js';

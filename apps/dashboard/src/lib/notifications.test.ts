@@ -11,6 +11,7 @@ import {
   quietServerError,
   quietSummary,
   testErrorText,
+  testSentText,
   undoOf,
 } from './notifications.ts';
 
@@ -23,7 +24,7 @@ const prefs: NotificationPrefs = {
   ],
   quietHours: { enabled: true, start: '22:00', end: '08:00' },
   timeZone: 'Asia/Singapore',
-  sendTo: { email: 'owner@kaki-bakery.test' },
+  sendTo: { email: 'owner@kaki-bakery.test', telegram: null },
 };
 
 describe('EVENT_TEXT', () => {
@@ -31,8 +32,14 @@ describe('EVENT_TEXT', () => {
     expect(EVENT_TEXT.escalation.label).toBe('A customer asks for a person');
     expect(EVENT_TEXT.approval_pending.label).toBe('A reply needs approval');
     expect(EVENT_TEXT.hot_lead.label).toBe('New hot lead');
-    for (const t of Object.values(EVENT_TEXT))
-      expect(`${t.label} ${t.help}`).not.toMatch(/notification event|channel|mute/i);
+    expect(EVENT_TEXT.channel_degraded.label).toBe('A channel stops working');
+    // FEAT-037's channel_degraded is about a channel, so only it may say "channel".
+    for (const [event, t] of Object.entries(EVENT_TEXT))
+      expect(`${t.label} ${t.help}`).not.toMatch(
+        event === 'channel_degraded'
+          ? /notification event|mute/i
+          : /notification event|channel|mute/i,
+      );
   });
 });
 
@@ -120,5 +127,40 @@ describe('applyChange, undoOf and bodyOf', () => {
     const next = applyChange(prefs, { quietHours });
     expect(bodyOf(next)).toEqual({ events: prefs.events, quietHours });
     expect(Object.keys(bodyOf(next))).toEqual(['events', 'quietHours']);
+  });
+});
+
+describe('Telegram (FEAT-037)', () => {
+  const both: NotificationPrefs = {
+    ...prefs,
+    channels: ['email', 'telegram'],
+    events: prefs.events.map((e) => ({ ...e, telegram: true })),
+    sendTo: {
+      email: prefs.sendTo.email,
+      telegram: { state: 'linked', name: 'Mei', linkedAt: null },
+    },
+  };
+  it('switches only the Telegram column and undoes it alone', () => {
+    const change = { event: 'hot_lead' as const, email: true, telegram: false };
+    const undo = undoOf(both, change);
+    const off = applyChange(both, change);
+    const hot = off.events.find((e) => e.event === 'hot_lead');
+    expect(hot).toMatchObject({ email: true, telegram: false });
+    expect(applyChange(off, undo).events.find((e) => e.event === 'hot_lead')?.telegram).toBe(true);
+    // An email-only change leaves the Telegram value alone.
+    const mail = applyChange(off, { event: 'hot_lead', email: false });
+    expect(mail.events.find((e) => e.event === 'hot_lead')).toMatchObject({
+      email: false,
+      telegram: false,
+    });
+  });
+  it('words quiet hours and the test toast with Telegram', () => {
+    expect(quietHelp({ enabled: true, start: '22:00', end: '08:00' }, true)).toMatch(
+      /as one email \(and one Telegram message\) when it ends/,
+    );
+    expect(testSentText({ sentTo: 'a@b.sg', telegram: true })).toBe(
+      'Test alert sent to a@b.sg and Telegram.',
+    );
+    expect(testSentText({ sentTo: 'a@b.sg', telegram: false })).toMatch(/within a minute\.$/);
   });
 });

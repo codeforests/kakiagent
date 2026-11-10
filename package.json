@@ -29,6 +29,7 @@
     "audit:verify": "pnpm --filter @kaki/governance run verify",
     "tokens": "pnpm --filter @kaki/design-tokens run build",
     "fixtures:site": "pnpm --filter @kaki/ingest-worker run fixtures:site",
+    "fixtures:telegram": "node scripts/telegram-fake.mjs",
     "email:receive": "pnpm --filter @kaki/agent-worker run email:receive"
   },
   "devDependencies": {

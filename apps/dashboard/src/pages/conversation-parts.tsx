@@ -18,6 +18,7 @@ import { Link } from 'react-router';
 import {
   attachmentStatus,
   CHANNEL_LABEL,
+  placeholderKind,
   cardCaption,
   deliveryText,
   fileSize,
@@ -62,6 +63,11 @@ const GLYPHS = {
   mail: 'M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM22 6l-10 7L2 6',
   'x-circle': 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM15 9l-6 6M9 9l6 6',
   check: 'M20 6 9 17l-5-5',
+  // Telegram (FEAT-037 ui-design): Lucide send, bell, users.
+  send: 'M22 2 11 13M22 2l-7 20-4-9-9-4z',
+  bell: 'M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0',
+  users:
+    'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
   paperclip:
     'm21.4 11-9.2 9.2a6 6 0 0 1-8.5-8.5l8.6-8.6a4 4 0 0 1 5.7 5.7l-8.6 8.6a2 2 0 0 1-2.8-2.8l8.5-8.5',
 } as const;
@@ -125,7 +131,10 @@ export function VisitorAvatar({
     <span className="visitor-avatar" aria-hidden="true">
       {initials(label)}
       <span className="visitor-avatar__badge" title={CHANNEL_LABEL[channel]}>
-        <Glyph name={channel === 'email' ? 'mail' : 'chat'} size={10} />
+        <Glyph
+          name={channel === 'email' ? 'mail' : channel === 'telegram' ? 'send' : 'chat'}
+          size={10}
+        />
       </span>
     </span>
   );
@@ -267,6 +276,7 @@ export function Bubble({
   meId = null,
   match = false,
   onRetryError,
+  channel,
 }: {
   message: ThreadMessage;
   facts: Map<string, FactChip>;
@@ -275,6 +285,8 @@ export function Bubble({
   match?: boolean;
   /** A failed delivery retry's toast (FEAT-036). */
   onRetryError?: (text: string) => void;
+  /** Telegram placeholders ("[Sticker]") render as muted text with a caption (FEAT-037). */
+  channel?: ConversationSummary['channel'];
 }) {
   // A staff joined/left notice has no body: a caption row of what the visitor saw (FEAT-043).
   if (message.body === '' && message.notice)
@@ -285,6 +297,7 @@ export function Bubble({
       </li>
     );
   const side = message.author === 'visitor' ? 'in' : 'out';
+  const placeholder = placeholderKind(message.body, message.author, channel);
   return (
     <li
       className={`thread-item thread-item--${side}`}
@@ -297,9 +310,16 @@ export function Bubble({
         <span>{authorLabel(message, meId)}</span>
         <time dateTime={message.createdAt}>{clockTime(message.createdAt)}</time>
       </div>
-      <div className={`bubble bubble--${message.author}${match ? ' bubble--match' : ''}`}>
+      <div
+        className={`bubble bubble--${message.author}${match ? ' bubble--match' : ''}${placeholder ? ' bubble--placeholder' : ''}`}
+      >
         {message.body}
       </div>
+      {placeholder && (
+        <p className="bubble-notice" data-testid="placeholder-caption">
+          Not shown: Telegram {placeholder}
+        </p>
+      )}
       {message.notice && <p className="bubble-notice">{message.notice}</p>}
       {cardCaption(message.card) && (
         <p className="bubble-notice" data-testid="card-caption">
@@ -355,11 +375,23 @@ export function ScoreChip({ scoring }: { scoring: LeadScoring }) {
   );
 }
 
-export function CopyRow({ label, value }: { label: 'email' | 'phone'; value: string }) {
+export function CopyRow({
+  label,
+  value,
+  prefix,
+}: {
+  label: 'email' | 'phone' | 'Telegram username';
+  value: string;
+  /** A visible word before the value ("Telegram"). */
+  prefix?: string;
+}) {
   const [copied, setCopied] = useState(false);
   return (
     <p className="sidebar-copy">
-      <span>{value}</span>
+      <span>
+        {prefix && <>{prefix} </>}
+        {value}
+      </span>
       <button
         type="button"
         className="icon-button"
@@ -403,6 +435,13 @@ export function ContextSidebar({ thread }: { thread: ConversationThread }) {
         <p className="sidebar-strong">{contact.name ?? contact.label}</p>
         {contact.email && <CopyRow label="email" value={contact.email} />}
         {contact.phone && <CopyRow label="phone" value={contact.phone} />}
+        {contact.telegramUsername && (
+          <CopyRow
+            label="Telegram username"
+            prefix="Telegram"
+            value={`@${contact.telegramUsername}`}
+          />
+        )}
         <p>First seen {shortDate(contact.firstSeenAt)}</p>
         <p>
           {earlier === 0

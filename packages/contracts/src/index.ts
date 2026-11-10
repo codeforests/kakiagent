@@ -61,7 +61,7 @@ export type MessageCard = z.infer<typeof MessageCard>;
 export const MessageAuthor = z.enum(['visitor', 'agent', 'staff', 'system']);
 
 /** Where a conversation happens (FEAT-036 §3). */
-export const ConversationChannel = z.enum(['widget', 'email']);
+export const ConversationChannel = z.enum(['widget', 'email', 'telegram']);
 export type ConversationChannel = z.infer<typeof ConversationChannel>;
 
 /**
@@ -70,7 +70,8 @@ export type ConversationChannel = z.infer<typeof ConversationChannel>;
  */
 export const MessageDelivery = z.object({
   status: z.enum(['sending', 'sent', 'failed']),
-  failedReason: z.enum(['bounced', 'rejected', 'timed_out']).nullable(),
+  /** `blocked`: the customer blocked the Telegram bot (FEAT-037 §5.4). */
+  failedReason: z.enum(['bounced', 'rejected', 'timed_out', 'blocked']).nullable(),
   sentAt: z.iso.datetime({ offset: true }).nullable(),
 });
 export type MessageDelivery = z.infer<typeof MessageDelivery>;
@@ -120,6 +121,7 @@ export const Message = z.object({
       'approval_rejected',
       'approval_expired',
       'consent_withdrawn',
+      'text_only',
     ])
     .nullable(),
   /** A consent or lead-form card under an agent reply (FEAT-049); absent or null: none. */
@@ -2071,6 +2073,23 @@ export type IngestJob = z.infer<typeof IngestJob>;
 
 /** One message's delivery on `channel-send` (D2; FEAT-036 §5.3), queued by the trigger or the sweep. */
 export const ChannelSendJob = z.object({ tenantId: z.uuid(), messageId: z.uuid() });
+/**
+ * A channel's own reply that is not a conversation message (FEAT-037 §5.3 step 3): a group
+ * notice (then leave), a link confirmation, the `/start` greeting. Dropped after 24 hours.
+ */
+export const ChannelServiceJob = z.object({
+  type: z.literal('service'),
+  tenantId: z.uuid(),
+  connectionId: z.uuid(),
+  chatId: z.number().int(),
+  text: z.string().min(1).max(4096),
+  leave: z.boolean().optional(),
+  queuedAt: z.iso.datetime({ offset: true }),
+});
+export type ChannelServiceJob = z.infer<typeof ChannelServiceJob>;
+/** Everything on `channel-send`. */
+export const ChannelQueueJob = z.union([ChannelServiceJob, ChannelSendJob]);
+export type ChannelQueueJob = z.infer<typeof ChannelQueueJob>;
 export type ChannelSendJob = z.infer<typeof ChannelSendJob>;
 
 /** The ingest-worker's scan of one inbound email attachment (KB-11; FEAT-036 §5.2 step 4). */
@@ -2827,6 +2846,8 @@ export const ContextSidebar = z.object({
     email: z.string().nullable(),
     /** Formatted `+65 9123 4567`. */
     phone: z.string().nullable(),
+    /** The Telegram `@username`, without the `@` (FEAT-037 §3); null elsewhere. */
+    telegramUsername: z.string().nullable(),
     label: z.string(),
     firstSeenAt: z.iso.datetime({ offset: true }),
     previousConversations: z.number().int().min(0),
@@ -2925,10 +2946,12 @@ export const AlertEvent = z.enum([
   'approval_pending',
   'hot_lead',
   'consent_withdrawn',
+  /** A channel stopped working (CHN-12; FEAT-037 §5.5); listed for `settings.manage` only. */
+  'channel_degraded',
 ]);
 export type AlertEvent = z.infer<typeof AlertEvent>;
-/** FEAT-037 adds `telegram`, FEAT-048 `push`. */
-export const NotificationChannel = z.enum(['email']);
+/** FEAT-048 adds `push`. */
+export const NotificationChannel = z.enum(['email', 'telegram']);
 export type NotificationChannel = z.infer<typeof NotificationChannel>;
 /** "HH:MM", Singapore time. */
 export const ClockTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
@@ -2937,9 +2960,21 @@ export const QuietHours = z
   .object({ enabled: z.boolean(), start: ClockTime, end: ClockTime })
   .refine((q) => q.start !== q.end, { path: ['end'], message: 'same_time' });
 export type QuietHours = z.infer<typeof QuietHours>;
-/** One boolean per channel; FEAT-037 adds `telegram`. */
-export const EventPref = z.object({ event: AlertEvent, email: z.boolean() });
+/** One boolean per channel; `telegram` absent = unchanged (FEAT-037 §3). */
+export const EventPref = z.object({
+  event: AlertEvent,
+  email: z.boolean(),
+  telegram: z.boolean().optional(),
+});
 export type EventPref = z.infer<typeof EventPref>;
+/** The signed-in member's own Telegram link for alerts (D1). */
+export const TelegramAlertLink = z.object({
+  state: z.enum(['not_linked', 'pending', 'linked']),
+  /** The member's own Telegram first name, once linked. */
+  name: z.string().nullable(),
+  linkedAt: z.iso.datetime({ offset: true }).nullable(),
+});
+export type TelegramAlertLink = z.infer<typeof TelegramAlertLink>;
 /**
  * A member's preferences in the current business. `events` lists only the events this member
  * can receive (D9), in the order escalation, approval_pending, hot_lead, consent_withdrawn.
@@ -2949,7 +2984,11 @@ export const NotificationPrefs = z.object({
   events: z.array(EventPref),
   quietHours: QuietHours,
   timeZone: z.literal('Asia/Singapore'),
-  sendTo: z.object({ email: z.string() }),
+  sendTo: z.object({
+    email: z.string(),
+    /** Null: the business has no Telegram bot, so the page shows no Telegram column. */
+    telegram: TelegramAlertLink.nullable(),
+  }),
 });
 export type NotificationPrefs = z.infer<typeof NotificationPrefs>;
 /** Events not listed keep their stored setting. */
@@ -2961,7 +3000,8 @@ export const NotificationPrefsBody = z
     message: 'duplicate_event',
   });
 export type NotificationPrefsBody = z.infer<typeof NotificationPrefsBody>;
-export const TestAlertResult = z.object({ sentTo: z.string() });
+/** `telegram`: the test also went to the member's linked Telegram (FEAT-037). */
+export const TestAlertResult = z.object({ sentTo: z.string(), telegram: z.boolean() });
 export type TestAlertResult = z.infer<typeof TestAlertResult>;
 /** 429: one test alert a minute per member (D11). */
 export const RateLimitedError = ErrorBody.extend({
@@ -3556,3 +3596,77 @@ export const EmailChannelErrorCode = z.enum([
   'not_failed',
 ]);
 export type EmailChannelErrorCode = z.infer<typeof EmailChannelErrorCode>;
+
+// ---- Dashboard API: Telegram channel (CHN-05, CHN-12, LED-04; FEAT-037 §3) ----------------
+
+/** A BotFather token: `<bot id>:<secret>` (422 `invalid_format` otherwise). */
+export const TelegramToken = z
+  .string()
+  .trim()
+  .regex(/^\d{5,16}:[A-Za-z0-9_-]{30,64}$/);
+export type TelegramToken = z.infer<typeof TelegramToken>;
+
+/** Why a Telegram update got no conversation (CHN-05). */
+export const TelegramIgnoreReason = z.enum(['group', 'unsupported', 'staff_chat']);
+export type TelegramIgnoreReason = z.infer<typeof TelegramIgnoreReason>;
+
+/** `GET /api/v1/channels/telegram` and every Telegram-channel write's response. */
+export const TelegramChannelResponse = z.object({
+  /** False → "Connect a bot". */
+  connected: z.boolean(),
+  connection: z
+    .object({
+      id: z.uuid(),
+      state: z.enum(['live', 'offline']),
+      health: z.enum(['ok', 'degraded', 'unknown']),
+      healthReason: ChannelHealthReason.nullable(),
+      version: z.number().int(),
+    })
+    .nullable(),
+  /** `link` = `https://t.me/<username>`. */
+  bot: z
+    .object({ id: z.string(), username: z.string(), name: z.string(), link: z.url() })
+    .nullable(),
+  /** The last accepted private message. */
+  lastReceivedAt: z.iso.datetime({ offset: true }).nullable(),
+  /** The last 7 days, from `inbound_events`. */
+  ignored: z.array(z.object({ reason: TelegramIgnoreReason, count: z.number().int().min(1) })),
+  /** Members who linked Telegram for alerts. */
+  alertMembers: z.number().int().min(0),
+  settingsVersion: z.number().int(),
+});
+export type TelegramChannelResponse = z.infer<typeof TelegramChannelResponse>;
+
+/** `POST /api/v1/channels/telegram`. */
+export const TelegramConnectBody = z.object({ token: TelegramToken });
+export type TelegramConnectBody = z.infer<typeof TelegramConnectBody>;
+/** `PUT /api/v1/channels/telegram/token`: a new token for the same bot (D6). */
+export const TelegramReplaceBody = z.object({
+  token: TelegramToken,
+  settingsVersion: z.number().int(),
+});
+export type TelegramReplaceBody = z.infer<typeof TelegramReplaceBody>;
+/** `DELETE /api/v1/channels/telegram`. */
+export const TelegramDisconnectBody = z.object({ settingsVersion: z.number().int() });
+export type TelegramDisconnectBody = z.infer<typeof TelegramDisconnectBody>;
+
+/** `POST /api/v1/me/notifications/telegram/link` → 201: `https://t.me/<bot>?start=<code>`, 15 minutes. */
+export const TelegramLinkStart = z.object({
+  url: z.url(),
+  expiresAt: z.iso.datetime({ offset: true }),
+});
+export type TelegramLinkStart = z.infer<typeof TelegramLinkStart>;
+
+/** Error codes of the Telegram routes (FEAT-037 §3). */
+export const TelegramChannelErrorCode = z.enum([
+  'invalid_format',
+  'token_rejected',
+  'already_connected',
+  'not_connected',
+  'bot_in_use',
+  'different_bot',
+  'provider_unavailable',
+  'stale',
+  'no_bot',
+]);
+export type TelegramChannelErrorCode = z.infer<typeof TelegramChannelErrorCode>;

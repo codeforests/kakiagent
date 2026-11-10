@@ -335,6 +335,7 @@ describe('capture (LED-01, LED-09; AC-1, AC-5, AC-6)', () => {
       name: 'Mei',
       email: 'mei@example.com',
       phone: '+65 9123 4567',
+      telegramUsername: null,
     });
     expect(await dash((tx) => leadSummaryOf(tx, TENANT_A, conv))).toMatchObject({
       id: out.leadId,

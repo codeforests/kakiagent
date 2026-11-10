@@ -15,12 +15,12 @@ describe('channel registry (ADR-011)', () => {
   const registry: ChannelRegistry = [
     ...CHANNEL_REGISTRY,
     {
-      kind: 'telegram',
-      name: 'Telegram',
+      kind: 'messenger',
+      name: 'Messenger',
       adapter: async () => fakeAdapter(transport),
       checksHealth: true,
       offlineModes: ['message'],
-      connectPath: '/settings/channels/telegram',
+      connectPath: '/settings/channels/messenger',
     },
   ];
 
@@ -30,17 +30,17 @@ describe('channel registry (ADR-011)', () => {
       offlineModes: ['hidden', 'message'],
     });
     expect(registryEntry('widget')?.adapter).toBeUndefined();
-    expect(registryEntry('telegram')).toBeUndefined();
-    expect(registryEntry('telegram', registry)?.name).toBe('Telegram');
+    expect(registryEntry('messenger')).toBeUndefined();
+    expect(registryEntry('messenger', registry)?.name).toBe('Messenger');
   });
 
   it('connectable leaves out connected kinds and kinds without a connect flow', () => {
-    expect(connectable(registry, ['widget', 'email'])).toEqual([
-      { kind: 'telegram', name: 'Telegram', connectPath: '/settings/channels/telegram' },
+    expect(connectable(registry, ['widget', 'email', 'telegram'])).toEqual([
+      { kind: 'messenger', name: 'Messenger', connectPath: '/settings/channels/messenger' },
     ]);
-    expect(connectable(registry, ['widget', 'email', 'telegram'])).toEqual([]);
-    // FEAT-036: email is the first registered kind with a connect flow.
-    expect(connectable(CHANNEL_REGISTRY, ['email'])).toEqual([]);
+    expect(connectable(registry, ['widget', 'email', 'telegram', 'messenger'])).toEqual([]);
+    // FEAT-036: email is the first registered kind with a connect flow; FEAT-037 adds Telegram.
+    expect(connectable(CHANNEL_REGISTRY, ['email', 'telegram'])).toEqual([]);
   });
 });
 
