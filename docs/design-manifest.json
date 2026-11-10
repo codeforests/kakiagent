@@ -424,7 +424,9 @@
         "gaps": [
           "internal notes and tags (FEAT-047)"
         ],
-        "supplements": []
+        "supplements": [
+          "features/FEAT-039-contact-identity/ui-design.md#scr-app-015--conversation-partial-sidebar-contact-section"
+        ]
       },
       "contract_bindings": [
         "GET /api/v1/conversations/:id",
@@ -447,6 +449,61 @@
       },
       "status": "designed",
       "designed_at": "2026-10-31"
+    },
+    "SCR-APP-016": {
+      "name": "Contact",
+      "surface": "APP",
+      "feature": "FEAT-039",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-039-contact-identity/ui-design.md#scr-app-016--contact"
+      },
+      "states": {
+        "covered": [
+          "loading",
+          "not found",
+          "error",
+          "populated",
+          "no conversations",
+          "no leads",
+          "no consent",
+          "duplicates",
+          "no duplicates",
+          "search idle",
+          "searching",
+          "search results",
+          "search none",
+          "search error",
+          "merge preview",
+          "preview consent warning",
+          "merging",
+          "merge failed",
+          "merged (toast with undo)",
+          "merges list",
+          "undo confirm",
+          "undoing",
+          "undo blocked",
+          "already undone",
+          "merged-away contact",
+          "view only"
+        ],
+        "gaps": [],
+        "supplements": []
+      },
+      "contract_bindings": [
+        "GET /api/v1/contacts/:id",
+        "POST /api/v1/contacts/search",
+        "GET /api/v1/contacts/:id/merge/:otherId",
+        "POST /api/v1/contacts/:id/merge",
+        "POST /api/v1/contacts/merges/:mergeId/undo"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-11-10"
     },
     "SCR-APP-019": {
       "name": "Review · Facts",
@@ -2370,7 +2427,8 @@
         ],
         "gaps": [],
         "supplements": [
-          "features/FEAT-051-consent-withdrawal/ui-design.md#scr-app-033--lead-consent-withdrawn-record-withdrawal"
+          "features/FEAT-051-consent-withdrawal/ui-design.md#scr-app-033--lead-consent-withdrawn-record-withdrawal",
+          "features/FEAT-039-contact-identity/ui-design.md#scr-app-033--lead-partial"
         ]
       },
       "contract_bindings": [
