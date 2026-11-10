@@ -7,12 +7,7 @@ import { sql, withTenant, type Tx } from '@kaki/db';
 import { startTestDatabase, TENANT_A, type TestDatabase } from '@kaki/db/testing';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import {
-  addIdentity,
-  attachVerified,
-  resolveContact,
-  undoMerge,
-} from '../src/contacts/index.js';
+import { addIdentity, attachVerified, resolveContact, undoMerge } from '../src/contacts/index.js';
 
 let tdb: TestDatabase;
 let owner: pg.Client;

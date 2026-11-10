@@ -19,3 +19,14 @@ export {
   UndoBlocked,
   type Moved,
 } from './merge.js';
+export {
+  contactDetail,
+  contactLabel,
+  duplicateCount,
+  duplicatesOf,
+  identitiesOf,
+  searchContacts,
+  shownValue,
+  type ChannelContactDetail,
+  type MemberNames,
+} from './views.js';
