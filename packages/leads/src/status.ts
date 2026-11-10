@@ -34,7 +34,7 @@ export async function setLeadStatus(
     if (OPEN.has(status) && !OPEN.has(cur.status)) {
       const other = await tx.execute(sql`select 1 from leads
         where tenant_id = ${tenantId} and contact_id = ${cur.contact_id} and id <> ${leadId}
-          and status in ('new', 'contacted') limit 1`);
+          and status in ('new', 'contacted') and superseded_by is null limit 1`);
       if (other.rows.length) throw new OpenLeadExists('open lead exists');
     }
     try {

@@ -1,7 +1,16 @@
-import type { LeadSummary } from '@kaki/contracts';
+import type { ConsentDecision, ContactLead, LeadConsentRecord, LeadSummary } from '@kaki/contracts';
 import { formatSgPhone } from '@kaki/contracts';
 import { sql, type Tx } from '@kaki/db';
-import { latestConsentColumns, latestConsentJoins, marketingOf, scoringOf } from './list.js';
+import { contactConsent } from './consent.js';
+import {
+  consentRecords,
+  iso,
+  latestConsentColumns,
+  latestConsentJoins,
+  marketingOf,
+  scoringOf,
+  type NamesOf,
+} from './list.js';
 
 export interface ContactView {
   contactId: string;
@@ -83,11 +92,10 @@ export async function leadSummaryOf(
     join consents e on e.tenant_id = l.tenant_id and e.id = l.consent_id
     ${latestConsentJoins}
     where c.tenant_id = ${tenantId} and c.id = ${conversationId}
-    order by (l.status in ('new', 'contacted')) desc, l.updated_at desc
+    order by (l.status in ('new', 'contacted') and l.superseded_by is null) desc, l.updated_at desc
     limit 1`);
   const r = rows[0];
   if (!r) return null;
-  const iso = (d: Date | string) => new Date(d).toISOString();
   return {
     id: r.id,
     status: r.status,
@@ -98,5 +106,67 @@ export async function leadSummaryOf(
       withdrawnAt: r.consent_withdrawn_at !== null ? iso(r.consent_withdrawn_at) : null,
     },
     scoring: scoringOf(r),
+  };
+}
+
+/**
+ * A contact's leads and consent records for the Contact page (FEAT-039 §5.4): leads newest
+ * first with `supersededBy` (D6), consents as on the lead page.
+ */
+export async function contactLeads(
+  tx: Tx,
+  tenantId: string,
+  contactId: string,
+  names?: NamesOf,
+): Promise<{ leads: ContactLead[]; consents: LeadConsentRecord[] }> {
+  const { rows } = await tx.execute<{
+    id: string;
+    status: ContactLead['status'];
+    need: string | null;
+    created_at: Date | string;
+    superseded_by: string | null;
+  }>(sql`
+    select id, status, need, created_at, superseded_by from leads
+    where tenant_id = ${tenantId} and contact_id = ${contactId}
+    order by created_at desc, id`);
+  return {
+    leads: rows.map((r) => ({
+      id: r.id,
+      status: r.status,
+      need: r.need,
+      createdAt: iso(r.created_at),
+      supersededBy: r.superseded_by,
+    })),
+    consents: await consentRecords(tx, tenantId, contactId, names),
+  };
+}
+
+export interface ContactLeadSummary {
+  /** The open lead that counts (not superseded), if any. */
+  openLead: { id: string; need: string | null } | null;
+  /** The latest decision per purpose (FEAT-051's rule; D8). */
+  consent: { enquiry: ConsentDecision | null; marketing: ConsentDecision | null };
+  /** The latest consent row per purpose, for combining two contacts in a merge preview. */
+  latest: { enquiry: Date | null; marketing: Date | null };
+}
+
+/** One side of a merge preview (FEAT-039 §5.4): the open lead and the consent state. */
+export async function contactLeadSummary(
+  tx: Tx,
+  tenantId: string,
+  contactId: string,
+): Promise<ContactLeadSummary> {
+  const { rows } = await tx.execute<{ id: string; need: string | null }>(sql`
+    select id, need from leads
+    where tenant_id = ${tenantId} and contact_id = ${contactId}
+      and status in ('new', 'contacted') and superseded_by is null`);
+  const state = await contactConsent(tx, tenantId, contactId);
+  return {
+    openLead: rows[0] ? { id: rows[0].id, need: rows[0].need } : null,
+    consent: {
+      enquiry: state.enquiry?.decision ?? null,
+      marketing: state.marketing?.decision ?? null,
+    },
+    latest: { enquiry: state.enquiry?.at ?? null, marketing: state.marketing?.at ?? null },
   };
 }

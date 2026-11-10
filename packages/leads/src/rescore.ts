@@ -169,7 +169,8 @@ export async function rescoreOpenLeads(
   const { rows } = await tx.execute<Facts>(
     factsSql(
       tenantId,
-      sql`l.status in ('new', 'contacted') order by l.updated_at desc limit ${RESCORE_CAP}`,
+      sql`l.status in ('new', 'contacted') and l.superseded_by is null
+        order by l.updated_at desc limit ${RESCORE_CAP}`,
     ),
   );
   for (const f of rows) await write(tx, tenantId, f.id, scoreOf(f, qualification));
