@@ -2,7 +2,7 @@ import { withTenant } from '@kaki/db';
 import { startTestDatabase, TENANT_A, TENANT_B, type TestDatabase } from '@kaki/db/testing';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { Email, Mailer } from '../src/mailer.js';
 import {
   cancelNotifications,
@@ -11,8 +11,12 @@ import {
   notify,
   savePrefs,
   sendDueNotifications,
+  alertText,
+  digestText,
   type LinkOf,
   type NotificationKind,
+  type TelegramAlertOutcome,
+  type TelegramAlertSender,
 } from '../src/notifications/index.js';
 
 let tdb: TestDatabase;
@@ -172,6 +176,7 @@ describe('preferences (FEAT-052 §5.1; AC-5, AC-6)', () => {
     const read = () => withTenant(dash, TENANT_A, (tx) => getPrefs(tx, TENANT_A, ownerA));
     expect(await read()).toEqual({
       emailMuted: [],
+      telegramMuted: [],
       quiet: { enabled: true, start: 1320, end: 480 },
     });
     const quiet = { enabled: true, start: fromClock('23:00'), end: fromClock('07:00') };
@@ -187,7 +192,22 @@ describe('preferences (FEAT-052 §5.1; AC-5, AC-6)', () => {
     await withTenant(dash, TENANT_A, (tx) =>
       savePrefs(tx, TENANT_A, ownerA, { events: [{ event: 'hot_lead', email: true }], quiet }),
     );
-    expect(await read()).toEqual({ emailMuted: ['escalation'], quiet });
+    // FEAT-037: Telegram settings are separate; `telegram` absent leaves them unchanged.
+    expect(await read()).toEqual({ emailMuted: ['escalation'], telegramMuted: [], quiet });
+    await withTenant(dash, TENANT_A, (tx) =>
+      savePrefs(tx, TENANT_A, ownerA, {
+        events: [{ event: 'hot_lead', email: true, telegram: false }],
+        quiet,
+      }),
+    );
+    await withTenant(dash, TENANT_A, (tx) =>
+      savePrefs(tx, TENANT_A, ownerA, { events: [{ event: 'hot_lead', email: false }], quiet }),
+    );
+    expect(await read()).toEqual({
+      emailMuted: ['escalation', 'hot_lead'],
+      telegramMuted: ['hot_lead'],
+      quiet,
+    });
     // Per business: tenant B's row for another member is untouched and separate.
     const b = await withTenant(dash, TENANT_B, (tx) => getPrefs(tx, TENANT_B, ownerB));
     expect(b.emailMuted).toEqual([]);
@@ -330,7 +350,13 @@ describe('sender (FEAT-052 §5.2)', () => {
     });
     expect(r.failed).toBe(1);
     expect(await statuses()).toMatchObject([{ status: 'failed' }]);
-    expect(Object.keys(warnings[0]!).sort()).toEqual(['kind', 'notificationId', 'tenantId']);
+    // FEAT-037: the line also names the channel (still no address or text).
+    expect(Object.keys(warnings[0]!).sort()).toEqual([
+      'channel',
+      'kind',
+      'notificationId',
+      'tenantId',
+    ]);
   });
 
   it('AC-8: two senders in parallel email each alert once', async () => {
@@ -446,5 +472,183 @@ describe('per-recipient links (FEAT-056 §5.2; AC-1)', () => {
     expect(sent[0]!.text).toContain(`${APP}/approve#token=${TENANT_A}.${a}.${ownerA}.`);
     expect(sent[0]!.text).toContain(`${APP}/inbox/${c}`);
     expect(sent[0]!.text).toContain('This link works once, for 24 hours.');
+  });
+});
+
+describe('Telegram rows (FEAT-037 §5.5, D8; AC-6)', () => {
+  let connectionId: string;
+
+  /** A port that records what it sent; answers the queued outcomes, the last one repeating. */
+  function fakeTelegram(...outcomes: TelegramAlertOutcome[]) {
+    const sent: { userId: string; text: string }[] = [];
+    const port: TelegramAlertSender = {
+      async send(m) {
+        const out = outcomes.length > 1 ? outcomes.shift()! : (outcomes[0] ?? 'sent');
+        if (out === 'sent') sent.push({ userId: m.userId, text: m.text });
+        return out;
+      },
+    };
+    return { port, sent };
+  }
+  const sendTg = (port: TelegramAlertSender | undefined, now: Date, mailer = fakeMailer().mailer) =>
+    sendDueNotifications(tdb.zone('identity'), mailer, { appUrl: APP, now, telegram: port });
+  const byChannel = async () =>
+    (
+      await owner.query<{ channel: string; status: string; skip_reason: string | null }>(
+        `select channel, status, skip_reason from notifications order by channel, created_at`,
+      )
+    ).rows;
+
+  beforeAll(async () => {
+    connectionId = (
+      await owner.query<{ id: string }>(
+        `insert into channel_connections (tenant_id, kind, state, offline_mode, health)
+         values ($1, 'telegram', 'live', 'hidden', 'ok') returning id`,
+        [TENANT_A],
+      )
+    ).rows[0]!.id;
+    await owner.query(
+      `insert into telegram_settings (tenant_id, connection_id, bot_id, bot_username, bot_name,
+         webhook_secret_hash) values ($1, $2, 1234567, 'kaki_bot', 'Kaki', sha256('s'))`,
+      [TENANT_A, connectionId],
+    );
+  });
+  afterAll(async () => {
+    await owner.query(`delete from telegram_settings`);
+    await owner.query(`delete from channel_connections where id = $1`, [connectionId]);
+  });
+
+  it('a business with a bot gets an email and a Telegram row per recipient; one without, email only', async () => {
+    expect(await alert('escalation', [ownerA, agentA])).toBe(4);
+    expect(await alert('escalation', [ownerB], { tenant: TENANT_B })).toBe(1);
+    const { rows } = await owner.query<{ tenant_id: string; channel: string }>(
+      `select tenant_id, channel from notifications order by tenant_id, channel`,
+    );
+    const of = (t: string) => rows.filter((r) => r.tenant_id === t).map((r) => r.channel);
+    expect(of(TENANT_B)).toEqual(['email']);
+    expect(of(TENANT_A)).toEqual(['email', 'email', 'telegram', 'telegram']);
+  });
+
+  it('sends each channel on its own: the email, and the Telegram text with the business and link', async () => {
+    const { mailer, sent: mails } = fakeMailer();
+    const { port, sent } = fakeTelegram('sent');
+    const id = randomUUID();
+    await alert('escalation', [ownerA], { id });
+    await backdate(sg('10:00'));
+    expect(await sendTg(port, sg('10:00'), mailer)).toMatchObject({ sent: 2 });
+    expect(mails).toHaveLength(1);
+    expect(sent).toEqual([{ userId: ownerA, text: expect.stringContaining(`${APP}/inbox/${id}`) }]);
+    expect(sent[0]!.text).toMatch(/^.+: A customer asked to talk to a person\./);
+    expect(await byChannel()).toMatchObject([{ status: 'sent' }, { status: 'sent' }]);
+  });
+
+  it('no link (or no port) → skipped no_channel; the email still goes', async () => {
+    await alert('escalation', [ownerA]);
+    await backdate(sg('10:00'));
+    expect(await sendTg(fakeTelegram('no_channel').port, sg('10:00'))).toMatchObject({
+      sent: 1,
+      skipped: 1,
+    });
+    await alert('escalation', [agentA]);
+    await backdate(sg('10:00'));
+    await sendTg(undefined, sg('10:00'));
+    expect((await byChannel()).filter((r) => r.channel === 'telegram')).toEqual([
+      { channel: 'telegram', status: 'skipped', skip_reason: 'no_channel' },
+      { channel: 'telegram', status: 'skipped', skip_reason: 'no_channel' },
+    ]);
+  });
+
+  it('Telegram mutes are separate from email mutes', async () => {
+    await owner.query(
+      `insert into notification_prefs (tenant_id, user_id, email_muted, telegram_muted)
+       values ($1, $2, '{}', '{hot_lead}')`,
+      [TENANT_A, ownerA],
+    );
+    await alert('hot_lead', [ownerA]);
+    await backdate(sg('10:00'));
+    const { port, sent } = fakeTelegram('sent');
+    await sendTg(port, sg('10:00'));
+    expect(sent).toHaveLength(0);
+    expect(await byChannel()).toEqual([
+      { channel: 'email', status: 'sent', skip_reason: null },
+      { channel: 'telegram', status: 'skipped', skip_reason: 'muted' },
+    ]);
+  });
+
+  it('quiet hours hold both; each channel gets its own digest when they end', async () => {
+    const ids = [randomUUID(), randomUUID()];
+    for (const id of ids) await alert('escalation', [ownerA], { id });
+    await backdate(sg('23:00'));
+    const { port, sent } = fakeTelegram('sent');
+    expect((await sendTg(port, sg('23:00'))).held).toBe(4);
+    const { mailer, sent: mails } = fakeMailer();
+    expect(await sendTg(port, sg('08:00', 1), mailer)).toMatchObject({ digests: 2, sent: 4 });
+    expect(mails).toHaveLength(1);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.text).toContain('2 alerts came in while your quiet hours were on');
+    for (const id of ids) expect(sent[0]!.text).toContain(id);
+  });
+
+  it('a Telegram failure retries with backoff and never resends the email', async () => {
+    const { mailer, sent: mails } = fakeMailer();
+    const { port, sent } = fakeTelegram({ failed: 'auth' }, 'sent');
+    await alert('escalation', [ownerA]);
+    await backdate(sg('10:00'));
+    expect(await sendTg(port, sg('10:00'), mailer)).toMatchObject({ sent: 1, failed: 0 });
+    expect(await byChannel()).toMatchObject([
+      { channel: 'email', status: 'sent' },
+      { channel: 'telegram', status: 'pending' },
+    ]);
+    // Not due before the 10-second backoff; then it goes, and the email isn't sent again.
+    expect((await sendTg(port, new Date(sg('10:00').getTime() + 5_000), mailer)).sent).toBe(0);
+    expect((await sendTg(port, new Date(sg('10:00').getTime() + 10_000), mailer)).sent).toBe(1);
+    expect(mails).toHaveLength(1);
+    expect(sent).toHaveLength(1);
+  });
+
+  it('still failing 24 hours after it was created → failed and logged with the channel', async () => {
+    const warn = vi.fn();
+    await alert('escalation', [ownerA]);
+    await backdate(sg('10:00'));
+    await owner.query(`update notifications set status = 'sent' where channel = 'email'`);
+    const r = await sendDueNotifications(tdb.zone('identity'), fakeMailer().mailer, {
+      appUrl: APP,
+      now: sg('10:00', 1),
+      telegram: fakeTelegram({ failed: 'transient' }).port,
+      log: { warn },
+    });
+    expect(r.failed).toBe(1);
+    expect(warn).toHaveBeenCalledWith(
+      expect.objectContaining({ channel: 'telegram' }),
+      'alert telegram failed',
+    );
+  });
+});
+
+describe('Telegram texts (FEAT-037 §5.5)', () => {
+  const item = (over: { kind?: NotificationKind; urgent?: boolean } = {}) => ({
+    kind: 'escalation' as NotificationKind,
+    urgent: false,
+    at: sg('10:00'),
+    link: `${APP}/inbox/x`,
+    ...over,
+  });
+  it('one alert: the business, the line and the link; urgent and approval notes', () => {
+    expect(alertText(item(), { businessName: 'Kaki' })).toBe(
+      `Kaki: A customer asked to talk to a person.\nOpen in KakiAgent: ${APP}/inbox/x`,
+    );
+    expect(alertText(item({ urgent: true }), { businessName: 'Kaki' })).toMatch(/^Urgent: Kaki:/);
+    expect(alertText(item({ kind: 'approval_pending' }), { businessName: 'Kaki' })).toContain(
+      'This link works once',
+    );
+  });
+  it('a digest stays within 4,096 characters and says how many more', () => {
+    const text = digestText(
+      Array.from({ length: 200 }, () => item()),
+      { businessName: 'Kaki' },
+    );
+    expect(text.length).toBeLessThanOrEqual(4096);
+    expect(text).toMatch(/^Kaki: 200 alerts came in/);
+    expect(text).toMatch(/\.\.\.and \d+ more in KakiAgent\.$/);
   });
 });

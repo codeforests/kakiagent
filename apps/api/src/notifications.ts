@@ -2,10 +2,13 @@ import {
   AlertEvent as AlertEventShape,
   NotificationPrefs,
   NotificationPrefsBody,
+  TelegramAlertLink,
+  TelegramLinkStart,
   TestAlertResult,
   type AlertEvent,
 } from '@kaki/contracts';
-import { sql, withTenant } from '@kaki/db';
+import { codeHash, linkPending, queueServiceReply } from '@kaki/channels';
+import { sql, withMember, type Tx } from '@kaki/db';
 import { can, canApprove } from '@kaki/identity';
 import {
   fromClock,
@@ -17,7 +20,7 @@ import {
   type Prefs,
 } from '@kaki/platform/notifications';
 import type { FastifyRequest } from 'fastify';
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import type { ZodError } from 'zod';
 import { UnavailableError, type TenantSession } from './auth.js';
 import type { App, Deps } from './server.js';
@@ -34,6 +37,12 @@ export class NotificationPrefsBodyError extends Error {
 /** 403: approval alerts are only for members who can approve (D9). */
 export class ApprovalAlertsForbidden extends Error {}
 export class TestAlertRateLimited extends Error {}
+/** 409 `no_bot`: the business has no Telegram bot to link (FEAT-037 §3). */
+export class NoTelegramBot extends Error {}
+
+/** A link code lasts 15 minutes (D1). */
+export const LINK_CODE_TTL_MS = 15 * 60_000;
+const ALERTS_STOPPED = 'Alerts stopped. Link Telegram again in KakiAgent.';
 
 function fieldsOf(err: ZodError): Record<string, string> {
   const out: Record<string, string> = {};
@@ -61,6 +70,11 @@ export function notificationsErrorReply(
       status: 403,
       body: { error: 'forbidden', message: "You can't receive approval alerts" },
     };
+  if (err instanceof NoTelegramBot)
+    return {
+      status: 409,
+      body: { error: 'no_bot', message: 'Connect a Telegram bot first, on the Channels page' },
+    };
   if (err instanceof TestAlertRateLimited)
     return {
       status: 429,
@@ -81,6 +95,37 @@ const eventsFor = (s: TenantSession): AlertEvent[] =>
       (e !== 'channel_degraded' || can(s.role, 'settings.manage')),
   );
 
+/** The business's bot (any state), or null: no Telegram column (FEAT-037 §5.5). */
+async function botOf(tx: Tx): Promise<{ connectionId: string; username: string } | null> {
+  const { rows } = await tx.execute<{ connection_id: string; bot_username: string }>(
+    sql`select connection_id, bot_username from telegram_settings`,
+  );
+  return rows[0] ? { connectionId: rows[0].connection_id, username: rows[0].bot_username } : null;
+}
+
+/** The signed-in member's own link (the dashboard sees only its own row, AC-7). */
+async function linkOf(tx: Tx, now: Date): Promise<TelegramAlertLink> {
+  const { rows } = await tx.execute<{
+    chat_id: string | null;
+    telegram_name: string | null;
+    linked_at: Date | null;
+    code_expires_at: Date | null;
+  }>(sql`select chat_id, telegram_name, linked_at, code_expires_at from telegram_alert_links`);
+  const r = rows[0];
+  if (r?.chat_id != null && r.linked_at)
+    return {
+      state: 'linked',
+      name: r.telegram_name,
+      linkedAt: new Date(r.linked_at).toISOString(),
+    };
+  const codeExpiresAt = r?.code_expires_at ? new Date(r.code_expires_at) : null;
+  return {
+    state: r && linkPending({ codeExpiresAt }, now) ? 'pending' : 'not_linked',
+    name: null,
+    linkedAt: null,
+  };
+}
+
 /**
  * Notification preferences and the test alert (DSH-09, LED-04; FEAT-052 §5.4). Every route is
  * the caller's own: the tenant and user come from the session only, never the body.
@@ -99,27 +144,38 @@ export function registerNotificationRoutes(
     return rows[0]?.email ?? '';
   }
 
-  async function view(s: TenantSession, prefs: Prefs) {
+  /** Prefs, the bot and the member's link in one dashboard-zone transaction. */
+  const readAll = (s: TenantSession, fn?: (tx: Tx) => Promise<Prefs>) =>
+    withMember(dashboardDb, s.tenantId, s.userId, async (tx) => {
+      const prefs = fn ? await fn(tx) : await getPrefs(tx, s.tenantId, s.userId);
+      const bot = await botOf(tx);
+      return { prefs, telegram: bot ? await linkOf(tx, new Date()) : null };
+    });
+
+  async function view(
+    s: TenantSession,
+    { prefs, telegram }: { prefs: Prefs; telegram: TelegramAlertLink | null },
+  ) {
     return NotificationPrefs.parse({
-      channels: ['email'],
-      events: eventsFor(s).map((event) => ({ event, email: !prefs.emailMuted.includes(event) })),
+      channels: telegram ? ['email', 'telegram'] : ['email'],
+      events: eventsFor(s).map((event) => ({
+        event,
+        email: !prefs.emailMuted.includes(event),
+        ...(telegram ? { telegram: !prefs.telegramMuted.includes(event) } : {}),
+      })),
       quietHours: {
         enabled: prefs.quiet.enabled,
         start: toClock(prefs.quiet.start),
         end: toClock(prefs.quiet.end),
       },
       timeZone: TIME_ZONE,
-      // FEAT-037 T7 fills the member's Telegram link.
-      sendTo: { email: await emailOf(s.userId), telegram: null },
+      sendTo: { email: await emailOf(s.userId), telegram },
     });
   }
 
   app.get('/api/v1/me/notifications', async (req) => {
     const s = await sessionFrom(req);
-    const prefs = await withTenant(dashboardDb, s.tenantId, (tx) =>
-      getPrefs(tx, s.tenantId, s.userId),
-    );
-    return view(s, prefs);
+    return view(s, await readAll(s));
   });
 
   app.put('/api/v1/me/notifications', async (req) => {
@@ -129,7 +185,7 @@ export function registerNotificationRoutes(
     const body = parsed.data;
     if (body.events.some((e) => !eventsFor(s).includes(e.event)))
       throw new ApprovalAlertsForbidden();
-    const prefs = await withTenant(dashboardDb, s.tenantId, (tx) =>
+    const saved = await readAll(s, (tx) =>
       savePrefs(tx, s.tenantId, s.userId, {
         events: body.events,
         quiet: {
@@ -139,7 +195,54 @@ export function registerNotificationRoutes(
         },
       }),
     );
-    return view(s, prefs);
+    return view(s, saved);
+  });
+
+  // Link Telegram for alerts (FEAT-037 D1): a one-time `t.me/<bot>?start=<code>` link, hashed
+  // at rest; a new code replaces an older one. The bot's webhook links the chat (§5.3).
+  app.post('/api/v1/me/notifications/telegram/link', async (req, reply) => {
+    const s = await sessionFrom(req);
+    const code = `link-${randomBytes(16).toString('base64url')}`;
+    const expiresAt = new Date(Date.now() + LINK_CODE_TTL_MS);
+    const bot = await withMember(dashboardDb, s.tenantId, s.userId, async (tx) => {
+      const b = await botOf(tx);
+      if (!b) return null;
+      await tx.execute(
+        sql`insert into telegram_alert_links (tenant_id, user_id, code_hash, code_expires_at)
+            values (${s.tenantId}, ${s.userId}, ${codeHash(code)}, ${expiresAt})
+            on conflict (tenant_id, user_id) do update
+              set code_hash = excluded.code_hash, code_expires_at = excluded.code_expires_at`,
+      );
+      return b;
+    });
+    if (!bot) throw new NoTelegramBot();
+    return reply.code(201).send(
+      TelegramLinkStart.parse({
+        url: `https://t.me/${bot.username}?start=${code}`,
+        expiresAt: expiresAt.toISOString(),
+      }),
+    );
+  });
+
+  // Unlink (FEAT-037 §3): the member stops getting Telegram alerts; the bot says so in the chat.
+  app.delete('/api/v1/me/notifications/telegram', async (req, reply) => {
+    const s = await sessionFrom(req);
+    await withMember(dashboardDb, s.tenantId, s.userId, async (tx) => {
+      const { rows } = await tx.execute<{ chat_id: string | null }>(
+        sql`delete from telegram_alert_links where tenant_id = ${s.tenantId}
+              and user_id = ${s.userId} returning chat_id`,
+      );
+      const chatId = rows[0]?.chat_id;
+      const bot = chatId != null ? await botOf(tx) : null;
+      if (bot && chatId != null)
+        await queueServiceReply(tx, {
+          tenantId: s.tenantId,
+          connectionId: bot.connectionId,
+          chatId: Number(chatId),
+          text: ALERTS_STOPPED,
+        });
+    });
+    return reply.code(204).send();
   });
 
   app.post('/api/v1/me/notifications/test', async (req, reply) => {
@@ -152,18 +255,20 @@ export function registerNotificationRoutes(
       throw new UnavailableError('rate limiter');
     }
     if (!allowed) throw new TestAlertRateLimited();
-    await withTenant(dashboardDb, s.tenantId, (tx) =>
-      notify(tx, {
+    // One row per channel (D8); `telegram` says whether the member's linked chat gets it too.
+    const linked = await withMember(dashboardDb, s.tenantId, s.userId, async (tx) => {
+      await notify(tx, {
         tenantId: s.tenantId,
         kind: 'test',
         recipients: [s.userId],
         urgent: true,
         subject: { type: 'user', id: s.userId },
         dedupeKey: `test:${randomUUID()}`,
-      }),
-    );
+      });
+      return (await botOf(tx)) !== null && (await linkOf(tx, new Date())).state === 'linked';
+    });
     return reply
       .code(202)
-      .send(TestAlertResult.parse({ sentTo: await emailOf(s.userId), telegram: false }));
+      .send(TestAlertResult.parse({ sentTo: await emailOf(s.userId), telegram: linked }));
   });
 }

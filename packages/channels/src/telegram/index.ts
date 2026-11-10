@@ -70,3 +70,4 @@ export {
   type TelegramServiceDeps,
 } from './service.js';
 export { telegramSender, type TelegramSenderConfig } from './send.js';
+export { telegramAlerts, type TelegramAlertsDeps } from './alerts.js';

@@ -111,3 +111,41 @@ export function digestEmail(items: AlertItem[], ctx: EmailContext): Email {
       footerHtml(ctx),
   };
 }
+
+/** Telegram's limit for one message. */
+export const TELEGRAM_TEXT_MAX = 4096;
+
+/**
+ * The Telegram alert (FEAT-037 §5.5): the email's plain text without the email furniture, so
+ * still only the event, the business and a link (D12). Plain text, no parse mode.
+ */
+export function alertText(item: AlertItem, ctx: { businessName: string }): string {
+  const text =
+    `${item.urgent ? 'Urgent: ' : ''}${ctx.businessName}: ${LINE[item.kind]}\n` +
+    `${buttonText(item.kind)}: ${item.link}` +
+    (item.kind === 'approval_pending' ? `\n${APPROVAL_LINK_NOTE}` : '');
+  return text.slice(0, TELEGRAM_TEXT_MAX);
+}
+
+/** One Telegram message for everything held during quiet hours, oldest first. */
+export function digestText(items: AlertItem[], ctx: { businessName: string }): string {
+  const sorted = [...items].sort((a, b) => a.at.getTime() - b.at.getTime());
+  const n = sorted.length;
+  const head = `${ctx.businessName}: ${n} ${n === 1 ? 'alert' : 'alerts'} came in while your quiet hours were on.`;
+  const lines = sorted.map(
+    (i) => `- ${sgTimeOfDay(i.at)}: ${i.urgent ? 'Urgent: ' : ''}${LINE[i.kind]} ${i.link}`,
+  );
+  const note = sorted.some((i) => i.kind === 'approval_pending')
+    ? `\n\nApproval links: ${APPROVAL_LINK_NOTE}`
+    : '';
+  let out = head;
+  for (const [k, line] of lines.entries()) {
+    const more = `\n...and ${lines.length - k} more in KakiAgent.`;
+    if (out.length + 1 + line.length + note.length + more.length > TELEGRAM_TEXT_MAX) {
+      out += more;
+      return out + note;
+    }
+    out += `\n${line}`;
+  }
+  return out + note;
+}

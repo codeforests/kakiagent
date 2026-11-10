@@ -23,8 +23,12 @@ import {
   CHANNEL_REGISTRY,
   identityProvider,
   runChannelHealth,
+  telegramAdapter,
+  telegramAlerts,
+  withAdapter,
   withEmailHealth,
 } from '@kaki/channels';
+import { localSealer } from '@kaki/platform/secrets';
 import { z } from 'zod';
 import { channelHealthOnce } from './channel-health.js';
 import { gapClusterOnce } from './gap-cluster.js';
@@ -102,6 +106,16 @@ const config = loadConfig(
       /** The custom sending domain's checks (FEAT-036 §5.1): SES v2, or `fixture` locally. */
       EMAIL_IDENTITY_PROVIDER: z.enum(['ses', 'fixture']).default('ses'),
       SES_CONFIGURATION_SET: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
+      /** Telegram alerts read the member's link and the bot's credential here (FEAT-037 D9). */
+      VISITOR_DATABASE_URL: z.string().startsWith('postgres'),
+      /** Opens channel credentials (FEAT-037 §5.2); the same key as the api's. */
+      CHANNEL_SECRET_KEY: z
+        .string()
+        .refine((v) => Buffer.from(v, 'base64url').length === 32, 'must be 32 bytes, base64url'),
+      /** The Telegram Bot API; the local fake in dev and E2E (FEAT-037 §5.6). */
+      TELEGRAM_API_BASE: envSchemas.url.default('https://api.telegram.org'),
+      /** The api's public origin: Telegram's health check re-registers a missing webhook there. */
+      PUBLIC_HOOKS_URL: envSchemas.url.transform((u) => u.replace(/\/+$/, '')),
     }),
 );
 const stopTelemetry = startTelemetry('scheduler-worker', config.OTEL_EXPORTER_OTLP_ENDPOINT);
@@ -110,6 +124,9 @@ const logger = createLogger('scheduler-worker', config.LOG_LEVEL);
 const outboxDb = createZoneDb('outbox', config.OUTBOX_DATABASE_URL, 3);
 const queue = createQueueClient({ region: config.AWS_REGION, endpoint: config.AWS_ENDPOINT_URL });
 const identityDb = createZoneDb('identity', config.IDENTITY_DATABASE_URL, 2);
+const visitorDb = createZoneDb('visitor', config.VISITOR_DATABASE_URL, 2);
+const channelSealer = localSealer(Buffer.from(config.CHANNEL_SECRET_KEY, 'base64url'));
+const telegramApiOptions = { base: config.TELEGRAM_API_BASE };
 const health = startHealthServer(config.HEALTH_PORT, { database: () => ping(outboxDb) });
 const abort = new AbortController();
 
@@ -189,6 +206,8 @@ async function sweepAlerts() {
       appUrl: config.PUBLIC_APP_URL,
       log: logger,
       linkOf: alertLinks,
+      // FEAT-037 §5.5: Telegram rows go to the member's linked chat through the business's bot.
+      telegram: telegramAlerts({ zdb: visitorDb, sealer: channelSealer, api: telegramApiOptions }),
     });
     if (Object.values(r).some((n) => n > 0)) logger.info(r, 'alert sweep');
   } catch (err) {
@@ -242,13 +261,23 @@ const gapTimer = setInterval(
 // Channel health (FEAT-034 §5.2): checks every health-checked connection and marks a broken
 // one degraded (two checks 5 minutes apart meet CHN-12's 15 minutes).
 // FEAT-036: email's check is the custom sending domain (SES identity and DMARC).
-const healthRegistry = withEmailHealth(CHANNEL_REGISTRY, {
-  zdb: outboxDb,
-  ...identityProvider(config.EMAIL_IDENTITY_PROVIDER, {
-    region: config.AWS_REGION,
-    configurationSet: config.SES_CONFIGURATION_SET,
+// FEAT-037: Telegram's check is getMe and the webhook (re-registered when Telegram dropped it).
+const healthRegistry = withAdapter(
+  withEmailHealth(CHANNEL_REGISTRY, {
+    zdb: outboxDb,
+    ...identityProvider(config.EMAIL_IDENTITY_PROVIDER, {
+      region: config.AWS_REGION,
+      configurationSet: config.SES_CONFIGURATION_SET,
+    }),
   }),
-});
+  'telegram',
+  () =>
+    telegramAdapter({
+      sealer: channelSealer,
+      api: telegramApiOptions,
+      hookUrl: (id) => `${config.PUBLIC_HOOKS_URL}/hooks/telegram/${id}`,
+    }),
+);
 const runHealth = (zdb: typeof outboxDb) => runChannelHealth(zdb, { registry: healthRegistry });
 const channelRun = channelHealthOnce(outboxDb, logger, runHealth);
 const channelTimer = setInterval(

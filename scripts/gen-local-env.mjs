@@ -98,6 +98,9 @@ const files = {
   'apps/scheduler-worker/.env': {
     OUTBOX_DATABASE_URL: pg('app_outbox', s.APP_OUTBOX_PASSWORD),
     IDENTITY_DATABASE_URL: pg('app_identity', s.APP_IDENTITY_PASSWORD),
+    VISITOR_DATABASE_URL: pg('app_agent_visitor', s.APP_AGENT_VISITOR_PASSWORD),
+    ...telegram,
+    PUBLIC_HOOKS_URL: 'http://localhost:3000',
     ...mail,
     SQS_TURNS_QUEUE_URL: queue,
     SQS_INGEST_QUEUE_URL: ingestQueue,

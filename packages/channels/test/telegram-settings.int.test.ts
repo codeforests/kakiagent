@@ -17,6 +17,7 @@ import {
   runChannelHealth,
   TelegramChannelError,
   telegramAdapter,
+  telegramAlerts,
   telegramChannelView,
   withAdapter,
 } from '../src/index.js';
@@ -166,6 +167,8 @@ describe('Telegram settings (FEAT-037 §5.2)', () => {
     ).rows.map((r) => r.user_id);
     const first = await alerts();
     expect([...new Set(first.map((a) => a.user_id))]).toEqual(managers);
+    // FEAT-037 D8 (T7): the business has a bot, so each manager gets an email and a Telegram row.
+    expect(first.map((a) => a.channel)).toEqual(managers.flatMap(() => ['email', 'telegram']));
     expect(first.every((a) => a.status === 'pending')).toBe(true);
     await runChannelHealth(outbox, { registry });
     expect(await alerts()).toHaveLength(first.length);
@@ -227,5 +230,63 @@ describe('Telegram settings (FEAT-037 §5.2)', () => {
     // Reconnecting reuses the connection row.
     await connect(fixtureToken(810001, 'd'));
     expect((await view()).connection?.id).toBe(v.connection!.id);
+  });
+});
+
+describe('alerts on Telegram (FEAT-037 §5.5, D9; AC-6)', () => {
+  // Built per call: the database starts in beforeAll.
+  const alerts = () => telegramAlerts({ zdb: tdb.zone('visitor'), sealer, api: deps.api });
+  const send = (text = 'Kaki: A customer asked to talk to a person.') =>
+    alerts().send({ tenantId: TENANT_A, userId, text });
+  const linkCount = async () =>
+    (
+      await owner.query<{ n: number }>(
+        `select count(*)::int as n from telegram_alert_links where tenant_id = $1 and user_id = $2`,
+        [TENANT_A, userId],
+      )
+    ).rows[0]!.n;
+
+  it('no linked chat → no_channel, nothing sent', async () => {
+    const before = fake.sent.length;
+    expect(await send()).toBe('no_channel');
+    expect(fake.sent.length).toBe(before);
+  });
+
+  it("a linked member gets the text in their chat, from the business's bot", async () => {
+    await owner.query(
+      `insert into telegram_alert_links (tenant_id, user_id, chat_id, telegram_name, linked_at)
+       values ($1, $2, 555, 'Mei', now())`,
+      [TENANT_A, userId],
+    );
+    expect(await send('hello owner')).toBe('sent');
+    expect(fake.sent.at(-1)).toMatchObject({
+      botId: 810001,
+      method: 'sendMessage',
+      chatId: 555,
+      text: 'hello owner',
+    });
+  });
+
+  it('another tenant sees no link of this one', async () => {
+    expect(await alerts().send({ tenantId: TENANT_B, userId, text: 'x' })).toBe('no_channel');
+  });
+
+  it('the member blocked the bot → unlinked, no_channel from then on', async () => {
+    fake.blocked.add(555);
+    expect(await send()).toBe('no_channel');
+    expect(await linkCount()).toBe(0);
+    fake.blocked.delete(555);
+  });
+
+  it('a revoked token → auth (retried) and the channel is degraded', async () => {
+    await owner.query(
+      `insert into telegram_alert_links (tenant_id, user_id, chat_id, linked_at)
+       values ($1, $2, 556, now())`,
+      [TENANT_A, userId],
+    );
+    fake.revoke(fixtureToken(810001, 'd'));
+    expect(await send()).toEqual({ failed: 'auth' });
+    expect(await linkCount()).toBe(1);
+    expect((await view()).connection?.health).toBe('degraded');
   });
 });

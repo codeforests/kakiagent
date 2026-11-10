@@ -188,4 +188,20 @@ CREATE FUNCTION telegram_alert_links_clear()
   $$;--> statement-breakpoint
 ALTER FUNCTION telegram_alert_links_clear() OWNER TO kaki_channel_hooks;--> statement-breakpoint
 REVOKE ALL ON FUNCTION telegram_alert_links_clear() FROM PUBLIC;--> statement-breakpoint
-GRANT EXECUTE ON FUNCTION telegram_alert_links_clear() TO app_dashboard;
+GRANT EXECUTE ON FUNCTION telegram_alert_links_clear() TO app_dashboard;--> statement-breakpoint
+-- The channels an alert is written to (FEAT-037 §5.5, D8): email always, Telegram when the
+-- business has a bot, so tenants without Telegram get no rows to skip. Every producer zone
+-- calls it through `notify`; it reveals only whether a bot exists.
+GRANT SELECT (tenant_id) ON telegram_settings TO kaki_channels;--> statement-breakpoint
+CREATE FUNCTION alert_channels()
+  RETURNS text[]
+  LANGUAGE sql STABLE SECURITY DEFINER
+  SET search_path = public, pg_temp
+  AS $$
+    SELECT CASE WHEN EXISTS (
+      SELECT 1 FROM telegram_settings s WHERE s.tenant_id = app_current_tenant()
+    ) THEN array['email', 'telegram'] ELSE array['email'] END
+  $$;--> statement-breakpoint
+ALTER FUNCTION alert_channels() OWNER TO kaki_channels;--> statement-breakpoint
+REVOKE ALL ON FUNCTION alert_channels() FROM PUBLIC;--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION alert_channels() TO app_outbox, app_agent_visitor, app_dashboard;

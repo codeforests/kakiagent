@@ -17,8 +17,8 @@ export interface NotifyInput {
 /**
  * Queues an alert for each recipient, in the producer's transaction (FEAT-052 §5.1, D2), so
  * nothing is sent unless the change commits. Preferences and quiet hours apply at send time
- * (D3). One row per channel in `CHANNELS` (FEAT-037 D8), so each channel has its own status,
- * retries and digest. Returns the number of rows written.
+ * (D3). One row per channel (FEAT-037 D8), so each channel has its own status, retries and
+ * digest: email always, Telegram when the business has a bot (`alert_channels()`). Returns the number of rows written.
  */
 export async function notify(tx: Tx, n: NotifyInput): Promise<number> {
   const recipients = [...new Set(n.recipients)];
@@ -30,7 +30,8 @@ export async function notify(tx: Tx, n: NotifyInput): Promise<number> {
         select ${n.tenantId}, r, ch, ${n.kind}, ${n.urgent ?? false}, ${n.subject.type},
                ${n.subject.id}, ${n.dedupeKey}
         from unnest(${`{${recipients.join(',')}}`}::uuid[]) r,
-             unnest(${`{${CHANNELS.join(',')}}`}::text[]) ch
+             unnest(alert_channels()) ch
+        where ch = any(${`{${CHANNELS.join(',')}}`}::text[])
         on conflict (tenant_id, user_id, channel, dedupe_key) do nothing`,
   );
   return res.rowCount ?? 0;
