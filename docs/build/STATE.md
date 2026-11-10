@@ -54,7 +54,7 @@ The repo is public, so GitHub Actions minutes are free. CI (`.github/workflows/c
 - **Every feature:** the verify stage runs the full local checks through `scripts/test-env.sh scripts/check-summary.sh` (with no arguments it runs `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`; add `'pnpm --filter <pkg> test:coverage'` for each package the feature touches), then starts CI on the PR branch (`actions_run_trigger` `run_workflow`, `ci.yml`, ref = the branch), waits for the PR events (no polling), fixes anything red on the branch and re-runs until all jobs are green. The PR body lists both.
 - **E2E** runs in CI (Chromium, Firefox, WebKit). The acceptance report records the run number and commit.
 - Ken's local WSL run (`/mnt/project-files/guides/run-kakiagent-locally.md`) is only a fallback when GitHub CI is unavailable.
-- **Last CI run:** GitHub CI run 121 on FEAT-037 at `c9b0a13`, 2026-11-10 (see its acceptance report). FEAT-009's holiday-only tests (`business-profile.e2e`, agent `language-hours.int`) fail on any SG public holiday; fix them with a non-holiday date (pending actions). `ConfirmDialog` is `role=alertdialog` in E2E selectors. Start CI once per final head and re-run only failed jobs (Ken, 2026-11-07).
+- **Last CI run:** GitHub CI run 122 on FEAT-037 at `bc7e636`, 2026-11-10: all green. FEAT-009's holiday-only tests (`business-profile.e2e`, agent `language-hours.int`) fail on any SG public holiday; fix them with a non-holiday date (pending actions). `ConfirmDialog` is `role=alertdialog` in E2E selectors. Start CI once per final head and re-run only failed jobs (Ken, 2026-11-07).
 
 ## Token tracking (Ken, 2026-10-24; every feature)
 

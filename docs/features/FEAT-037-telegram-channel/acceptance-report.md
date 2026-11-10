@@ -4,7 +4,7 @@
 
 ## Verdict summary
 
-**Accepted.** All eight acceptance criteria hold against their sources (CHN-05, CHN-12, LED-04, DSH-09, NFR-17, CHN-01; UC-25 1–4, 3a, 4a). The feature's unit and integration suites pass in this run; the E2E spec and screen renders pass in GitHub CI (see CI). Live Bot API checks (a real BotFather bot, the public webhook, revoke and replace) remain for milestone MD.
+**Accepted.** All eight acceptance criteria hold against their sources (CHN-05, CHN-12, LED-04, DSH-09, NFR-17, CHN-01; UC-25 1–4, 3a, 4a). The feature's unit and integration suites pass in this run; the E2E spec and screen renders pass in GitHub CI run 122 (see CI). Live Bot API checks (a real BotFather bot, the public webhook, revoke and replace) remain for milestone MD.
 
 ## Audit standard
 
@@ -59,4 +59,7 @@ Test ref appended 2026-11-10: CHN-05 (partial: live BotFather bot at MD), LED-04
 
 ## CI
 
-CI_LINE
+- Run 119 at `acce1c8`: every job green except `telegram-channel.e2e` on all three browsers (the inbox row selector; corrected in `75a3e40`).
+- Run 120 at `75a3e40`: the spec passed the inbox step and failed at "Check again" (429 inside the 30 s cooldown) on Chromium and WebKit; corrected in `c9b0a13`.
+- Run 121 at `c9b0a13`: `telegram-channel.e2e` green on Chromium, Firefox and WebKit. Red outside FEAT-037: agent `approval.int` (FEAT-055's ADR-014 regex matched "200" inside a random approval UUID; made whole-number in `bc7e636`) and Firefox `consent-withdrawal.e2e` (the known Firefox timeout, FEAT-051).
+- Run 122 (https://github.com/codeforests/kakiagent/actions/runs/42759917863) at `bc7e636`: all jobs green.
