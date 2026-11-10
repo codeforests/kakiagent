@@ -1,7 +1,7 @@
 # Tasks: FEAT-039 — Contact identity, verified merge and undo
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: developer-done · Last updated: 2026-11-10 (design)
+> Status: developer-done · Last updated: 2026-11-10 (build UI)
 
 - [x] T1 — Schema: `0055_contact_identity.sql` and `schema.ts`: `contact_identities` (checks, the four indexes), `contact_merges`, `contacts.merged_into`/`merged_at`, drop the three `contacts` unique indexes, `leads.superseded_by` and the new `leads_one_open_uq` predicate; forced RLS, policies, grants, `TENANT_SCOPED_TABLES`; NOLOGIN `kaki_contact_merge` with column grants; `contact_merge()` and `contact_unmerge()` (§5.3); the backfill; `rls.int.test.ts` cases (design §4, §5.3; D4, D6, D7; AC-5, AC-7)
       Done when: `drizzle-kit generate` reports no drift after 0055; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes with: tenant B can't read A's identities or merges, and `contact_merge` with A's IDs under B's context raises; `app_dashboard` and `app_agent_visitor` can't `update consents set contact_id`; two verified identities with one value fail, two unverified lead-form ones don't; `contact_merge` then `contact_unmerge` on two seeded contacts with conversations, consents, open leads and a Telegram chat restores every row (superseded lead included) and a second unmerge raises; the backfill gives an existing Telegram contact a verified identity.
