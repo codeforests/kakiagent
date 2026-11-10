@@ -37,7 +37,10 @@ const s = {
   CHANNEL_SECRET_KEY: prev.CHANNEL_SECRET_KEY ?? randomBytes(32).toString('base64url'),
 };
 // The fake Telegram Bot API (`pnpm fixtures:telegram`, FEAT-037 §5.6).
-const telegram = { TELEGRAM_API_BASE: 'http://localhost:5177', CHANNEL_SECRET_KEY: s.CHANNEL_SECRET_KEY };
+const telegram = {
+  TELEGRAM_API_BASE: 'http://localhost:5177',
+  CHANNEL_SECRET_KEY: s.CHANNEL_SECRET_KEY,
+};
 const pg = (user, pw) => `postgres://${user}:${pw}@localhost:5432/kakiagent`;
 const mail = {
   SMTP_URL: 'smtp://localhost:1025',

@@ -6,7 +6,7 @@ import {
   type AlertEvent,
 } from '@kaki/contracts';
 import { sql, withTenant } from '@kaki/db';
-import { canApprove } from '@kaki/identity';
+import { can, canApprove } from '@kaki/identity';
 import {
   fromClock,
   getPrefs,
@@ -73,9 +73,13 @@ export function notificationsErrorReply(
   return null;
 }
 
-/** The events this member can receive, in contract order (D9). */
+/** The events this member can receive, in contract order (D9; FEAT-037 §3: channel alerts for settings.manage). */
 const eventsFor = (s: TenantSession): AlertEvent[] =>
-  AlertEventShape.options.filter((e) => e !== 'approval_pending' || canApprove(s));
+  AlertEventShape.options.filter(
+    (e) =>
+      (e !== 'approval_pending' || canApprove(s)) &&
+      (e !== 'channel_degraded' || can(s.role, 'settings.manage')),
+  );
 
 /**
  * Notification preferences and the test alert (DSH-09, LED-04; FEAT-052 §5.4). Every route is
@@ -105,7 +109,8 @@ export function registerNotificationRoutes(
         end: toClock(prefs.quiet.end),
       },
       timeZone: TIME_ZONE,
-      sendTo: { email: await emailOf(s.userId) },
+      // FEAT-037 T7 fills the member's Telegram link.
+      sendTo: { email: await emailOf(s.userId), telegram: null },
     });
   }
 
@@ -157,6 +162,8 @@ export function registerNotificationRoutes(
         dedupeKey: `test:${randomUUID()}`,
       }),
     );
-    return reply.code(202).send(TestAlertResult.parse({ sentTo: await emailOf(s.userId) }));
+    return reply
+      .code(202)
+      .send(TestAlertResult.parse({ sentTo: await emailOf(s.userId), telegram: false }));
   });
 }

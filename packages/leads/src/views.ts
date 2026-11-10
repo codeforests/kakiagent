@@ -9,6 +9,8 @@ export interface ContactView {
   email: string | null;
   /** Formatted `+65 9123 4567`. */
   phone: string | null;
+  /** The Telegram `@username`, without the `@` (FEAT-037 §3). */
+  telegramUsername: string | null;
 }
 
 /** The conversation's contact for the inbox sidebar (FEAT-049 §5.4), or null before any capture. */
@@ -22,8 +24,9 @@ export async function contactOf(
     name: string | null;
     email: string | null;
     phone: string | null;
+    telegram_username: string | null;
   }>(sql`
-    select k.id, k.name, k.email, k.phone from contacts k
+    select k.id, k.name, k.email, k.phone, k.telegram_username from contacts k
     join conversations c on c.tenant_id = k.tenant_id and c.contact_id = k.id
     where c.tenant_id = ${tenantId} and c.id = ${conversationId}`);
   const r = rows[0];
@@ -33,6 +36,7 @@ export async function contactOf(
         name: r.name,
         email: r.email,
         phone: r.phone ? formatSgPhone(r.phone) : null,
+        telegramUsername: r.telegram_username,
       }
     : null;
 }

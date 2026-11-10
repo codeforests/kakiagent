@@ -49,7 +49,9 @@ module.exports = {
       comment: 'Testcontainers helpers never ship in a runtime role.',
       severity: 'error',
       from: { pathNot: '(^|/)(test|e2e)/|\\.test\\.ts$' },
-      to: { path: '^packages/((db|identity)/src/testing|channels/src/(contract-suite|telegram/fake))\\.ts$' },
+      to: {
+        path: '^packages/((db|identity)/src/testing|channels/src/(contract-suite|telegram/fake))\\.ts$',
+      },
     },
     {
       name: 'not-to-unresolvable',

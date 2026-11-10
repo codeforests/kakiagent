@@ -258,6 +258,7 @@ export function registerInboxRoutes(
           name: data.contact?.name ?? null,
           email: data.contact?.email ?? null,
           phone: data.contact?.phone ?? null,
+          telegramUsername: data.contact?.telegramUsername ?? null,
           label: data.contact?.name ?? 'Website visitor',
           firstSeenAt: data.history.firstSeenAt.toISOString(),
           previousConversations: data.history.previousConversations,

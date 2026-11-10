@@ -69,10 +69,11 @@ describe('GET/PUT /api/v1/me/notifications (AC-5, AC-6)', () => {
         { event: 'approval_pending', email: true },
         { event: 'hot_lead', email: true },
         { event: 'consent_withdrawn', email: true },
+        { event: 'channel_degraded', email: true },
       ],
       quietHours: quiet,
       timeZone: 'Asia/Singapore',
-      sendTo: { email: 'owner@kaki-bakery.test' },
+      sendTo: { email: 'owner@kaki-bakery.test', telegram: null },
     });
     expect((await app.inject({ method: 'GET', url: URL })).statusCode).toBe(401);
   });
@@ -93,6 +94,7 @@ describe('GET/PUT /api/v1/me/notifications (AC-5, AC-6)', () => {
       { event: 'approval_pending', email: true },
       { event: 'hot_lead', email: false },
       { event: 'consent_withdrawn', email: true },
+      { event: 'channel_degraded', email: true },
     ]);
     expect(got.quietHours).toEqual({ enabled: false, start: '23:30', end: '06:15' });
   });
@@ -153,7 +155,7 @@ describe('POST /api/v1/me/notifications/test (AC-11, D11)', () => {
   it('202 writes one urgent test alert to the caller; a second within 60 s is 429', async () => {
     const res = await req('POST', `${URL}/test`, ownerCookie);
     expect(res.statusCode).toBe(202);
-    expect(res.json()).toEqual({ sentTo: 'owner@kaki-bakery.test' });
+    expect(res.json()).toEqual({ sentTo: 'owner@kaki-bakery.test', telegram: false });
     const rows = await owner.query(`select tenant_id, user_id, kind, urgent from notifications`);
     expect(rows.rows).toEqual([
       { tenant_id: TENANT_A, user_id: ownerA, kind: 'test', urgent: true },
