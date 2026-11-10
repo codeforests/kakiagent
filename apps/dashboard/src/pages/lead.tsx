@@ -121,7 +121,7 @@ function LeadBody({ lead }: { lead: LeadDetail }) {
         <div className="lead-page__chips">
           <ScoreChip scoring={scoring} />
           <StatusChip status={lead.status} />
-          {lead.canManage && (
+          {lead.canManage && !lead.supersededBy && (
             <StatusMenu
               status={lead.status}
               busy={move.isPending}
@@ -130,6 +130,12 @@ function LeadBody({ lead }: { lead: LeadDetail }) {
           )}
         </div>
       </div>
+      {lead.supersededBy && (
+        <div className="alert alert--info" data-testid="lead-superseded">
+          <p>This lead was merged into another lead when their contacts were merged.</p>
+          <Link to={`/leads/${lead.supersededBy}`}>Open the current lead</Link>
+        </div>
+      )}
       {lead.consentWithdrawnAt && (
         <div className="alert alert--danger" data-testid="lead-withdrawn">
           <p className="alert__title">Consent withdrawn</p>
@@ -184,6 +190,9 @@ function LeadBody({ lead }: { lead: LeadDetail }) {
             <p className="lead-fields__caption">
               {lead.captures > 1 && <>Left details {lead.captures} times · </>}
               First captured {dateTime(lead.createdAt)} · Updated {dateTime(lead.updatedAt)}
+            </p>
+            <p>
+              <Link to={`/contacts/${lead.contactId}?from=lead`}>View contact</Link>
             </p>
           </section>
           <section

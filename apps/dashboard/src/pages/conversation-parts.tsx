@@ -389,11 +389,14 @@ export function CopyRow({
   label,
   value,
   prefix,
+  badge,
 }: {
   label: 'email' | 'phone' | 'Telegram username';
   value: string;
   /** A visible word before the value ("Telegram"). */
   prefix?: string;
+  /** After the value: the verified chip (FEAT-039). */
+  badge?: ReactNode;
 }) {
   const [copied, setCopied] = useState(false);
   return (
@@ -402,6 +405,7 @@ export function CopyRow({
         {prefix && <>{prefix} </>}
         {value}
       </span>
+      {badge}
       <button
         type="button"
         className="icon-button"
@@ -420,6 +424,15 @@ export function CopyRow({
         {copied ? 'Copied' : ''}
       </span>
     </p>
+  );
+}
+
+/** The sidebar's verified chip (FEAT-039 ui-design SCR-APP-015): icon and word. */
+export function VerifiedMark() {
+  return (
+    <span className="chip chip--success verified-chip">
+      <Glyph name="shield-check" size={14} /> Verified
+    </span>
   );
 }
 
@@ -443,13 +456,20 @@ export function ContextSidebar({ thread }: { thread: ConversationThread }) {
     <div className="context-sidebar" data-testid="context-sidebar">
       <Section title="Contact">
         <p className="sidebar-strong">{contact.name ?? contact.label}</p>
-        {contact.email && <CopyRow label="email" value={contact.email} />}
+        {contact.email && (
+          <CopyRow
+            label="email"
+            value={contact.email}
+            badge={contact.verified.email && <VerifiedMark />}
+          />
+        )}
         {contact.phone && <CopyRow label="phone" value={contact.phone} />}
         {contact.telegramUsername && (
           <CopyRow
             label="Telegram username"
             prefix="Telegram"
             value={`@${contact.telegramUsername}`}
+            badge={contact.verified.telegram && <VerifiedMark />}
           />
         )}
         <p>First seen {shortDate(contact.firstSeenAt)}</p>
@@ -458,6 +478,20 @@ export function ContextSidebar({ thread }: { thread: ConversationThread }) {
             ? 'First conversation'
             : `${earlier} earlier conversation${earlier === 1 ? '' : 's'}`}
         </p>
+        {contact.contactId && (
+          <p>
+            <Link to={`/contacts/${contact.contactId}`}>View contact</Link>
+          </p>
+        )}
+        {contact.contactId && contact.duplicates > 0 && (
+          <p className="sidebar-caption sidebar-duplicates" data-testid="sidebar-duplicates">
+            <Glyph name="users" size={14} />
+            <Link to={`/contacts/${contact.contactId}#duplicates`}>
+              Possibly the same person as {contact.duplicates} other contact
+              {contact.duplicates === 1 ? '' : 's'}.
+            </Link>
+          </p>
+        )}
         {!contact.contactId && (
           <p className="sidebar-caption">
             Names and contact details appear once the visitor shares them.

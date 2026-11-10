@@ -22,7 +22,7 @@ import {
   sharedText,
 } from '../lib/contacts.ts';
 import { CHANNEL_LABEL, dateTime, STATE_LABEL } from '../lib/inbox.ts';
-import { CopyRow, Glyph, type GlyphName } from './conversation-parts.tsx';
+import { CopyRow, Glyph, VerifiedMark, type GlyphName } from './conversation-parts.tsx';
 import { ConsentEntry, StatusChip } from './leads-parts.tsx';
 
 /** SCR-APP-016 Contact cards and dialogs (FEAT-039 ui-design). The page state is in `contact.tsx`. */
@@ -37,9 +37,7 @@ const COPY_LABEL = { email: 'email', phone: 'phone', telegram: 'Telegram usernam
 /** Verified / Not verified: an icon and the word, never colour alone. */
 export function VerifiedChip({ verified }: { verified: boolean }) {
   return verified ? (
-    <span className="chip chip--success verified-chip">
-      <Glyph name="shield-check" size={14} /> Verified
-    </span>
+    <VerifiedMark />
   ) : (
     <span className="chip chip--neutral verified-chip">
       <Glyph name="circle-dashed" size={14} /> Not verified
