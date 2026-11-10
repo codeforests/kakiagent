@@ -33,6 +33,9 @@ import {
   rowTime,
   searchFromView,
   viewFromSearch,
+  channelCaption as telegramCaption,
+  channelOf as telegramChannelOf,
+  placeholderKind,
 } from './inbox.ts';
 
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -635,6 +638,28 @@ describe('email conversations (FEAT-036)', () => {
     );
     expect(escalationStrip({ ...e, source: 'delivery_failed' }, null, now).lead).toMatch(
       /A reply couldn't be delivered\./,
+    );
+  });
+});
+
+describe('Telegram conversations (FEAT-037)', () => {
+  it('filters by Telegram and words the header caption', () => {
+    expect(telegramChannelOf('telegram')).toBe('telegram');
+    expect(telegramCaption('telegram', 'mei_tan')).toBe('On Telegram · @mei_tan');
+    expect(telegramCaption('telegram', null)).toBe('On Telegram');
+    expect(telegramCaption('email', null)).toBe('By email');
+    expect(telegramCaption('widget', null)).toBe('Website chat');
+  });
+  it('reads placeholders only on Telegram visitor messages', () => {
+    expect(placeholderKind('[Sticker]', 'visitor', 'telegram')).toBe('sticker');
+    expect(placeholderKind('[Voice message]', 'visitor', 'telegram')).toBe('voice message');
+    expect(placeholderKind('[Sticker]', 'visitor', 'widget')).toBeNull();
+    expect(placeholderKind('[Sticker]', 'staff', 'telegram')).toBeNull();
+    expect(placeholderKind('Is [this] open?', 'visitor', 'telegram')).toBeNull();
+  });
+  it('words the blocked delivery reason', () => {
+    expect(deliveryText({ status: 'failed', failedReason: 'blocked', sentAt: null })?.text).toBe(
+      'Not delivered: the customer blocked the bot',
     );
   });
 });

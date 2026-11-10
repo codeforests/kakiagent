@@ -1,4 +1,10 @@
-import type { ConversationStatus, FactChip, ThreadEvent, ThreadMessage } from '@kaki/contracts';
+import type {
+  ConversationChannel,
+  ConversationStatus,
+  FactChip,
+  ThreadEvent,
+  ThreadMessage,
+} from '@kaki/contracts';
 import { Button, EmptyState, ErrorState, SlideOver } from '@kaki/ui';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -7,7 +13,7 @@ import { Link, useLocation } from 'react-router';
 import { api, ApiError } from '../lib/api.ts';
 import { useToast } from '../lib/form.ts';
 import {
-  CHANNEL_LABEL,
+  channelCaption,
   clockTime,
   mergeMessages,
   STATE_LABEL,
@@ -151,10 +157,13 @@ export function ConversationPane({ id, backTo }: { id: string; backTo: string })
   const startClose = () => close.mutate(c.version);
   const sidebar = <ContextSidebar thread={t} />;
   // Email: the contact's name or address (FEAT-036); the widget keeps "Website visitor".
+  // Telegram: the contact's name, else the party label (FEAT-037).
   const party =
     c.channel === 'email'
       ? (t.sidebar.contact.name ?? t.sidebar.contact.email ?? PARTY_LABEL.email)
-      : PARTY_LABEL.widget;
+      : c.channel === 'telegram'
+        ? (t.sidebar.contact.name ?? PARTY_LABEL.telegram)
+        : PARTY_LABEL.widget;
 
   return (
     <div className="conversation">
@@ -178,7 +187,7 @@ export function ConversationPane({ id, backTo }: { id: string; backTo: string })
               </p>
             )}
             <p className="thread-header__caption">
-              {c.channel === 'email' ? 'By email' : CHANNEL_LABEL[c.channel]} · started{' '}
+              {channelCaption(c.channel, t.sidebar.contact.telegramUsername)} · started{' '}
               {clockTime(c.createdAt)}
             </p>
           </div>
@@ -258,6 +267,7 @@ export function ConversationPane({ id, backTo }: { id: string; backTo: string })
           onRetryError={setToast}
           meId={me.data?.user.id ?? null}
           matchId={matchId}
+          channel={c.channel}
         />
         <ThreadDock
           conversation={c}
@@ -305,8 +315,10 @@ function ThreadLog({
   meId,
   matchId,
   onRetryError,
+  channel,
 }: {
   onRetryError: (text: string) => void;
+  channel: ConversationChannel;
   messages: ThreadMessage[];
   events: ThreadEvent[];
   facts: FactChip[];
@@ -397,6 +409,7 @@ function ThreadLog({
                 meId={meId}
                 match={item.message.id === matchId}
                 onRetryError={onRetryError}
+                channel={channel}
               />
             ) : (
               <Divider key={item.key} event={item.event} />

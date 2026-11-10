@@ -39,10 +39,14 @@ const HOLD_HELP =
   'Alerts that arrive in this window come as one email when it ends. Urgent alerts, like a customer asking for a person or an approval about to miss its deadline, still come straight away.';
 
 /** The help under the quiet-hours fields, or the line shown when quiet hours are off. */
-export function quietHelp(q: Times & { enabled: boolean }): string {
+export function quietHelp(q: Times & { enabled: boolean }, telegram = false): string {
   if (!q.enabled) return 'Every alert is emailed as it happens.';
   const lead = overnight(q) ? `Overnight, ${q.start} to ${q.end}. ` : '';
-  return `${lead}Singapore time. ${HOLD_HELP}`;
+  // FEAT-037 ui-design SCR-APP-056: a linked Telegram gets its own single message too.
+  const hold = telegram
+    ? HOLD_HELP.replace('as one email when', 'as one email (and one Telegram message) when')
+    : HOLD_HELP;
+  return `${lead}Singapore time. ${hold}`;
 }
 
 export type QuietError = { field: 'start' | 'end'; text: string };
@@ -80,22 +84,33 @@ export function testErrorText(err: unknown): TestErrorText {
 
 /** One change from the page: an event's email switch, or the quiet hours. */
 export type PrefsChange =
-  { event: AlertEvent; email: boolean } | { quietHours: NotificationPrefs['quietHours'] };
+  | { event: AlertEvent; email: boolean; telegram?: boolean }
+  | { quietHours: NotificationPrefs['quietHours'] };
 
 /** The preferences with a change applied. */
 export function applyChange(prefs: NotificationPrefs, change: PrefsChange): NotificationPrefs {
   if ('quietHours' in change) return { ...prefs, quietHours: change.quietHours };
   return {
     ...prefs,
-    events: prefs.events.map((e) => (e.event === change.event ? { ...e, email: change.email } : e)),
+    events: prefs.events.map((e) =>
+      e.event === change.event
+        ? {
+            ...e,
+            email: change.email,
+            ...(change.telegram === undefined ? {} : { telegram: change.telegram }),
+          }
+        : e,
+    ),
   };
 }
 
 /** The change that undoes `change` on `prefs` (taken before applying it). */
 export function undoOf(prefs: NotificationPrefs, change: PrefsChange): PrefsChange {
   if ('quietHours' in change) return { quietHours: prefs.quietHours };
-  const was = prefs.events.find((e) => e.event === change.event)?.email ?? !change.email;
-  return { event: change.event, email: was };
+  const before = prefs.events.find((e) => e.event === change.event);
+  const was = before?.email ?? !change.email;
+  if (change.telegram === undefined) return { event: change.event, email: was };
+  return { event: change.event, email: was, telegram: before?.telegram ?? !change.telegram };
 }
 
 /** The PUT body: the whole page, so the server and the cache agree. */
@@ -142,6 +157,12 @@ export function useSaveNotificationPrefs() {
     },
   });
 }
+
+/** The test card's toast: Telegram too when it was sent there (FEAT-037). */
+export const testSentText = (res: { sentTo: string; telegram: boolean }) =>
+  res.telegram
+    ? `Test alert sent to ${res.sentTo} and Telegram.`
+    : `Test alert sent to ${res.sentTo}. It should arrive within a minute.`;
 
 export function useSendTestAlert() {
   return useMutation({ mutationFn: api.sendTestAlert });

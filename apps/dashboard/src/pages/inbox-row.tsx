@@ -1,7 +1,14 @@
 import type { ConversationSummary } from '@kaki/contracts';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
-import { escalationText, initials, ownerText, PARTY_LABEL, rowTime } from '../lib/inbox.ts';
+import {
+  CHANNEL_LABEL,
+  escalationText,
+  initials,
+  ownerText,
+  PARTY_LABEL,
+  rowTime,
+} from '../lib/inbox.ts';
 import { FlaggedChip, StateChip, UrgentChip, VisitorAvatar } from './conversation-parts.tsx';
 
 /** A conversation row (SCR-APP-014), shared by the list and the search results (FEAT-046). */
@@ -40,7 +47,9 @@ export function Row({
         <span className="conversation-row__main">
           <span className="conversation-row__title">
             {PARTY_LABEL[c.channel]}
-            {c.channel === 'email' && <span className="sr-only"> · Email</span>}
+            {c.channel !== 'widget' && (
+              <span className="sr-only"> · {CHANNEL_LABEL[c.channel]}</span>
+            )}
           </span>
           {c.subject && (
             <span className="conversation-row__subject" data-testid="conversation-subject">
