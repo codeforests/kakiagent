@@ -135,7 +135,7 @@ normaliseIdentity(kind, raw): string | null                              // lowe
 
 ## 7. Decisions
 
-- **D1 — Typed details never join contacts (replaces FEAT-049 D4; Ken's card, 2026-11-10, recommended option, pending).** The lead form links the conversation's contact, else the same browser's (`visitor_id`) contact, else a new one; its email and phone are unverified identities. Contacts that share any identifier appear as possible duplicates for staff. Why: CHN-08, and today a visitor typing someone else's email can withdraw that person's consent, and FEAT-038/026 would carry that person's history into the chat.
+- **D1 — Typed details never join contacts (replaces FEAT-049 D4; Ken chose it, 2026-11-10).** The lead form links the conversation's contact, else the same browser's (`visitor_id`) contact, else a new one; its email and phone are unverified identities. Contacts that share any identifier appear as possible duplicates for staff. Why: CHN-08, and today a visitor typing someone else's email can withdraw that person's consent, and FEAT-038/026 would carry that person's history into the chat.
 - **D2 — A From address is verified only when SES's DMARC verdict is `PASS`.** `FAIL` is already dropped as spam (FEAT-036); `GRAY`/absent means the domain doesn't let us check, so it is unverified.
 - **D3 — Unverified email continuity.** Mail from the same unverified address keeps joining one contact (FEAT-036 D6 continuity, the channel's own thread), but never a verified or lead-form contact. A reply goes to the From address, so a spoofer gains nothing back.
 - **D4 — Identifiers live in `contact_identities`; `contacts` columns are display values.** Uniqueness moves to verified identities, so two people can hold the same typed email. Readers of the display columns stay unchanged, which keeps the change small.
@@ -148,7 +148,7 @@ normaliseIdentity(kind, raw): string | null                              // lowe
 
 ## 8. Escalations and open items
 
-- D1 changes FEAT-049's D4 behaviour and its tests (`leads.int` "a returning visitor…" and the concurrent-submit case, which now pass through the same `visitor_id`/conversation instead of the same typed email). This is a design change, not a weakened test; the decision card is pending with Ken.
+- D1 changes FEAT-049's D4 behaviour and its tests (`leads.int` "a returning visitor…" and the concurrent-submit case, which now pass through the same `visitor_id`/conversation instead of the same typed email). This is a design change, not a weakened test; Ken chose this on 2026-11-10.
 - No verified phone source exists yet (no SMS or WhatsApp); phone identities are always unverified until one does.
 - FEAT-038 calls `attachVerified` from its link-token paths (adds source `link`); FEAT-026 reads history through the conversation's contact, which is now safe to follow. FEAT-061 deletes a contact with its identities and merges (cascade).
 - Telegram's shared phone number (`request_contact`) would be a verified phone; not in scope.
