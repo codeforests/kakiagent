@@ -163,7 +163,8 @@ export async function captureLead(tx: Tx, c: CaptureInput): Promise<Captured> {
     insert into leads (tenant_id, contact_id, consent_id, conversation_id, need, budget, preferred_time)
     values (${c.tenantId}, ${contactId}, ${c.consentId}, ${c.conversationId},
       ${text(v.need)}, ${text(v.budget)}, ${text(v.preferredTime)})
-    on conflict (tenant_id, contact_id) where status in ('new', 'contacted') do update set
+    on conflict (tenant_id, contact_id) where status in ('new', 'contacted') and superseded_by is null
+    do update set
       need = coalesce(excluded.need, leads.need),
       budget = coalesce(excluded.budget, leads.budget),
       preferred_time = coalesce(excluded.preferred_time, leads.preferred_time),
