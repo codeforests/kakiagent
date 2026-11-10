@@ -1,7 +1,7 @@
 # Tasks: FEAT-037 — Telegram channel
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: designed · Last updated: 2026-11-09 (design)
+> Status: developer-done · Last updated: 2026-11-10 (build, UI)
 
 - [x] T1 — Schema: `0054_telegram_channel.sql` and `schema.ts`: `conversations.channel` + `telegram`, `failed_reason` + `blocked`, `NOTICE_KINDS` + `text_only`, `inbound_events.ignore_reason` + `group`/`unsupported`/`staff_chat`, `ALERT_EVENTS` + `channel_degraded`, `NOTIFICATION_SUBJECTS` + `channel`; tables `telegram_settings` (global unique `bot_id`), `telegram_chats`, `telegram_alert_links` (own-row dashboard policy) with forced RLS, grants and `TENANT_SCOPED_TABLES`; `contacts.telegram_id`/`telegram_username`; `notifications.channel` + the widened dedupe index and `skip_reason`; `notification_prefs.telegram_muted`; `channel_hook_route()` owned by NOLOGIN `kaki_channel_hooks`; `rls.int.test.ts` cases (design §4; D3, D5, D6, D8; AC-7)
       Done when: `drizzle-kit generate` reports no drift after 0054; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes with: `channel_hook_route` returns tenant A and the hash from a role with no tenant context and nothing for another kind or an unknown ID; a second tenant inserting the same `bot_id` fails; a staff message in a Telegram conversation gets a delivery and `channel-send` row (the FEAT-036 trigger, unchanged); member 1 can't read member 2's alert link; tenant B can't read or write any new table's tenant A rows.
@@ -34,16 +34,17 @@
       Done when: the spec passes in GitHub CI on all three browsers (verify stage).
       Note: no Docker in cloud sessions; run the fake and the spec's tricky steps against stubs here; restore the dev tenant (disconnect the bot) in `afterEach`. E2E alert waits turn quiet hours off (CI lesson, FEAT-050).
       Evidence (2026-11-10): `scripts/telegram-fake.mjs` (`pnpm fixtures:telegram`, a Playwright `webServer`) checked by curl: getMe, the 401 token rules, setWebhook, `/_fake/update` forwarding with the secret header, `/_fake/sent`. The spec typechecks and lints; it runs in the verify stage's GitHub CI (no stack here). Choices: a random bot ID and chat IDs per run; escalation routed to the Owner (`person`) for the alert step and put back to round robin in `afterEach`; the revoked step calls `POST /channels/:id/check` through the API and then reads the page's degraded alert; the link step waits for the bot's confirmation before counting alert sends.
-- [ ] T12 — Verify: full local checks (`scripts/test-env.sh scripts/check-summary.sh` plus `'pnpm --filter @kaki/channels test:coverage'`, `'pnpm --filter @kaki/platform test:coverage'`, `'pnpm --filter @kaki/api test:coverage'`), `pnpm lint` (RTM), `pnpm typecheck`; `code-map.md` lines for the Telegram adapter, the hook route and alert channels; status `developer-done`
+- [x] T12 — Verify: full local checks (`scripts/test-env.sh scripts/check-summary.sh` plus `'pnpm --filter @kaki/channels test:coverage'`, `'pnpm --filter @kaki/platform test:coverage'`, `'pnpm --filter @kaki/api test:coverage'`), `pnpm lint` (RTM), `pnpm typecheck`; `code-map.md` lines for the Telegram adapter, the hook route and alert channels; status `developer-done`
       Done when: all pass; Verification evidence below has one bullet per AC.
+      Evidence (2026-11-10): `pnpm format:check`, `pnpm lint` (incl. RTM), `pnpm typecheck` PASS; `pnpm test` 152 files / 1795 tests PASS; channels `test:coverage` 142 PASS; platform and api `test:coverage` fail only on the Docker suites this session can't start (platform `rate-limit.int` needs Valkey, api `uploads.int` needs LocalStack; everything else passed: platform 9/10 files, api 45/46), so their coverage thresholds are checked in the verify stage's CI. Lint found one backend issue (`no-useless-assignment` in the hook route's rate-limit `allowed`), fixed. `code-map.md` has the Telegram adapter, hook route, alert channels and dashboard lines.
 
 ## Verification evidence
 
-- AC-1:
-- AC-2:
-- AC-3:
-- AC-4:
-- AC-5:
-- AC-6:
-- AC-7:
-- AC-8:
+- AC-1: api `telegram-channel.int` (connect 201 offline/hidden with the bot, webhook on the hook URL, no token in the body; 403 staff; invalid_format/token_rejected/bot_in_use/already_connected) and channels `telegram-settings.int` (ciphertext + secret hash only); UI connect flow by stubbed Playwright (T9); E2E `telegram-channel.e2e` connect step in CI.
+- AC-2: api `telegram-hook.int` (private text → conversation, contact with Telegram ID/username, turn job; redelivery; reuse/reopen), agent-worker `telegram-deliver.int` (AI reply with disclosure + privacy line, staff reply); E2E: the fake's sent log has the AI reply and the staff reply, the conversation is in the Telegram inbox filter with `@username` (CI).
+- AC-3: api `telegram-hook.int` (group, supergroup, added-to-group: one service job with text + leave, no conversation, `ignore_reason = group`); E2E group step: one `sendMessage` + `leaveChat` (CI).
+- AC-4: channels `telegram.test.ts` fixtures (sticker, voice → placeholders), api `telegram-hook.int` (no AI turn, one `text_only` notice per 24 h, `/start` greeting, staff chat ignored); agent-worker `telegram-deliver.int` (403 blocked → `failed`/`blocked` + one `delivery_failed` escalation); dashboard `placeholderKind`, the `blocked` delivery text (unit).
+- AC-5: channels adapter contract suite + `telegram-settings.int` (getMe 401 → `credential_revoked`, webhook elsewhere → `credential_invalid`, empty URL re-registered); api `telegram-channel.int` (Check again → degraded; replace recovers); agent-worker 401 on send → degraded; UI degraded copy per reason (unit + stubbed Playwright); E2E revoked + check → the page's degraded alert (CI).
+- AC-6: platform `notifications.int` (per-channel rows, mutes, quiet hours, digest per channel, retries), channels `telegramAlerts` (blocked → unlink), api link/unlink routes and the test alert's `telegram`; UI link flow (pending → polling → linked → unlink) by stubbed Playwright; E2E: `/start <code>` links, the confirmation and an escalation alert reach the Owner's chat (CI).
+- AC-7: db `rls.int` cases for the three new tables and `channel_hook_route()` (NOLOGIN owner, no tenant context); api `telegram-hook.int` (wrong/missing secret → 401, nothing stored; no text or names in `inbound_events`, deliveries, outbox or audit); token redaction (channels unit).
+- AC-8: dashboard unit tests (`lib/telegram-channel.test.ts`, Telegram blocks in `notifications.test.ts` and `inbox.test.ts`); stubbed Playwright at 375 and 1280 of every SCR-APP-039 state and the SCR-APP-056 Telegram column (T9, T10); E2E axe at 375 (tall) and 1280 on Telegram, Notifications and the Telegram thread (CI).

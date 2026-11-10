@@ -79,7 +79,7 @@ export function registerHookRoutes(app: App, deps: Deps): void {
     const entry = registryEntry(params.data.kind);
     if (!entry?.hook) return reply.code(404).send({ error: 'not_found' });
     const { connectionId } = params.data;
-    let allowed = true;
+    let allowed: boolean;
     try {
       allowed = (await rateLimiter.hit(`rl:hook:${connectionId}`, config.HOOK_RATE_LIMIT, 60_000))
         .allowed;
