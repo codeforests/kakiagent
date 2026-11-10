@@ -1,7 +1,7 @@
 # Tasks: FEAT-037 — Telegram channel
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: developer-done · Last updated: 2026-11-10 (build, UI)
+> Status: accepted · Last updated: 2026-11-10 (verify)
 
 - [x] T1 — Schema: `0054_telegram_channel.sql` and `schema.ts`: `conversations.channel` + `telegram`, `failed_reason` + `blocked`, `NOTICE_KINDS` + `text_only`, `inbound_events.ignore_reason` + `group`/`unsupported`/`staff_chat`, `ALERT_EVENTS` + `channel_degraded`, `NOTIFICATION_SUBJECTS` + `channel`; tables `telegram_settings` (global unique `bot_id`), `telegram_chats`, `telegram_alert_links` (own-row dashboard policy) with forced RLS, grants and `TENANT_SCOPED_TABLES`; `contacts.telegram_id`/`telegram_username`; `notifications.channel` + the widened dedupe index and `skip_reason`; `notification_prefs.telegram_muted`; `channel_hook_route()` owned by NOLOGIN `kaki_channel_hooks`; `rls.int.test.ts` cases (design §4; D3, D5, D6, D8; AC-7)
       Done when: `drizzle-kit generate` reports no drift after 0054; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes with: `channel_hook_route` returns tenant A and the hash from a role with no tenant context and nothing for another kind or an unknown ID; a second tenant inserting the same `bot_id` fails; a staff message in a Telegram conversation gets a delivery and `channel-send` row (the FEAT-036 trigger, unchanged); member 1 can't read member 2's alert link; tenant B can't read or write any new table's tenant A rows.
