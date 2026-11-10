@@ -62,7 +62,12 @@ describe('dev seed leads (FEAT-050 §5.7)', () => {
       true,
     );
     expect(
-      first.identities.filter((i) => i.value === SEED_DUPLICATE.email).map((i) => i.name),
+      // Sorted here, not in SQL: `order by name` depends on the database collation (CI's
+      // puts 'Rachel Tan' first, C puts 'R. Tan' first).
+      first.identities
+        .filter((i) => i.value === SEED_DUPLICATE.email)
+        .map((i) => i.name)
+        .sort(),
     ).toEqual(['R. Tan', 'Rachel Tan']);
     expect(first.consents.filter((c) => c.purpose === 'marketing')).toHaveLength(2);
     expect(first.qualification).toEqual([
