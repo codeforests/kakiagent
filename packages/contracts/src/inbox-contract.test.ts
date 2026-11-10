@@ -93,6 +93,8 @@ describe('inbox contracts (FEAT-042 §3)', () => {
           label: 'Website visitor',
           firstSeenAt: AT,
           previousConversations: 0,
+          verified: { email: false, telegram: true },
+          duplicates: 1,
         },
         channel: 'widget',
         intents: [{ signal: 'asked_questions', count: 1 }],

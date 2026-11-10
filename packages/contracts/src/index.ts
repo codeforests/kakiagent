@@ -2851,6 +2851,10 @@ export const ContextSidebar = z.object({
     label: z.string(),
     firstSeenAt: z.iso.datetime({ offset: true }),
     previousConversations: z.number().int().min(0),
+    /** FEAT-039 §3: the shown email / Telegram account is a verified identity of this contact. */
+    verified: z.object({ email: z.boolean(), telegram: z.boolean() }),
+    /** Other contacts that share an identifier with this one (capped at 5; FEAT-039 §5.2). */
+    duplicates: z.number().int().min(0),
   }),
   channel: ConversationChannel,
   intents: z.array(z.object({ signal: IntentSignal, count: z.number().int().min(1) })),
@@ -3451,6 +3455,8 @@ export const LeadDetail = LeadRow.extend({
   conversations: z.array(LeadConversation).max(20),
   canManage: z.boolean(),
   canExport: z.boolean(),
+  /** FEAT-039 D6: the lead was superseded by this one when its contact was merged. */
+  supersededBy: z.uuid().nullable(),
 });
 export type LeadDetail = z.infer<typeof LeadDetail>;
 
@@ -3670,3 +3676,154 @@ export const TelegramChannelErrorCode = z.enum([
   'no_bot',
 ]);
 export type TelegramChannelErrorCode = z.infer<typeof TelegramChannelErrorCode>;
+
+// ---- Dashboard API: contacts (CHN-08; FEAT-039 §3) -----------------------------------------
+
+export const IdentityKind = z.enum(['email', 'phone', 'telegram']);
+export type IdentityKind = z.infer<typeof IdentityKind>;
+/** Where an identifier came from; FEAT-038 adds `link`. */
+export const IdentitySource = z.enum(['email', 'telegram', 'lead_form']);
+export type IdentitySource = z.infer<typeof IdentitySource>;
+export const ConsentDecision = z.enum(['agreed', 'declined', 'withdrawn']);
+export type ConsentDecision = z.infer<typeof ConsentDecision>;
+
+/** One identifier of a contact. Phone formatted `+65 9123 4567`; Telegram `@user` or "Telegram account". */
+export const ContactIdentity = z.object({
+  id: z.uuid(),
+  kind: IdentityKind,
+  value: z.string(),
+  verified: z.boolean(),
+  source: IdentitySource,
+  firstSeenAt: z.iso.datetime({ offset: true }),
+});
+export type ContactIdentity = z.infer<typeof ContactIdentity>;
+
+/** Another contact that shares an identifier with this one (§5.2): a suggestion, never merged. */
+export const ContactDuplicate = z.object({
+  contactId: z.uuid(),
+  label: z.string(),
+  shared: z.array(z.object({ kind: IdentityKind, value: z.string() })).max(5),
+});
+export type ContactDuplicate = z.infer<typeof ContactDuplicate>;
+
+/** A merge into this contact, newest first. `by` is the member's name; null when automatic. */
+export const ContactMergeEntry = z.object({
+  mergeId: z.uuid(),
+  otherContactId: z.uuid(),
+  otherLabel: z.string(),
+  at: z.iso.datetime({ offset: true }),
+  automatic: z.boolean(),
+  by: z.string().nullable(),
+  undoneAt: z.iso.datetime({ offset: true }).nullable(),
+  canUndo: z.boolean(),
+  undoBlocked: z.enum(['survivor_merged']).nullable(),
+});
+export type ContactMergeEntry = z.infer<typeof ContactMergeEntry>;
+
+export const ContactLead = z.object({
+  id: z.uuid(),
+  status: LeadStatus,
+  need: z.string().nullable(),
+  createdAt: z.iso.datetime({ offset: true }),
+  /** D6: superseded by the survivor's open lead in a merge. */
+  supersededBy: z.uuid().nullable(),
+});
+export type ContactLead = z.infer<typeof ContactLead>;
+
+export const ContactConversation = LeadConversation.extend({ channel: ConversationChannel });
+export type ContactConversation = z.infer<typeof ContactConversation>;
+
+/** `GET /api/v1/contacts/:id` (SCR-APP-016; `inbox.read`). */
+export const ContactDetail = z.object({
+  id: z.uuid(),
+  label: z.string(),
+  name: z.string().nullable(),
+  firstSeenAt: z.iso.datetime({ offset: true }),
+  /** A merged-away contact: the page redirects to the survivor. Its lists are empty. */
+  mergedInto: z.object({ contactId: z.uuid(), label: z.string(), mergeId: z.uuid() }).nullable(),
+  identities: z.array(ContactIdentity),
+  /** Newest first, at most 20. */
+  conversations: z.array(ContactConversation).max(20),
+  conversationCount: z.number().int().min(0),
+  leads: z.array(ContactLead),
+  /** Newest first. */
+  consents: z.array(LeadConsentRecord),
+  duplicates: z.array(ContactDuplicate).max(5),
+  /** Merges into this contact, newest first. */
+  merges: z.array(ContactMergeEntry),
+  /** `contacts.merge`. */
+  canMerge: z.boolean(),
+});
+export type ContactDetail = z.infer<typeof ContactDetail>;
+
+/** `POST /api/v1/contacts/search` (`inbox.read`): the text in the body, never a URL. */
+export const ContactSearchBody = z.strictObject({
+  q: z.string().trim().min(2).max(100),
+  exclude: z.uuid().optional(),
+});
+export type ContactSearchBody = z.infer<typeof ContactSearchBody>;
+
+export const ContactSearchResponse = z.object({
+  contacts: z
+    .array(
+      z.object({
+        contactId: z.uuid(),
+        label: z.string(),
+        email: z.string().nullable(),
+        /** Formatted `+65 9123 4567`. */
+        phone: z.string().nullable(),
+        telegramUsername: z.string().nullable(),
+        lastSeenAt: z.iso.datetime({ offset: true }).nullable(),
+      }),
+    )
+    .max(10),
+});
+export type ContactSearchResponse = z.infer<typeof ContactSearchResponse>;
+
+const MergeConsent = z.object({
+  enquiry: ConsentDecision.nullable(),
+  marketing: ConsentDecision.nullable(),
+});
+
+/** One side of a merge preview. */
+export const ContactSide = z.object({
+  contactId: z.uuid(),
+  label: z.string(),
+  identities: z.array(ContactIdentity),
+  conversationCount: z.number().int().min(0),
+  openLead: z.object({ id: z.uuid(), need: z.string().nullable() }).nullable(),
+  consent: MergeConsent,
+});
+export type ContactSide = z.infer<typeof ContactSide>;
+
+/** `GET /api/v1/contacts/:id/merge/:otherId` (`contacts.merge`): nothing is written. */
+export const MergePreview = z.object({
+  keep: ContactSide,
+  merge: ContactSide,
+  after: z.object({
+    identities: z.array(ContactIdentity),
+    conversationCount: z.number().int().min(0),
+    /** D6: none = no open lead; keep = the kept one's; move = the merged one's; supersede = both. */
+    leadOutcome: z.enum(['none', 'keep', 'move', 'supersede']),
+    /** D8: the latest decision per purpose across both contacts. */
+    consent: MergeConsent,
+  }),
+});
+export type MergePreview = z.infer<typeof MergePreview>;
+
+/** `POST /api/v1/contacts/:id/merge` (`contacts.merge`): merge `otherId` into `:id`. */
+export const MergeBody = z.strictObject({ otherId: z.uuid() });
+export type MergeBody = z.infer<typeof MergeBody>;
+
+export const MergeResponse = z.object({ mergeId: z.uuid(), contact: ContactDetail });
+export type MergeResponse = z.infer<typeof MergeResponse>;
+
+/** `POST /api/v1/contacts/merges/:mergeId/undo`: the merged-in contact, restored. */
+export const UndoMergeResponse = z.object({ contact: ContactDetail });
+export type UndoMergeResponse = z.infer<typeof UndoMergeResponse>;
+
+export const ContactConflict409 = z.object({
+  error: z.enum(['not_mergeable', 'undo_blocked']),
+  reason: z.enum(['same_contact', 'merged', 'already_undone', 'survivor_merged']),
+});
+export type ContactConflict409 = z.infer<typeof ContactConflict409>;

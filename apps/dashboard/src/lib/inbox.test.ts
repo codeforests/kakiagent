@@ -165,6 +165,8 @@ const thread = (messages: Message[]): ConversationThread => ({
       label: 'Website visitor',
       firstSeenAt: '2026-10-31T01:00:00.000Z',
       previousConversations: 0,
+      verified: { email: false, telegram: false },
+      duplicates: 0,
     },
     channel: 'widget',
     intents: [],

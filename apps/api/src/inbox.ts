@@ -220,6 +220,7 @@ export function registerInboxRoutes(
         // FEAT-049 §5.4: the contact who left details here, and their lead (api-side: inbox
         // never imports leads).
         contact: await contactOf(tx, t, id),
+        duplicates: 0,
         lead: await leadSummaryOf(tx, t, id),
         // FEAT-055 §5.3: the pending approval (api-side: inbox never imports approvals).
         approval: await pendingApprovalOf(tx, t, id),
@@ -262,6 +263,8 @@ export function registerInboxRoutes(
           label: data.contact?.name ?? 'Website visitor',
           firstSeenAt: data.history.firstSeenAt.toISOString(),
           previousConversations: data.history.previousConversations,
+          verified: data.contact?.verified ?? { email: false, telegram: false },
+          duplicates: data.duplicates,
         },
         channel: data.row.channel,
         intents: data.intents,

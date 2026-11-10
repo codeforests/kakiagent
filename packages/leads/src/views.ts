@@ -11,6 +11,8 @@ export interface ContactView {
   phone: string | null;
   /** The Telegram `@username`, without the `@` (FEAT-037 §3). */
   telegramUsername: string | null;
+  /** FEAT-039 §5.4: the shown email / Telegram account is a verified identity of this contact. */
+  verified: { email: boolean; telegram: boolean };
 }
 
 /** The conversation's contact for the inbox sidebar (FEAT-049 §5.4), or null before any capture. */
@@ -25,8 +27,17 @@ export async function contactOf(
     email: string | null;
     phone: string | null;
     telegram_username: string | null;
+    email_verified: boolean;
+    telegram_verified: boolean;
   }>(sql`
-    select k.id, k.name, k.email, k.phone, k.telegram_username from contacts k
+    select k.id, k.name, k.email, k.phone, k.telegram_username,
+      exists (select 1 from contact_identities i where i.tenant_id = k.tenant_id
+        and i.contact_id = k.id and i.kind = 'email' and i.value = k.email
+        and i.verified_at is not null) as email_verified,
+      exists (select 1 from contact_identities i where i.tenant_id = k.tenant_id
+        and i.contact_id = k.id and i.kind = 'telegram' and i.value = k.telegram_id::text
+        and i.verified_at is not null) as telegram_verified
+    from contacts k
     join conversations c on c.tenant_id = k.tenant_id and c.contact_id = k.id
     where c.tenant_id = ${tenantId} and c.id = ${conversationId}`);
   const r = rows[0];
@@ -37,6 +48,7 @@ export async function contactOf(
         email: r.email,
         phone: r.phone ? formatSgPhone(r.phone) : null,
         telegramUsername: r.telegram_username,
+        verified: { email: r.email_verified, telegram: r.telegram_verified },
       }
     : null;
 }

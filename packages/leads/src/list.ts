@@ -31,6 +31,7 @@ export interface LeadDbRow extends Record<string, unknown> {
   captures: number;
   contact_id: string;
   conversation_id: string | null;
+  superseded_by: string | null;
   score: LeadScore | null;
   score_points: number | null;
   score_reasons: ScoreReason[] | null;
@@ -73,7 +74,7 @@ export const latestConsentColumns = sql`
 /** The columns every lead query selects, with the enquiry consent and the latest marketing answer. */
 export const leadSelect = (tenantId: string, where: SQL, tail: SQL = sql``) => sql`
   select l.id, l.version, l.status, k.name, k.email, k.phone, l.need, l.budget, l.preferred_time,
-    l.captures, l.contact_id, l.conversation_id, l.score, l.score_points, l.score_reasons,
+    l.captures, l.contact_id, l.conversation_id, l.superseded_by, l.score, l.score_points, l.score_reasons,
     l.scored_at, l.created_at, l.updated_at, l.updated_at::text as updated_key,
     e.created_at as enquiry_at, ${latestConsentColumns}
   from leads l
@@ -251,6 +252,7 @@ export async function leadDetail(
     preferredTime: r.preferred_time,
     captures: r.captures,
     contactId: r.contact_id,
+    supersededBy: r.superseded_by,
     consents: consents.rows.map((c): LeadConsentRecord => ({
       id: c.id,
       purpose: c.purpose,
