@@ -271,7 +271,12 @@ test('the Owner connects a Telegram bot, customers get AI replies, and alerts re
   const tg = (await (await page.request.get('/api/v1/channels/telegram')).json()) as {
     connection: { id: string };
   };
-  await page.request.post(`/api/v1/channels/${tg.connection.id}/check`);
+  // "Check again" is 429 within 30 s of the last health check (connect, go-live or the
+  // health job may have just run), so retry until the check itself runs.
+  await expect(async () => {
+    const res = await page.request.post(`/api/v1/channels/${tg.connection.id}/check`);
+    expect(res.status()).toBe(200);
+  }).toPass({ timeout: 60_000, intervals: [5_000] });
   await page.goto('/settings/channels/telegram');
   await expect(page.getByTestId('telegram-degraded')).toContainText(
     'Telegram stopped accepting the bot token',
