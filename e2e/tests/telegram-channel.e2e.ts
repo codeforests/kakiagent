@@ -169,8 +169,16 @@ test('the Owner connects a Telegram bot, customers get AI replies, and alerts re
   expect(aiReply!.method).toBe('sendMessage');
   expect(aiReply!.text?.length).toBeGreaterThan(0);
 
+  // The row's preview is the AI reply, so find the conversation by the customer's words.
+  let conversationId = '';
+  await expect(async () => {
+    const res = await page.request.post('/api/v1/conversations/search', { data: { q: run } });
+    const { results } = (await res.json()) as { results: { conversation: { id: string } }[] };
+    expect(results).toHaveLength(1);
+    conversationId = results[0]!.conversation.id;
+  }).toPass({ timeout: 15_000 });
   await page.goto('/inbox?channel=telegram');
-  const row = page.getByTestId('conversation-row').filter({ hasText: run });
+  const row = page.locator(`[data-testid="conversation-row"][data-id="${conversationId}"]`);
   await expect(row).toHaveCount(1);
   await row.getByRole('link').click();
   await expect(page.locator('.thread-header__caption')).toContainText(`On Telegram · @siti${run}`);
