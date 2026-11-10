@@ -7,6 +7,7 @@
  * are `channel-send` jobs of `type: 'service'`, queued in the same transaction.
  */
 import { createHash } from 'node:crypto';
+import { resolveContact } from '../contacts/identity.js';
 import { and, eq, schema, sql, withTenant, type Tx, type ZoneDb } from '@kaki/db';
 import { enqueue } from '@kaki/platform/outbox';
 import type { InboundEvent } from '../adapter.js';
@@ -369,30 +370,27 @@ async function receiveInTenant(
 }
 
 /** The contact by Telegram user ID (D5): one Telegram user is one contact per business. */
+/** One Telegram user is one contact per business (FEAT-037 D5): a verified identity (FEAT-039). */
 async function contactFor(
   tx: Tx,
   tenantId: string,
   userId: string,
   t: TelegramExtensions,
 ): Promise<string> {
-  const id = Number(userId);
   const username = t.username?.slice(0, 32) || null;
-  const inserted = await tx.execute<{ id: string }>(
-    sql`insert into contacts (tenant_id, name, telegram_id, telegram_username)
-        values (${tenantId}, ${displayName(t)}, ${id}, ${username})
-        on conflict (tenant_id, telegram_id) where telegram_id is not null do nothing returning id`,
+  const id = await resolveContact(
+    tx,
+    tenantId,
+    { kind: 'telegram', value: userId, source: 'telegram', verified: true },
+    { name: displayName(t), telegramUsername: username },
   );
-  if (inserted.rows[0]) return inserted.rows[0].id;
-  const found = await tx.execute<{ id: string; telegram_username: string | null }>(
-    sql`select id, telegram_username from contacts where tenant_id = ${tenantId} and telegram_id = ${id}`,
-  );
-  const row = found.rows[0]!;
-  if (username && row.telegram_username !== username)
+  if (username)
     await tx.execute(
       sql`update contacts set telegram_username = ${username}, updated_at = now()
-          where tenant_id = ${tenantId} and id = ${row.id}`,
+          where tenant_id = ${tenantId} and id = ${id}
+            and telegram_username is distinct from ${username}`,
     );
-  return row.id;
+  return id;
 }
 
 /** A member's link has a pending code while it is unexpired (the prefs page's `pending`). */
