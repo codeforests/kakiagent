@@ -221,10 +221,17 @@ describe('the fallback contact form (AC-9; GOV-08)', () => {
     ]);
     const id = await startChat(h);
     const paused = await post('/widget/v1/contact', h, { ...body, conversationId: id });
-    expect(paused.statusCode).toBe(200);
-    expect(paused.json()).toEqual({ status: 'updated' });
-    const leads = await owner.query(`select captures, conversation_id from leads`);
-    expect(leads.rows).toEqual([{ captures: 2, conversation_id: id }]);
+    // FEAT-039 D1: the same typed email no longer joins the earlier form's contact (that form
+    // had no chat, so nothing links this browser to it); the chat's details make a new lead.
+    expect(paused.statusCode).toBe(201);
+    expect(paused.json()).toEqual({ status: 'created' });
+    const leads = await owner.query(
+      `select captures, conversation_id from leads order by conversation_id nulls first`,
+    );
+    expect(leads.rows).toEqual([
+      { captures: 1, conversation_id: null },
+      { captures: 1, conversation_id: id },
+    ]);
   });
 
   it('without a saved purpose statement it is refused', async () => {

@@ -23,7 +23,7 @@ module.exports = {
           '^packages/db/src/(setup|testing)\\.ts$',
           '^packages/identity/src/testing\\.ts$',
           '^packages/kb/src/(stale|gap-cluster)\\.ts$',
-          '^packages/channels/src/(theme/index|contract-suite|telegram/fake)\\.ts$',
+          '^packages/channels/src/(theme/index|contract-suite|telegram/fake|contacts/index)\\.ts$',
           '^packages/ui/src/styles\\.css$',
           '^packages/contracts/src/lead-check\\.ts$',
           '^packages/contracts/src/quote\\.ts$',

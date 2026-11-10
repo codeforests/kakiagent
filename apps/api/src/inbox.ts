@@ -65,6 +65,7 @@ import {
   type OwnerNames,
 } from '@kaki/inbox';
 import { dashboardKb, factChips, proposeReplyEdit } from '@kaki/kb';
+import { duplicateCount } from '@kaki/channels/contacts';
 import { contactOf, leadSummaryOf } from '@kaki/leads';
 import { channels } from '@kaki/platform';
 import type { FastifyReply, FastifyRequest } from 'fastify';
@@ -210,6 +211,7 @@ export function registerInboxRoutes(
         t,
         used.map((f) => f.factId),
       );
+      const contact = await contactOf(tx, t, id);
       return {
         row,
         summary: (await conversationSummary(tx, t, id, namesIn(t)))!,
@@ -219,8 +221,9 @@ export function registerInboxRoutes(
         intents: await intentCounts(tx, t, id),
         // FEAT-049 §5.4: the contact who left details here, and their lead (api-side: inbox
         // never imports leads).
-        contact: await contactOf(tx, t, id),
-        duplicates: 0,
+        contact,
+        // FEAT-039 §5.4: contacts that share an identifier with this one (channels).
+        duplicates: contact ? await duplicateCount(tx, t, contact.contactId) : 0,
         lead: await leadSummaryOf(tx, t, id),
         // FEAT-055 §5.3: the pending approval (api-side: inbox never imports approvals).
         approval: await pendingApprovalOf(tx, t, id),
