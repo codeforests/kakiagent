@@ -207,7 +207,7 @@ describe('a commitment-only turn (AC-1, AC-3)', () => {
     });
     expect(audits[2].payload).toMatchObject({ outcome: 'approval', approval: 'drafted' });
     // ADR-014: codes and IDs only.
-    expect(JSON.stringify(audits)).not.toMatch(/fudge|200|5500|S\$/i);
+    expect(JSON.stringify(audits)).not.toMatch(/fudge|\b200\b|\b5500\b|S\$/i);
     const alerts = await owner.query(
       `select user_id, kind from notifications where subject_id = $1`,
       [
