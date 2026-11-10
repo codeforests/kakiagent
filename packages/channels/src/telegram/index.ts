@@ -49,3 +49,23 @@ export {
   type TelegramChannelErrorCode,
   type TelegramSettingsDeps,
 } from './settings.js';
+export {
+  codeHash,
+  LINK_CODE,
+  linkPending,
+  queueServiceReply,
+  receiveTelegram,
+  TEXT_ONLY_NOTICE,
+  telegramVisitorId,
+  type TelegramInboxPort,
+  type TelegramReceiveDeps,
+  type TelegramReceiveResult,
+  type TelegramTexts,
+} from './receive.js';
+export {
+  SERVICE_GIVE_UP_MS,
+  sendServiceJob,
+  ServiceRetryError,
+  type ServiceOutcome,
+  type TelegramServiceDeps,
+} from './service.js';

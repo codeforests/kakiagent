@@ -5,7 +5,7 @@ import type { LlmGateway } from '@kaki/llm-gateway';
 import type { Logger, Mailer, Publisher, RateLimiter } from '@kaki/platform';
 import Fastify from 'fastify';
 import type { Config } from './config.js';
-import type { SendingIdentities, TxtResolver } from '@kaki/channels';
+import type { SendingIdentities, TelegramApiOptions, TxtResolver } from '@kaki/channels';
 
 /** Presigns the browser's PUT into quarantine (FEAT-015 §5.1); tests pass a fake. */
 export interface UploadSigner {
@@ -36,6 +36,13 @@ export interface Deps {
   resolve?: Resolver;
   /** The email channel's SES, DNS and download ports (FEAT-036); from config when absent. */
   email?: EmailDeps;
+  /** The Telegram Bot API (FEAT-037); from config when absent, a fake `fetch` in tests. */
+  telegram?: TelegramDeps;
+}
+
+/** The Telegram channel's ports (FEAT-037); from config unless a test passes its own. */
+export interface TelegramDeps {
+  api: TelegramApiOptions;
 }
 
 /** Presigns an attachment GET with `Content-Disposition: attachment` (FEAT-036 §3). */

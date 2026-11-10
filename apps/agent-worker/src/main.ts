@@ -6,13 +6,14 @@ import {
   escalateTimedOut,
   receiveEmail,
   recordBounce,
+  sendServiceJob,
   type DeliverDeps,
   type DeliveryRow,
 } from '@kaki/channels';
 import { visitorPrivacy } from '@kaki/governance';
 import { usageSink } from '@kaki/analytics';
 import { runApprovalTimer } from '@kaki/approvals';
-import { ChannelSendJob, TurnQueueJob, type RealtimeEvent } from '@kaki/contracts';
+import { ChannelQueueJob, TurnQueueJob, type RealtimeEvent } from '@kaki/contracts';
 import { createZoneDb, ping, withTenant } from '@kaki/db';
 import * as inbox from '@kaki/inbox';
 import {
@@ -38,6 +39,7 @@ import {
   startTelemetry,
 } from '@kaki/platform';
 import { visitorTenantState } from '@kaki/tenancy';
+import { localSealer } from '@kaki/platform/secrets';
 import { z } from 'zod';
 import { s3MailStore } from './mail-store.js';
 
@@ -56,6 +58,12 @@ const config = loadConfig(
       SES_MESSAGE_ID_DOMAIN: z.string().min(3).default('ap-southeast-1.amazonses.com'),
       HEALTH_PORT: envSchemas.port.default(3002),
       VISITOR_DATABASE_URL: z.string().startsWith('postgres'),
+      /** Opens channel credentials (FEAT-037 §5.2); the same key as the api's. */
+      CHANNEL_SECRET_KEY: z
+        .string()
+        .refine((v) => Buffer.from(v, 'base64url').length === 32, 'must be 32 bytes, base64url'),
+      /** The Telegram Bot API; the local fake in dev and E2E (FEAT-037 §5.6). */
+      TELEGRAM_API_BASE: envSchemas.url.default('https://api.telegram.org'),
     }),
 );
 const stopTelemetry = startTelemetry('agent-worker', config.OTEL_EXPORTER_OTLP_ENDPOINT);
@@ -103,6 +111,8 @@ async function publishAll(
  * Not delivered as they change; a summary refresh follows an escalation.
  */
 const mailer = createSmtpMailer(config.SMTP_URL, config.EMAIL_FROM, 15_000);
+const channelSealer = localSealer(Buffer.from(config.CHANNEL_SECRET_KEY, 'base64url'));
+const telegramApi = { base: config.TELEGRAM_API_BASE };
 const deliverDeps: DeliverDeps = {
   zdb: visitorDb,
   senders: {
@@ -490,7 +500,17 @@ const delivering = queue.consume<unknown>(
       logger.error({ err, sqsMessageId: raw.MessageId }, 'delivery failed; will be retried'),
   },
   async (msg) => {
-    const job = ChannelSendJob.parse(msg.body);
+    const parsed = ChannelQueueJob.parse(msg.body);
+    // FEAT-037 §5.3: a channel's own reply (the group notice, a link confirmation, the greeting).
+    if ('type' in parsed) {
+      const outcome = await sendServiceJob(
+        { zdb: visitorDb, sealer: channelSealer, api: telegramApi },
+        parsed,
+      );
+      logger.info({ outboxId: msg.id, tenantId: parsed.tenantId, outcome }, 'service reply');
+      return;
+    }
+    const job = parsed;
     const r = await deliverMessage(deliverDeps, job);
     if (r.outcome !== 'already_done' && r.outcome !== 'not_found')
       await publishDelivery(job.tenantId, r.delivery);

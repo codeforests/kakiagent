@@ -37,15 +37,16 @@ type ConversationRow = typeof schema.conversations.$inferSelect;
 type MessageRow = typeof schema.messages.$inferSelect;
 
 /**
- * The inbox functions receive needs (@kaki/inbox). Passed in by the worker, because inbox
- * depends on tenancy, which depends on channels (no cycles, AGENTS.md).
+ * The inbox functions receive needs (@kaki/inbox). Passed in by the worker (email) or the api
+ * (Telegram, FEAT-037 §5.3 step 4), because inbox depends on tenancy, which depends on
+ * channels (no cycles, AGENTS.md).
  */
-export interface EmailInboxPort {
+export interface InboxPort {
   createConversation(
     tx: Tx,
     tenantId: string,
     visitorId: string,
-    channel: 'email',
+    channel: 'email' | 'telegram',
   ): Promise<ConversationRow>;
   getConversation(
     tx: Tx,
@@ -92,7 +93,7 @@ export interface InboundEmailConfig {
 export interface ReceiveDeps {
   zdb: ZoneDb;
   store: MailObjectStore;
-  inbox: EmailInboxPort;
+  inbox: InboxPort;
   config: InboundEmailConfig;
   now?: () => Date;
 }

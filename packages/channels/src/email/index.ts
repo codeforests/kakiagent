@@ -17,7 +17,7 @@ export {
   verifySnsEnvelope,
   type InboundEmailConfig,
   type MailObjectStore,
-  type EmailInboxPort,
+  type InboxPort,
   type ReceiveDeps,
   type ReceiveResult,
   type RecipientOutcome,

@@ -122,6 +122,7 @@ import { registerSettingsRoutes } from './settings.js';
 import { registerWidgetRoutes, widgetErrorReply } from './widget.js';
 import { channelErrorReply, registerChannelRoutes } from './channels.js';
 import { emailErrorReply, registerEmailChannelRoutes } from './email-channel.js';
+import { registerHookRoutes } from './telegram-channel.js';
 import { onboardingErrorReply, registerOnboardingRoutes } from './onboarding.js';
 import { registerApprovalRoutes } from './approvals.js';
 import { registerApprovalLinkRoutes } from './approval-links.js';
@@ -688,6 +689,7 @@ export async function buildApp(deps: Deps) {
   registerPrivacyRoutes(app, deps, sessionFrom);
   registerChannelRoutes(app, deps, sessionFrom);
   registerEmailChannelRoutes(app, deps, sessionFrom);
+  registerHookRoutes(app, deps);
   registerAiRoutes(app, deps, sessionFrom, notify);
   registerRuleRoutes(app, deps, sessionFrom);
   registerOnboardingRoutes(app, deps, sessionFrom);
