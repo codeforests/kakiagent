@@ -69,3 +69,4 @@ export {
   type ServiceOutcome,
   type TelegramServiceDeps,
 } from './service.js';
+export { telegramSender, type TelegramSenderConfig } from './send.js';

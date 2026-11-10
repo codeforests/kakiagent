@@ -7,6 +7,7 @@ import {
   receiveEmail,
   recordBounce,
   sendServiceJob,
+  telegramSender,
   type DeliverDeps,
   type DeliveryRow,
 } from '@kaki/channels';
@@ -116,6 +117,7 @@ const telegramApi = { base: config.TELEGRAM_API_BASE };
 const deliverDeps: DeliverDeps = {
   zdb: visitorDb,
   senders: {
+    telegram: telegramSender({ sealer: channelSealer, api: telegramApi }),
     email: emailSender({
       mailer,
       inboundDomain: config.EMAIL_INBOUND_DOMAIN,

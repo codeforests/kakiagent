@@ -98,7 +98,7 @@ export async function deliverMessage(
       return row!;
     };
     const sender = deps.senders[conversation.channel];
-    const fail = async (reason: 'rejected') => {
+    const fail = async (reason: 'rejected' | 'blocked') => {
       const row = await set({ status: 'failed', failedReason: reason, nextAttemptAt: null });
       await deps.escalate(tx, tenantId, conversation.id, 'delivery_failed');
       return { outcome: 'failed' as const, delivery: row, message };
@@ -143,14 +143,20 @@ export async function deliverMessage(
         }),
         message,
       };
-    if (result.failed === 'permanent') return fail('rejected');
+    // FEAT-037 §5.4: a customer who blocked the bot is `blocked`, so staff see why.
+    if (result.failed === 'permanent')
+      return fail(result.reason === 'blocked' ? 'blocked' : 'rejected');
     // CHN-12: a rejected login degrades the channel at once; the send is still retried.
     if (result.failed === 'auth') await reportSendFailure(tx, delivery.connectionId, result);
     return {
       outcome: 'retry',
       delivery: await set({
         attempts: delivery.attempts + 1,
-        nextAttemptAt: new Date(now.getTime() + backoffMs(delivery.attempts + 1)),
+        // Telegram's 429 says how long to wait; never sooner than the backoff.
+        nextAttemptAt: new Date(
+          now.getTime() +
+            Math.max(backoffMs(delivery.attempts + 1), (result.retryAfterSeconds ?? 0) * 1000),
+        ),
       }),
       message,
     };
