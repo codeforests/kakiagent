@@ -27,3 +27,8 @@ output "task_policy_names" {
   description = "The inline policies on the task role."
   value       = keys(var.task_policies)
 }
+
+output "secret_names" {
+  description = "The environment variables read from Secrets Manager (names only)."
+  value       = keys(var.secrets)
+}

@@ -9,8 +9,11 @@ import {
   OfflineTextError,
   saveOfflineSettings,
   setChannelState,
+  telegramAdapter,
+  telegramCredentialOf,
   TooSoonError,
   visitorChannel,
+  withAdapter,
   withEmailHealth,
 } from '@kaki/channels';
 import {
@@ -27,6 +30,7 @@ import type { FastifyRequest } from 'fastify';
 import type { ZodError } from 'zod';
 import type { TenantSession } from './auth.js';
 import { emailDepsFrom } from './email-channel.js';
+import { telegramSettingsDepsOf } from './telegram-channel.js';
 import { ForbiddenError } from './facts.js';
 import type { App, Deps } from './server.js';
 
@@ -158,11 +162,21 @@ export function registerChannelRoutes(
     const s = await manager(req);
     const id = idOf(req.params);
     // FEAT-036: email's check is its custom sending domain, through the same ports.
-    const registry = withEmailHealth(CHANNEL_REGISTRY, {
-      zdb: dashboardDb,
-      identities: email.identities,
-      resolver: email.resolver,
-    });
-    return ChannelItem.parse(await inTenant(s, (tx) => checkChannelNow(tx, { id, registry })));
+    // FEAT-037: Telegram's is getMe and the webhook, with the credential through
+    // channel_credential() (the dashboard can't read the column).
+    const registry = withAdapter(
+      withEmailHealth(CHANNEL_REGISTRY, {
+        zdb: dashboardDb,
+        identities: email.identities,
+        resolver: email.resolver,
+      }),
+      'telegram',
+      () => telegramAdapter(telegramSettingsDepsOf(deps)),
+    );
+    return ChannelItem.parse(
+      await inTenant(s, (tx) =>
+        checkChannelNow(tx, { id, registry, credentialOf: (cid) => telegramCredentialOf(tx, cid) }),
+      ),
+    );
   });
 }

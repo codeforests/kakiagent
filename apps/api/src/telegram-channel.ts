@@ -5,19 +5,36 @@
  */
 import { DEFAULT_GREETING, textsFor } from '@kaki/agent';
 import {
+  connectTelegram,
+  disconnectTelegram,
   receiveTelegram,
   registryEntry,
+  replaceTelegramToken,
   SECRET_HEADER,
+  TelegramChannelError,
+  telegramChannelView,
   type TelegramApiOptions,
+  type TelegramChannelErrorCode,
+  type TelegramSettingsDeps,
   type TelegramTexts,
 } from '@kaki/channels';
-import { type Tx } from '@kaki/db';
+import {
+  TelegramChannelResponse,
+  TelegramConnectBody,
+  TelegramDisconnectBody,
+  TelegramReplaceBody,
+} from '@kaki/contracts';
+import { withTenant, type Tx } from '@kaki/db';
+import { can } from '@kaki/identity';
 import { visitorPrivacy } from '@kaki/governance';
 import * as inbox from '@kaki/inbox';
 import { channels } from '@kaki/platform';
 import { localSealer, type SecretSealer } from '@kaki/platform/secrets';
 import { visitorTenantState } from '@kaki/tenancy';
-import { z } from 'zod';
+import type { FastifyRequest } from 'fastify';
+import { z, type ZodType } from 'zod';
+import type { TenantSession } from './auth.js';
+import { ForbiddenError } from './facts.js';
 import type { App, Deps } from './server.js';
 
 const HookParams = z.object({ kind: z.string().max(32), connectionId: z.uuid() });
@@ -105,5 +122,108 @@ export function registerHookRoutes(app: App, deps: Deps): void {
       ]);
     }
     return reply.code(200).send({ ok: true });
+  });
+}
+
+const ERRORS: Record<TelegramChannelErrorCode, [number, string]> = {
+  invalid_format: [422, "That doesn't look like a bot token. Copy the whole token from BotFather."],
+  token_rejected: [422, 'Telegram rejected this token. Check it in BotFather and try again.'],
+  already_connected: [409, 'A Telegram bot is already connected.'],
+  not_connected: [409, 'No Telegram bot is connected.'],
+  bot_in_use: [409, 'This bot is connected to another business.'],
+  different_bot: [422, 'This token is for a different bot. Use a new token for the same bot.'],
+  provider_unavailable: [502, "Telegram didn't answer. Try again in a minute."],
+  stale: [409, 'Someone else changed this channel. Reload to see the latest.'],
+};
+
+/** 422 `invalid_body`: the body isn't the route's shape (other than a bad token). */
+export class TelegramBodyError extends Error {}
+
+export function telegramErrorReply(
+  err: unknown,
+): { status: number; body: Record<string, unknown> } | null {
+  if (err instanceof TelegramChannelError) {
+    const [status, message] = ERRORS[err.code];
+    return { status, body: { error: err.code, message } };
+  }
+  if (err instanceof TelegramBodyError)
+    return {
+      status: 422,
+      body: { error: 'invalid_body', message: 'Check the values and try again.' },
+    };
+  return null;
+}
+
+export const telegramSettingsDepsOf = (deps: Deps): TelegramSettingsDeps => ({
+  sealer: channelSealerOf(deps),
+  hookUrl: hookUrlOf(deps),
+  api: telegramApiOf(deps),
+});
+
+/** Only the token's format is the token's error (`invalid_format`); the rest is `invalid_body`. */
+function bodyOf<T>(shape: ZodType<T>, body: unknown): T {
+  const parsed = shape.safeParse(body ?? {});
+  if (parsed.success) return parsed.data;
+  if (parsed.error.issues.every((i) => i.path[0] === 'token'))
+    throw new TelegramChannelError('invalid_format');
+  throw new TelegramBodyError();
+}
+
+/**
+ * `GET`/`POST /api/v1/channels/telegram`, `PUT …/token`, `DELETE` (CHN-05, CHN-12; FEAT-037
+ * §3, §5.2): `settings.manage` (Owner, Admin); the tenant from the session, never the body.
+ * Telegram calls run between transactions (`@kaki/channels` telegram settings).
+ */
+export function registerTelegramChannelRoutes(
+  app: App,
+  deps: Deps,
+  sessionFrom: (req: FastifyRequest) => Promise<TenantSession>,
+): void {
+  const { dashboardDb } = deps;
+  const tg = telegramSettingsDepsOf(deps);
+  async function manager(req: FastifyRequest) {
+    const s = await sessionFrom(req);
+    if (!can(s.role, 'settings.manage')) throw new ForbiddenError('settings.manage');
+    return s;
+  }
+  const view = (s: TenantSession) =>
+    withTenant(dashboardDb, s.tenantId, (tx) => telegramChannelView(tx, s.tenantId)).then((r) =>
+      TelegramChannelResponse.parse(r),
+    );
+
+  app.get('/api/v1/channels/telegram', async (req) => view(await manager(req)));
+
+  app.post('/api/v1/channels/telegram', async (req, reply) => {
+    const s = await manager(req);
+    const body = bodyOf(TelegramConnectBody, req.body);
+    await connectTelegram(dashboardDb, tg, {
+      tenantId: s.tenantId,
+      userId: s.userId,
+      token: body.token,
+    });
+    return reply.code(201).send(await view(s));
+  });
+
+  app.put('/api/v1/channels/telegram/token', async (req) => {
+    const s = await manager(req);
+    const body = bodyOf(TelegramReplaceBody, req.body);
+    await replaceTelegramToken(dashboardDb, tg, {
+      tenantId: s.tenantId,
+      userId: s.userId,
+      token: body.token,
+      settingsVersion: body.settingsVersion,
+    });
+    return view(s);
+  });
+
+  app.delete('/api/v1/channels/telegram', async (req) => {
+    const s = await manager(req);
+    const body = bodyOf(TelegramDisconnectBody, req.body);
+    await disconnectTelegram(dashboardDb, tg, {
+      tenantId: s.tenantId,
+      userId: s.userId,
+      settingsVersion: body.settingsVersion,
+    });
+    return view(s);
   });
 }
