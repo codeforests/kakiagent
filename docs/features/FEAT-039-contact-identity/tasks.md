@@ -1,7 +1,7 @@
 # Tasks: FEAT-039 — Contact identity, verified merge and undo
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: developer-done · Last updated: 2026-11-10 (build UI)
+> Status: accepted · 2026-11-10
 
 - [x] T1 — Schema: `0055_contact_identity.sql` and `schema.ts`: `contact_identities` (checks, the four indexes), `contact_merges`, `contacts.merged_into`/`merged_at`, drop the three `contacts` unique indexes, `leads.superseded_by` and the new `leads_one_open_uq` predicate; forced RLS, policies, grants, `TENANT_SCOPED_TABLES`; NOLOGIN `kaki_contact_merge` with column grants; `contact_merge()` and `contact_unmerge()` (§5.3); the backfill; `rls.int.test.ts` cases (design §4, §5.3; D4, D6, D7; AC-5, AC-7)
       Done when: `drizzle-kit generate` reports no drift after 0055; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes with: tenant B can't read A's identities or merges, and `contact_merge` with A's IDs under B's context raises; `app_dashboard` and `app_agent_visitor` can't `update consents set contact_id`; two verified identities with one value fail, two unverified lead-form ones don't; `contact_merge` then `contact_unmerge` on two seeded contacts with conversations, consents, open leads and a Telegram chat restores every row (superseded lead included) and a second unmerge raises; the backfill gives an existing Telegram contact a verified identity.
@@ -28,7 +28,7 @@
       Done when: `pnpm format:check`, `pnpm lint` (incl. `check-rtm`), `pnpm typecheck` and `pnpm test` pass via `scripts/check-summary.sh`; the spec is written to: open the seeded duplicate from the sidebar hint, preview, merge, see the merged conversation, Undo, axe at desktop and at `{ width: 375, height: 5000 }`; restores the seeded pair in `afterEach` (undo) on failure.
       Note: no Docker in cloud sessions, so the E2E runs in the verify stage's GitHub CI.
       Evidence (build): `scripts/check-summary.sh`: format:check, lint (incl. check-rtm), typecheck PASS; `pnpm test` 155 files / 1810 tests PASS. Spec written: it inserts one widget conversation for R. Tan (owner connection; deleted in `afterAll`), follows the sidebar hint, merges R. Tan into Rachel Tan from Rachel's page (so the moved chat is visible), checks the lead page's View contact, undoes from the Merges card; `afterEach` undoes any open merge through the API. Not run here (no stack).
-- [ ] T10 — Verify (verify stage): acceptance report, RTM Test refs, STATE.md.
+- [x] T10 — Verify (verify stage): acceptance report, RTM Test refs, STATE.md.
 
 ## Verification evidence
 
