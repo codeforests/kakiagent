@@ -52,6 +52,15 @@ beforeAll(async () => {
      values ($1, $2, $3, 'kaki_bakery_bot', 'Kaki Bakery', $4)`,
     [TENANT_A, connectionId, BOT, createHash('sha256').update(HOOK_SECRET).digest()],
   );
+  const e = await owner.query<{ id: string }>(
+    `insert into channel_connections (tenant_id, kind, state, offline_mode, health)
+     values ($1, 'email', 'live', 'hidden', 'ok') returning id`,
+    [TENANT_A],
+  );
+  await owner.query(
+    `insert into email_settings (tenant_id, connection_id, forwarding_local) values ($1, $2, 'kaki-bakery')`,
+    [TENANT_A, e.rows[0]!.id],
+  );
 });
 afterAll(async () => {
   await app?.close();
@@ -281,6 +290,117 @@ describe('Telegram redemption (FEAT-038 §5.3; AC-3–AC-5)', () => {
     await hook(update(chat, 'private', `/start ${code}`));
     const [conv] = await q(`select channel from conversations where id = $1`, [c.id]);
     expect(conv).toEqual({ channel: 'telegram' });
+  });
+});
+
+const API = 'http://localhost:3000';
+const emailLink = async (c: { id: string; visitorId: string }, email = 'siti@example.com') => {
+  const r = await withTenant(tdb.zone('visitor'), TENANT_A, (tx) =>
+    requestHandoff(tx, {
+      tenantId: TENANT_A,
+      conversationId: c.id,
+      visitorId: c.visitorId,
+      body: { channel: 'email', email },
+      secret: HANDOFF_SECRET,
+    }),
+  );
+  if (!r.ok) throw new Error(r.code);
+  return { code: signHandoff(HANDOFF_SECRET, TENANT_A, r.linkId, 'email'), linkId: r.linkId };
+};
+const confirm = (code: string, origin: string | null = API) =>
+  app.inject({
+    method: 'POST',
+    url: `/continue/${code}`,
+    headers: {
+      'content-type': 'application/x-www-form-urlencoded',
+      ...(origin ? { origin } : {}),
+    },
+    payload: '',
+  });
+
+describe('email confirm page (FEAT-038 §5.4; AC-6, AC-7)', () => {
+  it("GET shows the masked address and a button, with the page's headers, and consumes nothing", async () => {
+    const c = await widgetChat();
+    const { code, linkId } = await emailLink(c);
+    for (let i = 0; i < 2; i++) {
+      const res = await app.inject({ method: 'GET', url: `/continue/${code}` });
+      expect(res.statusCode).toBe(200);
+      expect(res.headers['content-security-policy']).toContain("form-action 'self'");
+      expect(res.headers['content-security-policy']).toContain("default-src 'none'");
+      expect(res.headers['cache-control']).toBe('no-store');
+      expect(res.body).toContain('s***@example.com');
+      expect(res.body).toContain(`<form method="post" action="/continue/${code}">`);
+      expect(res.body).not.toContain('<script');
+    }
+    const [link] = await q(`select used_at from handoff_links where id = $1`, [linkId]);
+    expect(link).toEqual({ used_at: null });
+  });
+
+  it('POST from another origin is refused and changes nothing', async () => {
+    const c = await widgetChat();
+    const { code, linkId } = await emailLink(c);
+    expect((await confirm(code, 'https://evil.example')).statusCode).toBe(403);
+    expect((await confirm(code, null)).statusCode).toBe(403);
+    const [link] = await q(`select used_at from handoff_links where id = $1`, [linkId]);
+    expect(link).toEqual({ used_at: null });
+  });
+
+  it('POST proves the address, moves the conversation to email and sends the transcript as the first email', async () => {
+    const c = await widgetChat();
+    const { code } = await emailLink(c, 'mei@example.com');
+    const res = await confirm(code);
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('Your chat continues by email');
+    const [conv] = await q<{ channel: string; contact_id: string }>(
+      `select channel, contact_id from conversations where id = $1`,
+      [c.id],
+    );
+    expect(conv!.channel).toBe('email');
+    const [contact] = await q(`select email from contacts where id = $1`, [conv!.contact_id]);
+    expect(contact).toEqual({ email: 'mei@example.com' });
+    expect(
+      await q(
+        `select kind, value, source, verified_at is not null as verified from contact_identities where contact_id = $1`,
+        [conv!.contact_id],
+      ),
+    ).toEqual([{ kind: 'email', value: 'mei@example.com', source: 'link', verified: true }]);
+    const [thread] = await q(
+      `select subject, "references" from email_threads where conversation_id = $1`,
+      [c.id],
+    );
+    expect(thread).toEqual({ subject: 'Your chat with Kaki Bakery', references: [] });
+    const msgs = await q<{ id: string; notice_kind: string | null; notice: string | null }>(
+      `select id, notice_kind, notice from messages where conversation_id = $1 order by seq`,
+      [c.id],
+    );
+    expect(msgs.map((m) => m.notice_kind)).toEqual([null, null, 'handoff_moved', 'handoff_recap']);
+    expect(msgs[3]!.notice).toContain('You: Do you have pandan cake?');
+    expect(
+      await q(`select message_id from message_deliveries where conversation_id = $1`, [c.id]),
+    ).toEqual([{ message_id: msgs[3]!.id }]);
+
+    // A second POST, or the GET after it, is the expired page.
+    const again = await confirm(code);
+    expect(again.statusCode).toBe(410);
+    expect(again.body).toContain('This link has expired');
+    expect((await app.inject({ method: 'GET', url: `/continue/${code}` })).statusCode).toBe(410);
+  });
+
+  it('an expired, forged or Telegram code is the expired page', async () => {
+    const c = await widgetChat();
+    const { code, linkId } = await emailLink(c);
+    await owner.query(
+      `update handoff_links set created_at = now() - interval '2 days', expires_at = now() - interval '1 day' where id = $1`,
+      [linkId],
+    );
+    expect((await confirm(code)).statusCode).toBe(410);
+    const forged = signHandoff('x'.repeat(32), TENANT_A, randomUUID(), 'email');
+    expect((await app.inject({ method: 'GET', url: `/continue/${forged}` })).statusCode).toBe(410);
+    const wrongKey = signHandoff('x'.repeat(32), TENANT_A, linkId, 'email');
+    expect((await confirm(wrongKey)).statusCode).toBe(410);
+    expect((await app.inject({ method: 'GET', url: '/continue/nonsense' })).statusCode).toBe(410);
+    const [conv] = await q(`select channel from conversations where id = $1`, [c.id]);
+    expect(conv).toEqual({ channel: 'widget' });
   });
 });
 

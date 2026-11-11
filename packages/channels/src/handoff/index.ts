@@ -24,3 +24,14 @@ export {
   type HandoffRequestBody,
   type HandoffRequestResult,
 } from './request.js';
+export { MOVED_NOTICE, finishHandoff, lockLink, type HandoffLink } from './redeem.js';
+export {
+  sendHandoffEmail,
+  confirmCodeTenant,
+  viewEmailHandoff,
+  confirmEmailHandoff,
+  CONFIRM_SUBJECT,
+  type HandoffEmailDeps,
+  type HandoffEmailOutcome,
+  type HandoffPageView,
+} from './email.js';

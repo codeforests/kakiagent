@@ -110,6 +110,7 @@ import {
   ReplayRateLimitedError,
 } from './coach.js';
 import { FactNotFound, ForbiddenError, registerFactRoutes } from './facts.js';
+import { registerHandoffRoutes } from './handoff.js';
 import { registerPrivacyRoutes } from './privacy.js';
 import { registerRuleRoutes, rulesErrorReply } from './rules.js';
 import { createServer, type Deps } from './server.js';
@@ -696,6 +697,8 @@ export async function buildApp(deps: Deps) {
   registerEmailChannelRoutes(app, deps, sessionFrom);
   registerTelegramChannelRoutes(app, deps, sessionFrom);
   registerHookRoutes(app, deps);
+  // CHN-07 (FEAT-038 §5.4): the email handoff's confirm page.
+  registerHandoffRoutes(app, deps);
   registerAiRoutes(app, deps, sessionFrom, notify);
   registerRuleRoutes(app, deps, sessionFrom);
   registerOnboardingRoutes(app, deps, sessionFrom);

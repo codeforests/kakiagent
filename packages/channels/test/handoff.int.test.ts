@@ -6,11 +6,13 @@ import { withTenant, type Tx } from '@kaki/db';
 import { startTestDatabase, TENANT_A, TENANT_B, type TestDatabase } from '@kaki/db/testing';
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import type { Email, Mailer } from '@kaki/platform';
 import {
   handoffOptions,
   HANDOFF_LIMITS,
   openHandoff,
   requestHandoff,
+  sendHandoffEmail,
   type HandoffRequestBody,
 } from '../src/handoff/index.js';
 
@@ -63,6 +65,11 @@ beforeAll(async () => {
        values ($1, $2, 'live', 'hidden', 'ok')`,
       [TENANT_A, kind],
     );
+  await owner.query(
+    `insert into email_settings (tenant_id, connection_id, forwarding_local)
+     select $1, id, 'kaki-bakery' from channel_connections where tenant_id = $1 and kind = 'email'`,
+    [TENANT_A],
+  );
   await owner.query(
     `insert into telegram_settings (tenant_id, connection_id, bot_id, bot_username, bot_name, webhook_secret_hash)
      select $1, id, 4242, 'kaki_bakery_bot', 'Kaki Bakery', '\\x${'00'.repeat(32)}'
@@ -236,5 +243,72 @@ describe('requestHandoff (FEAT-038 §5.2)', () => {
       code: 'rate_limited',
     });
     expect((await ask(await conversation(), { channel: 'telegram' })).ok).toBe(true);
+  });
+});
+
+describe('sendHandoffEmail (FEAT-038 §5.4; AC-6)', () => {
+  const sent: Email[] = [];
+  let fail: Error | null = null;
+  const mailer: Mailer = {
+    async send(e) {
+      if (fail) throw fail;
+      sent.push(e);
+    },
+    async close() {},
+  };
+  const deps = () => ({
+    zdb: tdb.zone('visitor'),
+    mailer,
+    secret: SECRET,
+    inboundDomain: 'in.kakiagent.test',
+    apiUrl: 'https://api.kakiagent.test/',
+    businessName: async () => 'Kaki Bakery',
+  });
+  // The rate-limit case above leaves the business at its hourly email limit.
+  beforeAll(async () => {
+    await owner.query(`delete from handoff_links`);
+  });
+
+  it('sends one mail from the reply address with the confirm link; a used or expired link is skipped', async () => {
+    sent.length = 0;
+    const c = await conversation();
+    const r = await ask(c, { channel: 'email', email: 'siti@example.com' });
+    if (!r.ok) throw new Error(r.code);
+    expect(await sendHandoffEmail(deps(), { tenantId: TENANT_A, linkId: r.linkId })).toBe('sent');
+    expect(sent).toHaveLength(1);
+    const mail = sent[0]!;
+    expect(mail).toMatchObject({
+      from: '"Kaki Bakery" <kaki-bakery@in.kakiagent.test>',
+      to: 'siti@example.com',
+      subject: 'Continue your chat with Kaki Bakery',
+      headers: { 'Auto-Submitted': 'auto-generated' },
+    });
+    const code = /https:\/\/api\.kakiagent\.test\/continue\/(e-[A-Za-z0-9_-]{43})/.exec(
+      mail.text,
+    )![1]!;
+    expect(openHandoff(SECRET, TENANT_A, code)).toEqual({ linkId: r.linkId, channel: 'email' });
+    expect(mail.text).toContain('It works for 24 hours');
+
+    await owner.query(`update handoff_links set used_at = now() where id = $1`, [r.linkId]);
+    expect(await sendHandoffEmail(deps(), { tenantId: TENANT_A, linkId: r.linkId })).toBe(
+      'skipped',
+    );
+    expect(await sendHandoffEmail(deps(), { tenantId: TENANT_A, linkId: randomUUID() })).toBe(
+      'skipped',
+    );
+    expect(sent).toHaveLength(1);
+  });
+
+  it('a permanent SMTP failure is dropped; a transient one throws for the retry', async () => {
+    const c = await conversation();
+    const r = await ask(c, { channel: 'email', email: 'siti@example.com' });
+    if (!r.ok) throw new Error(r.code);
+    fail = Object.assign(new Error('550 no such user'), { responseCode: 550 });
+    expect(await sendHandoffEmail(deps(), { tenantId: TENANT_A, linkId: r.linkId })).toBe('failed');
+    fail = Object.assign(new Error('421 try later'), { responseCode: 421 });
+    await expect(
+      sendHandoffEmail(deps(), { tenantId: TENANT_A, linkId: r.linkId }),
+    ).rejects.toThrow();
+    fail = null;
   });
 });

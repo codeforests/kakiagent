@@ -15,7 +15,7 @@ import { visitorPrivacy } from '@kaki/governance';
 import { usageSink } from '@kaki/analytics';
 import { runApprovalTimer } from '@kaki/approvals';
 import { ChannelQueueJob, TurnQueueJob, type RealtimeEvent } from '@kaki/contracts';
-import { createZoneDb, ping, withTenant } from '@kaki/db';
+import { createZoneDb, ping, withTenant, type Tx } from '@kaki/db';
 import * as inbox from '@kaki/inbox';
 import {
   autoCloseIdle,
@@ -41,6 +41,7 @@ import {
 } from '@kaki/platform';
 import { visitorTenantState } from '@kaki/tenancy';
 import { localSealer } from '@kaki/platform/secrets';
+import { sendHandoffEmail } from '@kaki/channels/handoff';
 import { z } from 'zod';
 import { s3MailStore } from './mail-store.js';
 
@@ -179,12 +180,25 @@ async function publishDelivery(tenantId: string, row: DeliveryRow | null) {
 const health = startHealthServer(config.HEALTH_PORT, { database: () => ping(visitorDb) });
 const abort = new AbortController();
 
-/** Sends the email handoff's confirmation mail (FEAT-038 §5.4); T5 fills it in. */
+/**
+ * The email handoff's confirmation mail (CHN-07; FEAT-038 §5.4): from the business's reply
+ * address, once per link (a used or expired link is skipped); a transient SMTP failure throws
+ * for the queue's retry.
+ */
+const handoffEmailDeps = {
+  zdb: visitorDb,
+  mailer,
+  secret: config.HANDOFF_LINK_SECRET,
+  inboundDomain: config.EMAIL_INBOUND_DOMAIN,
+  apiUrl: config.PUBLIC_API_URL,
+  businessName: async (tx: Tx) => (await visitorTenantState(tx))?.businessName ?? 'Our team',
+};
 async function handoffEmail(
   job: { tenantId: string; linkId: string },
   log: { info(obj: object, msg: string): void },
 ): Promise<void> {
-  log.info({ linkId: job.linkId }, 'handoff email not sent yet');
+  const outcome = await sendHandoffEmail(handoffEmailDeps, job);
+  log.info({ linkId: job.linkId, outcome }, 'handoff email');
 }
 
 /**

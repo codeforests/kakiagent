@@ -35,7 +35,7 @@ import { ForbiddenError } from './facts.js';
 import type { App, Deps } from './server.js';
 
 /** The hosted notice's headers (FEAT-058 §3): no script, nothing embeddable, not indexed. */
-const NOTICE_HEADERS = {
+export const NOTICE_HEADERS = {
   'content-type': 'text/html; charset=utf-8',
   'content-security-policy':
     "default-src 'none'; style-src 'unsafe-inline'; img-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
@@ -57,7 +57,7 @@ const PDFS = {
 const DocParams = z.object({ doc: z.enum(['data-flow.pdf', 'dpa.pdf']) });
 
 /** The token stylesheet plus the page's own rules, read once at start-up (D7). */
-function noticeCss(): string {
+export function noticeCss(): string {
   const path = createRequire(import.meta.url).resolve('@kaki/design-tokens/tokens.css');
   return `${readFileSync(path, 'utf8')}\n${NOTICE_CSS}`;
 }
