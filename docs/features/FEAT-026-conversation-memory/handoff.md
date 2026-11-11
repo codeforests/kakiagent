@@ -1,7 +1,7 @@
 # Handoff: FEAT-026 — Conversation memory and summarisation
 Branch: feat/FEAT-026-conversation-memory · PR: https://github.com/codeforests/kakiagent/pull/65 · Updated: 2026-11-11 by verify
 Stage done: verify (accepted)
-Next: Ken's review and squash-merge; then Design FEAT-029 — kickoff: "Design FEAT-029. Branch feat/FEAT-029-<slug> (create it from main).
+Next: Ken's review and squash-merge; then Design FEAT-029 — kickoff: "Design FEAT-029. Branch feat/FEAT-029-web-context (create it from main).
 Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage design."
 
 ## What the next stage needs
