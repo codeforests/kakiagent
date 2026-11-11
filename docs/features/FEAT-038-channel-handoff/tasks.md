@@ -1,7 +1,7 @@
 # Tasks: FEAT-038 — Continue on another channel with the history
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: developer-done · 2026-11-11
+> Status: accepted · 2026-11-11
 
 - [x] T1 — Schema: `0056_channel_handoff.sql` and `schema.ts`: `handoff_links` (checks, index, forced RLS, policy, grants, `TENANT_SCOPED_TABLES`), `UPDATE (channel)` on `conversations` for `app_agent_visitor`, `contact_identities` source `link` checks, notice kinds `handoff_recap`/`handoff_moved`, NOLOGIN `kaki_handoff_purge` + `handoff_links_purge()`, definer `handoff_link_tenant(link_id)` (design §4; AC-10)
       Done when: `drizzle-kit generate` reports no drift after 0056; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes with new `rls.int` cases: tenant B can't read A's links; a `link` identity without `verified_at` fails; `handoff_links_purge()` deletes only rows 7 days past expiry and `app_agent_visitor`/`app_dashboard` can't execute it; an email link without `email` fails.
