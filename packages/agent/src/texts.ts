@@ -46,6 +46,10 @@ export interface Texts {
   withdrawNone(businessName: string): string;
   /** FEAT-051: a deletion request was passed to the team (until FEAT-061, D5). */
   dataRequest(businessName: string): string;
+  /** FEAT-038: the reply that carries the handoff card. */
+  handoffOffer: string;
+  /** FEAT-038: no other channel is live. */
+  handoffNone: string;
 }
 
 /**
@@ -127,7 +131,9 @@ type FixedKeys =
   | 'withdrawConfirm'
   | 'withdrawAlready'
   | 'withdrawNone'
-  | 'dataRequest';
+  | 'dataRequest'
+  | 'handoffOffer'
+  | 'handoffNone';
 
 const FIXED: Record<ReplyLanguage, Pick<Texts, FixedKeys>> = {
   en: {
@@ -164,6 +170,8 @@ const FIXED: Record<ReplyLanguage, Pick<Texts, FixedKeys>> = {
       `${b} doesn't have contact details from you in this chat. If you gave them another way, tell the team and they'll stop using them.`,
     dataRequest: (b: string) =>
       `I've passed your request about your personal data to the ${b} team. They'll get back to you.`,
+    handoffOffer: 'Sure. Where would you like to continue?',
+    handoffNone: 'For now we can only chat here.',
   },
   zh: {
     escalation: '我先跟团队确认一下，稍后回复您。',
@@ -189,6 +197,8 @@ const FIXED: Record<ReplyLanguage, Pick<Texts, FixedKeys>> = {
     withdrawNone: (b: string) =>
       `${b} 在这次对话中没有您的联系资料。如果您是通过其他方式提供的，请告诉团队，他们会停止使用。`,
     dataRequest: (b: string) => `我已把您关于个人资料的请求转给 ${b} 团队，他们会尽快回复您。`,
+    handoffOffer: '好的。您想在哪里继续聊？',
+    handoffNone: '目前我们只能在这里聊天。',
   },
 };
 

@@ -92,10 +92,12 @@ export const Expectation = z.discriminatedUnion('kind', [
    */
   z.object({
     kind: z.literal('card'),
-    card: z.enum(['consent', 'lead_form', 'withdraw']).nullable(),
+    card: z.enum(['consent', 'lead_form', 'withdraw', 'handoff']).nullable(),
     prefill: z.record(z.string(), z.string()).optional(),
     /** FEAT-051: the withdraw card offers "Just stop offers". */
     offers: z.boolean().optional(),
+    /** FEAT-038: the handoff card lists exactly these channels. */
+    channels: z.array(z.enum(['telegram', 'email'])).optional(),
   }),
   /** FEAT-044/051: the escalation sources the turn's handlers asked for, in order. */
   z.object({ kind: z.literal('escalated'), sources: z.array(z.string()) }),
@@ -195,6 +197,13 @@ export const Case = z
       .object({ held: z.boolean(), offers: z.boolean(), withdrawn: z.boolean() })
       .strict()
       .optional(),
+    /** FEAT-038: the channels live for a handoff (`handoffOptions`); absent: none. */
+    handoff: z.object({ telegram: z.boolean(), email: z.boolean() }).strict().optional(),
+    /**
+     * FEAT-038 AC-9: the scope the visitor registry dispatches in; `coaching` checks that
+     * visitor-only handlers are refused `scope`.
+     */
+    scope: z.enum(['visitor', 'coaching']).default('visitor'),
     /** FEAT-055 D4: the conversation already has a pending approval. */
     pendingApproval: z.boolean().default(false),
     /** Earlier abuse turns in the conversation (FEAT-025): seeds the abuse count. */
@@ -350,6 +359,12 @@ function sameFields(a: Record<string, unknown>, b: Record<string, string>): bool
 }
 
 /** Scores the deterministic expectations; `judge` expectations are scored by the runner. */
+/** FEAT-038: the channels a handoff card lists, comma-joined; `null` for any other card. */
+function handoffChannels(card: MessageCard | null): string | null {
+  if (card?.kind !== 'handoff') return null;
+  return (['telegram', 'email'] as const).filter((k) => card[k]).join();
+}
+
 export function score(reply: Reply, expectations: Expectation[], ctx: ScoreContext): boolean {
   const own = new Set(ctx.fixture.facts.map((f) => f.id));
   return expectations.every((e) => {
@@ -385,7 +400,8 @@ export function score(reply: Reply, expectations: Expectation[], ctx: ScoreConte
               e.prefill,
             )) &&
           (e.offers === undefined ||
-            (reply.card?.kind === 'withdraw' && reply.card.offers === e.offers))
+            (reply.card?.kind === 'withdraw' && reply.card.offers === e.offers)) &&
+          (e.channels === undefined || handoffChannels(reply.card) === e.channels.join())
         );
       case 'escalated':
         return reply.escalations.join() === e.sources.join();

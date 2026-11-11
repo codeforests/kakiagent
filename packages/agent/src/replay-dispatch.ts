@@ -20,7 +20,8 @@ import {
  * Each handler re-scoped to `coaching`, its checks and `run` unchanged. `capture_lead` is left
  * out: its cards exist only in the widget (FEAT-049 §5.3, AC-7), so a replay reports it unhandled;
  * so is `request_commitment` (FEAT-055 §5.2): a replay drafts no approval; and FEAT-051's
- * `withdraw_consent` (a widget card) and `data_request` (an escalation).
+ * `withdraw_consent` (a widget card) and `data_request` (an escalation); and FEAT-038's
+ * `handoff_channel` (a widget card).
  */
 export function stubAll(reg: Registry): Registry {
   return createRegistry(
@@ -30,7 +31,8 @@ export function stubAll(reg: Registry): Registry {
           h.kind !== 'capture_lead' &&
           h.kind !== 'request_commitment' &&
           h.kind !== 'withdraw_consent' &&
-          h.kind !== 'data_request',
+          h.kind !== 'data_request' &&
+          h.kind !== 'handoff_channel',
       )
       .map((h) => ({ ...h, scopes: ['coaching'] })),
   );
@@ -71,6 +73,11 @@ export class ReplayPorts implements ConversationPort {
   /** Never called: `withdraw_consent` isn't in the replay registry (FEAT-051). */
   async withdrawalOffer(): Promise<never> {
     throw new Error('a replay withdraws nothing');
+  }
+
+  /** Never called: `handoff_channel` isn't in the replay registry (FEAT-038). */
+  async handoffOptions(): Promise<never> {
+    throw new Error('a replay hands off nothing');
   }
   /** Never called: `request_commitment` isn't in the replay registry (FEAT-055). */
   async draftApproval(): Promise<never> {

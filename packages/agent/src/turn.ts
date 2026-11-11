@@ -1,4 +1,5 @@
 import { draftApproval, rulesInForce, type DraftResult, type PricedProduct } from '@kaki/approvals';
+import { handoffOptions } from '@kaki/channels/handoff';
 import { withTenant, type ZoneDb } from '@kaki/db';
 import { audit, auditCode, auditId, type AuditPayload } from '@kaki/governance';
 import {
@@ -524,6 +525,8 @@ export async function runVisitorTurn(
           ? { held: true, offers: t.offers, withdrawn: t.withdrawn }
           : { held: false, offers: false, withdrawn: false };
       },
+      // CHN-07 (FEAT-038 §5.7): the live channels with what a link needs; reads only.
+      handoffOptions: () => withTenant(zdb, tenantId, (tx) => handoffOptions(tx, tenantId)),
       // APR-02 (FEAT-055 §5.2, D2): drafted in code from this turn's product facts, priced as the
       // visitor is quoted (KB-15: GST-inclusive at a registered tenant), in one transaction.
       draftApproval: async (request) => {

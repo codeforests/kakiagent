@@ -71,11 +71,22 @@ export interface ConversationPort {
    */
   withdrawalOffer(): Promise<WithdrawalOffer>;
   /**
+   * The channels this visitor can continue on (CHN-07; FEAT-038 §5.7): channels
+   * `handoffOptions`, live and (Telegram) with a bot username. Reads only.
+   */
+  handoffOptions(): Promise<HandoffChannels>;
+  /**
    * Drafts an approval from the visitor's request (APR-02, AGT-06 `draft_approval`; FEAT-055
    * §5.2): approvals `draftApproval` with this turn's retrieved facts and the rules in force.
    * Nothing reaches the visitor but the waiting notice, or (D3) a plain quote sent at once.
    */
   draftApproval(request: RequestCommitmentArgs): Promise<ApprovalPortResult>;
+}
+
+/** Which channels a visitor can continue the chat on (FEAT-038 §5.2 step 2). */
+export interface HandoffChannels {
+  telegram: boolean;
+  email: boolean;
 }
 
 /** Whether contact details are held from this visitor, and what the confirm card offers. */
@@ -134,7 +145,9 @@ export type ReplyKey =
   | 'withdraw_confirm'
   | 'withdraw_already'
   | 'withdraw_none'
-  | 'data_request';
+  | 'data_request'
+  | 'handoff_offer'
+  | 'handoff_none';
 
 export type { SafetyKey };
 
@@ -345,6 +358,24 @@ export const dataRequestHandler: TaskHandler<Record<string, unknown>> = {
   },
 };
 
+/**
+ * CHN-07 (FEAT-038 §5.7; AC-9): "continue on Telegram" gets the handoff card listing only the
+ * live channels, never a write; the widget's `/handoff` route makes the link. No consent (D1).
+ */
+export const handoffChannelHandler: TaskHandler<Record<string, unknown>> = {
+  kind: 'handoff_channel',
+  scopes: ['visitor'],
+  args: z.record(z.string(), z.unknown()).catch({}),
+  async run(ctx) {
+    const o = await ctx.conversation.handoffOptions();
+    if (!o.telegram && !o.email) return { reply: { key: 'handoff_none' } };
+    return {
+      card: { kind: 'handoff', telegram: o.telegram, email: o.email },
+      reply: { key: 'handoff_offer' },
+    };
+  },
+};
+
 /** The visitor scope's handlers (ADR-025). Kinds without one are reported `unhandled`. */
 export const visitorRegistry: Registry = createRegistry([
   crisisHandler,
@@ -355,6 +386,7 @@ export const visitorRegistry: Registry = createRegistry([
   requestCommitmentHandler,
   withdrawConsentHandler,
   dataRequestHandler,
+  handoffChannelHandler,
 ]);
 
 type Checked = { ok: true; args: unknown } | { ok: false; reason: RefusalReason };

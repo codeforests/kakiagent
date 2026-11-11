@@ -91,6 +91,9 @@ function dispatchCtx(scope: 'visitor' | 'coaching') {
       withdrawalOffer: async () => {
         throw new Error('coaching withdraws nothing');
       },
+      handoffOptions: async () => {
+        throw new Error('coaching hands off nothing');
+      },
       draftApproval: async () => {
         throw new Error('coaching drafts no approval');
       },

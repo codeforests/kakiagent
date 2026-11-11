@@ -33,7 +33,11 @@ const RULES: [Exclude<TaskKind, 'answer'>, RegExp][] = [
     'capture_lead',
     /\b(my (number|phone|email|contact|hp) is|call me (at|back)|whatsapp me|contact me|get back to me|leave my (details|number|contact))\b|我的电话|我的号码|我的邮箱|联系我/i,
   ],
-  ['handoff_channel', /\b(on|via|through) (telegram|whatsapp|email)\b/i],
+  [
+    'handoff_channel',
+    // FEAT-038 §5.7: "continue on Telegram", "email me instead", 转到电报/邮件.
+    /\b((on|via|through|over|to) (telegram|whatsapp|email)|continue (this |the chat )?(on|over|by|elsewhere)|email me( instead)?|move (this|the chat) to)\b|(在|用|转到)(电报|telegram|邮件|电邮)(上)?(继续|聊)/i,
+  ],
   [
     'out_of_scope',
     /\b(homework|weather|election|politics|stock prices?|bitcoin|write (me )?(a |an )?(poem|essay|code|story)|football|lottery|toto|4d)\b|天气|作业|股票|选举|写一首诗/i,

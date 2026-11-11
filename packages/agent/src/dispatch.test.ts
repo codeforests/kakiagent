@@ -38,6 +38,7 @@ function memoryConversation(
     offers: false,
     withdrawn: false,
   },
+  handoff: { telegram: boolean; email: boolean } = { telegram: true, email: false },
 ) {
   const state = {
     flags: [] as string[],
@@ -65,6 +66,9 @@ function memoryConversation(
     async withdrawalOffer() {
       return offer;
     },
+    async handoffOptions() {
+      return handoff;
+    },
     async draftApproval(request) {
       state.requests.push(request);
       return {
@@ -81,9 +85,10 @@ function memoryConversation(
 function context(
   over: Partial<DispatchContext> = {},
   offer?: { held: boolean; offers: boolean; withdrawn: boolean },
+  handoff?: { telegram: boolean; email: boolean },
 ) {
   const audits: DispatchAuditEntry[] = [];
-  const memory = memoryConversation(false, offer);
+  const memory = memoryConversation(false, offer, handoff);
   const ctx: DispatchContext = {
     scope: 'visitor',
     tenantId: 't',
@@ -150,12 +155,12 @@ describe('dispatchPlan (ADR-025 decisions 2 and 6, AC-7)', () => {
     const { ctx, audits } = context();
     const { reports, endTurn } = await dispatchPlan(
       visitorRegistry,
-      planOf([['answer'], ['handoff_channel', { phone: '9123 4567' }]]),
+      planOf([['answer'], ['correct', { phone: '9123 4567' }]]),
       ctx,
     );
     expect(endTurn).toBeUndefined();
-    // FEAT-051 handles `data_request`; `handoff_channel` waits for FEAT-038.
-    expect(reports).toEqual([{ task: 'handoff_channel', index: 1, outcome: 'unhandled' }]);
+    // FEAT-038 handles `handoff_channel`; `correct` is coaching's only.
+    expect(reports).toEqual([{ task: 'correct', index: 1, outcome: 'unhandled' }]);
     // Codes only: the phone number in the args never reaches the audit entry.
     expect(JSON.stringify(audits)).not.toContain('9123');
   });
@@ -365,13 +370,15 @@ describe('the safety handlers (FEAT-025 AC-6, AC-7; ADR-025 decision 6)', () => 
     // `escalate` (FEAT-044) asks for a person for this conversation; `capture_lead` (FEAT-049)
     // returns a card for the visitor's own details; `request_commitment` (FEAT-055) drafts an
     // approval for this conversation; `withdraw_consent` (FEAT-051) returns a card and
-    // `data_request` escalates this conversation. None reads or changes other tenant data.
+    // `data_request` escalates this conversation; `handoff_channel` (FEAT-038) returns a card of
+    // this tenant's live channels. None reads or changes other tenant data.
     expect([...visitorRegistry.byKind.keys()].sort()).toEqual([
       'abuse',
       'capture_lead',
       'crisis',
       'data_request',
       'escalate',
+      'handoff_channel',
       'out_of_scope',
       'request_commitment',
       'withdraw_consent',
@@ -596,5 +603,45 @@ describe('withdraw_consent and data_request (FEAT-051 §5.3; AC-2, AC-9)', () =>
     expect(conversation.escalations).toEqual([]);
     expect(replayRegistry.byKind.has('withdraw_consent')).toBe(false);
     expect(replayRegistry.byKind.has('data_request')).toBe(false);
+  });
+});
+
+describe('handoff_channel (FEAT-038 §5.7; AC-9)', () => {
+  it('visitor scope: the handoff card lists only the live channels, with its text, and writes nothing', async () => {
+    const { ctx, conversation } = context({}, undefined, { telegram: true, email: false });
+    const out = await dispatchPlan(visitorRegistry, planOf([['handoff_channel']]), ctx);
+    expect(out.reports).toEqual([{ task: 'handoff_channel', index: 0, outcome: 'done' }]);
+    expect(out.card).toEqual({ kind: 'handoff', telegram: true, email: false });
+    expect(out.replies).toEqual(['handoff_offer']);
+    expect(conversation).toMatchObject({ escalations: [], flags: [], ended: false, requests: [] });
+  });
+
+  it('no channel live: the handoff_none text and no card', async () => {
+    const { ctx } = context({}, undefined, { telegram: false, email: false });
+    const out = await dispatchPlan(visitorRegistry, planOf([['handoff_channel']]), ctx);
+    expect(out.card).toBeUndefined();
+    expect(out.replies).toEqual(['handoff_none']);
+  });
+
+  it('beside an answer: the card and text follow it; coaching scope and replay never run it', async () => {
+    const both = context({}, undefined, { telegram: true, email: true });
+    const out = await dispatchPlan(
+      visitorRegistry,
+      planOf([['answer'], ['handoff_channel', { channel: 'email' }]]),
+      both.ctx,
+    );
+    expect(out.card).toEqual({ kind: 'handoff', telegram: true, email: true });
+    expect(out.replies).toEqual(['handoff_offer']);
+    const coaching = context({ scope: 'coaching' });
+    const refused = await dispatchPlan(
+      visitorRegistry,
+      planOf([['handoff_channel']]),
+      coaching.ctx,
+    );
+    expect(refused.reports).toEqual([
+      { task: 'handoff_channel', index: 0, outcome: 'refused', reason: 'scope' },
+    ]);
+    expect(refused.card).toBeUndefined();
+    expect(replayRegistry.byKind.has('handoff_channel')).toBe(false);
   });
 });

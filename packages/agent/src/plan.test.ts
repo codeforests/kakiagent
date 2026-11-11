@@ -172,6 +172,11 @@ describe('fake triage (local development and E2E)', () => {
     ['stop using and delete my details', ['withdraw_consent', 'data_request'], 0.2],
     ["don't call before 10am, my number is 9123 4567", ['capture_lead'], 0.8],
     ['蛋糕多少钱？', ['answer'], 0.2],
+    // FEAT-038 §5.7: continuing on another channel.
+    ['can we continue on telegram', ['handoff_channel'], 0.2],
+    ['just email me instead lah', ['handoff_channel'], 0.2],
+    ['可以转到电报继续聊吗', ['handoff_channel'], 0.2],
+    ['how much is the cake? and continue on email', ['answer', 'handoff_channel'], 0.2],
   ])('%s → %j', (text, kinds, complexity) => {
     const p = run(text);
     expect(p.fallback).toBe(false);

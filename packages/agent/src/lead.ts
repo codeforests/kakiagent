@@ -74,7 +74,8 @@ export function cardForReply(input: {
 }): MessageCard | null {
   if (input.safety || NO_CARD_OUTCOMES.has(input.outcome)) return null;
   // FEAT-051: a withdrawal never needs a purpose statement; consent and lead cards do.
-  if (input.card?.kind === 'withdraw') return input.card;
+  // FEAT-038: nor does a handoff card.
+  if (input.card?.kind === 'withdraw' || input.card?.kind === 'handoff') return input.card;
   if (!input.capturing) return null;
   if (input.card) return input.card;
   const offerable =
