@@ -35,6 +35,8 @@ const s = {
   MFA_SECRET_KEY: prev.MFA_SECRET_KEY ?? randomBytes(32).toString('base64url'),
   // Seals channel credentials (FEAT-037); the api, agent-worker and scheduler share it.
   CHANNEL_SECRET_KEY: prev.CHANNEL_SECRET_KEY ?? randomBytes(32).toString('base64url'),
+  // Signs channel handoff links (FEAT-038); the api and agent-worker share it.
+  HANDOFF_LINK_SECRET: prev.HANDOFF_LINK_SECRET ?? rand() + rand(),
 };
 // The fake Telegram Bot API (`pnpm fixtures:telegram`, FEAT-037 §5.6).
 const telegram = {
@@ -75,6 +77,7 @@ const files = {
     VISITOR_TOKEN_SECRET: s.VISITOR_TOKEN_SECRET,
     SESSION_SECRET: s.SESSION_SECRET,
     MFA_SECRET_KEY: s.MFA_SECRET_KEY,
+    HANDOFF_LINK_SECRET: s.HANDOFF_LINK_SECRET,
     ...telegram,
     // `https://kakibakery.test` (the fixture site) is accepted locally (FEAT-012 §5.6).
     CRAWL_ALLOW_PRIVATE_HOSTS: 'true',
@@ -92,6 +95,8 @@ const files = {
     VISITOR_DATABASE_URL: pg('app_agent_visitor', s.APP_AGENT_VISITOR_PASSWORD),
     SQS_TURNS_QUEUE_URL: queue,
     ...telegram,
+    HANDOFF_LINK_SECRET: s.HANDOFF_LINK_SECRET,
+    PUBLIC_API_URL: 'http://localhost:3000',
     AWS_ACCESS_KEY_ID: 'test',
     AWS_SECRET_ACCESS_KEY: 'test',
   },

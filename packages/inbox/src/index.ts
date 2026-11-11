@@ -11,6 +11,7 @@ export * from './views.js';
 export * from './ownership.js';
 export * from './escalation.js';
 export * from './search.js';
+export * from './move.js';
 
 /**
  * Conversation and message repository. Every function takes a transaction opened by

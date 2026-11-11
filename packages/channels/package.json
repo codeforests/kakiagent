@@ -9,7 +9,8 @@
     "./theme": "./src/theme/index.ts",
     "./contract-suite": "./src/contract-suite.ts",
     "./telegram-fake": "./src/telegram/fake.ts",
-    "./contacts": "./src/contacts/index.ts"
+    "./contacts": "./src/contacts/index.ts",
+    "./handoff": "./src/handoff/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

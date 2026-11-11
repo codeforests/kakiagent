@@ -425,7 +425,8 @@
           "internal notes and tags (FEAT-047)"
         ],
         "supplements": [
-          "features/FEAT-039-contact-identity/ui-design.md#scr-app-015--conversation-partial-sidebar-contact-section"
+          "features/FEAT-039-contact-identity/ui-design.md#scr-app-015--conversation-partial-sidebar-contact-section",
+          "features/FEAT-038-channel-handoff/ui-design.md#scr-app-015--conversation-partial-moved-divider-recap"
         ]
       },
       "contract_bindings": [
@@ -1365,6 +1366,11 @@
             "state": "waiting-for-approval",
             "strategy": "code-native",
             "source": "features/FEAT-055-approvals/ui-design.md#scr-wgt-002--chat-panel-partial"
+          },
+          {
+            "state": "moved",
+            "strategy": "code-native",
+            "source": "features/FEAT-038-channel-handoff/ui-design.md#scr-wgt-002--chat-panel-partial-menu-item-moved"
           }
         ]
       },
@@ -2443,6 +2449,50 @@
       },
       "status": "designed",
       "designed_at": "2026-11-06"
+    },
+    "SCR-WGT-004": {
+      "name": "Continue elsewhere",
+      "surface": "WGT",
+      "feature": "FEAT-038",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-038-channel-handoff/ui-design.md#scr-wgt-004--continue-elsewhere"
+      },
+      "states": {
+        "covered": [
+          "options",
+          "stayed",
+          "telegram link ready",
+          "telegram link expired",
+          "email form",
+          "invalid email",
+          "sending",
+          "email sent",
+          "channel unavailable",
+          "rate limited",
+          "conversation closed",
+          "failed",
+          "confirm page",
+          "confirm done",
+          "confirm expired"
+        ],
+        "gaps": [],
+        "supplements": []
+      },
+      "contract_bindings": [
+        "SSE message (Message.card handoff)",
+        "GET /widget/v1/config (handoff)",
+        "POST /widget/v1/conversations/:id/handoff",
+        "GET /continue/:code",
+        "POST /continue/:code"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-11-11"
     }
   }
 }

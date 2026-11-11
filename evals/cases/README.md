@@ -18,7 +18,7 @@ policy) score the plan and the route; such cases go in the `multi-task` subset. 
 case must also pass the dispatch check: each non-`answer` task is reported
 `unhandled` by the empty registry. The run ends with the cost per conversation. Agent features add their own cases (implementation plan §3:
 FEAT-022 prices and groundedness, FEAT-004 multi-task, FEAT-023 Singlish, Chinese and out-of-scope,
-FEAT-025 red-team and harmful content, FEAT-051 withdrawal). Mark a case `fast: true`
+FEAT-025 red-team and harmful content, FEAT-051 withdrawal, FEAT-038 handoff: `handoff` sets the live channels, `scope: "coaching"` expects visitor-only handlers refused). Mark a case `fast: true`
 to include it in the PR subset.
 
 FEAT-023 runs the turn's reply decision (`answerTurn`: the fixed out-of-scope and

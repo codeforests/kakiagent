@@ -5561,3 +5561,162 @@ describe('contact identities and merges (FEAT-039)', () => {
     }
   });
 });
+
+describe('channel handoff links (FEAT-038)', () => {
+  const seeded: Record<string, { contact: string; conversation: string }> = {};
+  const q = <T extends pg.QueryResultRow = { id: string }>(sql: string, args: unknown[] = []) =>
+    owner.query<T>(sql, args);
+  const link = (t: string, extra = '', values: unknown[] = []) =>
+    q(
+      `insert into handoff_links (tenant_id, conversation_id, contact_id, channel, email, created_at, expires_at)
+       values ($1, $2, $3, ${extra || `'telegram', null, now(), now() + interval '30 minutes'`}) returning id`,
+      [t, seeded[t]!.conversation, seeded[t]!.contact, ...values],
+    );
+
+  beforeAll(async () => {
+    for (const t of [TENANT_A, TENANT_B]) {
+      const contact = (
+        await q(`insert into contacts (tenant_id, name) values ($1, 'Handoff') returning id`, [t])
+      ).rows[0]!.id;
+      const conversation = (
+        await q(
+          `insert into conversations (tenant_id, channel, visitor_id, contact_id)
+           values ($1, 'widget', gen_random_uuid(), $2) returning id`,
+          [t, contact],
+        )
+      ).rows[0]!.id;
+      seeded[t] = { contact, conversation };
+    }
+  });
+
+  afterAll(async () => {
+    await q(`delete from handoff_links`);
+    await q(`delete from contact_identities where source = 'link'`);
+    for (const t of [TENANT_A, TENANT_B]) {
+      await q(`delete from conversations where id = $1`, [seeded[t]!.conversation]);
+      await q(`delete from contacts where id = $1`, [seeded[t]!.contact]);
+    }
+  });
+
+  it("tenant B can't read, redeem or add to A's links; only the definer lookup crosses tenants", async () => {
+    const a = (await link(TENANT_A)).rows[0]!.id;
+    await link(TENANT_B);
+    const seen = await asRole('app_agent_visitor', TENANT_B, async (c) => ({
+      rows: (await c.query(`select tenant_id from handoff_links`)).rows,
+      used: (await c.query(`update handoff_links set used_at = now() where id = $1`, [a])).rowCount,
+      tenant: (await c.query(`select handoff_link_tenant($1) as t`, [a])).rows[0].t,
+    }));
+    expect(seen).toEqual({ rows: [{ tenant_id: TENANT_B }], used: 0, tenant: TENANT_A });
+    await expect(
+      asRole('app_agent_visitor', TENANT_B, (c) =>
+        c.query(
+          `insert into handoff_links (tenant_id, conversation_id, contact_id, channel, expires_at)
+           values ($1, $2, $3, 'telegram', now() + interval '1 hour')`,
+          [TENANT_A, seeded[TENANT_A]!.conversation, seeded[TENANT_A]!.contact],
+        ),
+      ),
+    ).rejects.toThrow(/row-level security/);
+    await expect(
+      asRole('app_dashboard', TENANT_A, (c) => c.query(`select 1 from handoff_links`)),
+    ).rejects.toThrow(/permission denied/);
+    await expect(
+      asRole('app_dashboard', null, (c) => c.query(`select handoff_link_tenant($1)`, [a])),
+    ).rejects.toThrow(/permission denied/);
+    // The visitor zone moves a conversation only through conversation_move_channel():
+    // widget → telegram/email, at the expected version, in its own tenant.
+    const conv = seeded[TENANT_A]!.conversation;
+    const moves = await asRole('app_agent_visitor', TENANT_A, async (c) => {
+      const v = (await c.query(`select version from conversations where id = $1`, [conv])).rows[0]
+        .version as number;
+      const call = async (to: string, version: number) =>
+        (await c.query(`select conversation_move_channel($1, $2, $3) as v`, [conv, to, version]))
+          .rows[0].v as number | null;
+      const stale = await call('telegram', v + 5);
+      const bad = await call('widget', v);
+      const ok = await call('telegram', v);
+      const again = await call('email', v + 1);
+      const channel = (await c.query(`select channel from conversations where id = $1`, [conv]))
+        .rows[0].channel;
+      return { stale, bad, ok: ok === v + 1, again, channel };
+    });
+    expect(moves).toEqual({ stale: null, bad: null, ok: true, again: null, channel: 'telegram' });
+    const fromB = await asRole('app_agent_visitor', TENANT_B, async (c) => {
+      return (await c.query(`select conversation_move_channel($1, 'email', 0) as v`, [conv]))
+        .rows[0].v;
+    });
+    expect(fromB).toBeNull();
+    await expect(
+      asRole('app_agent_visitor', TENANT_A, (c) =>
+        c.query(`update handoff_links set email = 'x@y.test' where id = $1`, [a]),
+      ),
+    ).rejects.toThrow(/permission denied/);
+    await q(`delete from handoff_links`);
+  });
+
+  it('an email link needs its address, a Telegram link has none; a link identity is verified', async () => {
+    await expect(link(TENANT_A, `'email', null, now(), now() + interval '1 day'`)).rejects.toThrow(
+      /handoff_links_email_ck/,
+    );
+    await expect(
+      link(TENANT_A, `'telegram', 'a@b.test', now(), now() + interval '1 day'`),
+    ).rejects.toThrow(/handoff_links_email_ck/);
+    await expect(
+      link(TENANT_A, `'email', 'Upper@b.test', now(), now() + interval '1 day'`),
+    ).rejects.toThrow(/handoff_links_email_ck/);
+    await link(TENANT_A, `'email', 'siti@b.test', now(), now() + interval '1 day'`);
+    await expect(
+      q(
+        `insert into contact_identities (tenant_id, contact_id, kind, value, source)
+         values ($1, $2, 'email', 'siti@b.test', 'link')`,
+        [TENANT_A, seeded[TENANT_A]!.contact],
+      ),
+    ).rejects.toThrow(/contact_identities_link_ck/);
+    for (const [kind, value] of [
+      ['email', 'siti@b.test'],
+      ['telegram', '7000099'],
+    ])
+      await q(
+        `insert into contact_identities (tenant_id, contact_id, kind, value, source, verified_at)
+         values ($1, $2, $3, $4, 'link', now())`,
+        [TENANT_A, seeded[TENANT_A]!.contact, kind, value],
+      );
+    await q(`delete from handoff_links`);
+  });
+
+  it('handoff_links_purge() deletes only links 7 days past expiry, across tenants, and only for the scheduler', async () => {
+    const old = `now() - interval '9 days', now() - interval '8 days'`;
+    const recent = `now() - interval '7 days', now() - interval '6 days'`;
+    for (const t of [TENANT_A, TENANT_B]) {
+      await link(t, `'telegram', null, ${old}`);
+      await link(t, `'telegram', null, ${recent}`);
+      await link(t);
+    }
+    const n = await asRole('app_outbox', null, async (c) => {
+      await c.query(`select handoff_links_purge()`);
+      return (await c.query<{ n: number }>(`select handoff_links_purge() as n`)).rows[0]!.n;
+    });
+    expect(n).toBe(0);
+    const first = await asRole('app_outbox', null, async (c) => {
+      return (await c.query<{ n: number }>(`select handoff_links_purge() as n`)).rows[0]!.n;
+    });
+    expect(first).toBe(2);
+    for (const role of ['app_agent_visitor', 'app_dashboard'] as const)
+      await expect(
+        asRole(role, TENANT_A, (c) => c.query(`select handoff_links_purge()`)),
+      ).rejects.toThrow(/permission denied/);
+    await q(`delete from handoff_links`);
+  });
+
+  it('deleting a contact deletes its links', async () => {
+    const extra = (
+      await q(`insert into contacts (tenant_id, name) values ($1, 'Gone') returning id`, [TENANT_A])
+    ).rows[0]!.id;
+    await q(
+      `insert into handoff_links (tenant_id, conversation_id, contact_id, channel, expires_at)
+       values ($1, $2, $3, 'telegram', now() + interval '1 hour')`,
+      [TENANT_A, seeded[TENANT_A]!.conversation, extra],
+    );
+    await q(`delete from contacts where id = $1`, [extra]);
+    expect((await q(`select id from handoff_links`)).rowCount).toBe(0);
+  });
+});

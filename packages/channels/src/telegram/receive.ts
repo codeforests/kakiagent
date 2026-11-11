@@ -7,7 +7,9 @@
  * are `channel-send` jobs of `type: 'service'`, queued in the same transaction.
  */
 import { createHash } from 'node:crypto';
-import { resolveContact } from '../contacts/identity.js';
+import { attachVerified, resolveContact } from '../contacts/identity.js';
+import { finishHandoff, lockLink, useLink } from '../handoff/redeem.js';
+import { HANDOFF_CODE } from '../handoff/token.js';
 import { and, eq, schema, sql, withTenant, type Tx, type ZoneDb } from '@kaki/db';
 import { enqueue } from '@kaki/platform/outbox';
 import type { InboundEvent } from '../adapter.js';
@@ -27,18 +29,11 @@ export interface TelegramTexts {
   businessName: string;
   /** The `/start` reply: the greeting, the AI disclosure and the privacy line (D7). */
   greeting: string;
+  /** The assistant's name, for the handoff recap (FEAT-038 §5.6). */
+  assistantName: string;
 }
 
 export interface TelegramInboxPort extends InboxPort {
-  appendSystemNotice(
-    tx: Tx,
-    input: {
-      tenantId: string;
-      conversationId: string;
-      kind: 'text_only';
-      text: (language: 'en' | 'zh') => string;
-    },
-  ): Promise<MessageRow>;
   noticeSince(
     tx: Tx,
     tenantId: string,
@@ -55,6 +50,8 @@ export interface TelegramReceiveDeps {
   texts(tx: Tx, tenantId: string, lang: 'en' | 'zh'): Promise<TelegramTexts>;
   /** The dashboard's base URL, for the links in service replies. */
   appUrl: string;
+  /** Opens widget handoff links, `/start c-…` (FEAT-038 §5.3); without it they read as expired. */
+  handoffSecret?: string;
   now?: () => Date;
 }
 
@@ -70,6 +67,16 @@ export type TelegramReceiveResult =
       message?: MessageRow;
       newConversation?: boolean;
     }
+  | {
+      status: 200;
+      tenantId: string;
+      /** A widget chat continued here (FEAT-038 §5.3): publish both messages and the summary. */
+      outcome: 'handed_off';
+      conversation: ConversationRow;
+      moved: MessageRow;
+      recap: MessageRow;
+    }
+  | { status: 200; tenantId: string; outcome: 'handoff_expired' }
   | {
       status: 200;
       tenantId: string;
@@ -227,6 +234,84 @@ async function receiveInTenant(
       `You'll get ${businessName} alerts here. Change them in KakiAgent: ${app}/account/notifications`,
     );
     return { status: 200, tenantId, outcome: 'linked' };
+  }
+
+  // A widget visitor continuing here (CHN-07; FEAT-038 §5.3): `/start c-…` in a private chat.
+  // A group `/start` falls through to the group reply and leave, and the link stays usable.
+  if (
+    t.chatType === 'private' &&
+    t.command === 'start' &&
+    t.startPayload &&
+    HANDOFF_CODE.test(t.startPayload)
+  ) {
+    await record('accepted');
+    const link = deps.handoffSecret
+      ? await lockLink(tx, {
+          tenantId,
+          code: t.startPayload,
+          secret: deps.handoffSecret,
+          channel: 'telegram',
+          now,
+        })
+      : null;
+    if (!link) {
+      await reply(
+        lang === 'zh'
+          ? '此链接已过期。请在这里提问，我们会为您提供帮助。'
+          : "This link has expired. Ask your question here and we'll help.",
+      );
+      await reply((await texts()).greeting);
+      return { status: 200, tenantId, outcome: 'handoff_expired' };
+    }
+    const userId = c.event.externalUserId;
+    const linked = await useLink(tx, link, now, t.chatId);
+    const { contactId, mergedFrom } = await attachVerified(tx, tenantId, linked, {
+      kind: 'telegram',
+      value: userId,
+      source: 'link',
+      verified: true,
+    });
+    const username = t.username?.slice(0, 32) || null;
+    if (username)
+      await tx.execute(
+        sql`update contacts set telegram_username = ${username}, updated_at = now()
+            where tenant_id = ${tenantId} and id = ${contactId}
+              and telegram_username is distinct from ${username}`,
+      );
+    await tx
+      .insert(tc)
+      .values({
+        tenantId,
+        chatId: t.chatId,
+        botId: bot.botId,
+        contactId,
+        conversationId: link.conversationId,
+        lastInboundAt: now,
+      })
+      .onConflictDoUpdate({
+        target: [tc.tenantId, tc.chatId],
+        set: {
+          contactId,
+          conversationId: link.conversationId,
+          lastInboundAt: now,
+          blockedAt: null,
+        },
+      });
+    const { businessName, assistantName } = await texts();
+    const done = await finishHandoff(tx, {
+      link,
+      inbox: deps.inbox,
+      texts: { businessName, assistantName },
+      movedCard: {
+        kind: 'moved',
+        channel: 'telegram',
+        url: `https://t.me/${bot.botUsername}`,
+        sentTo: null,
+      },
+      mergedFrom,
+    });
+    await tx.update(ts).set({ lastReceivedAt: now }).where(eq(ts.tenantId, tenantId));
+    return { status: 200, tenantId, outcome: 'handed_off', ...done };
   }
 
   // Groups: say it once, then leave (CHN-05, D2).

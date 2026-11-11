@@ -3,7 +3,7 @@
  * `/hooks/:kind/:connectionId` (ADR-011), which runs the registry entry's `hook`, and the
  * dashboard routes that connect, replace and disconnect the bot.
  */
-import { DEFAULT_GREETING, textsFor } from '@kaki/agent';
+import { DEFAULT_BOT_NAME, DEFAULT_GREETING, textsFor } from '@kaki/agent';
 import {
   connectTelegram,
   disconnectTelegram,
@@ -67,6 +67,7 @@ export async function telegramTexts(tx: Tx, lang: 'en' | 'zh'): Promise<Telegram
   return {
     businessName,
     greeting: [t.disclosure(businessName), greeting, privacyLine].join('\n\n'),
+    assistantName: persona?.botName ?? DEFAULT_BOT_NAME,
   };
 }
 
@@ -94,6 +95,7 @@ export function registerHookRoutes(app: App, deps: Deps): void {
         inbox,
         texts: (tx, _tenantId, lang) => telegramTexts(tx, lang),
         appUrl: config.PUBLIC_APP_URL,
+        handoffSecret: config.HANDOFF_LINK_SECRET,
       },
       {
         connectionId,
@@ -105,6 +107,26 @@ export function registerHookRoutes(app: App, deps: Deps): void {
     if (r.status === 401) {
       logger.warn({ connectionId }, 'telegram webhook with a wrong secret');
       return reply.code(401).send({ error: 'unauthorized' });
+    }
+    if (r.status === 200 && r.outcome === 'handed_off') {
+      // FEAT-038 §5.3: the widget sees the moved notice; the inbox the move and the recap.
+      const t = r.tenantId;
+      const moved = inbox.toMessage(r.moved);
+      const recap = inbox.toMessage(r.recap);
+      await Promise.allSettled([
+        publisher.publish(channels.conversation(t, r.conversation.id), {
+          type: 'message',
+          message: moved,
+        }),
+        publisher.publish(channels.conversation(t, r.conversation.id), {
+          type: 'message',
+          message: recap,
+        }),
+        publisher.publish(channels.inbox(t), {
+          type: 'conversation',
+          conversation: inbox.toSummary(r.conversation, recap.notice),
+        }),
+      ]);
     }
     if ('message' in r && r.message && r.conversation) {
       // The inbox sees the new message live (pub/sub is best effort; Postgres is the record).

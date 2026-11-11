@@ -309,6 +309,8 @@ export function eventText(e: ThreadEvent): string {
   }
   if (e.kind === 'flagged')
     return e.reason === 'crisis' ? 'Flagged: crisis message' : 'Flagged: abuse';
+  // Continue elsewhere (FEAT-038 ui-design SCR-APP-015).
+  if (e.kind === 'moved') return e.channel === 'email' ? 'Moved to email' : 'Moved to Telegram';
   const who = e.actor.name ?? 'A team member';
   const whom = e.subject?.name ?? 'a team member';
   switch (e.reason) {
@@ -573,7 +575,25 @@ export const cardCaption = (card: ThreadMessage['card']) =>
         ? 'Sent after approval'
         : card === 'withdraw'
           ? 'Asked to confirm the withdrawal'
-          : null;
+          : card === 'handoff'
+            ? 'Offered to continue on another channel'
+            : null;
+
+/**
+ * The recap a handoff sent on the new channel (FEAT-038 ui-design SCR-APP-015): its label and
+ * its first two lines; `more` when "Show all" has anything to add.
+ */
+export function recapView(
+  text: string,
+  channel: ConversationSummary['channel'] | undefined,
+): { label: string; preview: string; more: boolean } {
+  const lines = text.split('\n');
+  return {
+    label: channel === 'email' ? 'Recap sent by email' : 'Recap sent on Telegram',
+    preview: lines.slice(0, 2).join('\n'),
+    more: lines.length > 2,
+  };
+}
 
 /**
  * A Telegram message without text arrives as a placeholder like "[Sticker]" (FEAT-037 D11): the

@@ -239,6 +239,7 @@ async function dispatchCheck(
   conversation: ConversationPort,
   rules: BoundaryRules,
   consent: Case['consent'],
+  scope: Case['scope'] = 'visitor',
 ): Promise<{
   error: string | null;
   replies: ReplyKey[];
@@ -248,7 +249,7 @@ async function dispatchCheck(
   const audited: string[] = [];
   const agreed = consent === 'agreed';
   const ctx: DispatchContext = {
-    scope: 'visitor',
+    scope,
     tenantId,
     conversationId: 'eval',
     turnId: 'eval',
@@ -263,12 +264,13 @@ async function dispatchCheck(
   const { reports, endTurn } = dispatched;
   const planned = plan.tasks.filter((t) => t.kind !== 'answer').map((t) => t.kind);
   const reported = reports.map((r) => `${r.task}:${r.outcome}`);
-  const expected = (kind: TaskKind) =>
-    kind === 'capture_lead' && !agreed
-      ? 'refused'
-      : kind !== 'answer' && visitorRegistry.byKind.has(kind)
-        ? 'done'
-        : 'unhandled';
+  const expected = (kind: TaskKind) => {
+    const h = kind === 'answer' ? undefined : visitorRegistry.byKind.get(kind);
+    if (!h) return 'unhandled';
+    // FEAT-038 AC-9: a coaching-scope case refuses every visitor-only handler.
+    if (!h.scopes.includes(scope)) return 'refused';
+    return kind === 'capture_lead' && !agreed ? 'refused' : 'done';
+  };
   // A safety task ends the dispatch (ADR-025 decision 6): the rest are never run.
   const ok =
     (endTurn !== undefined || reports.length === planned.length) &&
@@ -313,6 +315,7 @@ function memoryConversation(
   priorAbuse: number,
   approval: ApprovalCtx,
   contact: ContactCtx = NOTHING_HELD,
+  handoff: { telegram: boolean; email: boolean } = { telegram: false, email: false },
 ) {
   const state = {
     /** FEAT-055: what the `request_commitment` handler drafted (status only; nothing is sent). */
@@ -342,6 +345,10 @@ function memoryConversation(
     // FEAT-051: the case's contact state, as leads `withdrawalTarget` would read it.
     async withdrawalOffer() {
       return contact;
+    },
+    // FEAT-038: the case's live channels, as channels `handoffOptions` would read them.
+    async handoffOptions() {
+      return handoff;
     },
     // As approvals `draftApproval` decides it (D3, D4), in memory: a plain allowed quote is
     // `auto`, anything else is drafted, a second request is `already_pending`.
@@ -431,8 +438,16 @@ async function runCase(c: Case) {
       afterHours: hours !== null && !hours.status.open,
     },
     c.contact,
+    c.handoff,
   );
-  const dispatch = await dispatchCheck(plan, fixture.tenantId, conversation.port, rules, c.consent);
+  const dispatch = await dispatchCheck(
+    plan,
+    fixture.tenantId,
+    conversation.port,
+    rules,
+    c.consent,
+    c.scope,
+  );
   // FEAT-055 §5.2: what the request did, and the visitor's waiting notice, as turn.ts renders it.
   const drafted = conversation.state.approvals[0] ?? null;
   const waiting =

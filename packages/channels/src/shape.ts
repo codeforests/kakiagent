@@ -7,7 +7,14 @@
 import type { ChannelCapabilities } from './adapter.js';
 
 /** System notices that mark the widget's own UI moments, never sent to an adapter channel. */
-export const UNSENT_NOTICE_KINDS = ['staff_joined', 'staff_left', 'chat_ended', 'lead_captured'];
+export const UNSENT_NOTICE_KINDS = [
+  'staff_joined',
+  'staff_left',
+  'chat_ended',
+  'lead_captured',
+  // FEAT-038: "This chat continues on Telegram" is the widget's own; the recap goes instead.
+  'handoff_moved',
+];
 
 export interface ShapeInput {
   author: 'visitor' | 'agent' | 'staff' | 'system';

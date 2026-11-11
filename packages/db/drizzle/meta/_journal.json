@@ -393,6 +393,13 @@
       "when": 1794317906744,
       "tag": "0055_contact_identity",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1794371631479,
+      "tag": "0056_channel_handoff",
+      "breakpoints": true
     }
   ]
 }

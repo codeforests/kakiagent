@@ -38,6 +38,8 @@ export const emptyChat: Chat = { messages: [], segments: {} };
 const answered = (c: Chat, turnId: string) => c.messages.some((m) => m.inReplyTo === turnId);
 
 export function withMessage(c: Chat, m: Message): Chat {
+  // The recap is the first message on the new channel (FEAT-038 §5.6): never in the widget.
+  if (m.noticeKind === 'handoff_recap') return c;
   const messages = mergeMessages(c.messages, m);
   if (!m.inReplyTo || !(m.inReplyTo in c.segments)) return { ...c, messages };
   const { [m.inReplyTo]: _replaced, ...segments } = c.segments;
@@ -160,18 +162,28 @@ export function chromeLocale(c: Chat, navLang: string | undefined): Locale {
   return pickLocale(navLang);
 }
 
-export type MenuItem = 'talkToPerson' | 'privacy' | 'end';
+export type MenuItem = 'talkToPerson' | 'continueElsewhere' | 'privacy' | 'end';
 
 /**
  * The header menu's items, in order (SCR-WGT-002; FEAT-033 AC-5, AC-6). Talk to a person
  * hides while an escalation is pending or a person handles the chat (FEAT-044 AC-1).
  */
 export function menuItems(
-  config: Pick<WidgetConfigResponse, 'privacyNoticeUrl' | 'controls'>,
+  config: Pick<WidgetConfigResponse, 'privacyNoticeUrl' | 'controls'> &
+    Partial<Pick<WidgetConfigResponse, 'handoff'>>,
   s: { conversationId: string | null; ended: boolean; preview: boolean; handover?: boolean },
 ): MenuItem[] {
   const items: MenuItem[] = [];
   if (config.controls.talkToPerson && !s.ended && !s.handover) items.push('talkToPerson');
+  // Continue elsewhere (FEAT-038 §5.8): a live channel and a conversation to carry over.
+  if (
+    config.handoff &&
+    handoffOptions(config.handoff).length > 0 &&
+    s.conversationId &&
+    !s.ended &&
+    !s.preview
+  )
+    items.push('continueElsewhere');
   if (config.privacyNoticeUrl) items.push('privacy');
   if (s.conversationId && !s.ended && !s.preview) items.push('end');
   return items;
@@ -240,9 +252,10 @@ export function activeCard(c: Chat): string | null {
   for (let i = c.messages.length - 1; i >= 0; i--) {
     const m = c.messages[i]!;
     // An approved quote (FEAT-055) is read-only: it doesn't open or answer a card.
-    if (m.card && m.card.kind !== 'quote') return m.id;
+    if (m.card && m.card.kind !== 'quote' && m.card.kind !== 'moved') return m.id;
     if (
       m.author === 'visitor' ||
+      m.noticeKind === 'handoff_moved' ||
       m.noticeKind === 'lead_captured' ||
       m.noticeKind === 'consent_withdrawn' ||
       m.noticeKind === 'chat_ended'
@@ -434,4 +447,84 @@ export function quoteView(card: QuoteCardData, t: Strings): QuoteView {
           : null,
     note: card.note.trim() || null,
   };
+}
+
+// ---- Continue elsewhere (SCR-WGT-004, SCR-WGT-002 moved; FEAT-038 §5.8) ----------------------
+
+export type HandoffChannel = 'telegram' | 'email';
+export type HandoffFailure =
+  | 'channel_unavailable'
+  | 'conversation_closed'
+  | 'invalid_email'
+  | 'rate_limited'
+  | 'moved'
+  | 'failed';
+
+/** The channels a card or the config offers, Telegram first (ui-design SCR-WGT-004). */
+export function handoffOptions(
+  flags: { telegram: boolean; email: boolean },
+  removed: readonly HandoffChannel[] = [],
+): HandoffChannel[] {
+  const all: HandoffChannel[] = [];
+  if (flags.telegram) all.push('telegram');
+  if (flags.email) all.push('email');
+  return all.filter((c) => !removed.includes(c));
+}
+
+/** The menu item's label: both channels, or only the live one's name. */
+export function handoffMenuLabel(flags: { telegram: boolean; email: boolean }, t: Strings): string {
+  const options = handoffOptions(flags);
+  if (options.length === 2) return t.handoffMenu;
+  return options[0] === 'telegram' ? t.handoffTelegram : t.handoffEmail;
+}
+
+/** The card's inline error (ui-design SCR-WGT-004 errors); `invalid_email` shows on the field. */
+export function handoffErrorText(
+  code: HandoffFailure,
+  channel: HandoffChannel,
+  t: Strings,
+): string {
+  if (code === 'channel_unavailable') return t.handoffUnavailable(channel === 'telegram');
+  if (code === 'rate_limited') return t.handoffRateLimited;
+  if (code === 'conversation_closed') return t.handoffClosed;
+  if (code === 'invalid_email') return t.errEmail;
+  return t.handoffFailed;
+}
+
+export interface MovedView {
+  channel: HandoffChannel;
+  /** The bot without a token (Telegram); null when not known. */
+  url: string | null;
+  /** The stored `handoff_moved` notice, or null when only a 409 told us. */
+  noticeId: string | null;
+}
+
+/**
+ * The moved state (SCR-WGT-002; FEAT-038 AC-8): from the stored `handoff_moved` notice's
+ * card, else from a 409 `moved` (`fallback`); null while the chat is still here.
+ */
+export function movedView(c: Chat, fallback: HandoffChannel | null): MovedView | null {
+  for (let i = c.messages.length - 1; i >= 0; i--) {
+    const m = c.messages[i]!;
+    if (m.noticeKind === 'handoff_moved' && m.card?.kind === 'moved')
+      return { channel: m.card.channel, url: m.card.url, noticeId: m.id };
+  }
+  return fallback ? { channel: fallback, url: null, noticeId: null } : null;
+}
+
+/**
+ * Splits `a **b** c` into text and bold parts (strings mark the word to tap), then fills
+ * `{name}` placeholders, so a value with asterisks (a masked address) stays as it is.
+ */
+export function boldParts(
+  text: string,
+  vars: Record<string, string> = {},
+): { text: string; bold: boolean }[] {
+  return text
+    .split('**')
+    .map((part, i) => ({
+      text: part.replace(/\{(\w+)\}/g, (all, k: string) => vars[k] ?? all),
+      bold: i % 2 === 1,
+    }))
+    .filter((p) => p.text !== '');
 }

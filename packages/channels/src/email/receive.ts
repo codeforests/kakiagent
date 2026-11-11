@@ -73,6 +73,27 @@ export interface InboxPort {
   ): Promise<{ message: MessageRow; created: boolean; conversation: ConversationRow }>;
   /** A closed conversation that a new message reopens (INB-08: within 7 days). */
   reopenable(row: ConversationRow, now?: Date): boolean;
+  /** Widget → Telegram or email, the same conversation (FEAT-038 §5.5); null if it already moved. */
+  moveConversation(
+    tx: Tx,
+    input: {
+      tenantId: string;
+      conversationId: string;
+      to: 'telegram' | 'email';
+      notice: (language: 'en' | 'zh') => string;
+      card: Record<string, unknown>;
+    },
+  ): Promise<{ conversation: ConversationRow; notice: MessageRow } | null>;
+  /** A system notice (the handoff recap, FEAT-038 §5.6). */
+  appendSystemNotice(
+    tx: Tx,
+    input: {
+      tenantId: string;
+      conversationId: string;
+      kind: 'text_only' | 'handoff_recap';
+      text: (language: 'en' | 'zh') => string;
+    },
+  ): Promise<MessageRow>;
 }
 
 /** Raw mail in, attachments to quarantine (S3 in the worker, a fake in tests). */

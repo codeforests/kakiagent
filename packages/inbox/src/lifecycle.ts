@@ -84,6 +84,8 @@ export const LIFECYCLE_ACTIONS = [
   'conversation.handover_requested',
   /** An escalation opened and was routed (FEAT-044 §5.1): the "Escalated to {name}" divider. */
   'escalation.assigned',
+  /** The conversation continued on Telegram or email (FEAT-038 §5.5): the "Moved to …" divider. */
+  'conversation.moved',
 ] as const;
 
 export type EscalationResolution = (typeof schema.ESCALATION_RESOLUTIONS)[number];

@@ -4,6 +4,9 @@ import type {
   ContactFormBody,
   ContactFormResponse,
   EscalateResponse,
+  HandoffBody,
+  HandoffError,
+  HandoffResponse,
   LeadConflict,
   LeadFieldErrors,
   LeadSubmitBody,
@@ -19,6 +22,26 @@ export class ChatEndedError extends Error {
     super('chat_ended');
   }
 }
+
+/** The chat continues on another channel (409 `moved`, FEAT-038 AC-8). */
+export class MovedError extends Error {
+  constructor(readonly channel: 'telegram' | 'email') {
+    super('moved');
+  }
+}
+
+/** A 409 body: `moved` with its channel, else the chat ended. */
+async function conflictOf(r: Response): Promise<Error> {
+  const body = (await r.json().catch(() => null)) as Partial<HandoffError> | null;
+  if (body?.error === 'moved' && (body.channel === 'telegram' || body.channel === 'email'))
+    return new MovedError(body.channel);
+  return new ChatEndedError();
+}
+
+/** The handoff route's answer (FEAT-038 §3): the link or masked address, or the error code. */
+export type HandoffResult =
+  | { ok: true; data: HandoffResponse }
+  | { ok: false; error: HandoffError['error'] | 'failed'; channel?: 'telegram' | 'email' };
 
 /**
  * A lead route's answer (FEAT-049 §3): the body, or a 422 with per-field codes, or a 409
@@ -83,7 +106,7 @@ export function createApi(apiUrl: string, token: string) {
         body: JSON.stringify({ text, clientMessageId }),
         credentials: 'omit',
       });
-      if (r.status === 409) throw new ChatEndedError();
+      if (r.status === 409) throw await conflictOf(r);
       if (!r.ok) throw new Error(`send: ${r.status}`);
       return ((await r.json()) as { message: Message }).message;
     },
@@ -94,9 +117,28 @@ export function createApi(apiUrl: string, token: string) {
         headers: { authorization: headers.authorization },
         credentials: 'omit',
       });
-      if (r.status === 409) throw new ChatEndedError();
+      if (r.status === 409) throw await conflictOf(r);
       if (!r.ok) throw new Error(`escalate: ${r.status}`);
       return (await r.json()) as EscalateResponse;
+    },
+    /** Continue elsewhere (SCR-WGT-004); errors and network failures come back as values. */
+    async handoff(conversationId: string, body: HandoffBody): Promise<HandoffResult> {
+      try {
+        const r = await fetch(`${apiUrl}/widget/v1/conversations/${conversationId}/handoff`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(body),
+          credentials: 'omit',
+        });
+        if (r.ok) return { ok: true, data: (await r.json()) as HandoffResponse };
+        const err = (await r.json().catch(() => null)) as Partial<HandoffError> | null;
+        const known = [409, 422, 429].includes(r.status) && err?.error;
+        return known
+          ? { ok: false, error: err.error!, ...(err.channel && { channel: err.channel }) }
+          : { ok: false, error: 'failed' };
+      } catch {
+        return { ok: false, error: 'failed' };
+      }
     },
     /** Idempotent (FEAT-033 §3): a second end is still 200. */
     async endConversation(conversationId: string): Promise<void> {

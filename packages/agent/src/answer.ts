@@ -61,12 +61,14 @@ export function replyPlan(input: {
   return { compose: true, lead: null, closing: replies };
 }
 
-/** Withdrawal and data-request texts (FEAT-051) answer the visitor's ask; they refuse nothing. */
+/** Withdrawal, data-request (FEAT-051) and handoff (FEAT-038) texts answer the visitor's ask; they refuse nothing. */
 const NOT_REFUSALS = new Set<ReplyKey | 'unsure'>([
   'withdraw_confirm',
   'withdraw_already',
   'withdraw_none',
   'data_request',
+  'handoff_offer',
+  'handoff_none',
 ]);
 
 /** The outcome of a fixed lead text (FEAT-023, FEAT-025). */
@@ -120,6 +122,10 @@ function render(key: ReplyKey | 'unsure', input: AnswerInput): string {
       return t.withdrawNone(b);
     case 'data_request':
       return t.dataRequest(b);
+    case 'handoff_offer':
+      return t.handoffOffer;
+    case 'handoff_none':
+      return t.handoffNone;
   }
 }
 

@@ -24,7 +24,18 @@ const { emailMessages, emailThreads, emailSettings, contacts } = schema;
 
 const escapeHtml = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-const quoteName = (s: string) => `"${s.replace(/["\\\r\n]/g, '')}"`;
+
+/** The business's reply address: its verified custom address, else its forwarding address (D4). */
+export function replyAddressOf(
+  settings: { domainState: string | null; domainAddress: string | null; forwardingLocal: string },
+  inboundDomain: string,
+): string {
+  return settings.domainState === 'verified' && settings.domainAddress
+    ? settings.domainAddress
+    : `${settings.forwardingLocal}@${inboundDomain.toLowerCase()}`;
+}
+
+export const quoteName = (s: string) => `"${s.replace(/["\\\r\n]/g, '')}"`;
 
 /** SMTP reply codes → the adapter's failure kinds (ADR-011). */
 export function classifySmtp(err: unknown): Exclude<SendResult, { ok: true }> {
@@ -73,10 +84,7 @@ export function emailSender(cfg: EmailSenderConfig): ChannelSender {
         .from(emailSettings)
         .where(eq(emailSettings.tenantId, tenantId));
       if (!thread || !contact?.email || !settings) return { ok: false, failed: 'permanent' };
-      const replyFrom =
-        settings.domainState === 'verified' && settings.domainAddress
-          ? settings.domainAddress
-          : `${settings.forwardingLocal}@${domain}`;
+      const replyFrom = replyAddressOf(settings, domain);
       const ours = `<${randomUUID()}@${domain}>`;
       const references = thread.references.slice(-20);
       const headers: Record<string, string> = { 'X-Kaki-Message': message.id };

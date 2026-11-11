@@ -1,0 +1,75 @@
+[
+  {
+    "id": "handoff-telegram-en",
+    "subset": "multi-task",
+    "fast": true,
+    "messages": [{ "role": "user", "content": "can we continue on Telegram pls" }],
+    "handoff": { "telegram": true, "email": true },
+    "expectTasks": ["handoff_channel"],
+    "expect": [
+      { "kind": "card", "card": "handoff", "channels": ["telegram", "email"] },
+      { "kind": "contains", "text": "Where would you like to continue?" },
+      { "kind": "outcome", "outcome": "answered" }
+    ]
+  },
+  {
+    "id": "handoff-email-only-live",
+    "subset": "multi-task",
+    "fast": true,
+    "messages": [{ "role": "user", "content": "just email me instead lah" }],
+    "handoff": { "telegram": false, "email": true },
+    "expectTasks": ["handoff_channel"],
+    "expect": [{ "kind": "card", "card": "handoff", "channels": ["email"] }]
+  },
+  {
+    "id": "handoff-zh",
+    "subset": "multi-task",
+    "fast": true,
+    "messages": [{ "role": "user", "content": "可以转到电报继续聊吗" }],
+    "handoff": { "telegram": true, "email": false },
+    "expectTasks": ["handoff_channel"],
+    "expect": [
+      { "kind": "card", "card": "handoff", "channels": ["telegram"] },
+      { "kind": "language", "lang": "zh" }
+    ]
+  },
+  {
+    "id": "handoff-none-live",
+    "subset": "multi-task",
+    "fast": true,
+    "messages": [{ "role": "user", "content": "can I continue this on telegram" }],
+    "expectTasks": ["handoff_channel"],
+    "expect": [
+      { "kind": "card", "card": null },
+      { "kind": "contains", "text": "only chat here" }
+    ]
+  },
+  {
+    "id": "handoff-with-question",
+    "subset": "multi-task",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "how much is the chocolate fudge cake? and can we continue on email"
+      }
+    ],
+    "handoff": { "telegram": true, "email": true },
+    "expectTasks": ["answer", "handoff_channel"],
+    "expect": [
+      { "kind": "card", "card": "handoff", "channels": ["telegram", "email"] },
+      { "kind": "outcome", "outcome": "answered" },
+      { "kind": "prices-from-facts" }
+    ]
+  },
+  {
+    "id": "handoff-coaching-refused",
+    "subset": "multi-task",
+    "fast": true,
+    "scope": "coaching",
+    "messages": [{ "role": "user", "content": "continue on telegram please" }],
+    "handoff": { "telegram": true, "email": true },
+    "expectTasks": ["handoff_channel"],
+    "expect": [{ "kind": "card", "card": null }]
+  }
+]

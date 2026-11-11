@@ -15,7 +15,7 @@ import { visitorPrivacy } from '@kaki/governance';
 import { usageSink } from '@kaki/analytics';
 import { runApprovalTimer } from '@kaki/approvals';
 import { ChannelQueueJob, TurnQueueJob, type RealtimeEvent } from '@kaki/contracts';
-import { createZoneDb, ping, withTenant } from '@kaki/db';
+import { createZoneDb, ping, withTenant, type Tx } from '@kaki/db';
 import * as inbox from '@kaki/inbox';
 import {
   autoCloseIdle,
@@ -41,6 +41,7 @@ import {
 } from '@kaki/platform';
 import { visitorTenantState } from '@kaki/tenancy';
 import { localSealer } from '@kaki/platform/secrets';
+import { sendHandoffEmail } from '@kaki/channels/handoff';
 import { z } from 'zod';
 import { s3MailStore } from './mail-store.js';
 
@@ -65,6 +66,10 @@ const config = loadConfig(
         .refine((v) => Buffer.from(v, 'base64url').length === 32, 'must be 32 bytes, base64url'),
       /** The Telegram Bot API; the local fake in dev and E2E (FEAT-037 §5.6). */
       TELEGRAM_API_BASE: envSchemas.url.default('https://api.telegram.org'),
+      /** Signs channel handoff links (FEAT-038 D4); the same as the api's. */
+      HANDOFF_LINK_SECRET: envSchemas.secret,
+      /** The api's public origin: the email handoff's confirm link `<url>/continue/<code>`. */
+      PUBLIC_API_URL: envSchemas.url.transform((u) => u.replace(/\/+$/, '')),
     }),
 );
 const stopTelemetry = startTelemetry('agent-worker', config.OTEL_EXPORTER_OTLP_ENDPOINT);
@@ -176,6 +181,27 @@ const health = startHealthServer(config.HEALTH_PORT, { database: () => ping(visi
 const abort = new AbortController();
 
 /**
+ * The email handoff's confirmation mail (CHN-07; FEAT-038 §5.4): from the business's reply
+ * address, once per link (a used or expired link is skipped); a transient SMTP failure throws
+ * for the queue's retry.
+ */
+const handoffEmailDeps = {
+  zdb: visitorDb,
+  mailer,
+  secret: config.HANDOFF_LINK_SECRET,
+  inboundDomain: config.EMAIL_INBOUND_DOMAIN,
+  apiUrl: config.PUBLIC_API_URL,
+  businessName: async (tx: Tx) => (await visitorTenantState(tx))?.businessName ?? 'Our team',
+};
+async function handoffEmail(
+  job: { tenantId: string; linkId: string },
+  log: { info(obj: object, msg: string): void },
+): Promise<void> {
+  const outcome = await sendHandoffEmail(handoffEmailDeps, job);
+  log.info({ linkId: job.linkId, outcome }, 'handoff email');
+}
+
+/**
  * Consumes `conversation-turns.fifo` (ADR-012): one turn at a time per conversation
  * (FIFO message groups), idempotent on the visitor message (a reply already stored
  * means the turn is done). A thrown error leaves the message for retry and,
@@ -275,6 +301,11 @@ const consuming = queue.consume<unknown>(
         });
       });
       log.info({ outcome }, 'escalation reminder');
+      return;
+    }
+    // The email handoff's confirmation (CHN-07; FEAT-038 §5.4).
+    if ('kind' in parsed && parsed.kind === 'handoff_email') {
+      await handoffEmail(parsed, logger.child({ outboxId: msg.id, tenantId: parsed.tenantId }));
       return;
     }
     const log = logger.child({

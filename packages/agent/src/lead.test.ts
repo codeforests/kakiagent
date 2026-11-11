@@ -58,6 +58,9 @@ describe('cardForReply (AC-8)', () => {
     const withdraw = { kind: 'withdraw', offers: true } as const;
     expect(reply({ card: withdraw, capturing: false })).toEqual(withdraw);
     expect(reply({ card: withdraw, safety: true })).toBeNull();
+    // FEAT-038: nor does the handoff card.
+    const handoff = { kind: 'handoff', telegram: true, email: false } as const;
+    expect(reply({ card: handoff, capturing: false })).toEqual(handoff);
   });
 });
 

@@ -416,6 +416,9 @@ function dispatchContext(
       withdrawalOffer: async () => {
         throw new Error('coaching has no conversation');
       },
+      handoffOptions: async () => {
+        throw new Error('coaching has no conversation');
+      },
     },
     coaching: {
       propose: (proposal) =>

@@ -8,7 +8,7 @@ import { mergeContacts } from './merge.js';
  * Typed lead-form values are identities too, but never verified and never matched (D1).
  */
 export type IdentityKind = 'email' | 'phone' | 'telegram';
-export type IdentitySource = 'email' | 'telegram' | 'lead_form';
+export type IdentitySource = 'email' | 'telegram' | 'lead_form' | 'link';
 
 export interface Identity {
   kind: IdentityKind;
@@ -65,6 +65,8 @@ function check(i: Identity): void {
     throw new Error(`contacts: ${i.kind} identity not normalised`);
   if (i.source === 'lead_form' && i.verified)
     throw new Error('contacts: a typed value is never verified');
+  if (i.source === 'link' && !i.verified)
+    throw new Error('contacts: a handoff link always proves its identifier');
 }
 
 /**

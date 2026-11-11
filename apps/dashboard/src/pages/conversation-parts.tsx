@@ -19,6 +19,7 @@ import {
   attachmentStatus,
   CHANNEL_LABEL,
   placeholderKind,
+  recapView,
   cardCaption,
   deliveryText,
   fileSize,
@@ -298,6 +299,16 @@ export function Bubble({
   /** Telegram placeholders ("[Sticker]") render as muted text with a caption (FEAT-037). */
   channel?: ConversationSummary['channel'];
 }) {
+  // The handoff's recap on the new channel (FEAT-038): delivered, so it shows its status.
+  if (message.noticeKind === 'handoff_recap' && message.notice)
+    return (
+      <RecapNotice
+        message={message}
+        text={message.notice}
+        channel={channel}
+        onRetryError={onRetryError}
+      />
+    );
   // A staff joined/left notice has no body: a caption row of what the visitor saw (FEAT-043).
   if (message.body === '' && message.notice)
     return (
@@ -343,6 +354,50 @@ export function Bubble({
       {message.author !== 'visitor' && (
         <DeliveryLine message={message} onRetryError={onRetryError} />
       )}
+    </li>
+  );
+}
+
+function RecapNotice({
+  message,
+  text,
+  channel,
+  onRetryError,
+}: {
+  message: ThreadMessage;
+  text: string;
+  channel?: ConversationSummary['channel'];
+  onRetryError?: (text: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const view = recapView(text, channel);
+  const id = `recap-${message.id}`;
+  return (
+    <li
+      className="thread-item thread-item--out"
+      data-author="system"
+      data-testid="thread-recap"
+      data-message-id={message.id}
+    >
+      <div className="bubble-meta">
+        <span>{view.label}</span>
+        <time dateTime={message.createdAt}>{clockTime(message.createdAt)}</time>
+      </div>
+      <div className="bubble bubble--system bubble--recap" id={id}>
+        {open ? text : view.preview}
+      </div>
+      {view.more && (
+        <Button
+          variant="ghost"
+          className="recap-toggle"
+          aria-expanded={open}
+          aria-controls={id}
+          onClick={() => setOpen((o) => !o)}
+        >
+          {open ? 'Show less' : 'Show all'}
+        </Button>
+      )}
+      <DeliveryLine message={message} onRetryError={onRetryError} />
     </li>
   );
 }

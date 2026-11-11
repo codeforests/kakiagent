@@ -55,6 +55,18 @@ export const MessageCard = z.discriminatedUnion('kind', [
    * marketing answer is agreed, so the card also offers "Just stop offers" (D1).
    */
   z.object({ kind: z.literal('withdraw'), offers: z.boolean() }),
+  /** "Where would you like to continue?" (CHN-07; FEAT-038 §3): only the business's live channels. */
+  z.object({ kind: z.literal('handoff'), telegram: z.boolean(), email: z.boolean() }),
+  /**
+   * On the `handoff_moved` notice (FEAT-038 §5.5): the chat continues on `channel`. `url` opens
+   * the business's bot (Telegram); `sentTo` is the masked address (email).
+   */
+  z.object({
+    kind: z.literal('moved'),
+    channel: z.enum(['telegram', 'email']),
+    url: z.url().nullable(),
+    sentTo: z.string().max(260).nullable(),
+  }),
 ]);
 export type MessageCard = z.infer<typeof MessageCard>;
 
@@ -122,6 +134,8 @@ export const Message = z.object({
       'approval_expired',
       'consent_withdrawn',
       'text_only',
+      'handoff_recap',
+      'handoff_moved',
     ])
     .nullable(),
   /** A consent or lead-form card under an agent reply (FEAT-049); absent or null: none. */
@@ -346,6 +360,13 @@ export const WidgetConfigResponse = z.object({
       contact: z.object({ email: z.string().nullable(), phone: z.string().nullable() }),
     })
     .nullable(),
+  /**
+   * Continue elsewhere (CHN-07; FEAT-038 §3): Telegram is connected, live and has a bot
+   * username; email is connected and live.
+   */
+  handoff: z
+    .object({ telegram: z.boolean(), email: z.boolean() })
+    .default({ telegram: false, email: false }),
 });
 export type WidgetConfigResponse = z.infer<typeof WidgetConfigResponse>;
 
@@ -2041,12 +2062,23 @@ export const DeliveryFailedJob = z.object({
   messageId: z.uuid(),
 });
 export type DeliveryFailedJob = z.infer<typeof DeliveryFailedJob>;
+/**
+ * The email handoff's confirmation mail (CHN-07; FEAT-038 §5.4), on the turns topic (its own
+ * FIFO group, the conversation). Only the link ID: the worker re-signs the code (D4).
+ */
+export const HandoffEmailJob = z.object({
+  kind: z.literal('handoff_email'),
+  tenantId: z.uuid(),
+  linkId: z.uuid(),
+});
+export type HandoffEmailJob = z.infer<typeof HandoffEmailJob>;
 /** Everything on `conversation-turns`: an auto-close, escalation reminder, approval timer or delivery-failed job, or a visitor turn. */
 export const TurnQueueJob = z.union([
   AutoCloseJob,
   EscalationReminderJob,
   ApprovalTimerJob,
   DeliveryFailedJob,
+  HandoffEmailJob,
   TurnJob,
 ]);
 export type TurnQueueJob = z.infer<typeof TurnQueueJob>;
@@ -2689,8 +2721,8 @@ export type ConversationList = z.infer<typeof ConversationList>;
 /** A message as staff see it: with the facts an AI answer used (the widget's `Message` has none). */
 export const ThreadMessage = Message.extend({
   factIds: z.array(z.uuid()),
-  /** The card's kind only, never its prefill (FEAT-049 §3); `quote` FEAT-055, `withdraw` FEAT-051. */
-  card: z.enum(['consent', 'lead_form', 'quote', 'withdraw']).nullable(),
+  /** The card's kind only, never its prefill (FEAT-049 §3); `quote` FEAT-055, `withdraw` FEAT-051, `handoff`/`moved` FEAT-038. */
+  card: z.enum(['consent', 'lead_form', 'quote', 'withdraw', 'handoff', 'moved']).nullable(),
   /** The team member behind a staff message or notice (FEAT-043): "You" on your own. */
   authorUserId: z.uuid().nullable(),
 });
@@ -2705,6 +2737,7 @@ export const ThreadEvent = z.object({
   /**
    * FEAT-049 adds `consent` (agreed, declined) and `lead` (created, updated); FEAT-055
    * `approval_drafted`, `approval_decided` (reason = the outcome) and `approval_expired`.
+   * FEAT-038 adds `moved`: the chat continued on `channel` ("Moved to Telegram").
    */
   kind: z.enum([
     'state',
@@ -2714,6 +2747,7 @@ export const ThreadEvent = z.object({
     'approval_drafted',
     'approval_decided',
     'approval_expired',
+    'moved',
   ]),
   to: ConversationStatus.nullable(),
   from: ConversationStatus.nullable(),
@@ -2749,6 +2783,8 @@ export const ThreadEvent = z.object({
   subject: z.object({ name: z.string().nullable() }).nullable(),
   /** On an `escalated` divider: what started it (FEAT-044). */
   source: EscalationSource.optional(),
+  /** On a `moved` divider: the channel the chat continues on (FEAT-038). */
+  channel: z.enum(['telegram', 'email']).optional(),
 });
 export type ThreadEvent = z.infer<typeof ThreadEvent>;
 
@@ -3827,3 +3863,48 @@ export const ContactConflict409 = z.object({
   reason: z.enum(['same_contact', 'merged', 'already_undone', 'survivor_merged']),
 });
 export type ContactConflict409 = z.infer<typeof ContactConflict409>;
+
+// ---- Channel handoff (CHN-07; FEAT-038 §3) ----------------------------------------------------
+
+export const HandoffChannel = z.enum(['telegram', 'email']);
+export type HandoffChannel = z.infer<typeof HandoffChannel>;
+/** `POST /widget/v1/conversations/:id/handoff`. The email is checked with `checkLead`'s rule. */
+export const HandoffBody = z.discriminatedUnion('channel', [
+  z.object({ channel: z.literal('telegram') }).strict(),
+  z.object({ channel: z.literal('email'), email: z.string().trim().min(3).max(254) }).strict(),
+]);
+export type HandoffBody = z.infer<typeof HandoffBody>;
+export const HandoffResponse = z.discriminatedUnion('channel', [
+  /** `https://t.me/<bot>?start=c-…`, valid 30 minutes (D5). */
+  z.object({
+    channel: z.literal('telegram'),
+    url: z.url(),
+    expiresAt: z.iso.datetime({ offset: true }),
+  }),
+  /** The masked address the confirmation went to (`m***@gmail.com`), valid 24 hours. */
+  z.object({
+    channel: z.literal('email'),
+    sentTo: z.string(),
+    expiresAt: z.iso.datetime({ offset: true }),
+  }),
+]);
+export type HandoffResponse = z.infer<typeof HandoffResponse>;
+export const HandoffErrorCode = z.enum([
+  /** 409: the channel isn't connected or live. */
+  'channel_unavailable',
+  /** 409 */
+  'conversation_closed',
+  /** 409: already continued elsewhere; the body has `channel`. Also from `…/messages`. */
+  'moved',
+  /** 422 */
+  'invalid_email',
+  /** 429 (D6) */
+  'rate_limited',
+]);
+export type HandoffErrorCode = z.infer<typeof HandoffErrorCode>;
+export const HandoffError = z.object({
+  error: HandoffErrorCode,
+  message: z.string(),
+  channel: HandoffChannel.optional(),
+});
+export type HandoffError = z.infer<typeof HandoffError>;
