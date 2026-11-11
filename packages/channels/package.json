@@ -8,7 +8,8 @@
     ".": "./src/index.ts",
     "./theme": "./src/theme/index.ts",
     "./contract-suite": "./src/contract-suite.ts",
-    "./telegram-fake": "./src/telegram/fake.ts"
+    "./telegram-fake": "./src/telegram/fake.ts",
+    "./contacts": "./src/contacts/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

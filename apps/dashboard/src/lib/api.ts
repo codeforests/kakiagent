@@ -53,6 +53,11 @@ import {
   LeadSettings,
   LeadSettingsSaved,
   LeadDetail,
+  ContactDetail,
+  ContactSearchResponse,
+  MergePreview,
+  MergeResponse,
+  UndoMergeResponse,
   LeadList,
   LeadRow,
   type LeadExportBody,
@@ -435,6 +440,29 @@ export const api = {
   // Record a withdrawal the person asked for directly (SCR-APP-033; FEAT-051 §3).
   withdrawLead: (id: string, body: LeadWithdrawBody) =>
     request('POST', `/api/v1/leads/${encodeURIComponent(id)}/withdraw`, LeadDetail, body),
+  // Contacts: page, search, merge preview, merge and undo (SCR-APP-016; FEAT-039 §3).
+  contact: (id: string) => getJson(`/api/v1/contacts/${encodeURIComponent(id)}`, ContactDetail),
+  /** The text in the body, never a URL. */
+  searchContacts: (q: string, exclude?: string) =>
+    request('POST', '/api/v1/contacts/search', ContactSearchResponse, {
+      q,
+      ...(exclude ? { exclude } : {}),
+    }),
+  mergePreview: (id: string, otherId: string) =>
+    getJson(
+      `/api/v1/contacts/${encodeURIComponent(id)}/merge/${encodeURIComponent(otherId)}`,
+      MergePreview,
+    ),
+  mergeContacts: (id: string, otherId: string) =>
+    request('POST', `/api/v1/contacts/${encodeURIComponent(id)}/merge`, MergeResponse, {
+      otherId,
+    }),
+  undoMerge: (mergeId: string) =>
+    request(
+      'POST',
+      `/api/v1/contacts/merges/${encodeURIComponent(mergeId)}/undo`,
+      UndoMergeResponse,
+    ),
   /** The CSV in the response (D1): filters in the body, never personal data in a URL. */
   exportLeads: async (body: LeadExportBody) => {
     const res = await send('POST', '/api/v1/leads/export', body);

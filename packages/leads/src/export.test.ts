@@ -23,6 +23,7 @@ const row = (over: Partial<LeadDbRow> = {}): LeadDbRow => ({
   captures: 1,
   contact_id: '00000000-0000-4000-8000-000000000002',
   conversation_id: null,
+  superseded_by: null,
   score: 'hot',
   score_points: 5,
   score_reasons: [

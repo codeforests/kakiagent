@@ -68,6 +68,16 @@ const GLYPHS = {
   bell: 'M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0',
   users:
     'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
+  // Contacts (FEAT-039 ui-design): Lucide shield-check, circle-dashed, phone, git-merge, undo-2.
+  'shield-check':
+    'M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1zM9 12l2 2 4-4',
+  'circle-dashed':
+    'M10.1 2.18a9.93 9.93 0 0 1 3.8 0M17.6 3.71a9.95 9.95 0 0 1 2.69 2.7M21.82 10.1a9.93 9.93 0 0 1 0 3.8M20.29 17.6a9.95 9.95 0 0 1-2.7 2.69M13.9 21.82a9.94 9.94 0 0 1-3.8 0M6.4 20.29a9.95 9.95 0 0 1-2.69-2.7M2.18 13.9a9.93 9.93 0 0 1 0-3.8M3.71 6.4a9.95 9.95 0 0 1 2.7-2.69',
+  phone:
+    'M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z',
+  'git-merge':
+    'M18 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 21V9a9 9 0 0 0 9 9',
+  'undo-2': 'M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5 5.5 5.5 0 0 1-5.5 5.5H11',
   paperclip:
     'm21.4 11-9.2 9.2a6 6 0 0 1-8.5-8.5l8.6-8.6a4 4 0 0 1 5.7 5.7l-8.6 8.6a2 2 0 0 1-2.8-2.8l8.5-8.5',
 } as const;
@@ -379,11 +389,14 @@ export function CopyRow({
   label,
   value,
   prefix,
+  badge,
 }: {
   label: 'email' | 'phone' | 'Telegram username';
   value: string;
   /** A visible word before the value ("Telegram"). */
   prefix?: string;
+  /** After the value: the verified chip (FEAT-039). */
+  badge?: ReactNode;
 }) {
   const [copied, setCopied] = useState(false);
   return (
@@ -392,6 +405,7 @@ export function CopyRow({
         {prefix && <>{prefix} </>}
         {value}
       </span>
+      {badge}
       <button
         type="button"
         className="icon-button"
@@ -410,6 +424,15 @@ export function CopyRow({
         {copied ? 'Copied' : ''}
       </span>
     </p>
+  );
+}
+
+/** The sidebar's verified chip (FEAT-039 ui-design SCR-APP-015): icon and word. */
+export function VerifiedMark() {
+  return (
+    <span className="chip chip--success verified-chip">
+      <Glyph name="shield-check" size={14} /> Verified
+    </span>
   );
 }
 
@@ -433,13 +456,20 @@ export function ContextSidebar({ thread }: { thread: ConversationThread }) {
     <div className="context-sidebar" data-testid="context-sidebar">
       <Section title="Contact">
         <p className="sidebar-strong">{contact.name ?? contact.label}</p>
-        {contact.email && <CopyRow label="email" value={contact.email} />}
+        {contact.email && (
+          <CopyRow
+            label="email"
+            value={contact.email}
+            badge={contact.verified.email && <VerifiedMark />}
+          />
+        )}
         {contact.phone && <CopyRow label="phone" value={contact.phone} />}
         {contact.telegramUsername && (
           <CopyRow
             label="Telegram username"
             prefix="Telegram"
             value={`@${contact.telegramUsername}`}
+            badge={contact.verified.telegram && <VerifiedMark />}
           />
         )}
         <p>First seen {shortDate(contact.firstSeenAt)}</p>
@@ -448,6 +478,20 @@ export function ContextSidebar({ thread }: { thread: ConversationThread }) {
             ? 'First conversation'
             : `${earlier} earlier conversation${earlier === 1 ? '' : 's'}`}
         </p>
+        {contact.contactId && (
+          <p>
+            <Link to={`/contacts/${contact.contactId}`}>View contact</Link>
+          </p>
+        )}
+        {contact.contactId && contact.duplicates > 0 && (
+          <p className="sidebar-caption sidebar-duplicates" data-testid="sidebar-duplicates">
+            <Glyph name="users" size={14} />
+            <Link to={`/contacts/${contact.contactId}#duplicates`}>
+              Possibly the same person as {contact.duplicates} other contact
+              {contact.duplicates === 1 ? '' : 's'}.
+            </Link>
+          </p>
+        )}
         {!contact.contactId && (
           <p className="sidebar-caption">
             Names and contact details appear once the visitor shares them.

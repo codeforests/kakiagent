@@ -7,6 +7,7 @@
  * leaves the SQS message for redelivery (NFR-17).
  */
 import { createHash, randomUUID } from 'node:crypto';
+import { normaliseIdentity, resolveContact } from '../contacts/identity.js';
 import {
   and,
   desc,
@@ -361,8 +362,8 @@ async function receiveForTenant(
   }
   if (!(await event('accepted'))) return duplicate;
 
-  // The contact by the From address (D6, as FEAT-049).
-  const contactId = await contactFor(tx, tenantId, parsed.from);
+  // The contact by the From address (FEAT-036 D6; FEAT-039 D2: verified only on DMARC PASS).
+  const contactId = await contactFor(tx, tenantId, parsed.from, r.verdicts);
   let newConversation = false;
   if (!conversation) {
     conversation = await deps.inbox.createConversation(
@@ -440,22 +441,25 @@ async function receiveForTenant(
   };
 }
 
+/**
+ * The contact of the From address (FEAT-039 §5.1, D2–D3): verified only when SES's DMARC
+ * verdict is `PASS`, then the contact holding it verified; otherwise the contact of earlier
+ * unverified mail from it. Never a lead-form contact.
+ */
 async function contactFor(
   tx: Tx,
   tenantId: string,
   from: { address: string; name: string | null },
+  verdicts: SesVerdicts,
 ): Promise<string> {
-  const email = from.address.toLowerCase().slice(0, 254);
-  const name = from.name?.trim().slice(0, 120) || null;
-  const inserted = await tx.execute<{ id: string }>(
-    sql`insert into contacts (tenant_id, name, email) values (${tenantId}, ${name}, ${email})
-        on conflict (tenant_id, email) where email is not null do nothing returning id`,
+  const value = normaliseIdentity('email', from.address.slice(0, 254));
+  if (!value) throw new Error('email: From is not an address');
+  return resolveContact(
+    tx,
+    tenantId,
+    { kind: 'email', value, source: 'email', verified: verdicts.dmarc === 'PASS' },
+    { name: from.name },
   );
-  if (inserted.rows[0]) return inserted.rows[0].id;
-  const found = await tx.execute<{ id: string }>(
-    sql`select id from contacts where tenant_id = ${tenantId} and email = ${email}`,
-  );
-  return found.rows[0]!.id;
 }
 
 async function storeAttachments(

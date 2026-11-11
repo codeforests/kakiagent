@@ -330,8 +330,45 @@ export async function seed(client: pg.ClientBase, tenants: SeedTenant[]): Promis
     );
     if (t.privacy)
       await seedPrivacy(client, t.id, userId, t.ownerEmail, t.privacy.marketing, !!t.privacy.leads);
-    if (t.privacy?.leads) await seedLeads(client, t.id);
+    if (t.privacy?.leads) {
+      await seedLeads(client, t.id);
+      await seedContactIdentities(client, t.id);
+    }
   }
+}
+
+/** The second contact of the bakery's suggested-duplicate pair (FEAT-039 D10): no lead, no chat. */
+export const SEED_DUPLICATE = { name: 'R. Tan', email: 'rachel.tan@example.com' } as const;
+
+/**
+ * The seeded leads' typed email and phone as lead-form identities, and one contact sharing
+ * Rachel Tan's email so the Contact page has a possible duplicate (FEAT-039 §5.5, D10).
+ * Idempotent: identities are unique per (contact, kind, value, source).
+ */
+async function seedContactIdentities(client: pg.ClientBase, tenantId: string): Promise<void> {
+  const pair = await client.query(
+    `select 1 from contacts where tenant_id = $1 and name = $2 and email = $3`,
+    [tenantId, SEED_DUPLICATE.name, SEED_DUPLICATE.email],
+  );
+  if (!pair.rowCount)
+    await client.query(
+      `insert into contacts (tenant_id, name, email, created_at, updated_at)
+       values ($1, $2, $3, now() - interval '30 days', now() - interval '30 days')`,
+      [tenantId, SEED_DUPLICATE.name, SEED_DUPLICATE.email],
+    );
+  for (const l of [...SEED_LEADS, { ...SEED_DUPLICATE, phone: null }])
+    for (const [kind, value] of [
+      ['email', l.email],
+      ['phone', l.phone],
+    ] as const)
+      if (value)
+        await client.query(
+          `insert into contact_identities (tenant_id, contact_id, kind, value, source, created_at)
+           select tenant_id, id, $3, $4, 'lead_form', created_at from contacts
+           where tenant_id = $1 and name = $2 and ${kind} = $4
+           on conflict do nothing`,
+          [tenantId, l.name, kind, value],
+        );
 }
 
 /** A saved notice and purpose statement, and lead settings, unless the owner saved their own. */

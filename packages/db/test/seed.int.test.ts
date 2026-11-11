@@ -4,7 +4,7 @@
  */
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { devTenants, seed, SEED_LEADS, SEED_QUALIFICATION } from '../src/setup.js';
+import { devTenants, seed, SEED_DUPLICATE, SEED_LEADS, SEED_QUALIFICATION } from '../src/setup.js';
 import { startTestDatabase, TENANT_A, TENANT_B, type TestDatabase } from '../src/testing.js';
 
 let tdb: TestDatabase;
@@ -28,6 +28,12 @@ const snapshot = async () => ({
     )
   ).rows,
   contacts: (await owner.query(`select count(*)::int n from contacts`)).rows[0].n,
+  identities: (
+    await owner.query(
+      `select k.name, i.kind, i.value, i.source, i.verified_at from contact_identities i
+       join contacts k on k.id = i.contact_id order by k.name, i.kind`,
+    )
+  ).rows,
   consents: (
     await owner.query(`select purpose, decision from consents order by created_at, purpose`)
   ).rows,
@@ -48,7 +54,21 @@ describe('dev seed leads (FEAT-050 §5.7)', () => {
       SEED_LEADS.map((l) => [l.status, l.score.score]).sort(),
     );
     expect(bakery.filter((l) => l.alerted)).toHaveLength(1); // the hot one: no alert to send
-    expect(first.contacts).toBe(SEED_LEADS.length);
+    // FEAT-039 D10: plus one contact sharing Rachel Tan's email, a suggested duplicate.
+    expect(first.contacts).toBe(SEED_LEADS.length + 1);
+    const typed = SEED_LEADS.flatMap((l) => [l.email, l.phone]).filter(Boolean).length;
+    expect(first.identities).toHaveLength(typed + 1);
+    expect(first.identities.every((i) => i.source === 'lead_form' && i.verified_at === null)).toBe(
+      true,
+    );
+    expect(
+      // Sorted here, not in SQL: `order by name` depends on the database collation (CI's
+      // puts 'Rachel Tan' first, C puts 'R. Tan' first).
+      first.identities
+        .filter((i) => i.value === SEED_DUPLICATE.email)
+        .map((i) => i.name)
+        .sort(),
+    ).toEqual(['R. Tan', 'Rachel Tan']);
     expect(first.consents.filter((c) => c.purpose === 'marketing')).toHaveLength(2);
     expect(first.qualification).toEqual([
       { tenant_id: TENANT_A, qualification: SEED_QUALIFICATION },

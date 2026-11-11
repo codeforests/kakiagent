@@ -3,6 +3,7 @@
  * shown, nothing is captured without a granted consent, fields are checked against the settings,
  * duplicates update the contact's one open lead, and audit entries carry IDs and codes only.
  */
+import { randomUUID } from 'node:crypto';
 import { withTenant, type Tx } from '@kaki/db';
 import { startTestDatabase, TENANT_A, TENANT_B, type TestDatabase } from '@kaki/db/testing';
 import { savePurposeStatement, verifyChain } from '@kaki/governance';
@@ -25,7 +26,15 @@ import {
   submitContactForm,
   WordingChanged,
   DEFAULT_FIELDS,
+  contactLeads,
+  contactLeadSummary,
+  exportLeads,
+  leadDetail,
+  listLeads,
+  withdrawalTarget,
+  withdrawConsent,
 } from '../src/index.js';
+import { LeadsQuery } from '@kaki/contracts';
 
 let tdb: TestDatabase;
 let owner: pg.Client;
@@ -47,6 +56,7 @@ afterEach(async () => {
   await owner.query(`delete from leads`);
   await owner.query(`delete from consents`);
   await owner.query(`update conversations set contact_id = null`);
+  await owner.query(`delete from contact_identities`);
   await owner.query(`delete from contacts`);
   await owner.query(`delete from lead_settings`);
   await owner.query(`delete from privacy_settings`);
@@ -65,11 +75,12 @@ const savePurpose = () =>
       purpose: { en: 'To reply to you.', zh: null },
     }),
   );
-const conversation = async (t = TENANT_A) =>
+/** A widget conversation; pass a `visitorId` for another chat from the same browser. */
+const conversation = async (t = TENANT_A, visitorId: string = randomUUID()) =>
   (
     await owner.query<{ id: string }>(
-      `insert into conversations (tenant_id, channel, visitor_id) values ($1, 'widget', gen_random_uuid()) returning id`,
-      [t],
+      `insert into conversations (tenant_id, channel, visitor_id) values ($1, 'widget', $2) returning id`,
+      [t, visitorId],
     )
   ).rows[0]!.id;
 const marketingOn = (version = 0) =>
@@ -336,6 +347,8 @@ describe('capture (LED-01, LED-09; AC-1, AC-5, AC-6)', () => {
       email: 'mei@example.com',
       phone: '+65 9123 4567',
       telegramUsername: null,
+      // FEAT-039: typed details are lead-form identities, never verified.
+      verified: { email: false, telegram: false },
     });
     expect(await dash((tx) => leadSummaryOf(tx, TENANT_A, conv))).toMatchObject({
       id: out.leadId,
@@ -354,9 +367,12 @@ describe('capture (LED-01, LED-09; AC-1, AC-5, AC-6)', () => {
     expect((await verifyChain(tdb.zone('dashboard'), TENANT_A)).ok).toBe(true);
   });
 
+  // FEAT-039 D1 (replaces FEAT-049 D4): a returning visitor is the same browser, not the same
+  // typed email; the case is otherwise unchanged.
   it('a returning visitor updates their open lead; a closed lead starts a new one', async () => {
     await savePurpose();
-    const first = await conversation();
+    const browser = randomUUID();
+    const first = await conversation(TENANT_A, browser);
     const c1 = (await agree(first)).consentId!;
     const a = await vis((tx) =>
       captureLead(tx, {
@@ -366,7 +382,7 @@ describe('capture (LED-01, LED-09; AC-1, AC-5, AC-6)', () => {
         input: fields({ email: 'ah@kow.sg', need: 'Cake' }),
       }),
     );
-    const second = await conversation();
+    const second = await conversation(TENANT_A, browser);
     const c2 = (await agree(second)).consentId!;
     const b = await vis((tx) =>
       captureLead(tx, {
@@ -392,7 +408,7 @@ describe('capture (LED-01, LED-09; AC-1, AC-5, AC-6)', () => {
     ]);
     expect(contact.rows[0]).toEqual({ name: 'Ah Kow', phone: '+6581234567' });
     await owner.query(`update leads set status = 'won' where id = $1`, [a.leadId]);
-    const third = await conversation();
+    const third = await conversation(TENANT_A, browser);
     const c3 = (await agree(third)).consentId!;
     const c = await vis((tx) =>
       captureLead(tx, {
@@ -406,9 +422,15 @@ describe('capture (LED-01, LED-09; AC-1, AC-5, AC-6)', () => {
     expect(c.contactId).toBe(a.contactId);
   });
 
+  // FEAT-039 D1: "one person" is one browser (`visitor_id`), serialised by its advisory lock.
   it('concurrent submits for one person leave one contact and one open lead', async () => {
     await savePurpose();
-    const convs = await Promise.all([conversation(), conversation(), conversation()]);
+    const browser = randomUUID();
+    const convs = await Promise.all([
+      conversation(TENANT_A, browser),
+      conversation(TENANT_A, browser),
+      conversation(TENANT_A, browser),
+    ]);
     const consents = await Promise.all(convs.map((c) => agree(c)));
     await Promise.all(
       convs.map((conv, i) =>
@@ -426,6 +448,105 @@ describe('capture (LED-01, LED-09; AC-1, AC-5, AC-6)', () => {
       `select (select count(*)::int from contacts) contacts, (select count(*)::int from leads where status = 'new') leads, (select max(captures) from leads) captures`,
     );
     expect(counts.rows[0]).toEqual({ contacts: 1, leads: 1, captures: 3 });
+  });
+
+  it("typed details another contact holds make a new contact and leave the other's leads and consents alone (FEAT-039 AC-1)", async () => {
+    await savePurpose();
+    const theirs = await conversation();
+    const a = await vis(async (tx) =>
+      captureLead(tx, {
+        tenantId: TENANT_A,
+        conversationId: theirs,
+        consentId: (await agree(theirs, false)).consentId!,
+        input: fields({ email: 'siti@kaki.test', phone: '91234567' }),
+      }),
+    );
+    const before = await owner.query(
+      `select (select count(*)::int from leads where contact_id = $1) leads,
+              (select count(*)::int from consents where contact_id = $1) consents`,
+      [a.contactId],
+    );
+    const mine = await conversation();
+    const b = await vis(async (tx) =>
+      captureLead(tx, {
+        tenantId: TENANT_A,
+        conversationId: mine,
+        consentId: (await agree(mine)).consentId!,
+        input: fields({ name: 'Not Siti', email: 'SITI@kaki.test', phone: '9123 4567' }),
+      }),
+    );
+    expect(b.status).toBe('created');
+    expect(b.contactId).not.toBe(a.contactId);
+    const after = await owner.query(
+      `select (select count(*)::int from leads where contact_id = $1) leads,
+              (select count(*)::int from consents where contact_id = $1) consents`,
+      [a.contactId],
+    );
+    expect(after.rows).toEqual(before.rows);
+    const ids = await owner.query(
+      `select contact_id, kind, source, verified_at from contact_identities
+       where value in ('siti@kaki.test', '+6591234567') order by contact_id, kind`,
+    );
+    expect(ids.rows).toHaveLength(4);
+    expect(ids.rows.every((r) => r.source === 'lead_form' && r.verified_at === null)).toBe(true);
+    // Withdrawing in this chat touches only the new contact.
+    const target = await vis((tx) => withdrawalTarget(tx, TENANT_A, mine));
+    expect(target?.contactId).toBe(b.contactId);
+    await vis((tx) =>
+      withdrawConsent(tx, {
+        tenantId: TENANT_A,
+        contactId: target!.contactId,
+        scope: 'all',
+        channel: 'widget',
+        conversationId: mine,
+        recordedBy: null,
+      }),
+    );
+    const withdrawn = await owner.query(
+      `select contact_id from consents where decision = 'withdrawn'`,
+    );
+    expect(withdrawn.rows).toEqual([{ contact_id: b.contactId }]);
+  });
+
+  it('a lead superseded in a merge is out of the list and the export (FEAT-039 D6)', async () => {
+    await savePurpose();
+    const captured = [];
+    for (const email of ['one@kaki.test', 'two@kaki.test']) {
+      const conv = await conversation();
+      captured.push(
+        await vis(async (tx) =>
+          captureLead(tx, {
+            tenantId: TENANT_A,
+            conversationId: conv,
+            consentId: (await agree(conv)).consentId!,
+            input: fields({ email }),
+          }),
+        ),
+      );
+    }
+    const [keep, gone] = captured;
+    await owner.query(`update leads set superseded_by = $1 where id = $2`, [
+      keep!.leadId,
+      gone!.leadId,
+    ]);
+    const list = await dash((tx) => listLeads(tx, TENANT_A, LeadsQuery.parse({ status: 'all' })));
+    expect(list.items.map((l) => l.id)).toEqual([keep!.leadId]);
+    expect(list.counts.new).toBe(1);
+    const csv = await dash((tx) => exportLeads(tx, TENANT_A, { status: 'all' }));
+    expect(JSON.stringify(csv)).not.toContain('two@kaki.test');
+    expect(JSON.stringify(csv)).toContain('one@kaki.test');
+    const detail = await dash((tx) =>
+      leadDetail(tx, TENANT_A, gone!.leadId, { canManage: true, canExport: true }),
+    );
+    expect(detail.supersededBy).toBe(keep!.leadId);
+    // The Contact page shows it as merged; it is no open lead in a merge preview.
+    const theirs = await dash((tx) => contactLeads(tx, TENANT_A, gone!.contactId));
+    expect(theirs.leads).toMatchObject([{ id: gone!.leadId, supersededBy: keep!.leadId }]);
+    expect(theirs.consents.map((c) => c.decision)).toEqual(['agreed']);
+    expect(await dash((tx) => contactLeadSummary(tx, TENANT_A, gone!.contactId))).toMatchObject({
+      openLead: null,
+      consent: { enquiry: 'agreed', marketing: null },
+    });
   });
 
   it('the contact form records consent and the lead together, or nothing on bad fields (AC-9)', async () => {

@@ -3,6 +3,7 @@
  * AC-6–AC-9): scores are written at capture and on a criteria save, the alert fires once per
  * lead, status moves are compare-and-set, and audit entries carry IDs and codes only.
  */
+import { randomUUID } from 'node:crypto';
 import { sql, withTenant, type Tx } from '@kaki/db';
 import { startTestDatabase, TENANT_A, TENANT_B, type TestDatabase } from '@kaki/db/testing';
 import { savePurposeStatement, verifyChain } from '@kaki/governance';
@@ -91,11 +92,12 @@ const setup = async (
     }),
   );
 };
-const conversation = async () =>
+/** Pass a `visitorId` for another chat from the same browser (FEAT-039 D1). */
+const conversation = async (visitorId: string = randomUUID()) =>
   (
     await owner.query<{ id: string }>(
-      `insert into conversations (tenant_id, channel, visitor_id) values ($1, 'widget', gen_random_uuid()) returning id`,
-      [TENANT_A],
+      `insert into conversations (tenant_id, channel, visitor_id) values ($1, 'widget', $2) returning id`,
+      [TENANT_A, visitorId],
     )
   ).rows[0]!.id;
 const fields = (over: Partial<Record<string, string>> = {}) => ({
@@ -256,9 +258,11 @@ describe('scoring at capture and the hot-lead alert (AC-1–AC-3)', () => {
 
   it('wants_to_order and returning come from the contact conversations', async () => {
     await setup({ keywords: [], minBudget: null });
-    const first = await capture({ email: 'ah.kow@example.com' });
+    // FEAT-039 D1: the returning person is the same browser, not the same typed email.
+    const browser = randomUUID();
+    const first = await capture({ email: 'ah.kow@example.com' }, await conversation(browser));
     expect(first.scoring.points).toBe(0);
-    const conv2 = await conversation();
+    const conv2 = await conversation(browser);
     await owner.query(
       `insert into messages (tenant_id, conversation_id, author, body, task_kinds)
        values ($1, $2, 'agent', 'Sure, I can ask the team.', '{request_commitment}')`,
@@ -320,7 +324,9 @@ describe('criteria save rescoring (AC-1)', () => {
 describe('status pipeline (AC-4)', () => {
   it('compare-and-set, stale with the row, same status unaudited, reopen guarded', async () => {
     await setup();
-    const a = await capture({ email: 'pipe@example.com' });
+    // FEAT-039 D1: the same person is the same browser, not the same typed email.
+    const browser = randomUUID();
+    const a = await capture({ email: 'pipe@example.com' }, await conversation(browser));
     const moved = await status(a.leadId, 'contacted', 1);
     expect(moved).toMatchObject({ status: 'contacted', version: 2 });
     await expect(status(a.leadId, 'won', 1)).rejects.toSatisfy(
@@ -329,7 +335,7 @@ describe('status pipeline (AC-4)', () => {
     expect(await status(a.leadId, 'contacted', 2)).toMatchObject({ version: 2 });
     await status(a.leadId, 'won', 2);
     // The same person comes back: a new open lead; reopening the won one is refused.
-    const b = await capture({ email: 'pipe@example.com' });
+    const b = await capture({ email: 'pipe@example.com' }, await conversation(browser));
     expect(b.leadId).not.toBe(a.leadId);
     await expect(status(a.leadId, 'new', 3)).rejects.toBeInstanceOf(OpenLeadExists);
     await status(b.leadId, 'lost', 1);

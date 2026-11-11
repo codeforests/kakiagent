@@ -136,6 +136,7 @@ import { registerTeamRoutes, teamErrorReply } from './team.js';
 import { notificationsErrorReply, registerNotificationRoutes } from './notifications.js';
 import { escalationErrorReply, registerEscalationRoutes } from './escalation.js';
 import { leadsErrorReply, registerLeadWidgetRoutes } from './leads-widget.js';
+import { contactsErrorReply, registerContactRoutes } from './contacts.js';
 import { leadSettingsErrorReply, registerLeadRoutes, registerLeadSettingsRoutes } from './leads.js';
 import {
   AttestationRequiredError,
@@ -406,7 +407,7 @@ export async function buildApp(deps: Deps) {
     if (onboarding) return reply.code(onboarding.status).send(onboarding.body);
     const channel = channelErrorReply(err) ?? emailErrorReply(err) ?? telegramErrorReply(err);
     if (channel) return reply.code(channel.status).send(channel.body);
-    const leads = leadsErrorReply(err) ?? leadSettingsErrorReply(err);
+    const leads = leadsErrorReply(err) ?? leadSettingsErrorReply(err) ?? contactsErrorReply(err);
     if (leads) return reply.code(leads.status).send(leads.body);
     const widget = widgetErrorReply(err, req.url);
     if (widget) return reply.code(widget.status).send(widget.body);
@@ -704,6 +705,7 @@ export async function buildApp(deps: Deps) {
   registerEscalationRoutes(app, deps, sessionFrom);
   registerLeadSettingsRoutes(app, deps, sessionFrom);
   registerLeadRoutes(app, deps, sessionFrom);
+  registerContactRoutes(app, deps, sessionFrom);
 
   return app;
 }

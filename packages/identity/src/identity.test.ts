@@ -27,6 +27,9 @@ describe('capabilities', () => {
     expect(can('owner', 'coach.use')).toBe(true);
     expect(can('admin', 'coach.use')).toBe(true);
     expect(can('agent', 'coach.use')).toBe(false);
+    // FEAT-039: every member may merge contacts (SCR-APP-016 "merge: all staff").
+    for (const role of ['owner', 'admin', 'agent'] as const)
+      expect(can(role, 'contacts.merge')).toBe(true);
   });
 });
 

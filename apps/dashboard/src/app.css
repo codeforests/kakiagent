@@ -5740,3 +5740,195 @@ a.settings-row:hover {
   color: var(--color-text-secondary);
   font-style: italic;
 }
+
+/* SCR-APP-016 Contact (FEAT-039 ui-design). */
+.contact-page {
+  max-width: calc(var(--size-reading-max) * 1.4);
+}
+.contact-page__crumbs {
+  margin-bottom: var(--space-4);
+  color: var(--color-text-secondary);
+}
+.contact-page__header {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  margin-bottom: var(--space-5);
+}
+.contact-page__header .page-title {
+  margin-bottom: 0;
+}
+.contact-page > .alert {
+  margin-bottom: var(--space-5);
+}
+.contact-page__grid {
+  display: grid;
+  gap: var(--space-5);
+  align-items: start;
+}
+.contact-page__grid > * {
+  min-width: 0;
+}
+@media (min-width: 1024px) {
+  .contact-page__grid {
+    grid-template-columns: 2fr 1fr;
+  }
+  .contact-page__grid > :not(.contact-page__aside) {
+    grid-column: 1;
+  }
+  .contact-page__aside {
+    grid-column: 2;
+    grid-row: 1 / span 4;
+  }
+}
+.contact-page__merge {
+  align-self: flex-start;
+  gap: var(--space-2);
+}
+.contact-card__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.contact-caption {
+  margin: 0;
+  font-size: var(--type-body-sm-size);
+  line-height: var(--type-body-sm-line);
+  color: var(--color-text-secondary);
+}
+.contact-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.contact-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--space-7);
+}
+.contact-identity {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+.contact-identity__icon {
+  display: inline-flex;
+  padding-top: var(--space-2);
+  color: var(--color-text-secondary);
+}
+.contact-identity__value {
+  flex: 1;
+  min-width: 0;
+}
+.contact-identity__value .sidebar-copy {
+  margin: 0;
+}
+.verified-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.contact-lead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.contact-duplicate {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.contact-duplicate p {
+  margin: 0;
+}
+.contact-merge {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+.contact-merge p {
+  margin: 0;
+}
+.contact-merge .kaki-btn {
+  gap: var(--space-2);
+}
+.contact-search__results {
+  min-height: var(--space-10);
+}
+.contact-result {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--size-control-lg);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.contact-result:hover {
+  background: var(--color-bg-subtle);
+}
+.contact-result__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.contact-result__choose {
+  color: var(--color-text-link);
+  font-weight: var(--font-weight-medium);
+}
+.merge-preview__sides {
+  display: grid;
+  gap: var(--space-4);
+}
+@media (min-width: 640px) {
+  .merge-preview__sides {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.merge-side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.merge-side__title {
+  margin: 0;
+  font-size: var(--type-body-size);
+  font-weight: var(--font-weight-semibold);
+}
+.merge-side__identity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  overflow-wrap: anywhere;
+}
+.merge-preview__after {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border-default);
+}
+.merge-preview__after p,
+.merge-preview__after .alert {
+  margin: 0;
+}
+.sidebar-duplicates {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}

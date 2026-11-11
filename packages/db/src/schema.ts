@@ -2100,7 +2100,8 @@ export const SCORE_REASON_CODES = [
 
 /**
  * A person who left their details (ADR-015: personal data lives only in contact-keyed
- * tables). Email lower-cased, phone `+65XXXXXXXX`; each unique per tenant (LED-09, D4).
+ * tables). Email lower-cased, phone `+65XXXXXXXX`. These are display values only: identifiers
+ * are matched through `contact_identities` (FEAT-039 D4), so two contacts may show one email.
  */
 export const contacts = pgTable(
   'contacts',
@@ -2115,24 +2116,24 @@ export const contacts = pgTable(
     /** One Telegram user is one contact per business (FEAT-037 D5). */
     telegramId: bigint('telegram_id', { mode: 'number' }),
     telegramUsername: text('telegram_username'),
+    mergedInto: uuid('merged_into'),
+    mergedAt: timestamp('merged_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     primaryKey({ columns: [t.tenantId, t.id] }),
-    uniqueIndex('contacts_telegram_uq')
-      .on(t.tenantId, t.telegramId)
-      .where(sql`${t.telegramId} is not null`),
+    /** Set when this contact was merged into another (FEAT-039 §4); undo clears it. */
+    foreignKey({
+      name: 'contacts_merged_into_fk',
+      columns: [t.tenantId, t.mergedInto],
+      foreignColumns: [t.tenantId, t.id],
+    }),
+    check('contacts_merged_ck', sql`(${t.mergedInto} is null) = (${t.mergedAt} is null)`),
     check(
       'contacts_telegram_ck',
       sql`${t.telegramUsername} is null or char_length(${t.telegramUsername}) between 1 and 32`,
     ),
-    uniqueIndex('contacts_email_uq')
-      .on(t.tenantId, t.email)
-      .where(sql`${t.email} is not null`),
-    uniqueIndex('contacts_phone_uq')
-      .on(t.tenantId, t.phone)
-      .where(sql`${t.phone} is not null`),
     /** Contact search (FEAT-049 §5.5), read through `inbox_contact_hits()`. */
     index('contacts_name_trgm_idx').using('gin', t.tenantId, t.name.op('gin_trgm_ops')),
     index('contacts_email_trgm_idx').using('gin', t.tenantId, t.email.op('gin_trgm_ops')),
@@ -2233,6 +2234,7 @@ export const leads = pgTable(
     /** Compare-and-set for status changes (D4). */
     version: integer('version').notNull().default(1),
     statusChangedAt: timestamp('status_changed_at', { withTimezone: true }),
+    supersededBy: uuid('superseded_by'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
@@ -2256,7 +2258,13 @@ export const leads = pgTable(
     /** LED-09: at most one open lead per contact. */
     uniqueIndex('leads_one_open_uq')
       .on(t.tenantId, t.contactId)
-      .where(sql`${t.status} in ('new', 'contacted')`),
+      .where(sql`${t.status} in ('new', 'contacted') and ${t.supersededBy} is null`),
+    /** FEAT-039 D6: a merged contact's second open lead points at the survivor's. */
+    foreignKey({
+      name: 'leads_superseded_by_fk',
+      columns: [t.tenantId, t.supersededBy],
+      foreignColumns: [t.tenantId, t.id],
+    }),
     index('leads_conversation_idx').on(t.tenantId, t.conversationId),
     index('leads_tenant_updated_idx').on(t.tenantId, t.updatedAt.desc()),
     /** The leads list (FEAT-050 §5.3): status tab, newest first, keyset on (updated_at, id). */
@@ -2277,6 +2285,104 @@ export const leads = pgTable(
       'leads_text_ck',
       sql`(${t.need} is null or char_length(${t.need}) <= 1000) and (${t.budget} is null or char_length(${t.budget}) <= 120) and (${t.preferredTime} is null or char_length(${t.preferredTime}) <= 120)`,
     ),
+  ],
+);
+
+export const IDENTITY_KINDS = ['email', 'phone', 'telegram'] as const;
+export const IDENTITY_SOURCES = ['email', 'telegram', 'lead_form'] as const;
+
+/**
+ * A contact's identifiers (CHN-08; FEAT-039 §4, D4): contacts are matched only here. A value
+ * the channel vouches for is verified (one owner per tenant); typed lead-form values never are.
+ */
+export const contactIdentities = pgTable(
+  'contact_identities',
+  {
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id),
+    id: uuid('id').notNull().defaultRandom(),
+    contactId: uuid('contact_id').notNull(),
+    kind: text('kind', { enum: IDENTITY_KINDS }).notNull(),
+    /** Email lower-case, phone `+65…`, Telegram user ID as text. */
+    value: text('value').notNull(),
+    source: text('source', { enum: IDENTITY_SOURCES }).notNull(),
+    verifiedAt: timestamp('verified_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.id] }),
+    foreignKey({
+      name: 'contact_identities_contact_fk',
+      columns: [t.tenantId, t.contactId],
+      foreignColumns: [contacts.tenantId, contacts.id],
+    }).onDelete('cascade'),
+    uniqueIndex('contact_identities_verified_uq')
+      .on(t.tenantId, t.kind, t.value)
+      .where(sql`${t.verifiedAt} is not null`),
+    /** One unverified mailbox contact per From address (D3). */
+    uniqueIndex('contact_identities_email_uq')
+      .on(t.tenantId, t.value)
+      .where(sql`${t.kind} = 'email' and ${t.source} = 'email' and ${t.verifiedAt} is null`),
+    uniqueIndex('contact_identities_row_uq').on(t.tenantId, t.contactId, t.kind, t.value, t.source),
+    index('contact_identities_lookup_idx').on(t.tenantId, t.kind, t.value),
+    check('contact_identities_kind_ck', sql`${t.kind} in (${inList(IDENTITY_KINDS)})`),
+    check('contact_identities_source_ck', sql`${t.source} in (${inList(IDENTITY_SOURCES)})`),
+    check(
+      'contact_identities_telegram_ck',
+      sql`${t.kind} <> 'telegram' or (${t.source} = 'telegram' and ${t.verifiedAt} is not null and ${t.value} ~ '^[0-9]{1,20}$')`,
+    ),
+    check(
+      'contact_identities_lead_form_ck',
+      sql`${t.source} <> 'lead_form' or ${t.verifiedAt} is null`,
+    ),
+    check(
+      'contact_identities_phone_ck',
+      sql`${t.kind} <> 'phone' or ${t.value} ~ '^[+]65[3689][0-9]{7}$'`,
+    ),
+    check(
+      'contact_identities_email_ck',
+      sql`${t.kind} <> 'email' or (char_length(${t.value}) <= 254 and ${t.value} = lower(${t.value}) and ${t.value} ~ '^[^@[:space:]]+@[^@[:space:]]+$')`,
+    ),
+  ],
+);
+
+/**
+ * A merge of one contact into another (CHN-08; FEAT-039 §4, §5.3). `moved` lists every moved
+ * row ID by table and the survivor display columns filled, so undo is exact (D7).
+ */
+export const contactMerges = pgTable(
+  'contact_merges',
+  {
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id),
+    id: uuid('id').notNull().defaultRandom(),
+    survivorId: uuid('survivor_id').notNull(),
+    mergedId: uuid('merged_id').notNull(),
+    automatic: boolean('automatic').notNull(),
+    byUserId: uuid('by_user_id'),
+    moved: jsonb('moved').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    undoneAt: timestamp('undone_at', { withTimezone: true }),
+    undoneBy: uuid('undone_by'),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.id] }),
+    foreignKey({
+      name: 'contact_merges_survivor_fk',
+      columns: [t.tenantId, t.survivorId],
+      foreignColumns: [contacts.tenantId, contacts.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'contact_merges_merged_fk',
+      columns: [t.tenantId, t.mergedId],
+      foreignColumns: [contacts.tenantId, contacts.id],
+    }).onDelete('cascade'),
+    index('contact_merges_survivor_idx').on(t.tenantId, t.survivorId, t.createdAt.desc()),
+    index('contact_merges_merged_idx').on(t.tenantId, t.mergedId),
+    check('contact_merges_distinct_ck', sql`${t.survivorId} <> ${t.mergedId}`),
+    check('contact_merges_moved_ck', sql`jsonb_typeof(${t.moved}) = 'object'`),
   ],
 );
 
@@ -2816,4 +2922,6 @@ export const TENANT_SCOPED_TABLES = [
   'telegram_settings',
   'telegram_chats',
   'telegram_alert_links',
+  'contact_identities',
+  'contact_merges',
 ] as const;

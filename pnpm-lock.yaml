@@ -944,6 +944,9 @@ importers:
 
   packages/leads:
     dependencies:
+      '@kaki/channels':
+        specifier: workspace:*
+        version: link:../channels
       '@kaki/contracts':
         specifier: workspace:*
         version: link:../contracts

@@ -67,6 +67,7 @@ describe('leads contracts (FEAT-050 §3)', () => {
       conversations: [{ id: ID, status: 'ai', startedAt: AT, lastMessageAt: AT }],
       canManage: true,
       canExport: false,
+      supersededBy: null,
     };
     expect(LeadDetail.parse(detail)).toEqual(detail);
     const summary = {

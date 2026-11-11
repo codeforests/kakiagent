@@ -27,7 +27,14 @@ export {
   type CaptureInput,
   type Captured,
 } from './capture.js';
-export { contactOf, leadSummaryOf, type ContactView } from './views.js';
+export {
+  contactLeads,
+  contactLeadSummary,
+  contactOf,
+  leadSummaryOf,
+  type ContactLeadSummary,
+  type ContactView,
+} from './views.js';
 export {
   bandOf,
   foldKeyword,
@@ -46,7 +53,14 @@ export {
   RESCORE_CAP,
   type Rescored,
 } from './rescore.js';
-export { leadDetail, leadRowOf, listLeads, type LeadDbRow, type NamesOf } from './list.js';
+export {
+  consentRecords,
+  leadDetail,
+  leadRowOf,
+  listLeads,
+  type LeadDbRow,
+  type NamesOf,
+} from './list.js';
 export { setLeadStatus } from './status.js';
 export {
   CSV_HEADER,

@@ -31,6 +31,7 @@ export interface LeadDbRow extends Record<string, unknown> {
   captures: number;
   contact_id: string;
   conversation_id: string | null;
+  superseded_by: string | null;
   score: LeadScore | null;
   score_points: number | null;
   score_reasons: ScoreReason[] | null;
@@ -73,7 +74,7 @@ export const latestConsentColumns = sql`
 /** The columns every lead query selects, with the enquiry consent and the latest marketing answer. */
 export const leadSelect = (tenantId: string, where: SQL, tail: SQL = sql``) => sql`
   select l.id, l.version, l.status, k.name, k.email, k.phone, l.need, l.budget, l.preferred_time,
-    l.captures, l.contact_id, l.conversation_id, l.score, l.score_points, l.score_reasons,
+    l.captures, l.contact_id, l.conversation_id, l.superseded_by, l.score, l.score_points, l.score_reasons,
     l.scored_at, l.created_at, l.updated_at, l.updated_at::text as updated_key,
     e.created_at as enquiry_at, ${latestConsentColumns}
   from leads l
@@ -119,14 +120,17 @@ export function toLeadRow(r: LeadDbRow, needMax: number | null = 120): LeadRow {
   };
 }
 
-/** The SQL condition of a status tab and score filter. */
+/**
+ * The SQL condition of a status tab and score filter. A lead superseded in a contact merge
+ * is never in the list or the export (FEAT-039 D6); its own page still opens.
+ */
 export function leadFilter(f: { status: LeadStatusFilter; score?: LeadScore | undefined }): SQL {
   const status =
     f.status === 'all'
-      ? sql`true`
+      ? sql`l.superseded_by is null`
       : f.status === 'open'
-        ? sql`l.status in ('new', 'contacted')`
-        : sql`l.status = ${f.status}`;
+        ? sql`l.superseded_by is null and l.status in ('new', 'contacted')`
+        : sql`l.superseded_by is null and l.status = ${f.status}`;
   return f.score ? sql`${status} and l.score = ${f.score}` : status;
 }
 
@@ -162,7 +166,8 @@ export async function listLeads(tx: Tx, tenantId: string, q: LeadsQuery): Promis
   );
   const page = rows.slice(0, q.limit);
   const counts = await tx.execute<{ status: LeadStatus; n: number }>(
-    sql`select status, count(*)::int as n from leads where tenant_id = ${tenantId} group by status`,
+    sql`select status, count(*)::int as n from leads
+        where tenant_id = ${tenantId} and superseded_by is null group by status`,
   );
   const byStatus: Record<LeadStatus, number> = { new: 0, contacted: 0, won: 0, lost: 0 };
   for (const c of counts.rows) byStatus[c.status] = c.n;
@@ -192,21 +197,15 @@ const textOf = (content: Record<string, unknown>, kind: string, language: 'en' |
 export type NamesOf = (ids: string[]) => Promise<Map<string, string>>;
 
 /**
- * `GET /api/v1/leads/:id` (SCR-APP-033; AC-2, AC-8): the full lead, every consent of the contact
- * with the exact wording in the language it was shown (the conversation's, the form's `en`),
- * and the contact's latest 20 conversations. FEAT-051: withdrawals have no wording; a dashboard
- * one names its recorder through `names`.
+ * Every consent row of a contact, newest first, with the exact wording shown (LED-02) and who
+ * recorded a dashboard withdrawal. Shared by the lead page and the Contact page (FEAT-039).
  */
-export async function leadDetail(
+export async function consentRecords(
   tx: Tx,
   tenantId: string,
-  id: string,
-  rights: { canManage: boolean; canExport: boolean },
+  contactId: string,
   names?: NamesOf,
-): Promise<LeadDetail> {
-  const { rows } = await tx.execute<LeadDbRow>(leadSelect(tenantId, sql`l.id = ${id}`));
-  const r = rows[0];
-  if (!r) throw new LeadNotFound('no such lead');
+): Promise<LeadConsentRecord[]> {
   const consents = await tx.execute<{
     id: string;
     purpose: 'enquiry' | 'marketing';
@@ -230,12 +229,48 @@ export async function leadDetail(
         order by m.seq desc limit 1) as language
     from consents c
     left join wording_versions w on w.tenant_id = c.tenant_id and w.id = c.wording_id
-    where c.tenant_id = ${tenantId} and c.contact_id = ${r.contact_id}
+    where c.tenant_id = ${tenantId} and c.contact_id = ${contactId}
     order by c.created_at desc, c.id`);
   const recorders = [
     ...new Set(consents.rows.flatMap((c) => (c.recorded_by ? [c.recorded_by] : []))),
   ];
   const named = recorders.length && names ? await names(recorders) : new Map<string, string>();
+  return consents.rows.map((c): LeadConsentRecord => ({
+    id: c.id,
+    purpose: c.purpose,
+    decision: c.decision,
+    at: iso(c.created_at),
+    channel: c.channel,
+    conversationId: c.conversation_id,
+    wording:
+      c.wording_id && c.seq !== null && c.kind && c.content
+        ? {
+            id: c.wording_id,
+            version: c.seq,
+            text: textOf(c.content, c.kind, c.language ?? 'en'),
+          }
+        : null,
+    recordedBy: c.recorded_by ? (named.get(c.recorded_by) ?? 'A team member') : null,
+  }));
+}
+
+/**
+ * `GET /api/v1/leads/:id` (SCR-APP-033; AC-2, AC-8): the full lead, every consent of the contact
+ * with the exact wording in the language it was shown (the conversation's, the form's `en`),
+ * and the contact's latest 20 conversations. FEAT-051: withdrawals have no wording; a dashboard
+ * one names its recorder through `names`.
+ */
+export async function leadDetail(
+  tx: Tx,
+  tenantId: string,
+  id: string,
+  rights: { canManage: boolean; canExport: boolean },
+  names?: NamesOf,
+): Promise<LeadDetail> {
+  const { rows } = await tx.execute<LeadDbRow>(leadSelect(tenantId, sql`l.id = ${id}`));
+  const r = rows[0];
+  if (!r) throw new LeadNotFound('no such lead');
+  const consents = await consentRecords(tx, tenantId, r.contact_id, names);
   const convs = await tx.execute<{
     id: string;
     status: LeadConversation['status'];
@@ -251,23 +286,8 @@ export async function leadDetail(
     preferredTime: r.preferred_time,
     captures: r.captures,
     contactId: r.contact_id,
-    consents: consents.rows.map((c): LeadConsentRecord => ({
-      id: c.id,
-      purpose: c.purpose,
-      decision: c.decision,
-      at: iso(c.created_at),
-      channel: c.channel,
-      conversationId: c.conversation_id,
-      wording:
-        c.wording_id && c.seq !== null && c.kind && c.content
-          ? {
-              id: c.wording_id,
-              version: c.seq,
-              text: textOf(c.content, c.kind, c.language ?? 'en'),
-            }
-          : null,
-      recordedBy: c.recorded_by ? (named.get(c.recorded_by) ?? 'A team member') : null,
-    })),
+    supersededBy: r.superseded_by,
+    consents,
     conversations: convs.rows.map((c) => ({
       id: c.id,
       status: c.status,

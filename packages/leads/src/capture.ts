@@ -1,4 +1,5 @@
 import type { LeadInput } from '@kaki/contracts';
+import { addIdentity } from '@kaki/channels/contacts';
 import { checkLead, leadOk } from '@kaki/contracts/lead-check';
 import { and, eq, schema, sql, type Tx } from '@kaki/db';
 import { audit, auditId } from '@kaki/governance';
@@ -44,67 +45,75 @@ interface ContactRow extends Record<string, unknown> {
   phone: string | null;
 }
 
-const lockBy = async (tx: Tx, tenantId: string, column: 'email' | 'phone', value: string) =>
-  value
-    ? ((
-        await tx.execute<ContactRow>(
-          sql`select id, name, email, phone from contacts
-              where tenant_id = ${tenantId} and ${sql.identifier(column)} = ${value} for update`,
-        )
-      ).rows[0] ?? null)
-    : null;
-
 /**
- * The visitor's contact (LED-09, D4): the one with this email, else this phone, else the one
- * already on the conversation, else a new one. Empty fields are filled; a different name
- * replaces the old one; a phone or email another contact holds stays off this one. Rows are
- * locked so two submits from one person serialise; a lost insert race re-reads the winner.
+ * The visitor's contact (LED-09; FEAT-039 D1, replacing FEAT-049 D4): the conversation's
+ * contact, else the latest contact of the same browser (`visitor_id`, as `withdrawalTarget`),
+ * else a new one. Typed details never match another contact: they become this contact's
+ * unverified lead-form identities, and fill its display values when empty; a given name
+ * replaces the old one. A per-browser lock serialises two submits from one visitor.
  */
-async function resolveContact(
+async function contactForCapture(
   tx: Tx,
   tenantId: string,
   conversationId: string | null,
   v: { name: string; email: string; phone: string },
 ): Promise<string> {
-  for (let attempt = 0; attempt < 2; attempt++) {
-    let found =
-      (await lockBy(tx, tenantId, 'email', v.email)) ??
-      (await lockBy(tx, tenantId, 'phone', v.phone));
-    if (!found && conversationId) {
-      found =
-        (
-          await tx.execute<ContactRow>(
-            sql`select k.id, k.name, k.email, k.phone from contacts k
-                join conversations c on c.tenant_id = k.tenant_id and c.contact_id = k.id
-                where c.tenant_id = ${tenantId} and c.id = ${conversationId} for update of k`,
-          )
-        ).rows[0] ?? null;
-    }
-    if (found) {
-      const free = async (column: 'email' | 'phone', value: string) => {
-        if (!value || found![column]) return false;
-        const other = await lockBy(tx, tenantId, column, value);
-        return !other;
-      };
-      const set: Partial<{ name: string; email: string; phone: string }> = {};
-      if (v.name && v.name !== found.name) set.name = v.name;
-      if (await free('email', v.email)) set.email = v.email;
-      if (await free('phone', v.phone)) set.phone = v.phone;
-      if (Object.keys(set).length)
-        await tx
-          .update(contacts)
-          .set({ ...set, updatedAt: sql`now()` })
-          .where(and(eq(contacts.tenantId, tenantId), eq(contacts.id, found.id)));
-      return found.id;
-    }
+  let found: ContactRow | null = null;
+  if (conversationId) {
+    const visitor = await tx.execute<{ visitor_id: string }>(
+      sql`select visitor_id from conversations where tenant_id = ${tenantId} and id = ${conversationId}`,
+    );
+    const visitorId = visitor.rows[0]?.visitor_id;
+    if (visitorId)
+      await tx.execute(
+        sql`select pg_advisory_xact_lock(hashtextextended(${`capture:${tenantId}:${visitorId}`}, 0))`,
+      );
+    found =
+      (
+        await tx.execute<ContactRow>(sql`
+          select k.id, k.name, k.email, k.phone from contacts k
+          where k.tenant_id = ${tenantId} and k.merged_into is null and k.id = (
+            select coalesce(c.contact_id, (
+              select o.contact_id from conversations o
+              where o.tenant_id = c.tenant_id and o.visitor_id = c.visitor_id
+                and o.id <> c.id and o.contact_id is not null
+              order by o.created_at desc limit 1))
+            from conversations c where c.tenant_id = ${tenantId} and c.id = ${conversationId})
+          for update of k`)
+      ).rows[0] ?? null;
+  }
+  let contactId: string;
+  if (found) {
+    const set: Partial<{ name: string; email: string; phone: string }> = {};
+    if (v.name && v.name !== found.name) set.name = v.name;
+    if (v.email && !found.email) set.email = v.email;
+    if (v.phone && !found.phone) set.phone = v.phone;
+    if (Object.keys(set).length)
+      await tx
+        .update(contacts)
+        .set({ ...set, updatedAt: sql`now()` })
+        .where(and(eq(contacts.tenantId, tenantId), eq(contacts.id, found.id)));
+    contactId = found.id;
+  } else {
     const { rows } = await tx.execute<{ id: string }>(
       sql`insert into contacts (tenant_id, name, email, phone)
           values (${tenantId}, ${v.name || null}, ${v.email || null}, ${v.phone || null})
-          on conflict do nothing returning id`,
+          returning id`,
     );
-    if (rows[0]) return rows[0].id;
+    contactId = rows[0]!.id;
   }
-  throw new Error('leads: contact not resolved');
+  for (const [kind, value] of [
+    ['email', v.email],
+    ['phone', v.phone],
+  ] as const)
+    if (value)
+      await addIdentity(tx, tenantId, contactId, {
+        kind,
+        value,
+        source: 'lead_form',
+        verified: false,
+      });
+  return contactId;
 }
 
 /**
@@ -142,7 +151,7 @@ export async function captureLead(tx: Tx, c: CaptureInput): Promise<Captured> {
       needsContact: check.needsContact,
     });
   const v = check.value;
-  const contactId = await resolveContact(tx, c.tenantId, c.conversationId, v);
+  const contactId = await contactForCapture(tx, c.tenantId, c.conversationId, v);
   // A consent given before the contact's latest withdrawal no longer counts (FEAT-051 AC-8);
   // the caller's transaction rolls back the contact update with the throw.
   const { withdrawnAt } = await contactConsent(tx, c.tenantId, contactId);
@@ -163,7 +172,8 @@ export async function captureLead(tx: Tx, c: CaptureInput): Promise<Captured> {
     insert into leads (tenant_id, contact_id, consent_id, conversation_id, need, budget, preferred_time)
     values (${c.tenantId}, ${contactId}, ${c.consentId}, ${c.conversationId},
       ${text(v.need)}, ${text(v.budget)}, ${text(v.preferredTime)})
-    on conflict (tenant_id, contact_id) where status in ('new', 'contacted') do update set
+    on conflict (tenant_id, contact_id) where status in ('new', 'contacted') and superseded_by is null
+    do update set
       need = coalesce(excluded.need, leads.need),
       budget = coalesce(excluded.budget, leads.budget),
       preferred_time = coalesce(excluded.preferred_time, leads.preferred_time),

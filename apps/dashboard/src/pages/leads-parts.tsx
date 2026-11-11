@@ -1,5 +1,6 @@
 import {
   LeadStatus,
+  type LeadConsentRecord,
   type LeadDetail,
   type LeadMarketing,
   type WithdrawScope,
@@ -8,9 +9,11 @@ import { ConfirmDialog } from '@kaki/ui';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, type RefObject } from 'react';
+import { Link } from 'react-router';
 import { api, ApiError } from '../lib/api.ts';
-import { LEAD_STATUS } from '../lib/inbox.ts';
+import { dateTime, LEAD_STATUS } from '../lib/inbox.ts';
 import {
+  consentWhere,
   csvLeadCount,
   exportFileName,
   filterNote,
@@ -288,5 +291,43 @@ export function RecordWithdrawalDialog({
         </fieldset>
       )}
     </ConfirmDialog>
+  );
+}
+
+const CONSENT_TEXT = {
+  enquiry: {
+    agreed: 'Agreed to be contacted',
+    declined: 'Chose not to share details',
+    withdrawn: 'Withdrew consent',
+  },
+  marketing: {
+    agreed: 'Agreed to offers',
+    declined: 'Declined offers',
+    withdrawn: 'Stopped offers',
+  },
+} as const;
+
+/** One consent record (SCR-APP-033, reused by SCR-APP-016 Contact, FEAT-039). */
+export function ConsentEntry({ c }: { c: LeadConsentRecord }) {
+  const where = consentWhere(c);
+  return (
+    <li className="lead-consent" data-testid="lead-consent" data-decision={c.decision}>
+      <p className="lead-consent__what">{CONSENT_TEXT[c.purpose][c.decision]}</p>
+      <p className="lead-fields__caption">
+        {dateTime(c.at)} · {where.text}
+        {where.conversationId && (
+          <>
+            {' · '}
+            <Link to={`/inbox/${where.conversationId}`}>See conversation</Link>
+          </>
+        )}
+      </p>
+      {c.wording && (
+        <details className="lead-consent__wording">
+          <summary>Wording shown (version {c.wording.version})</summary>
+          <p>{c.wording.text}</p>
+        </details>
+      )}
+    </li>
   );
 }

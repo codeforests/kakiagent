@@ -1,9 +1,4 @@
-import {
-  LeadConflict409,
-  type LeadConsentRecord,
-  type LeadDetail,
-  type LeadStatus,
-} from '@kaki/contracts';
+import { LeadConflict409, type LeadDetail, type LeadStatus } from '@kaki/contracts';
 import { Button, EmptyState, ErrorState } from '@kaki/ui';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
@@ -13,7 +8,6 @@ import { useToast } from '../lib/form.ts';
 import { dateTime, LEAD_STATUS, STATE_LABEL } from '../lib/inbox.ts';
 import {
   canRecordWithdrawal,
-  consentWhere,
   leadKey,
   marketingText,
   withdrawnAlertText,
@@ -24,7 +18,13 @@ import {
   useLead,
 } from '../lib/leads.ts';
 import { CopyRow } from './conversation-parts.tsx';
-import { RecordWithdrawalDialog, ScoreChip, StatusChip, StatusMenu } from './leads-parts.tsx';
+import {
+  ConsentEntry,
+  RecordWithdrawalDialog,
+  ScoreChip,
+  StatusChip,
+  StatusMenu,
+} from './leads-parts.tsx';
 
 /**
  * `/leads/:leadId`: SCR-APP-033 Lead (LED-02, LED-03, LED-05, LED-08; FEAT-050 ui-design).
@@ -121,7 +121,7 @@ function LeadBody({ lead }: { lead: LeadDetail }) {
         <div className="lead-page__chips">
           <ScoreChip scoring={scoring} />
           <StatusChip status={lead.status} />
-          {lead.canManage && (
+          {lead.canManage && !lead.supersededBy && (
             <StatusMenu
               status={lead.status}
               busy={move.isPending}
@@ -130,6 +130,12 @@ function LeadBody({ lead }: { lead: LeadDetail }) {
           )}
         </div>
       </div>
+      {lead.supersededBy && (
+        <div className="alert alert--info" data-testid="lead-superseded">
+          <p>This lead was merged into another lead when their contacts were merged.</p>
+          <Link to={`/leads/${lead.supersededBy}`}>Open the current lead</Link>
+        </div>
+      )}
       {lead.consentWithdrawnAt && (
         <div className="alert alert--danger" data-testid="lead-withdrawn">
           <p className="alert__title">Consent withdrawn</p>
@@ -184,6 +190,9 @@ function LeadBody({ lead }: { lead: LeadDetail }) {
             <p className="lead-fields__caption">
               {lead.captures > 1 && <>Left details {lead.captures} times · </>}
               First captured {dateTime(lead.createdAt)} · Updated {dateTime(lead.updatedAt)}
+            </p>
+            <p>
+              <Link to={`/contacts/${lead.contactId}?from=lead`}>View contact</Link>
             </p>
           </section>
           <section
@@ -285,40 +294,3 @@ function LeadBody({ lead }: { lead: LeadDetail }) {
 }
 
 const NotGiven = () => <span className="lead-fields__empty">Not given</span>;
-
-const CONSENT_TEXT = {
-  enquiry: {
-    agreed: 'Agreed to be contacted',
-    declined: 'Chose not to share details',
-    withdrawn: 'Withdrew consent',
-  },
-  marketing: {
-    agreed: 'Agreed to offers',
-    declined: 'Declined offers',
-    withdrawn: 'Stopped offers',
-  },
-} as const;
-
-function ConsentEntry({ c }: { c: LeadConsentRecord }) {
-  const where = consentWhere(c);
-  return (
-    <li className="lead-consent" data-testid="lead-consent" data-decision={c.decision}>
-      <p className="lead-consent__what">{CONSENT_TEXT[c.purpose][c.decision]}</p>
-      <p className="lead-fields__caption">
-        {dateTime(c.at)} · {where.text}
-        {where.conversationId && (
-          <>
-            {' · '}
-            <Link to={`/inbox/${where.conversationId}`}>See conversation</Link>
-          </>
-        )}
-      </p>
-      {c.wording && (
-        <details className="lead-consent__wording">
-          <summary>Wording shown (version {c.wording.version})</summary>
-          <p>{c.wording.text}</p>
-        </details>
-      )}
-    </li>
-  );
-}

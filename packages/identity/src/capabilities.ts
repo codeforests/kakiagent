@@ -26,7 +26,9 @@ export type Capability =
   /** Move leads through the pipeline (LED-05; FEAT-050 D4). Owner and Admin. */
   | 'leads.manage'
   /** Export leads as CSV, after re-auth (LED-05, AUTH-03; FEAT-050 D1). Owner and Admin. */
-  | 'leads.export';
+  | 'leads.export'
+  /** Merge contacts and undo merges (CHN-08; FEAT-039 §5.4). All staff. */
+  | 'contacts.merge';
 
 const POLICY: Record<Role, ReadonlySet<Capability>> = {
   owner: new Set([
@@ -43,6 +45,7 @@ const POLICY: Record<Role, ReadonlySet<Capability>> = {
     'inbox.reassign',
     'leads.manage',
     'leads.export',
+    'contacts.merge',
   ]),
   admin: new Set([
     'inbox.read',
@@ -56,8 +59,9 @@ const POLICY: Record<Role, ReadonlySet<Capability>> = {
     'inbox.reassign',
     'leads.manage',
     'leads.export',
+    'contacts.merge',
   ]),
-  agent: new Set(['inbox.read', 'inbox.reply']),
+  agent: new Set(['inbox.read', 'inbox.reply', 'contacts.merge']),
 };
 
 export function can(role: Role, capability: Capability): boolean {

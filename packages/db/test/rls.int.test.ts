@@ -3930,14 +3930,15 @@ describe('contacts, consents, leads and lead settings (FEAT-049)', () => {
         ),
       ),
     ).rejects.toThrow(/row-level security/);
-    // The visitor role reads lead_settings and may set only consents.contact_id.
+    // The visitor role reads lead_settings and may set only consents.contact_id, and from
+    // FEAT-039 only on a consent not linked yet (consents_link_once): a linked one is untouched.
     const set = await asRole('app_agent_visitor', TENANT_A, async (c) => ({
       contact: (
         await c.query(`update consents set contact_id = contact_id where id = $1`, [a.consentId])
       ).rowCount,
       settings: (await c.query(`select tenant_id from lead_settings`)).rowCount,
     }));
-    expect(set).toEqual({ contact: 1, settings: 0 });
+    expect(set).toEqual({ contact: 0, settings: 0 });
   });
 
   it('one open lead per contact; checks hold for phone, email, decisions and cards', async () => {
@@ -3961,11 +3962,11 @@ describe('contacts, consents, leads and lead settings (FEAT-049)', () => {
     await expect(
       owner.query(`insert into contacts (tenant_id, email) values ($1, 'Mei@A.test')`, [TENANT_A]),
     ).rejects.toThrow(/contacts_email_ck/);
-    await expect(
-      owner.query(`insert into contacts (tenant_id, email) values ($1, 'one.open@a.test')`, [
-        TENANT_A,
-      ]),
-    ).rejects.toThrow(/contacts_email_uq/);
+    // FEAT-039 D4: contact columns are display values, so two contacts may show one email;
+    // identifiers are unique only as verified contact_identities.
+    await owner.query(`insert into contacts (tenant_id, email) values ($1, 'one.open@a.test')`, [
+      TENANT_A,
+    ]);
     await expect(
       owner.query(
         `insert into consents (tenant_id, contact_id, purpose, decision, wording_id, channel)
@@ -5207,5 +5208,356 @@ describe('telegram channel (FEAT-037)', () => {
         c.query(`select credential_ciphertext from channel_connections`),
       ),
     ).rejects.toThrow(/permission denied/);
+  });
+});
+
+describe('contact identities and merges (FEAT-039)', () => {
+  const seeded: Record<string, { survivor: string; merged: string; wording: string }> = {};
+  const q = <T extends pg.QueryResultRow = { id: string }>(sql: string, args: unknown[] = []) =>
+    owner.query<T>(sql, args);
+
+  /** One contact with a conversation, a linked consent, an open lead and, optionally, Telegram. */
+  const person = async (t: string, wording: string, name: string, telegram?: number) => {
+    const contact = (
+      await q(
+        `insert into contacts (tenant_id, name, telegram_id) values ($1, $2, $3) returning id`,
+        [t, name, telegram ?? null],
+      )
+    ).rows[0]!.id;
+    const conversation = (
+      await q(
+        `insert into conversations (tenant_id, channel, visitor_id, contact_id)
+         values ($1, 'widget', gen_random_uuid(), $2) returning id`,
+        [t, contact],
+      )
+    ).rows[0]!.id;
+    const consent = (
+      await q(
+        `insert into consents (tenant_id, contact_id, conversation_id, purpose, decision, wording_id, channel)
+         values ($1, $2, $3, 'enquiry', 'agreed', $4, 'widget') returning id`,
+        [t, contact, conversation, wording],
+      )
+    ).rows[0]!.id;
+    await q(
+      `insert into leads (tenant_id, contact_id, consent_id, conversation_id, need) values ($1, $2, $3, $4, 'Cake')`,
+      [t, contact, consent, conversation],
+    );
+    if (telegram) {
+      await q(
+        `insert into telegram_chats (tenant_id, chat_id, bot_id, contact_id) values ($1, $2, 1, $3)`,
+        [t, telegram, contact],
+      );
+      await q(
+        `insert into contact_identities (tenant_id, contact_id, kind, value, source, verified_at)
+         values ($1, $2, 'telegram', $3, 'telegram', now())`,
+        [t, contact, String(telegram)],
+      );
+    }
+    await q(
+      `insert into audit_pii (tenant_id, contact_id, salt, data) values ($1, $2, '\\x01', '{}')`,
+      [t, contact],
+    );
+    return contact;
+  };
+
+  /** Every contact-keyed row of the tenant, by contact, for before/after comparison. */
+  const snapshot = async (t: string) => {
+    const rows = async (sql: string) => (await q<Record<string, unknown>>(sql, [t])).rows;
+    return {
+      conversations: await rows(
+        `select id, contact_id from conversations where tenant_id = $1 and contact_id is not null order by id`,
+      ),
+      consents: await rows(`select id, contact_id from consents where tenant_id = $1 order by id`),
+      leads: await rows(
+        `select id, contact_id, superseded_by, status from leads where tenant_id = $1 order by id`,
+      ),
+      chats: await rows(
+        `select chat_id, contact_id from telegram_chats where tenant_id = $1 order by chat_id`,
+      ),
+      pii: await rows(
+        `select id, contact_id from audit_pii where tenant_id = $1 and contact_id is not null order by id`,
+      ),
+      identities: await rows(
+        `select id, contact_id from contact_identities where tenant_id = $1 order by id`,
+      ),
+      contacts: await rows(
+        `select id, name, email, phone, telegram_id, telegram_username, merged_into, merged_at
+         from contacts where tenant_id = $1 order by id`,
+      ),
+    };
+  };
+
+  beforeAll(async () => {
+    for (const t of [TENANT_A, TENANT_B]) {
+      const wording = (
+        await q(
+          `insert into wording_versions (tenant_id, kind, seq, content)
+           values ($1, 'purpose_statement', coalesce((select max(seq) from wording_versions where tenant_id = $1 and kind = 'purpose_statement'), 0) + 1, '{"en":"To reply."}') returning id`,
+          [t],
+        )
+      ).rows[0]!.id;
+      const survivor = await person(t, wording, 'Siti');
+      const merged = await person(t, wording, 'Siti T', t === TENANT_A ? 700001 : 700002);
+      seeded[t] = { survivor, merged, wording };
+    }
+  });
+
+  afterAll(async () => {
+    for (const table of [
+      'contact_merges',
+      'contact_identities',
+      'telegram_chats',
+      'leads',
+      'consents',
+    ])
+      await q(`delete from ${table}`);
+    await q(`delete from audit_pii where contact_id is not null`);
+    await q(`update conversations set contact_id = null`);
+    await q(`update contacts set merged_into = null, merged_at = null`);
+    await q(`delete from contacts`);
+  });
+
+  it("tenant B can't read A's identities or merges, add to them, or merge A's contacts", async () => {
+    const a = seeded[TENANT_A]!;
+    await q(
+      `insert into contact_merges (tenant_id, survivor_id, merged_id, automatic, moved, undone_at)
+       values ($1, $2, $3, false, '{}', now())`,
+      [TENANT_A, a.survivor, a.merged],
+    );
+    for (const role of ['app_dashboard', 'app_agent_visitor'] as const) {
+      const seen = await asRole(role, TENANT_B, async (c) => ({
+        identities: (await c.query(`select tenant_id from contact_identities`)).rows,
+        merges: (await c.query(`select tenant_id from contact_merges`)).rows,
+      }));
+      expect(seen.identities).toEqual([{ tenant_id: TENANT_B }]);
+      expect(seen.merges).toEqual([]);
+      await expect(
+        asRole(role, TENANT_B, (c) =>
+          c.query(`select contact_merge($1, $2, false, null)`, [a.survivor, a.merged]),
+        ),
+      ).rejects.toMatchObject({ code: 'KC000' });
+      await expect(
+        asRole(role, TENANT_B, (c) =>
+          c.query(`select contact_merge($1, $2, false, null)`, [
+            seeded[TENANT_B]!.survivor,
+            a.merged,
+          ]),
+        ),
+      ).rejects.toMatchObject({ code: 'KC000' });
+    }
+    await expect(
+      asRole('app_agent_visitor', TENANT_B, (c) =>
+        c.query(
+          `insert into contact_identities (tenant_id, contact_id, kind, value, source)
+           values ($1, $2, 'email', 'x@y.test', 'lead_form')`,
+          [TENANT_A, a.survivor],
+        ),
+      ),
+    ).rejects.toThrow(/row-level security/);
+    await q(`delete from contact_merges`);
+  });
+
+  it("app roles can't re-key consents or set a contact's merge columns directly", async () => {
+    const a = seeded[TENANT_A]!;
+    await expect(
+      asRole('app_dashboard', TENANT_A, (c) =>
+        c.query(`update consents set contact_id = $1`, [a.survivor]),
+      ),
+    ).rejects.toThrow(/permission denied/);
+    // The visitor zone links an unlinked consent once (lead capture), never re-keys a linked one.
+    const rekeyed = await asRole('app_agent_visitor', TENANT_A, async (c) => {
+      const linked = await c.query(`update consents set contact_id = $1 where contact_id = $2`, [
+        a.survivor,
+        a.merged,
+      ]);
+      const fresh = await c.query(
+        `insert into consents (tenant_id, purpose, decision, wording_id, channel)
+         values ($1, 'enquiry', 'agreed', $2, 'widget') returning id`,
+        [TENANT_A, a.wording],
+      );
+      const link = await c.query(`update consents set contact_id = $1 where id = $2`, [
+        a.survivor,
+        fresh.rows[0].id,
+      ]);
+      return { linked: linked.rowCount, link: link.rowCount };
+    });
+    expect(rekeyed).toEqual({ linked: 0, link: 1 });
+    for (const role of ['app_dashboard', 'app_agent_visitor'] as const) {
+      await expect(
+        asRole(role, TENANT_A, (c) =>
+          c.query(`update contacts set merged_into = $1, merged_at = now() where id = $2`, [
+            a.survivor,
+            a.merged,
+          ]),
+        ),
+      ).rejects.toThrow(/permission denied/);
+      await expect(
+        asRole(role, TENANT_A, (c) =>
+          c.query(`update contact_identities set contact_id = $1`, [a.survivor]),
+        ),
+      ).rejects.toThrow(/permission denied/);
+    }
+  });
+
+  it('a verified value has one owner; two lead-form contacts may share a typed one', async () => {
+    const a = seeded[TENANT_A]!;
+    await asRole('app_agent_visitor', TENANT_A, async (c) => {
+      for (const contact of [a.survivor, a.merged])
+        await c.query(
+          `insert into contact_identities (tenant_id, contact_id, kind, value, source)
+           values ($1, $2, 'email', 'shared@kaki.test', 'lead_form'), ($1, $2, 'phone', '+6591234567', 'lead_form')`,
+          [TENANT_A, contact],
+        );
+      expect(
+        (
+          await c.query(
+            `select count(*)::int as n from contact_identities where value = 'shared@kaki.test'`,
+          )
+        ).rows[0].n,
+      ).toBe(2);
+    });
+    await expect(
+      asRole('app_agent_visitor', TENANT_A, async (c) => {
+        for (const contact of [a.survivor, a.merged])
+          await c.query(
+            `insert into contact_identities (tenant_id, contact_id, kind, value, source, verified_at)
+             values ($1, $2, 'email', 'verified@kaki.test', 'email', now())`,
+            [TENANT_A, contact],
+          );
+      }),
+    ).rejects.toThrow(/contact_identities_verified_uq/);
+    await expect(
+      asRole('app_agent_visitor', TENANT_A, (c) =>
+        c.query(
+          `insert into contact_identities (tenant_id, contact_id, kind, value, source, verified_at)
+           values ($1, $2, 'email', 'typed@kaki.test', 'lead_form', now())`,
+          [TENANT_A, a.survivor],
+        ),
+      ),
+    ).rejects.toThrow(/contact_identities_lead_form_ck/);
+  });
+
+  it('contact_merge moves every contact-keyed row and contact_unmerge restores exactly that, once', async () => {
+    const a = seeded[TENANT_A]!;
+    // The survivor already holds the merged contact's typed email: that row stays put.
+    await q(
+      `insert into contact_identities (tenant_id, contact_id, kind, value, source)
+       values ($1, $2, 'email', 'both@kaki.test', 'lead_form'), ($1, $3, 'email', 'both@kaki.test', 'lead_form')`,
+      [TENANT_A, a.survivor, a.merged],
+    );
+    await q(
+      `update contacts set email = 'both@kaki.test', telegram_username = 'siti' where id = $1`,
+      [a.merged],
+    );
+    const before = await snapshot(TENANT_A);
+    const otherBefore = await snapshot(TENANT_B);
+
+    const mergeId = await asRole('app_dashboard', TENANT_A, async (c) => {
+      const id = (
+        await c.query<{ id: string }>(`select contact_merge($1, $2, false, null) as id`, [
+          a.survivor,
+          a.merged,
+        ])
+      ).rows[0]!.id;
+      await c.query('commit');
+      await c.query('begin');
+      return id;
+    });
+    const after = await snapshot(TENANT_A);
+    const on = (rows: Record<string, unknown>[], id: string) =>
+      rows.filter((r) => r.contact_id === id).length;
+    expect(on(after.conversations, a.merged)).toBe(0);
+    expect(on(after.consents, a.merged)).toBe(0);
+    expect(on(after.leads, a.merged)).toBe(0);
+    expect(on(after.chats, a.merged)).toBe(0);
+    expect(on(after.pii, a.merged)).toBe(0);
+    expect(on(after.conversations, a.survivor)).toBe(2);
+    // Two open leads: the merged one points at the survivor's (D6).
+    const open = after.leads.filter((l) => l.superseded_by === null);
+    const superseded = after.leads.filter((l) => l.superseded_by !== null);
+    expect(open.filter((l) => l.contact_id === a.survivor)).toHaveLength(1);
+    expect(superseded).toHaveLength(1);
+    expect(superseded[0]!.superseded_by).toBe(open.find((l) => l.contact_id === a.survivor)!.id);
+    // The identical lead-form email stays on the merged contact; the Telegram ID moves.
+    expect(on(after.identities, a.merged)).toBe(1);
+    const survivorAfter = after.contacts.find((k) => k.id === a.survivor)!;
+    expect(survivorAfter).toMatchObject({
+      name: 'Siti',
+      email: 'both@kaki.test',
+      telegram_id: '700001',
+      telegram_username: 'siti',
+    });
+    expect(after.contacts.find((k) => k.id === a.merged)!.merged_into).toBe(a.survivor);
+    expect(await snapshot(TENANT_B)).toEqual(otherBefore);
+    // A merged-away contact can't be merged again.
+    await expect(
+      asRole('app_dashboard', TENANT_A, (c) =>
+        c.query(`select contact_merge($1, $2, false, null)`, [a.survivor, a.merged]),
+      ),
+    ).rejects.toMatchObject({ code: 'KC002' });
+    await expect(
+      asRole('app_dashboard', TENANT_A, (c) =>
+        c.query(`select contact_merge($1, $1, false, null)`, [a.survivor]),
+      ),
+    ).rejects.toMatchObject({ code: 'KC001' });
+    // Undo from the other zone's tenant is nothing; from A it restores every row.
+    await expect(
+      asRole('app_dashboard', TENANT_B, (c) =>
+        c.query(`select contact_unmerge($1, null)`, [mergeId]),
+      ),
+    ).rejects.toMatchObject({ code: 'KC000' });
+    await asRole('app_dashboard', TENANT_A, async (c) => {
+      const restored = (await c.query(`select contact_unmerge($1, null) as id`, [mergeId])).rows[0]
+        .id;
+      expect(restored).toBe(a.merged);
+      await c.query('commit');
+      await c.query('begin');
+    });
+    const undone = await snapshot(TENANT_A);
+    const strip = (s: Awaited<ReturnType<typeof snapshot>>) => ({
+      ...s,
+      contacts: s.contacts.map(({ merged_at: _m, ...k }) => k),
+    });
+    expect(strip(undone)).toEqual(strip(before));
+    await expect(
+      asRole('app_dashboard', TENANT_A, (c) =>
+        c.query(`select contact_unmerge($1, null)`, [mergeId]),
+      ),
+    ).rejects.toMatchObject({ code: 'KC003' });
+  });
+
+  it('the backfill gives an existing Telegram contact a verified identity, typed values unverified ones', async () => {
+    const migration = readFileSync(
+      new URL('../drizzle/0055_contact_identity.sql', import.meta.url),
+      'utf8',
+    );
+    const backfill = migration
+      .slice(migration.indexOf('-- Backfill (§4)'))
+      .split('--> statement-breakpoint')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    await owner.query('begin');
+    try {
+      const contact = (
+        await q(
+          `insert into contacts (tenant_id, telegram_id, email, phone) values ($1, 700099, 'old@kaki.test', '+6581234567') returning id`,
+          [TENANT_A],
+        )
+      ).rows[0]!.id;
+      await q(`delete from contact_identities`);
+      for (const statement of backfill) await owner.query(statement);
+      const { rows } = await q<{ kind: string; value: string; source: string; verified: boolean }>(
+        `select kind, value, source, verified_at is not null as verified from contact_identities
+         where contact_id = $1 order by kind`,
+        [contact],
+      );
+      expect(rows).toEqual([
+        { kind: 'email', value: 'old@kaki.test', source: 'lead_form', verified: false },
+        { kind: 'phone', value: '+6581234567', source: 'lead_form', verified: false },
+        { kind: 'telegram', value: '700099', source: 'telegram', verified: true },
+      ]);
+    } finally {
+      await owner.query('rollback');
+    }
   });
 });
