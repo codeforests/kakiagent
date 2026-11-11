@@ -4,7 +4,13 @@
  * D3); its POST is a same-origin form post that proves the address.
  */
 import { DEFAULT_BOT_NAME } from '@kaki/agent';
-import { confirmCodeTenant, confirmEmailHandoff, viewEmailHandoff } from '@kaki/channels/handoff';
+import {
+  confirmCodeTenant,
+  confirmEmailHandoff,
+  requestHandoff,
+  viewEmailHandoff,
+} from '@kaki/channels/handoff';
+import { HandoffBody, HandoffError, HandoffResponse, type HandoffErrorCode } from '@kaki/contracts';
 import { withTenant, type Tx } from '@kaki/db';
 import * as inbox from '@kaki/inbox';
 import { channels } from '@kaki/platform';
@@ -163,4 +169,65 @@ export function registerHandoffRoutes(app: App, deps: Deps): void {
     const to = (moved.card && 'sentTo' in moved.card && moved.card.sentTo) || '';
     return html(reply, 200, page(done.language, c.doneTitle, `<p>${esc(c.done(to))}</p>`));
   });
+}
+
+const ERRORS: Record<HandoffErrorCode, [number, string]> = {
+  channel_unavailable: [409, "That channel isn't available right now."],
+  conversation_closed: [409, 'This chat has ended.'],
+  moved: [409, 'This chat continues on another channel.'],
+  invalid_email: [422, "That doesn't look like an email address."],
+  rate_limited: [429, 'Too many tries. Try again later.'],
+};
+
+/** 409 `moved` with the channel the chat continues on (FEAT-038 §3, AC-8). */
+export function movedReply(reply: FastifyReply, channel: 'telegram' | 'email') {
+  const [status, message] = ERRORS.moved;
+  return reply.code(status).send(HandoffError.parse({ error: 'moved', message, channel }));
+}
+
+/** `POST /widget/v1/conversations/:id/handoff` (CHN-07; FEAT-038 §3, §5.2; AC-1, AC-2, AC-6). */
+export function registerWidgetHandoffRoute(
+  app: App,
+  deps: Deps,
+  visitorFrom: (req: FastifyRequest, reply: FastifyReply) => { t: string; v: string },
+): void {
+  const { config, visitorDb } = deps;
+  app.post<{ Params: { id: string } }>(
+    '/widget/v1/conversations/:id/handoff',
+    async (req, reply) => {
+      const v = visitorFrom(req, reply);
+      const conversationId = req.params.id;
+      if (!/^[0-9a-f-]{36}$/i.test(conversationId))
+        return reply.code(404).send({ error: 'not_found', message: 'Not found' });
+      const parsed = HandoffBody.safeParse(req.body);
+      if (!parsed.success) {
+        const email = (req.body as { channel?: unknown } | null)?.channel === 'email';
+        if (!email)
+          return reply.code(400).send({ error: 'bad_request', message: 'Invalid request' });
+        const [status, message] = ERRORS.invalid_email;
+        return reply.code(status).send(HandoffError.parse({ error: 'invalid_email', message }));
+      }
+      const r = await withTenant(visitorDb, v.t, (tx) =>
+        requestHandoff(tx, {
+          tenantId: v.t,
+          conversationId,
+          visitorId: v.v,
+          body: parsed.data,
+          secret: config.HANDOFF_LINK_SECRET,
+        }),
+      );
+      if (!r.ok) {
+        if (r.code === 'not_found')
+          return reply.code(404).send({ error: 'not_found', message: 'Not found' });
+        if (r.code === 'moved' && r.channel) return movedReply(reply, r.channel);
+        const [status, message] = ERRORS[r.code];
+        return reply.code(status).send(HandoffError.parse({ error: r.code, message }));
+      }
+      return HandoffResponse.parse(
+        r.channel === 'telegram'
+          ? { channel: r.channel, url: r.url, expiresAt: r.expiresAt.toISOString() }
+          : { channel: r.channel, sentTo: r.sentTo, expiresAt: r.expiresAt.toISOString() },
+      );
+    },
+  );
 }

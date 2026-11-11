@@ -110,7 +110,8 @@ import {
   ReplayRateLimitedError,
 } from './coach.js';
 import { FactNotFound, ForbiddenError, registerFactRoutes } from './facts.js';
-import { registerHandoffRoutes } from './handoff.js';
+import { movedReply, registerHandoffRoutes, registerWidgetHandoffRoute } from './handoff.js';
+import { handoffOptions } from '@kaki/channels/handoff';
 import { registerPrivacyRoutes } from './privacy.js';
 import { registerRuleRoutes, rulesErrorReply } from './rules.js';
 import { createServer, type Deps } from './server.js';
@@ -494,7 +495,7 @@ export async function buildApp(deps: Deps) {
       config.VISITOR_TOKEN_SECRET,
     );
     // FEAT-024: the tenant's name and greeting, through the visitor zone's function only.
-    const { tenantState, theme, privacy, channel, leadCapture } = await withTenant(
+    const { tenantState, theme, privacy, channel, leadCapture, handoff } = await withTenant(
       visitorDb,
       install.tenantId,
       async (tx) => {
@@ -513,6 +514,8 @@ export async function buildApp(deps: Deps) {
           channel: await visitorChannel(tx, 'widget'),
           // LED-01, LED-02 (FEAT-049): sent while not live and while paused too (the contact form).
           leadCapture: await leadCaptureConfig(tx),
+          // CHN-07 (FEAT-038 §3): the channels a visitor can continue on.
+          handoff: await handoffOptions(tx, install.tenantId),
         };
       },
     );
@@ -547,6 +550,7 @@ export async function buildApp(deps: Deps) {
           }
         : null,
       leadCapture,
+      handoff,
     });
   });
 
@@ -582,15 +586,20 @@ export async function buildApp(deps: Deps) {
       const body = SendMessageBody.parse(req.body);
       const conversationId = req.params.id;
       if (!/^[0-9a-f-]{36}$/i.test(conversationId)) throw new NotFoundError();
-      const result = await withTenant(visitorDb, v.t, (tx) =>
-        appendVisitorMessage(tx, {
+      const result = await withTenant(visitorDb, v.t, async (tx) => {
+        // FEAT-038 §5.8 (AC-8): a chat that continued elsewhere takes no more widget messages.
+        const conv = await getConversation(tx, v.t, conversationId);
+        if (conv && conv.visitorId === v.v && conv.channel !== 'widget')
+          return { moved: conv.channel as 'telegram' | 'email' };
+        return appendVisitorMessage(tx, {
           tenantId: v.t,
           conversationId,
           visitorId: v.v,
           text: body.text,
           clientMessageId: body.clientMessageId,
-        }),
-      );
+        });
+      });
+      if ('moved' in result) return movedReply(reply, result.moved);
       const message = toMessage(result.message);
       if (result.created) {
         await notify([channels.conversation(v.t, conversationId), channels.inbox(v.t)], {
@@ -671,6 +680,9 @@ export async function buildApp(deps: Deps) {
       return EscalateResponse.parse({ status: result.status, notice });
     },
   );
+
+  // CHN-07 (FEAT-038 §5.2): continue on Telegram or by email.
+  registerWidgetHandoffRoute(app, deps, visitorFrom);
 
   // LED-01, LED-02 (FEAT-049 §5.4): the consent card, the lead form and the contact form.
   registerLeadWidgetRoutes(app, deps, visitorFrom, notify, summaryFor);

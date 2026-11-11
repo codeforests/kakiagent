@@ -404,4 +404,101 @@ describe('email confirm page (FEAT-038 §5.4; AC-6, AC-7)', () => {
   });
 });
 
-export { ORIGIN, signToken, VISITOR_SECRET };
+const bearer = (t: string, visitorId: string) => ({
+  origin: ORIGIN,
+  authorization: `Bearer ${signToken(
+    { t, o: ORIGIN, v: visitorId, exp: Math.floor(Date.now() / 1000) + 600 },
+    VISITOR_SECRET,
+  )}`,
+});
+const handoff = (id: string, h: Record<string, string>, body: unknown) =>
+  app.inject({
+    method: 'POST',
+    url: `/widget/v1/conversations/${id}/handoff`,
+    headers: h,
+    payload: body as Record<string, unknown>,
+  });
+const setLive = (kind: 'telegram' | 'email', state: 'live' | 'offline') =>
+  owner.query(`update channel_connections set state = $2 where tenant_id = $1 and kind = $3`, [
+    TENANT_A,
+    state,
+    kind,
+  ]);
+
+describe('widget handoff routes (FEAT-038 §3; AC-1, AC-2, AC-6, AC-8, AC-10)', () => {
+  beforeEach(async () => {
+    await owner.query(`delete from handoff_links`);
+    await setLive('telegram', 'live');
+    await setLive('email', 'live');
+  });
+
+  it('config offers only live channels, Telegram with its bot', async () => {
+    const config = async () =>
+      (
+        await app.inject({
+          method: 'GET',
+          url: '/widget/v1/config?key=wk_dev_bakery',
+          headers: { origin: ORIGIN },
+        })
+      ).json<{ handoff: unknown }>().handoff;
+    expect(await config()).toEqual({ telegram: true, email: true });
+    await setLive('telegram', 'offline');
+    expect(await config()).toEqual({ telegram: false, email: true });
+    await setLive('email', 'offline');
+    expect(await config()).toEqual({ telegram: false, email: false });
+  });
+
+  it('200 for each live channel, 409 offline, 422 a bad address, 429 past the limit, 404 for another visitor', async () => {
+    const c = await widgetChat();
+    const h = bearer(TENANT_A, c.visitorId);
+    const t = await handoff(c.id, h, { channel: 'telegram' });
+    expect(t.statusCode).toBe(200);
+    expect(t.json().url).toMatch(/^https:\/\/t\.me\/kaki_bakery_bot\?start=c-[A-Za-z0-9_-]{43}$/);
+    const e = await handoff(c.id, h, { channel: 'email', email: 'siti@example.com' });
+    expect(e.statusCode).toBe(200);
+    expect(e.json()).toMatchObject({ channel: 'email', sentTo: 's***@example.com' });
+    expect((await handoff(c.id, h, { channel: 'email', email: 'nope' })).json()).toMatchObject({
+      error: 'invalid_email',
+    });
+    expect(
+      (await handoff(c.id, h, { channel: 'email', email: `${'a'.repeat(260)}@b.co` })).statusCode,
+    ).toBe(422);
+    expect((await handoff(c.id, h, { channel: 'whatsapp' })).statusCode).toBe(400);
+    await setLive('email', 'offline');
+    const off = await handoff(c.id, h, { channel: 'email', email: 'siti@example.com' });
+    expect(off.statusCode).toBe(409);
+    expect(off.json()).toMatchObject({ error: 'channel_unavailable' });
+    for (let i = 0; i < 3; i++) await handoff(c.id, h, { channel: 'telegram' });
+    const limited = await handoff(c.id, h, { channel: 'telegram' });
+    expect(limited.statusCode).toBe(429);
+    expect(limited.json()).toMatchObject({ error: 'rate_limited' });
+    expect(
+      (await handoff(c.id, bearer(TENANT_A, randomUUID()), { channel: 'telegram' })).statusCode,
+    ).toBe(404);
+  });
+
+  it("tenant B's widget token can't hand off A's conversation", async () => {
+    const c = await widgetChat();
+    const res = await handoff(c.id, bearer(TENANT_B, c.visitorId), { channel: 'telegram' });
+    expect(res.statusCode).toBe(404);
+    expect(await q(`select 1 from handoff_links where conversation_id = $1`, [c.id])).toEqual([]);
+  });
+
+  it('after a move, the widget gets 409 moved on messages and handoff (AC-8)', async () => {
+    const c = await widgetChat();
+    const h = bearer(TENANT_A, c.visitorId);
+    const url = (await handoff(c.id, h, { channel: 'telegram' })).json<{ url: string }>().url;
+    await hook(update(chat, 'private', `/start ${new URL(url).searchParams.get('start')}`));
+    const send = await app.inject({
+      method: 'POST',
+      url: `/widget/v1/conversations/${c.id}/messages`,
+      headers: h,
+      payload: { text: 'Still there?', clientMessageId: 'handoff-moved-1' },
+    });
+    expect(send.statusCode).toBe(409);
+    expect(send.json()).toMatchObject({ error: 'moved', channel: 'telegram' });
+    const again = await handoff(c.id, h, { channel: 'email', email: 'siti@example.com' });
+    expect(again.statusCode).toBe(409);
+    expect(again.json()).toMatchObject({ error: 'moved', channel: 'telegram' });
+  });
+});
