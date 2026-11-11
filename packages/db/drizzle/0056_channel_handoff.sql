@@ -18,6 +18,7 @@ CREATE TABLE "handoff_links" (
 ALTER TABLE "contact_identities" DROP CONSTRAINT "contact_identities_source_ck";--> statement-breakpoint
 ALTER TABLE "contact_identities" DROP CONSTRAINT "contact_identities_telegram_ck";--> statement-breakpoint
 ALTER TABLE "messages" DROP CONSTRAINT "messages_notice_ck";--> statement-breakpoint
+ALTER TABLE "messages" DROP CONSTRAINT "messages_card_ck";--> statement-breakpoint
 ALTER TABLE "handoff_links" ADD CONSTRAINT "handoff_links_tenant_id_tenants_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."tenants"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "handoff_links" ADD CONSTRAINT "handoff_links_conversation_fk" FOREIGN KEY ("tenant_id","conversation_id") REFERENCES "public"."conversations"("tenant_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "handoff_links" ADD CONSTRAINT "handoff_links_contact_fk" FOREIGN KEY ("tenant_id","contact_id") REFERENCES "public"."contacts"("tenant_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -26,6 +27,7 @@ ALTER TABLE "contact_identities" ADD CONSTRAINT "contact_identities_link_ck" CHE
 ALTER TABLE "contact_identities" ADD CONSTRAINT "contact_identities_source_ck" CHECK ("contact_identities"."source" in ('email', 'telegram', 'lead_form', 'link'));--> statement-breakpoint
 ALTER TABLE "contact_identities" ADD CONSTRAINT "contact_identities_telegram_ck" CHECK ("contact_identities"."kind" <> 'telegram' or ("contact_identities"."source" in ('telegram', 'link') and "contact_identities"."verified_at" is not null and "contact_identities"."value" ~ '^[0-9]{1,20}$'));--> statement-breakpoint
 ALTER TABLE "messages" ADD CONSTRAINT "messages_notice_ck" CHECK (("messages"."notice" is null) = ("messages"."notice_kind" is null) and ("messages"."notice_kind" is null or "messages"."notice_kind" in ('after_hours', 'chat_ended', 'staff_joined', 'staff_left', 'escalated', 'lead_captured', 'approval_waiting', 'approval_rejected', 'approval_expired', 'consent_withdrawn', 'text_only', 'handoff_recap', 'handoff_moved')));--> statement-breakpoint
+ALTER TABLE "messages" ADD CONSTRAINT "messages_card_ck" CHECK ("messages"."card" is null or ("messages"."author" in ('agent', 'system') and "messages"."card"->>'kind' in ('consent', 'lead_form', 'quote', 'withdraw', 'handoff', 'moved')));--> statement-breakpoint
 
 -- FEAT-038 §4, hand-written: RLS, grants, the purge and the confirm page's tenant lookup.
 ALTER TABLE handoff_links ENABLE ROW LEVEL SECURITY;--> statement-breakpoint

@@ -26,6 +26,8 @@ export const schema = envSchemas.base
     PUBLIC_APP_URL: envSchemas.url,
     /** Derives each magic link's token from its ID (FEAT-005 D6). */
     MAGIC_LINK_SECRET: envSchemas.secret,
+    /** Signs channel handoff links (FEAT-038 D4); the same in the agent-worker. */
+    HANDOFF_LINK_SECRET: envSchemas.secret,
     /** Seals TOTP secrets (FEAT-006 §5.1): 32 random bytes, base64url. KMS replaces it (FEAT-037/MD). */
     MFA_SECRET_KEY: z
       .string()

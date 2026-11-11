@@ -100,6 +100,7 @@ function show(m: PreviewMessage) {
     availability: { live: true },
     aiPaused: null,
     leadCapture: null,
+    handoff: { telegram: false, email: false },
   } satisfies WidgetConfigResponse;
   mountPanel({
     shadow,

@@ -103,6 +103,8 @@ const config = loadConfig(
       APPROVAL_SWEEP_MS: z.coerce.number().int().positive().default(30_000),
       /** Adapter-channel delivery retries and timeouts (FEAT-036 §5.3). */
       DELIVERY_SWEEP_MS: z.coerce.number().int().positive().default(60_000),
+      /** Purges used and expired handoff links 7 days after expiry (FEAT-038 §5.9): daily. */
+      HANDOFF_PURGE_MS: z.coerce.number().int().positive().default(86_400_000),
       /** The custom sending domain's checks (FEAT-036 §5.1): SES v2, or `fixture` locally. */
       EMAIL_IDENTITY_PROVIDER: z.enum(['ses', 'fixture']).default('ses'),
       SES_CONFIGURATION_SET: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),

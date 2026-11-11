@@ -66,6 +66,7 @@ export function testConfig(tdb: TestDatabase, env: Record<string, string> = {}) 
     VISITOR_TOKEN_SECRET: 'v'.repeat(32),
     SESSION_SECRET: 's'.repeat(32),
     MAGIC_LINK_SECRET: 'm'.repeat(32),
+    HANDOFF_LINK_SECRET: 'h'.repeat(32),
     MFA_SECRET_KEY: Buffer.alloc(32, 7).toString('base64url'),
     CHANNEL_SECRET_KEY: Buffer.alloc(32, 9).toString('base64url'),
     PUBLIC_HOOKS_URL: 'http://localhost:3000',

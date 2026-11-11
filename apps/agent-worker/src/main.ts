@@ -65,6 +65,10 @@ const config = loadConfig(
         .refine((v) => Buffer.from(v, 'base64url').length === 32, 'must be 32 bytes, base64url'),
       /** The Telegram Bot API; the local fake in dev and E2E (FEAT-037 §5.6). */
       TELEGRAM_API_BASE: envSchemas.url.default('https://api.telegram.org'),
+      /** Signs channel handoff links (FEAT-038 D4); the same as the api's. */
+      HANDOFF_LINK_SECRET: envSchemas.secret,
+      /** The api's public origin: the email handoff's confirm link `<url>/continue/<code>`. */
+      PUBLIC_API_URL: envSchemas.url.transform((u) => u.replace(/\/+$/, '')),
     }),
 );
 const stopTelemetry = startTelemetry('agent-worker', config.OTEL_EXPORTER_OTLP_ENDPOINT);
