@@ -327,6 +327,9 @@ describe('email confirm page (FEAT-038 §5.4; AC-6, AC-7)', () => {
       expect(res.statusCode).toBe(200);
       expect(res.headers['content-security-policy']).toContain("form-action 'self'");
       expect(res.headers['content-security-policy']).toContain("default-src 'none'");
+      // `no-referrer` makes a browser's form POST send `Origin: null` (refused below); the page's
+      // own form must still prove its origin (found by handoff.e2e in CI).
+      expect(res.headers['referrer-policy']).toBe('same-origin');
       expect(res.headers['cache-control']).toBe('no-store');
       expect(res.body).toContain('s***@example.com');
       expect(res.body).toContain(`<form method="post" action="/continue/${code}">`);

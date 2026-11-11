@@ -26,7 +26,9 @@ const PAGE_HEADERS = {
   'content-security-policy':
     "default-src 'none'; style-src 'unsafe-inline'; img-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
   'cache-control': 'no-store',
-  'referrer-policy': 'no-referrer',
+  // Not `no-referrer`: under it a browser's form POST sends `Origin: null`, which the POST's
+  // same-origin check refuses. `same-origin` still sends nothing (the code in the path) elsewhere.
+  'referrer-policy': 'same-origin',
 };
 
 const PAGE_CSS = `
