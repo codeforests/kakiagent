@@ -1,5 +1,5 @@
 # Handoff: FEAT-038 — Continue on another channel with the history
-Branch: feat/FEAT-038-channel-handoff · PR: (draft, see the thread) · Updated: 2026-11-11 by build (UI)
+Branch: feat/FEAT-038-channel-handoff · PR: https://github.com/codeforests/kakiagent/pull/64 (draft) · Updated: 2026-11-11 by build (UI)
 Stage done: build (T1–T12 of 12; developer-done)
 Next: verify — kickoff: "Verify FEAT-038 on branch feat/FEAT-038-channel-handoff.
 Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
