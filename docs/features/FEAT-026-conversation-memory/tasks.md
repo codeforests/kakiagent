@@ -1,7 +1,7 @@
 # Tasks: FEAT-026 — Conversation memory and summarisation
 
 > Executes: [technical-design.md](technical-design.md) (screens: none, [ui-design.md](ui-design.md))
-> Status: designed · 2026-11-11
+> Status: developer-done · 2026-11-11
 
 One build session (backend only, no UI tasks): `Build FEAT-026`.
 
@@ -15,10 +15,21 @@ One build session (backend only, no UI tasks): `Build FEAT-026`.
       Done when: `pnpm --filter @kaki/agent test` passes with `prompt.test.ts` cases (memory block first in the tail, absent when null, fenced; the `<memory>` data rule in `system`; no history slice) and `plan.test.ts` (tail has items, not the name); `memory.int.test.ts` adds: a turn after a fold sends the memory plus only messages after `upto_seq`; a short conversation sends all messages and no memory (AC-1); with 40 unfolded messages and no memory the reply gets the newest 30 and logs the lag; a conversation moved to Telegram with `conversation_move_channel` then a Telegram turn uses the same memory (AC-7); a suggested reply and a replay of an earlier question use the memory before that question. Existing agent unit and integration suites still pass.
 - [x] T5 — Evals: subset `memory` (+ `thresholds.json` 0.9), case field `memoryRecorded`, expectation `remembers`, judge criterion `memory`, the runner's folding (§5.6) counted in cost per conversation, `evals/cases/feat-026-memory.json` (≥ 8 cases, 2 `fast`) and 2 `red-team` memory cases, README paragraph; bump `version.json` if the judge criteria list requires it (design §5.6; AC-6, AC-8, AC-10)
       Done when: `pnpm eval` passes every subset at its threshold on the fake provider, with the 40-turn case's `remembers` (name, `40`, `14 Dec`) met and `judge: memory` reported pending; `pnpm eval --fast` includes the two fast cases; `pnpm --filter @kaki/evals test` passes.
-- [ ] T6 — Verify: update `docs/build/code-map.md` if the build deviated from the design's names; full `pnpm lint` and `pnpm typecheck`, this feature's unit and integration suites, `node scripts/check-rtm.mjs FEAT-026`; status `developer-done`; draft PR.
+- [x] T6 — Verify: update `docs/build/code-map.md` if the build deviated from the design's names; full `pnpm lint` and `pnpm typecheck`, this feature's unit and integration suites, `node scripts/check-rtm.mjs FEAT-026`; status `developer-done`; draft PR.
       Done when: all pass; "Verification evidence" below has one bullet per AC.
       Note: no E2E: nothing visible changes in any screen; AC-6's real-model judge score runs with the real-model eval (M1.5 practice), not in CI.
 
 ## Verification evidence
 
-- (filled by the build and verify stages, one bullet per AC)
+Build, 2026-11-11 (cloud session; `scripts/test-env.sh scripts/check-summary.sh`): format:check, lint (incl. dependency-cruiser and check-rtm), typecheck, `pnpm test` (160 files, 1852 tests), agent test:coverage (559), inbox and db integration (97, 237), `check-rtm FEAT-026` all PASS; `pnpm eval` on the fake: memory 8/8, red-team 54/54, S$0.00096 per conversation.
+
+- AC-1: `memory.int.test.ts` "a short chat sends everything verbatim"; `memory.test.ts` foldPlan below 20; eval `mem-short-no-fold`.
+- AC-2: `memory.int.test.ts` AC-2/3/10 case (job on group `memory:<id>`, enqueued in `store()`'s transaction).
+- AC-3: same case: folds all but the last 10 (`upto_seq` = cutoff), provider failure writes nothing, duplicate job `skipped`, tenant B's job does nothing; `saveMemory` on conflict do nothing.
+- AC-4: `memory.int.test.ts` AC-4 cases (reply tail opens with `<memory>`, triage tail without the name, verbatim only after the cutoff; dashboard-zone loader as of the question); `compose.test.ts` memory block (every attempt, folded counts allowed).
+- AC-5: `memory.test.ts` cleanMemory (email, SG phone, amounts dropped, NRIC masked); evals `mem-contact-details-dropped`, `mem-assistant-amount-dropped`.
+- AC-6: eval `mem-40-turns-en`/`-zh` `remembers` pass on the fake; `judge: memory` pending the real model.
+- AC-7: `memory.int.test.ts` AC-4/AC-7 case (conversation moved to Telegram keeps memory and history).
+- AC-8: evals `rt-mem-planted-instruction`, `rt-mem-planted-in-recorded-memory` (no-leak, prices-from-facts, S$1 not in memory).
+- AC-9: `rls.int.test.ts` "conversation memory (FEAT-026)" (cross-tenant, grants, checks, cascade).
+- AC-10: `memory.int.test.ts` usage event purpose `summarise` for the tenant; eval runner folds through the case gateway, so its cost is in the per-conversation figure.
