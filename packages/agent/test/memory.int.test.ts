@@ -252,4 +252,51 @@ describe('conversation memory (FEAT-026)', () => {
     expect(reply.messages.some((m) => m.content.includes('Siti'))).toBe(false);
     expect(reply.system).toContain('<memory>');
   });
+  // Acceptance verification additions (FEAT-026 verify): AC-2's gate-closed case, AC-3's
+  // concurrent fold and D5's verbatim cap had no test.
+  it('AC-2 (verify): a gate-closed turn stores nothing and enqueues nothing', async () => {
+    const conv = await conversation();
+    await chat(conv, 18);
+    expect(await jobs(conv.id)).toEqual([]);
+    await owner.query(`update conversations set status = 'human' where id = $1`, [conv.id]);
+    const before = (await seqs(conv.id)).length;
+    await say(conv, FILLER);
+    expect((await seqs(conv.id)).length).toBe(before + 1); // only the visitor's message
+    expect(await jobs(conv.id)).toEqual([]);
+  });
+
+  it('AC-3 (verify): two concurrent folds write one memory row', async () => {
+    const conv = await conversation();
+    await chat(conv, 20);
+    const job = { kind: 'summarise' as const, tenantId: TENANT_A, conversationId: conv.id };
+    const outcomes = await Promise.all([
+      runSummariseJob({ llm, withTx }, job),
+      runSummariseJob({ llm, withTx }, job),
+    ]);
+    expect(outcomes.filter((o) => o.outcome === 'saved')).toHaveLength(1);
+    expect(outcomes.filter((o) => o.outcome !== 'saved').map((o) => o.folded)).toEqual([0]);
+    expect(await memories(conv.id)).toHaveLength(1);
+  });
+
+  it('D5, AC-1 (verify): with the summariser lagging, a turn loads at most the newest 30 messages', async () => {
+    const conv = await conversation();
+    await chat(conv, 40);
+    const all = await seqs(conv.id);
+    const h = await withTx((tx) =>
+      loadConversationHistory(tx, {
+        tenantId: TENANT_A,
+        conversationId: conv.id,
+        upToSeq: all.at(-1)!,
+      }),
+    );
+    expect(h.memory).toBeNull();
+    expect(h.unfolded).toBe(all.length);
+    expect(h.messages.map((m) => m.seq)).toEqual(all.slice(-30));
+    const from = requests.length;
+    await say(conv, FILLER);
+    const reply = requests
+      .slice(from)
+      .find((r) => r.model !== 'triage' && r.system !== SUMMARY_SYSTEM)!;
+    expect(reply.messages.length).toBeLessThanOrEqual(30);
+  });
 });
