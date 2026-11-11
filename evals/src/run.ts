@@ -30,6 +30,14 @@ import {
   type ApprovalPortResult,
   buildVisitorPrompt,
   cardForReply,
+  cleanMemory,
+  fakeSummary,
+  foldPlan,
+  MEMORY_FOLD_AT,
+  memoryLines,
+  summarise,
+  SUMMARY_SYSTEM,
+  type ConversationMemory,
   consentCardFor,
   dispatchPlan,
   escalationNotice,
@@ -224,7 +232,59 @@ function fakeScript(c: Case): FakeScript {
     plan === undefined
       ? fakeTriage
       : () => (typeof plan === 'string' ? plan : JSON.stringify(plan));
-  return (req) => (req.model === 'triage' ? triageOutput(req) : reply(req));
+  // FEAT-026: the summariser, played back from `memoryRecorded` or folded from keywords.
+  const summary: FakeScript = c.memoryRecorded ? scriptedOutputs(c.memoryRecorded) : fakeSummary;
+  return (req) =>
+    req.system === SUMMARY_SYSTEM
+      ? summary(req)
+      : req.model === 'triage'
+        ? triageOutput(req)
+        : reply(req);
+}
+
+type CaseMessage = Case['messages'][number];
+
+/**
+ * FEAT-026 §5.6: a case's earlier messages folded the way the worker folds them (every fold
+ * due before the latest message, all but the last 10 each time), through the case's gateway,
+ * so its usage counts towards the cost per conversation. Returns the memory and the verbatim
+ * messages after the last cutoff, ending with the latest message.
+ */
+async function foldCase(
+  llm: LlmGateway,
+  messages: CaseMessage[],
+  meta: { tenantId: string },
+): Promise<{ memory: ConversationMemory | null; history: CaseMessage[] }> {
+  const rows = messages.map((m, i) => ({ seq: i + 1, ...m }));
+  const latest = rows.at(-1)!;
+  let memory: ConversationMemory | null = null;
+  let after = 0;
+  if (rows.length - 1 < MEMORY_FOLD_AT) return { memory, history: messages };
+  for (;;) {
+    const unfolded = rows.slice(after, -1);
+    const plan = foldPlan(unfolded);
+    if (!plan.due) break;
+    const next = await summarise(llm, {
+      previous: memory,
+      messages: unfolded
+        .filter((m) => m.seq <= plan.cutoffSeq)
+        .map((m) => ({
+          seq: m.seq,
+          author: m.role === 'user' ? ('visitor' as const) : ('agent' as const),
+          body: m.content,
+        })),
+      meta,
+    });
+    // A failed fold leaves the history unfolded, as the worker does (capped at 30, D5).
+    if (!next) break;
+    memory = cleanMemory(next);
+    after = plan.cutoffSeq;
+  }
+  const verbatim = rows.slice(after, -1).slice(-29);
+  return {
+    memory,
+    history: [...verbatim, latest].map(({ role, content }) => ({ role, content })),
+  };
 }
 
 /**
@@ -401,7 +461,8 @@ async function runCase(c: Case) {
   const at = new Date(c.at);
   // FEAT-054: the case's rules over the safe defaults, applied as the worker applies them.
   const rules: BoundaryRules = { ...SAFE_DEFAULTS, ...c.rules };
-  const triaged = await triage(llm, { history: c.messages, meta, tail: triageTail(rules) });
+  const { memory, history } = await foldCase(llm, c.messages, meta);
+  const triaged = await triage(llm, { history, meta, tail: triageTail(rules, memory) });
   const plan = withoutFlaggedCommitments(applyBoundary(triaged, rules, query).plan);
   const hours = hoursAt(fixture, c, at);
   const facts = retrieve(c.tenant, query);
@@ -489,6 +550,8 @@ async function runCase(c: Case) {
     aiEnded: conversation.state.aiEnded,
     escalations: conversation.state.escalations,
     approval: null as { status: ApprovalPortResult['status']; notice: string | null } | null,
+    memory: memoryLines(memory).join('\n'),
+    history: history.map((m) => `${m.role}: ${m.content}`).join('\n'),
   };
   // A safety task ended the turn: its fixed text is the reply, as the worker stores it.
   if (dispatch.endTurn) {
@@ -544,7 +607,7 @@ async function runCase(c: Case) {
   const result = await answerTurn(
     {
       facts,
-      history: c.messages,
+      history,
       businessName: fixture.businessName,
       gstRegistered: fixture.gstRegistered,
       meta,
@@ -559,6 +622,7 @@ async function runCase(c: Case) {
       minConfidence: DEFAULT_ROUTE_POLICY.minConfidence,
       persona,
       rules,
+      memory,
     },
     { llm, gateOpen: async () => true, publish: async () => {} },
   );
