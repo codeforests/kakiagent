@@ -15,7 +15,9 @@ import {
   dockMode,
   dockText,
   cardCaption,
+  clockTime,
   eventText,
+  recapView,
   leadLines,
   LEAD_STATUS,
   escalationStrip,
@@ -663,5 +665,40 @@ describe('Telegram conversations (FEAT-037)', () => {
     expect(deliveryText({ status: 'failed', failedReason: 'blocked', sentAt: null })?.text).toBe(
       'Not delivered: the customer blocked the bot',
     );
+  });
+});
+
+describe('channel handoff in the thread (FEAT-038 SCR-APP-015)', () => {
+  const moved = {
+    at: '2026-11-11T06:31:00.000Z',
+    kind: 'moved' as const,
+    from: null,
+    to: null,
+    reason: null,
+    actor: { type: 'visitor' as const, name: null },
+    subject: null,
+    channel: 'telegram' as const,
+  };
+
+  it('labels the moved divider with the new channel', () => {
+    expect(eventText(moved)).toBe('Moved to Telegram');
+    expect(eventText({ ...moved, channel: 'email' })).toBe('Moved to email');
+    // With its time, as the Divider renders it: "Moved to Telegram · 2:31 pm".
+    expect(`${eventText(moved)} · ${clockTime(moved.at)}`).toBe('Moved to Telegram · 2:31 pm');
+  });
+
+  it('labels the recap by channel and collapses it to two lines', () => {
+    const text = 'Our chat so far\nYou: hi\nKaki: Hello!';
+    expect(recapView(text, 'telegram')).toEqual({
+      label: 'Recap sent on Telegram',
+      preview: 'Our chat so far\nYou: hi',
+      more: true,
+    });
+    expect(recapView('One\nTwo', 'email')).toEqual({
+      label: 'Recap sent by email',
+      preview: 'One\nTwo',
+      more: false,
+    });
+    expect(cardCaption('handoff')).toBe('Offered to continue on another channel');
   });
 });

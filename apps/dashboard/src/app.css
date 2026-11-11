@@ -823,6 +823,10 @@ a {
 .bubble--staff {
   background: var(--color-info-soft);
 }
+/* The handoff recap (FEAT-038 SCR-APP-015): collapsed to two lines, "Show all" beside it. */
+.thread-item--out .recap-toggle {
+  align-self: flex-end;
+}
 /* Opened at a search match (FEAT-046). */
 .bubble--match {
   background: var(--color-accent-soft);
