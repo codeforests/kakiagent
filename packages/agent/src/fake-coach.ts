@@ -1,7 +1,9 @@
 import type { GenerateRequest } from '@kaki/llm-gateway';
 import { COACH_TRIAGE_SYSTEM } from './coach-prompt.js';
 import { fakeVisitorResponder } from './fake-responder.js';
+import { fakeSummary } from './fake-memory.js';
 import { fakeTriage } from './fake-triage.js';
+import { SUMMARY_SYSTEM } from './memory.js';
 import { PROPOSE_SYSTEM } from './propose.js';
 
 /**
@@ -192,6 +194,7 @@ export function fakeProposal(req: GenerateRequest): string {
  */
 export function fakeAgentScript(req: GenerateRequest): string {
   if (req.system === PROPOSE_SYSTEM) return fakeProposal(req);
+  if (req.system === SUMMARY_SYSTEM) return fakeSummary(req);
   if (req.model !== 'triage') return fakeVisitorResponder(req);
   return req.system === COACH_TRIAGE_SYSTEM ? fakeCoachTriage(req) : fakeTriage(req);
 }

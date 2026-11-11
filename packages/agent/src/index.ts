@@ -130,6 +130,22 @@ export {
   proposeCorrectionHandler,
 } from './coach-dispatch.js';
 export { fakeAgentScript, fakeCoachTriage, fakeProposal } from './fake-coach.js';
+export { fakeSummary } from './fake-memory.js';
+export {
+  cleanMemory,
+  ConversationMemory,
+  EMPTY_MEMORY,
+  foldPlan,
+  MEMORY_FOLD_AT,
+  MEMORY_KEEP,
+  MEMORY_MAX_VERBATIM,
+  memoryLines,
+  parseMemory,
+  summarise,
+  SUMMARY_OUTPUT_SCHEMA,
+  SUMMARY_SYSTEM,
+  type MemoryMessage,
+} from './memory.js';
 export {
   applyHoursWith,
   COACH_TEXTS,
