@@ -400,6 +400,13 @@
       "when": 1794371631479,
       "tag": "0056_channel_handoff",
       "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1794401469767,
+      "tag": "0057_conversation_memory",
+      "breakpoints": true
     }
   ]
 }
