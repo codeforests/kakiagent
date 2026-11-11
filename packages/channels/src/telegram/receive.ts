@@ -30,15 +30,6 @@ export interface TelegramTexts {
 }
 
 export interface TelegramInboxPort extends InboxPort {
-  appendSystemNotice(
-    tx: Tx,
-    input: {
-      tenantId: string;
-      conversationId: string;
-      kind: 'text_only';
-      text: (language: 'en' | 'zh') => string;
-    },
-  ): Promise<MessageRow>;
   noticeSince(
     tx: Tx,
     tenantId: string,

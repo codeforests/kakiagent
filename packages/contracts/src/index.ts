@@ -2062,12 +2062,23 @@ export const DeliveryFailedJob = z.object({
   messageId: z.uuid(),
 });
 export type DeliveryFailedJob = z.infer<typeof DeliveryFailedJob>;
+/**
+ * The email handoff's confirmation mail (CHN-07; FEAT-038 §5.4), on the turns topic (its own
+ * FIFO group, the conversation). Only the link ID: the worker re-signs the code (D4).
+ */
+export const HandoffEmailJob = z.object({
+  kind: z.literal('handoff_email'),
+  tenantId: z.uuid(),
+  linkId: z.uuid(),
+});
+export type HandoffEmailJob = z.infer<typeof HandoffEmailJob>;
 /** Everything on `conversation-turns`: an auto-close, escalation reminder, approval timer or delivery-failed job, or a visitor turn. */
 export const TurnQueueJob = z.union([
   AutoCloseJob,
   EscalationReminderJob,
   ApprovalTimerJob,
   DeliveryFailedJob,
+  HandoffEmailJob,
   TurnJob,
 ]);
 export type TurnQueueJob = z.infer<typeof TurnQueueJob>;
@@ -2726,6 +2737,7 @@ export const ThreadEvent = z.object({
   /**
    * FEAT-049 adds `consent` (agreed, declined) and `lead` (created, updated); FEAT-055
    * `approval_drafted`, `approval_decided` (reason = the outcome) and `approval_expired`.
+   * FEAT-038 adds `moved`: the chat continued on `channel` ("Moved to Telegram").
    */
   kind: z.enum([
     'state',
@@ -2735,6 +2747,7 @@ export const ThreadEvent = z.object({
     'approval_drafted',
     'approval_decided',
     'approval_expired',
+    'moved',
   ]),
   to: ConversationStatus.nullable(),
   from: ConversationStatus.nullable(),
@@ -2770,6 +2783,8 @@ export const ThreadEvent = z.object({
   subject: z.object({ name: z.string().nullable() }).nullable(),
   /** On an `escalated` divider: what started it (FEAT-044). */
   source: EscalationSource.optional(),
+  /** On a `moved` divider: the channel the chat continues on (FEAT-038). */
+  channel: z.enum(['telegram', 'email']).optional(),
 });
 export type ThreadEvent = z.infer<typeof ThreadEvent>;
 
@@ -3893,6 +3908,3 @@ export const HandoffError = z.object({
   channel: HandoffChannel.optional(),
 });
 export type HandoffError = z.infer<typeof HandoffError>;
-/** Outbox topic `handoff-email`: only the link ID; the worker re-signs the code (D4). */
-export const HandoffEmailJob = z.object({ tenantId: z.uuid(), linkId: z.uuid() });
-export type HandoffEmailJob = z.infer<typeof HandoffEmailJob>;

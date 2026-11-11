@@ -179,6 +179,14 @@ async function publishDelivery(tenantId: string, row: DeliveryRow | null) {
 const health = startHealthServer(config.HEALTH_PORT, { database: () => ping(visitorDb) });
 const abort = new AbortController();
 
+/** Sends the email handoff's confirmation mail (FEAT-038 §5.4); T5 fills it in. */
+async function handoffEmail(
+  job: { tenantId: string; linkId: string },
+  log: { info(obj: object, msg: string): void },
+): Promise<void> {
+  log.info({ linkId: job.linkId }, 'handoff email not sent yet');
+}
+
 /**
  * Consumes `conversation-turns.fifo` (ADR-012): one turn at a time per conversation
  * (FIFO message groups), idempotent on the visitor message (a reply already stored
@@ -279,6 +287,11 @@ const consuming = queue.consume<unknown>(
         });
       });
       log.info({ outcome }, 'escalation reminder');
+      return;
+    }
+    // The email handoff's confirmation (CHN-07; FEAT-038 §5.4).
+    if ('kind' in parsed && parsed.kind === 'handoff_email') {
+      await handoffEmail(parsed, logger.child({ outboxId: msg.id, tenantId: parsed.tenantId }));
       return;
     }
     const log = logger.child({

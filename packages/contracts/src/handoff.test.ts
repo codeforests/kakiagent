@@ -31,7 +31,8 @@ describe('channel handoff contracts (FEAT-038 §3)', () => {
     };
     expect(HandoffError.parse(err)).toEqual(err);
     expect(HandoffError.safeParse({ error: 'gone', message: '' }).success).toBe(false);
-    expect(HandoffEmailJob.parse({ tenantId: ID, linkId: ID })).toEqual({
+    expect(HandoffEmailJob.parse({ kind: 'handoff_email', tenantId: ID, linkId: ID })).toEqual({
+      kind: 'handoff_email',
       tenantId: ID,
       linkId: ID,
     });

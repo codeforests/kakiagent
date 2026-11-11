@@ -489,6 +489,19 @@ export function toThreadEvent(r: AuditEventRow): ThreadEventRow {
       subject: null,
     } satisfies ThreadEventRow;
   }
+  // FEAT-038 §5.5: the chat continued on Telegram or email.
+  if (r.eventType === 'conversation.moved') {
+    return {
+      at: r.ts.toISOString(),
+      kind: 'moved',
+      from: null,
+      to: null,
+      reason: null,
+      actor: { type: 'visitor', id: null },
+      subject: null,
+      ...(p.to === 'telegram' || p.to === 'email' ? { channel: p.to } : {}),
+    } satisfies ThreadEventRow;
+  }
   const flagged = r.eventType === 'conversation.flagged';
   if (r.eventType === 'escalation.assigned') {
     const ref = r.subjectRefs.find((x) => x.startsWith(USER_REF));
