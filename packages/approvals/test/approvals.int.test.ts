@@ -47,6 +47,9 @@ const BAKERY: TenantHours = {
   holidays: {},
 };
 const at = (local: string) => new Date(`${local}+08:00`);
+// Decisions and timers run on the drafts' fixed clock, not the wall clock: a draft at
+// 2026-11-04 10:00 expires 2026-11-11 10:00, after which a real-time decide is refused.
+const DECIDED_AT = at('2026-11-04T10:30:00');
 const vanilla: PricedProduct = {
   factId: '00000000-0000-4000-8000-0000000055f1',
   version: 2,
@@ -239,6 +242,7 @@ describe('deciding and delivery (AC-5, AC-6, AC-7, AC-9, AC-10, AC-12)', () => {
     const { approval } = await draft(conv.id);
     const r = await dash((tx) =>
       decide(tx, {
+        now: DECIDED_AT,
         tenantId: TENANT_A,
         approvalId: approval.id,
         userId: RIGHTS,
@@ -278,6 +282,7 @@ describe('deciding and delivery (AC-5, AC-6, AC-7, AC-9, AC-10, AC-12)', () => {
     };
     const edited = await dash((tx) =>
       decide(tx, {
+        now: DECIDED_AT,
         tenantId: TENANT_A,
         approvalId: a.id,
         userId: ownerId,
@@ -293,6 +298,7 @@ describe('deciding and delivery (AC-5, AC-6, AC-7, AC-9, AC-10, AC-12)', () => {
     await expect(
       dash((tx) =>
         decide(tx, {
+          now: DECIDED_AT,
           tenantId: TENANT_A,
           approvalId: b.id,
           userId: ownerId,
@@ -306,6 +312,7 @@ describe('deciding and delivery (AC-5, AC-6, AC-7, AC-9, AC-10, AC-12)', () => {
     ).rejects.toBeInstanceOf(InvalidTerms);
     const rejected = await dash((tx) =>
       decide(tx, {
+        now: DECIDED_AT,
         tenantId: TENANT_A,
         approvalId: b.id,
         userId: ownerId,
@@ -335,6 +342,7 @@ describe('deciding and delivery (AC-5, AC-6, AC-7, AC-9, AC-10, AC-12)', () => {
     );
     const r = await dash((tx) =>
       decide(tx, {
+        now: DECIDED_AT,
         tenantId: TENANT_A,
         approvalId: a.id,
         userId: ownerId,
@@ -353,6 +361,7 @@ describe('deciding and delivery (AC-5, AC-6, AC-7, AC-9, AC-10, AC-12)', () => {
     );
     const u = await dash((tx) =>
       decide(tx, {
+        now: DECIDED_AT,
         tenantId: TENANT_A,
         approvalId: b.id,
         userId: RIGHTS,
@@ -372,6 +381,7 @@ describe('deciding and delivery (AC-5, AC-6, AC-7, AC-9, AC-10, AC-12)', () => {
     const one = (userId: string) =>
       dash((tx) =>
         decide(tx, {
+          now: DECIDED_AT,
           tenantId: TENANT_A,
           approvalId: a.id,
           userId,
@@ -396,6 +406,7 @@ describe('deciding and delivery (AC-5, AC-6, AC-7, AC-9, AC-10, AC-12)', () => {
     await expect(
       dash((tx) =>
         decide(tx, {
+          now: DECIDED_AT,
           tenantId: TENANT_A,
           approvalId: stale.id,
           userId: ownerId,
@@ -424,6 +435,7 @@ describe('deciding and delivery (AC-5, AC-6, AC-7, AC-9, AC-10, AC-12)', () => {
       dash(
         (tx) =>
           decide(tx, {
+            now: DECIDED_AT,
             tenantId: TENANT_B,
             approvalId: a.id,
             userId: ownerId,
@@ -464,7 +476,15 @@ describe('the queue', () => {
 
 describe('timers (AC-8, AC-9)', () => {
   const timer = (approvalId: string, t: 'urgent' | 'sla' | 'expire') =>
-    vis((tx) => runApprovalTimer(tx, { tenantId: TENANT_A, approvalId, timer: t, hours: null }));
+    vis((tx) =>
+      runApprovalTimer(tx, {
+        tenantId: TENANT_A,
+        approvalId,
+        timer: t,
+        hours: null,
+        now: DECIDED_AT,
+      }),
+    );
 
   it('urgent alerts once more; sla escalates approval_sla; a decided approval does nothing', async () => {
     const conv = await conversation();
@@ -483,6 +503,7 @@ describe('timers (AC-8, AC-9)', () => {
 
     await dash((tx) =>
       decide(tx, {
+        now: DECIDED_AT,
         tenantId: TENANT_A,
         approvalId: a.id,
         userId: ownerId,
@@ -517,6 +538,7 @@ describe('timers (AC-8, AC-9)', () => {
     await expect(
       dash((tx) =>
         decide(tx, {
+          now: DECIDED_AT,
           tenantId: TENANT_A,
           approvalId: a.id,
           userId: ownerId,
