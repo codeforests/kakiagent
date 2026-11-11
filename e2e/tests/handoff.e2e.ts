@@ -269,13 +269,6 @@ test('a widget visitor continues the same chat on Telegram (AC-1, AC-3, AC-8, AC
     });
     return ((await res.json()) as { status: number }).status;
   };
-  const sentToCustomer = async () =>
-    (
-      (await (await fetch(`${FAKE}/_fake/sent?botId=${botId}`)).json()) as {
-        method: string;
-        chatId: number;
-      }[]
-    ).filter((s) => s.chatId === customer && s.method === 'sendMessage').length;
   expect(await deliver(`/start ${code}`)).toBe(200);
   await expect(async () => {
     const sent = (await (await fetch(`${FAKE}/_fake/sent?botId=${botId}`)).json()) as {
@@ -299,13 +292,7 @@ test('a widget visitor continues the same chat on Telegram (AC-1, AC-3, AC-8, AC
 
   // The customer's next Telegram message joins the same conversation (AC-3).
   const followUp = `Thanks ${run}, see you soon`;
-  const sentBefore = await sentToCustomer();
   expect(await deliver(followUp)).toBe(200);
-  // The assistant's reply goes out before the bot is disconnected in `afterEach`: a send after
-  // it would fail and leave Telegram degraded, and its banner would follow every later spec.
-  await expect(async () => expect(await sentToCustomer()).toBeGreaterThan(sentBefore)).toPass({
-    timeout: 30_000,
-  });
   const conversationId = await conversationOf(page, run);
   await page.goto(`/inbox/${conversationId}`);
   await expect(page.getByTestId('thread-message').filter({ hasText: followUp })).toBeVisible({
@@ -316,5 +303,15 @@ test('a widget visitor continues the same chat on Telegram (AC-1, AC-3, AC-8, AC
   ).toBeVisible();
   await expect(page.getByTestId('thread-recap')).toContainText('Recap sent on Telegram');
   await expectNoSeriousA11yViolations(page);
+  // Every reply has gone out before `afterEach` disconnects the bot: a send after it is
+  // rejected and leaves Telegram degraded, and its banner would follow every later spec.
+  await expect(async () => {
+    const res = await page.request.get(`/api/v1/conversations/${conversationId}`);
+    const { messages } = (await res.json()) as {
+      messages: { author: string; delivery?: { status: string } | null }[];
+    };
+    expect(messages.some((m) => m.author === 'agent' && m.delivery?.status === 'sent')).toBe(true);
+    expect(messages.filter((m) => m.delivery?.status === 'sending')).toEqual([]);
+  }).toPass({ timeout: 30_000 });
   await visitor.page.context().close();
 });
