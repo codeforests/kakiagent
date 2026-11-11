@@ -247,6 +247,8 @@ export const NOTICE_KINDS = [
   'approval_expired',
   'consent_withdrawn',
   'text_only',
+  'handoff_recap',
+  'handoff_moved',
 ] as const;
 /** Embedding dimensions: Cohere Embed Multilingual v3 (ADR-019). */
 export const EMBEDDING_DIMENSIONS = 1024;
@@ -2289,7 +2291,7 @@ export const leads = pgTable(
 );
 
 export const IDENTITY_KINDS = ['email', 'phone', 'telegram'] as const;
-export const IDENTITY_SOURCES = ['email', 'telegram', 'lead_form'] as const;
+export const IDENTITY_SOURCES = ['email', 'telegram', 'lead_form', 'link'] as const;
 
 /**
  * A contact's identifiers (CHN-08; FEAT-039 §4, D4): contacts are matched only here. A value
@@ -2330,8 +2332,10 @@ export const contactIdentities = pgTable(
     check('contact_identities_source_ck', sql`${t.source} in (${inList(IDENTITY_SOURCES)})`),
     check(
       'contact_identities_telegram_ck',
-      sql`${t.kind} <> 'telegram' or (${t.source} = 'telegram' and ${t.verifiedAt} is not null and ${t.value} ~ '^[0-9]{1,20}$')`,
+      sql`${t.kind} <> 'telegram' or (${t.source} in ('telegram', 'link') and ${t.verifiedAt} is not null and ${t.value} ~ '^[0-9]{1,20}$')`,
     ),
+    /** A handoff link proves the identifier (FEAT-038 §4): always verified. */
+    check('contact_identities_link_ck', sql`${t.source} <> 'link' or ${t.verifiedAt} is not null`),
     check(
       'contact_identities_lead_form_ck',
       sql`${t.source} <> 'lead_form' or ${t.verifiedAt} is null`,
@@ -2871,6 +2875,52 @@ export const telegramAlertLinks = pgTable(
   ],
 );
 
+export const HANDOFF_CHANNELS = ['telegram', 'email'] as const;
+
+/**
+ * A one-time link that moves a widget conversation to Telegram or email (CHN-07; FEAT-038 §4).
+ * The code is HMAC-signed from `id` (D4), so no code is stored; single use and expiry live here.
+ * Purged 7 days after expiry by `handoff_links_purge()` (ADR-015).
+ */
+export const handoffLinks = pgTable(
+  'handoff_links',
+  {
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id),
+    id: uuid('id').notNull().defaultRandom(),
+    conversationId: uuid('conversation_id').notNull(),
+    contactId: uuid('contact_id').notNull(),
+    channel: text('channel', { enum: HANDOFF_CHANNELS }).notNull(),
+    /** The address typed for the email path, lower-cased; proven only when the link is used. */
+    email: text('email'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    usedAt: timestamp('used_at', { withTimezone: true }),
+    usedChatId: bigint('used_chat_id', { mode: 'number' }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.id] }),
+    index('handoff_links_conversation_idx').on(t.tenantId, t.conversationId, t.createdAt),
+    foreignKey({
+      name: 'handoff_links_conversation_fk',
+      columns: [t.tenantId, t.conversationId],
+      foreignColumns: [conversations.tenantId, conversations.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'handoff_links_contact_fk',
+      columns: [t.tenantId, t.contactId],
+      foreignColumns: [contacts.tenantId, contacts.id],
+    }).onDelete('cascade'),
+    check('handoff_links_channel_ck', sql`${t.channel} in (${inList(HANDOFF_CHANNELS)})`),
+    check(
+      'handoff_links_email_ck',
+      sql`(${t.email} is not null) = (${t.channel} = 'email') and (${t.email} is null or (char_length(${t.email}) <= 254 and ${t.email} = lower(${t.email})))`,
+    ),
+    check('handoff_links_expiry_ck', sql`${t.expiresAt} > ${t.createdAt}`),
+  ],
+);
+
 export const TENANT_SCOPED_TABLES = [
   'tenants',
   'conversations',
@@ -2924,4 +2974,5 @@ export const TENANT_SCOPED_TABLES = [
   'telegram_alert_links',
   'contact_identities',
   'contact_merges',
+  'handoff_links',
 ] as const;
