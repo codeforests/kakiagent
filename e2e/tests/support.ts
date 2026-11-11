@@ -28,8 +28,13 @@ export async function expectNoSeriousA11yViolations(page: Page, include?: string
   const serious = results.violations.filter(
     (v) => v.impact === 'serious' || v.impact === 'critical',
   );
+  // The failure summary names what fails (for target-size, the element covering the target):
+  // CI's trace artifacts can't always be fetched, so the log has to say it.
   expect(
     serious.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`),
+    serious
+      .flatMap((v) => v.nodes.map((n) => `${v.id} ${n.target.join(' ')}: ${n.failureSummary}`))
+      .join('\n'),
   ).toEqual([]);
 }
 
