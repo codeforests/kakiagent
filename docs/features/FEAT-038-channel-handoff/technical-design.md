@@ -129,7 +129,7 @@ Menu item `continueElsewhere` ("Continue on Telegram or email") when `config.han
 
 ## 7. Decisions
 
-- **D1 — No consent card before email handoff (recommended to Ken, decision pending).** The email form states its only purpose ("We'll use this email only to continue this chat") with the privacy link; giving it is deemed consent for that purpose (PDPA s.15). The address never becomes a lead, a marketing contact or a consent row. Telegram collects nothing until the visitor starts the bot.
+- **D1 — No consent card before email handoff (Ken chose it, 2026-11-11).** The email form states its only purpose ("We'll use this email only to continue this chat") with the privacy link; giving it is deemed consent for that purpose (PDPA s.15). The address never becomes a lead, a marketing contact or a consent row. Telegram collects nothing until the visitor starts the bot.
 - **D2 — The same conversation moves channel** (rather than a new linked conversation): CHN-07's criterion says "the same … conversation", staff keep one thread, the agent's history needs no new loading path, and the delivery trigger already routes by the conversation's channel.
 - **D3 — Email is proven by a link with a confirm button, not a typed code**: the visitor is on their way to email anyway; GET-safe so link scanners can't consume it.
 - **D4 — Signed codes (HMAC with `HANDOFF_LINK_SECRET`), single use by row**: the outbox carries only `linkId`; nothing in the database redeems a link.
@@ -141,7 +141,7 @@ Menu item `continueElsewhere` ("Continue on Telegram or email") when `config.han
 
 ## 8. Escalations and open items
 
-- D1 is a compliance call: Ken's decision card (2026-11-11). If he picks the consent card, `handoffChannelHandler` gets `needsConsent` for `email` and the email form follows the FEAT-049 consent card; §5.2 adds a consent check.
+- D1 decided by Ken 2026-11-11: no consent card; the form states the purpose.
 - A WhatsApp or Messenger handoff waits for FEAT-040; the card's options come from `config.handoff`, so it adds a flag.
 - Telegram inline buttons on the recap are out of scope (FEAT-037's follow-up).
 - New env vars: `HANDOFF_LINK_SECRET` (api, agent-worker; `gen-local-env.mjs`), `PUBLIC_API_URL` added to agent-worker (api has it), `HANDOFF_PURGE_MS` (scheduler).

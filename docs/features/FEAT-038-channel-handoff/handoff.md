@@ -16,4 +16,4 @@ Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage 
 - E2E (`handoff.e2e.ts`, T11) and axe run in the verify stage's GitHub CI (no Docker here).
 
 ## Pending for Ken
-- D1: consent card before email handoff? Decision card posted 2026-11-11; recommended "no consent card, purpose on the form". If he picks the consent card: `handoffChannelHandler` gets `needsConsent` for email and the email form follows the FEAT-049 consent card (technical-design §8).
+- None. D1 decided 2026-11-11: no consent card before email handoff; the form states the purpose.

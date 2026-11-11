@@ -59,5 +59,4 @@ Widget: `--kaki-surface`, `--kaki-border`, `--kaki-radius`, `--kaki-accent`, `--
 ## Gaps and escalations
 
 - The hosted confirm page is a state of SCR-WGT-004 rather than a new screen ID (it exists only for this flow); no ux-foundations change.
-- If Ken picks the consent card for email (technical-design D1), the email form opens after the FEAT-049 consent card and its help text drops the purpose sentence.
 - Telegram inline buttons on the recap are out of scope.
