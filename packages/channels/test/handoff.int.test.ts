@@ -11,6 +11,7 @@ import {
   handoffOptions,
   HANDOFF_LIMITS,
   openHandoff,
+  purgeHandoffLinks,
   requestHandoff,
   sendHandoffEmail,
   type HandoffRequestBody,
@@ -310,5 +311,32 @@ describe('sendHandoffEmail (FEAT-038 §5.4; AC-6)', () => {
       sendHandoffEmail(deps(), { tenantId: TENANT_A, linkId: r.linkId }),
     ).rejects.toThrow();
     fail = null;
+  });
+});
+
+describe('purgeHandoffLinks (FEAT-038 §5.9; AC-10)', () => {
+  it('the scheduler zone deletes only links 7 days past expiry, across tenants', async () => {
+    const make = async () => {
+      const r = await ask(await conversation(), { channel: 'telegram' });
+      if (!r.ok) throw new Error(r.code);
+      return r.linkId;
+    };
+    const [old, recent, fresh] = [await make(), await make(), await make()];
+    await owner.query(
+      `update handoff_links set created_at = now() - interval '9 days', expires_at = now() - interval '8 days' where id = $1`,
+      [old],
+    );
+    await owner.query(
+      `update handoff_links set created_at = now() - interval '7 days', expires_at = now() - interval '6 days' where id = $1`,
+      [recent],
+    );
+    const n = await purgeHandoffLinks(tdb.zone('outbox'));
+    expect(n).toBeGreaterThanOrEqual(1);
+    const left = await owner.query<{ id: string }>(
+      `select id from handoff_links where id = any($1::uuid[])`,
+      [[old, recent, fresh]],
+    );
+    expect(left.rows.map((r) => r.id).sort()).toEqual([recent, fresh].sort());
+    await expect(purgeHandoffLinks(tdb.zone('visitor'))).rejects.toThrow();
   });
 });

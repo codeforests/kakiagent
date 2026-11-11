@@ -35,3 +35,4 @@ export {
   type HandoffEmailOutcome,
   type HandoffPageView,
 } from './email.js';
+export { purgeHandoffLinks } from './purge.js';

@@ -36,6 +36,7 @@ import { staleScanOnce } from './stale-scan.js';
 import { approvalTimersOnce } from './approval-timers.js';
 import { channelDeliveriesOnce } from './channel-deliveries.js';
 import { autoCloseOnce } from './auto-close.js';
+import { handoffPurgeOnce } from './handoff-purge.js';
 import { escalationRemindersOnce } from './escalation-reminders.js';
 
 const config = loadConfig(
@@ -295,6 +296,13 @@ const autoCloseTimer = setInterval(
   config.AUTO_CLOSE_INTERVAL_MS,
 );
 
+// Handoff links (FEAT-038 §5.9; ADR-015): once a day, deletes links 7 days past expiry.
+const handoffPurgeRun = handoffPurgeOnce(outboxDb, logger);
+const handoffPurgeTimer = setInterval(
+  () => void handoffPurgeOnce(outboxDb, logger),
+  config.HANDOFF_PURGE_MS,
+);
+
 // Escalation reminders (FEAT-044 §5.5): queues a reminder job for each open escalation whose
 // time has come; the agent-worker reminds the assignee (and from the third, owners and admins).
 const escalationRun = escalationRemindersOnce(outboxDb, logger);
@@ -329,6 +337,7 @@ async function shutdown() {
   clearInterval(gapTimer);
   clearInterval(channelTimer);
   clearInterval(autoCloseTimer);
+  clearInterval(handoffPurgeTimer);
   clearInterval(escalationTimer);
   clearInterval(approvalTimer);
   clearInterval(deliveryTimer);
@@ -342,6 +351,7 @@ async function shutdown() {
     gapRun,
     channelRun,
     autoCloseRun,
+    handoffPurgeRun,
     escalationRun,
     approvalRun,
     deliveryRun,
