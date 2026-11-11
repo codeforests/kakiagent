@@ -147,6 +147,15 @@ export {
   type MemoryMessage,
 } from './memory.js';
 export {
+  latestMemory,
+  loadConversationHistory,
+  runSummariseJob,
+  saveMemory,
+  type ConversationHistory,
+  type StoredMemory,
+  type SummariseOutcome,
+} from './memory-store.js';
+export {
   applyHoursWith,
   COACH_TEXTS,
   explain,
