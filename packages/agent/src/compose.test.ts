@@ -9,6 +9,7 @@ import {
 import { describe, expect, it } from 'vitest';
 import { composeReply, type ComposeInput } from './compose.js';
 import { fakeVisitorResponder } from './fake-responder.js';
+import { EMPTY_MEMORY } from './memory.js';
 import { assignRefs } from './slots.js';
 import { EGGLESS, FUDGE } from './testing/facts.js';
 import { texts } from './texts.js';
@@ -149,7 +150,7 @@ describe('composeReply (ADR-008)', () => {
     expect(result.text).toContain('check with the team');
   });
 
-  it('puts the facts and the slot rule in the prompt and keeps only the last 10 messages', async () => {
+  it('puts the facts and the slot rule in the prompt and sends the history as loaded (FEAT-026: the loader bounds it)', async () => {
     const history = Array.from({ length: 14 }, (_, i) => ({
       role: (i % 2 ? 'assistant' : 'user') as 'user' | 'assistant',
       content: `m${i}`,
@@ -167,8 +168,44 @@ describe('composeReply (ADR-008)', () => {
     );
     expect(prompts[0]!.tail).toContain(`[[f:${P}.price]]`);
     expect(prompts[0]!.system).toContain('SLOT RULE');
-    expect(prompts[0]!.messages).toHaveLength(10);
+    expect(prompts[0]!.messages).toHaveLength(14);
     expect(prompts[0]!.messages.at(-1)?.content).toBe('m13');
+  });
+});
+
+describe('the conversation memory in the reply (FEAT-026 §5.4; AC-4)', () => {
+  const memory = {
+    ...EMPTY_MEMORY,
+    visitorName: 'Siti',
+    items: [{ what: 'boxes of pineapple tarts', quantity: '40' }],
+  };
+  const run = async (m: typeof memory | null, replies: string[]) => {
+    const prompts: GenerateRequest[] = [];
+    const llm = createGateway(defaultRegistry('fake'), [
+      createFakeProvider((r) => {
+        prompts.push(r);
+        return replies[Math.min(prompts.length - 1, replies.length - 1)]!;
+      }),
+    ]);
+    const r = await composeReply(
+      { ...input, memory: m },
+      { llm, gateOpen: async () => true, publish: async () => {} },
+    );
+    return { r, prompts };
+  };
+
+  it('opens the tail with the memory on every attempt', async () => {
+    const { prompts } = await run(memory, ['It costs $5.', 'Sure, Siti.']);
+    expect(prompts).toHaveLength(2);
+    for (const p of prompts) expect(p.tail).toMatch(/^<memory>\nname: Siti\n/);
+  });
+
+  it('allows a count the visitor gave earlier and was folded, not one they never gave', async () => {
+    const ok = await run(memory, ['Noted, your 40 boxes.']);
+    expect(ok.r.outcome).toBe('answered');
+    expect(ok.prompts).toHaveLength(1);
+    const blocked = await run(null, ['Noted, your 40 boxes.']);
+    expect(blocked.prompts.length).toBeGreaterThan(1);
   });
 });
 

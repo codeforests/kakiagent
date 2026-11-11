@@ -2,7 +2,7 @@ import { EMAIL_IN_TEXT, SG_PHONE_IN_TEXT } from '@kaki/contracts/lead-check';
 import type { GenerateRequest, LlmGateway } from '@kaki/llm-gateway';
 import { piiMask } from '@kaki/platform';
 import { z } from 'zod';
-import { asData, HISTORY_LIMIT } from './prompt.js';
+import { asData } from './data.js';
 
 /**
  * Conversation memory (AGT-12; FEAT-026 §5.1): a long conversation's older messages folded
@@ -11,7 +11,7 @@ import { asData, HISTORY_LIMIT } from './prompt.js';
  */
 
 /** Messages always sent verbatim. */
-export const MEMORY_KEEP = HISTORY_LIMIT;
+export const MEMORY_KEEP = 10;
 /** Unfolded messages that make a fold due. */
 export const MEMORY_FOLD_AT = 20;
 /** Hard cap on verbatim messages when the summariser lags or fails (D5). */

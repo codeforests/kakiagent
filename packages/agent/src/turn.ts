@@ -418,10 +418,12 @@ export async function runVisitorTurn(
 
   // Triage runs alongside retrieval (ADR-007: no extra latency on the critical path, NFR-01).
   const triageStart = now();
-  const planned = triage(llm, { history, meta, tail: triageTail(rules.rules) }).then((p) => {
-    triageMs = Math.round(now() - triageStart);
-    return p;
-  });
+  const planned = triage(llm, { history, meta, tail: triageTail(rules.rules, prep.memory) }).then(
+    (p) => {
+      triageMs = Math.round(now() - triageStart);
+      return p;
+    },
+  );
   const retrieved = retrieve();
   async function retrieve(): Promise<VisitorFact[]> {
     const { vectors } = await llm.embed({ texts: [message.body], purpose: 'query', meta });
@@ -674,6 +676,7 @@ export async function runVisitorTurn(
       minConfidence: gate.tenant.routePolicy.minConfidence,
       persona,
       rules: rules.rules,
+      memory: prep.memory,
     },
     {
       llm,

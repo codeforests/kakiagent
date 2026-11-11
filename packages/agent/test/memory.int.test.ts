@@ -64,7 +64,11 @@ const llm = createGateway(
       return fakeAgentScript(req);
     }),
   ],
-  { onUsage: (e) => void usage.push(e) },
+  {
+    onUsage: async (e) => {
+      usage.push(e);
+    },
+  },
 );
 const visitor = () => tdb.zone('visitor');
 const withTx = <T>(fn: (tx: Tx) => Promise<T>) => withTenant(visitor(), TENANT_A, fn);
@@ -199,6 +203,29 @@ describe('conversation memory (FEAT-026)', () => {
         { ...job, tenantId: TENANT_B },
       ),
     ).toEqual({ outcome: 'skipped', folded: 0 });
+  });
+
+  it('AC-4: suggestions and replay load the memory as of their question (D3), in the dashboard zone', async () => {
+    const conv = await conversation();
+    await chat(conv, 20);
+    await runSummariseJob(
+      { llm, withTx },
+      { kind: 'summarise', tenantId: TENANT_A, conversationId: conv.id },
+    );
+    const [row] = await memories(conv.id);
+    const cutoff = Number(row!.upto_seq);
+    const all = await seqs(conv.id);
+    const load = (upToSeq: number) =>
+      withTenant(tdb.zone('dashboard'), TENANT_A, (tx) =>
+        loadConversationHistory(tx, { tenantId: TENANT_A, conversationId: conv.id, upToSeq }),
+      );
+    const early = await load(cutoff);
+    expect(early.memory).toBeNull();
+    expect(early.messages.map((m) => m.seq)).toEqual(all.filter((s) => s <= cutoff));
+    const late = await load(all.at(-1)!);
+    expect(late.memory?.visitorName).toBe('Siti');
+    expect(late.messages.map((m) => m.seq)).toEqual(all.filter((s) => s > cutoff));
+    expect(late.unfolded).toBe(all.filter((s) => s > cutoff).length);
   });
 
   it('AC-4, AC-7: the next turn carries the memory and only the messages after it, also after a move to Telegram', async () => {

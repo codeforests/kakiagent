@@ -7,6 +7,7 @@ import { stripEmoji } from './emoji.js';
 import { leakGuard, type LeakGuard } from './guard.js';
 import type { HoursContext } from './hours-text.js';
 import type { Register, ReplyLanguage } from './language.js';
+import type { ConversationMemory } from './memory.js';
 import { buildVisitorPrompt, type HistoryMessage } from './prompt.js';
 import { renderSegment } from './render.js';
 import { Segmenter } from './segment.js';
@@ -46,6 +47,8 @@ export interface ComposeInput {
    * before FEAT-024.
    */
   persona?: Persona | undefined;
+  /** AGT-12 (FEAT-026): the conversation's memory, for the tail (every attempt). */
+  memory?: ConversationMemory | null | undefined;
   /** AGT-07, AGT-16 (FEAT-025): triage's flags, for the tail. */
   injection?: boolean | undefined;
   impersonation?: boolean | undefined;
@@ -95,7 +98,12 @@ export async function composeReply(input: ComposeInput, deps: ComposeDeps): Prom
   const start = now();
   let firstSegmentAt: number | null = null;
   const facts = assignRefs(input.facts);
-  const visitorTexts = input.history.filter((m) => m.role === 'user').map((m) => m.content);
+  // A count the visitor typed is allowed (ADR-008); one folded into the memory still counts
+  // (FEAT-026 §5.4: `cleanMemory` keeps only visitor-given, masked values).
+  const visitorTexts = [
+    ...input.history.filter((m) => m.role === 'user').map((m) => m.content),
+    ...(input.memory?.items.flatMap((i) => (i.quantity ? [i.quantity] : [])) ?? []),
+  ];
   const released: string[] = [];
   const factIds = new Set<string>();
   const slots = new Set<string>();
@@ -181,6 +189,7 @@ export async function composeReply(input: ComposeInput, deps: ComposeDeps): Prom
       injection: input.injection,
       impersonation: input.impersonation,
       rules: input.rules,
+      memory: input.memory,
     });
     guard = leakGuard(req);
     const segmenter = new Segmenter();
