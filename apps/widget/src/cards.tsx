@@ -7,11 +7,14 @@ import type { LeadCaptureConfig, Message, MessageCard } from '@kaki/contracts';
 
 /** The consent and lead-form cards; the quote card (FEAT-055) renders on its own. */
 export type LeadMessageCard = Extract<MessageCard, { kind: 'consent' | 'lead_form' }>;
-import type { LeadFieldKey } from '@kaki/contracts/lead-check';
+import { isEmail, type LeadFieldKey } from '@kaki/contracts/lead-check';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { createApi } from './api.js';
 import {
+  boldParts,
   fieldErrorText,
+  handoffErrorText,
+  handoffOptions,
   langOf,
   leadFormView,
   leadValues,
@@ -23,6 +26,8 @@ import {
   withdrawChoices,
   withdrawLine,
   withdrawStateOf,
+  type HandoffChannel,
+  type HandoffFailure,
   type LeadErrors,
   type WithdrawChoice,
   type WithdrawState,
@@ -792,6 +797,369 @@ export function QuoteCard({
         </p>
         {v.gst && <p class="cap">{v.gst}</p>}
         {v.note && <p class="quote-note">{v.note}</p>}
+      </div>
+    </li>
+  );
+}
+
+const TELEGRAM_ICON = (
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
+    <path d="M21.5 4.1 2.9 11.3c-1 .4-1 1.6 0 1.9l4.6 1.5 1.8 5.6c.2.7 1.1.9 1.6.4l2.6-2.4 4.8 3.5c.6.4 1.4.1 1.6-.6L22.9 5.4c.2-.9-.6-1.6-1.4-1.3Zm-3.3 3.6-8.4 7.6-.3 3.3-1.4-4.4 9.6-6.8c.4-.3.8.1.5.3Z" />
+  </svg>
+);
+const MAIL_ICON = (
+  <svg
+    viewBox="0 0 24 24"
+    width="18"
+    height="18"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    aria-hidden="true"
+  >
+    <rect x="3" y="5" width="18" height="14" rx="2" />
+    <path d="m3 7 9 6 9-6" />
+  </svg>
+);
+
+/** `a **b** c` with the marked word in bold. */
+function Bold({ text, vars }: { text: string; vars?: Record<string, string> }) {
+  return (
+    <>
+      {boldParts(text, vars).map((p, i) => (p.bold ? <strong key={i}>{p.text}</strong> : p.text))}
+    </>
+  );
+}
+
+type HandoffView =
+  | { s: 'options' }
+  | { s: 'telegram'; url: string; expiresAt: number }
+  | { s: 'expired' }
+  | { s: 'email' }
+  | { s: 'sent'; sentTo: string }
+  | { s: 'stayed' };
+
+/**
+ * Continue elsewhere (SCR-WGT-004; FEAT-038 §5.8): one card for the agent's stored `handoff`
+ * card and the menu's local one. The redeem itself arrives as the moved notice (panel).
+ */
+export function HandoffCard(p: {
+  id: string;
+  flags: { telegram: boolean; email: boolean };
+  active: boolean;
+  local: boolean;
+  /** Bumped by the menu when the local card is already open: focus moves back to it. */
+  focusRequest: number;
+  api: Api | null;
+  conversationId: string | null;
+  t: Strings;
+  bot: string;
+  privacyUrl: string | null;
+  onMoved(channel: HandoffChannel): void;
+  focusComposer(): void;
+}) {
+  const { t } = p;
+  const [view, setView] = useState<HandoffView>({ s: 'options' });
+  const [busy, setBusy] = useState<HandoffChannel | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [fieldError, setFieldError] = useState(false);
+  const [removed, setRemoved] = useState<HandoffChannel[]>([]);
+  const [email, setEmail] = useState('');
+  const rootRef = useRef<HTMLDivElement>(null);
+  const focusNext = useRef<string | null>(p.local ? 'first' : null);
+  const idp = `k-${p.id}`;
+
+  useEffect(() => {
+    const target = focusNext.current;
+    focusNext.current = null;
+    if (!target || !rootRef.current) return;
+    const el =
+      target === 'first'
+        ? rootRef.current.querySelector<HTMLElement>('button, a')
+        : rootRef.current.querySelector<HTMLElement>(`[data-focus="${target}"]`);
+    el?.focus();
+  });
+  // The menu again while this card is open: back to its first control (a stayed card reopens).
+  useEffect(() => {
+    if (p.focusRequest === 0) return;
+    if (view.s === 'stayed') {
+      focusNext.current = 'first';
+      setView({ s: 'options' });
+    } else rootRef.current?.querySelector<HTMLElement>('button, a')?.focus();
+  }, [p.focusRequest]);
+  // The Telegram link's local expiry (ui-design: "This link has expired.").
+  useEffect(() => {
+    if (view.s !== 'telegram') return;
+    const timer = setTimeout(
+      () => setView({ s: 'expired' }),
+      Math.max(0, view.expiresAt - Date.now()),
+    );
+    return () => clearTimeout(timer);
+  }, [view]);
+
+  function fail(code: HandoffFailure, channel: HandoffChannel) {
+    if (code === 'invalid_email') {
+      setFieldError(true);
+      focusNext.current = 'email';
+      return;
+    }
+    if (code === 'channel_unavailable') {
+      setRemoved((r) => [...r, channel]);
+      setView({ s: 'options' });
+    }
+    setError(handoffErrorText(code, channel, t));
+  }
+
+  async function request(channel: HandoffChannel) {
+    if (busy || !p.api || !p.conversationId) return;
+    if (channel === 'email' && !isEmail(email)) {
+      setFieldError(true);
+      focusNext.current = 'email';
+      setError(null);
+      return;
+    }
+    setBusy(channel);
+    setError(null);
+    setFieldError(false);
+    const r = await p.api.handoff(
+      p.conversationId,
+      channel === 'email' ? { channel, email: email.trim() } : { channel },
+    );
+    setBusy(null);
+    if (!r.ok) {
+      if (r.error === 'moved') return p.onMoved(r.channel ?? channel);
+      return fail(r.error, channel);
+    }
+    if (r.data.channel === 'telegram') {
+      setView({ s: 'telegram', url: r.data.url, expiresAt: Date.parse(r.data.expiresAt) });
+      focusNext.current = 'open';
+    } else {
+      setView({ s: 'sent', sentTo: r.data.sentTo });
+      focusNext.current = 'sent';
+    }
+  }
+
+  function choose(channel: HandoffChannel) {
+    if (channel === 'telegram') return void request('telegram');
+    setError(null);
+    setView({ s: 'email' });
+    focusNext.current = 'email';
+  }
+
+  function back() {
+    setError(null);
+    setFieldError(false);
+    setView({ s: 'options' });
+    focusNext.current = 'first';
+  }
+
+  if (view.s === 'stayed')
+    return (
+      <li class="lead-done" data-card="handoff" data-state="stayed">
+        <p class="lead-line">{t.handoffStayed}</p>
+      </li>
+    );
+  if (!p.active) {
+    if (view.s === 'sent')
+      return (
+        <li class="lead-done" data-card="handoff" data-state="sent">
+          <p class="lead-line">
+            <Bold text={t.handoffSent} vars={{ to: view.sentTo }} />
+          </p>
+        </li>
+      );
+    return p.local ? null : (
+      <li class="lead-done" data-card="handoff">
+        <p class="lead-line">{t.notAnswered}</p>
+      </li>
+    );
+  }
+
+  const title = `${idp}-title`;
+  const options = handoffOptions(p.flags, removed);
+  const alert = error && (
+    <p class="lead-err" role="alert">
+      {ERROR_ICON}
+      {error}
+    </p>
+  );
+  let body;
+  if (view.s === 'telegram')
+    body = (
+      <>
+        <p>
+          <Bold text={t.handoffTelegramReady} />
+        </p>
+        <div class="opts">
+          <a class="btn pri" href={view.url} target="_blank" rel="noopener" data-focus="open">
+            {TELEGRAM_ICON}
+            {t.openTelegram}
+            <span class="sr-only"> {t.opensTelegram}</span>
+          </a>
+          <button type="button" class="btn ghost" onClick={back}>
+            {t.handoffBack}
+          </button>
+        </div>
+      </>
+    );
+  else if (view.s === 'expired')
+    body = (
+      <>
+        <p data-focus="expired" tabIndex={-1}>
+          {t.handoffExpired}
+        </p>
+        {alert}
+        <div class="opts">
+          <button
+            type="button"
+            class="btn sec"
+            disabled={!!busy}
+            aria-busy={busy === 'telegram' || undefined}
+            onClick={() => void request('telegram')}
+          >
+            {busy === 'telegram' && SPINNER}
+            {t.handoffNewLink}
+          </button>
+          <button type="button" class="btn ghost" onClick={back}>
+            {t.handoffBack}
+          </button>
+        </div>
+      </>
+    );
+  else if (view.s === 'email') {
+    const id = `${idp}-email`;
+    body = (
+      <form
+        noValidate
+        onSubmit={(e) => {
+          e.preventDefault();
+          void request('email');
+        }}
+      >
+        <div class="fld">
+          <label for={id}>{t.handoffEmailLabel}</label>
+          <input
+            id={id}
+            type="email"
+            inputMode="email"
+            autocomplete="email"
+            maxLength={254}
+            value={email}
+            readOnly={busy === 'email'}
+            data-focus="email"
+            aria-invalid={fieldError ? 'true' : undefined}
+            aria-describedby={`${id}-help${fieldError ? ` ${id}-err` : ''}`}
+            onInput={(e) => setEmail((e.currentTarget as HTMLInputElement).value)}
+          />
+          <p class="help" id={`${id}-help`}>
+            {t.handoffEmailHelp}
+            {p.privacyUrl && (
+              <>
+                {' '}
+                <PrivacyLink url={p.privacyUrl} t={t} />
+              </>
+            )}
+          </p>
+          {fieldError && (
+            <p class="ferr" id={`${id}-err`}>
+              {ERROR_ICON}
+              {t.errEmail}
+            </p>
+          )}
+        </div>
+        {alert}
+        <div class="row">
+          <button type="button" class="btn ghost" onClick={back} disabled={busy === 'email'}>
+            {t.handoffBack}
+          </button>
+          <button
+            type="submit"
+            class="btn pri"
+            disabled={busy === 'email'}
+            aria-busy={busy === 'email' || undefined}
+          >
+            {busy === 'email' && SPINNER}
+            {busy === 'email' ? t.handoffSending : t.handoffSend}
+          </button>
+        </div>
+      </form>
+    );
+  } else if (view.s === 'sent')
+    body = (
+      <>
+        <p class="lead-line" data-focus="sent" tabIndex={-1}>
+          {TICK_ICON}
+          <span>
+            <Bold text={t.handoffSent} vars={{ to: view.sentTo }} />
+          </span>
+        </p>
+        {alert}
+        <div class="opts">
+          <button
+            type="button"
+            class="btn ghost"
+            disabled={!!busy}
+            aria-busy={busy === 'email' || undefined}
+            onClick={() => void request('email')}
+          >
+            {busy === 'email' && SPINNER}
+            {t.handoffSendAgain}
+          </button>
+          <button
+            type="button"
+            class="btn ghost"
+            disabled={!!busy}
+            onClick={() => {
+              setEmail('');
+              setError(null);
+              setView({ s: 'email' });
+              focusNext.current = 'email';
+            }}
+          >
+            {t.handoffOtherEmail}
+          </button>
+        </div>
+      </>
+    );
+  else
+    body = (
+      <>
+        <p class="cap">{t.handoffBody}</p>
+        {alert}
+        <div class="opts">
+          {options.map((c) => (
+            <button
+              key={c}
+              type="button"
+              class="btn sec"
+              data-channel={c}
+              disabled={!!busy}
+              aria-busy={busy === c || undefined}
+              onClick={() => choose(c)}
+            >
+              {busy === c ? SPINNER : c === 'telegram' ? TELEGRAM_ICON : MAIL_ICON}
+              {c === 'telegram' ? t.handoffTelegram : t.handoffEmail}
+            </button>
+          ))}
+          <button
+            type="button"
+            class="btn ghost"
+            onClick={() => {
+              setView({ s: 'stayed' });
+              p.focusComposer();
+            }}
+          >
+            {t.handoffStay}
+          </button>
+        </div>
+      </>
+    );
+  return (
+    <li class="lead-item" data-card="handoff" data-state={view.s}>
+      <div class="lead-card hand" role="group" aria-labelledby={title} ref={rootRef}>
+        {!p.local && <span class="sr-only">{t.handoffOffers(p.bot)}</span>}
+        <h3 id={title}>{t.handoffTitle}</h3>
+        {body}
       </div>
     </li>
   );

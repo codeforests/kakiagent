@@ -114,6 +114,14 @@ export const PANEL_CSS = `
 .tick{color:var(--kaki-success)}
 .lead-ok{display:flex;gap:6px;padding:12px;border-left:3px solid var(--kaki-success);background:var(--kaki-subtle);color:var(--kaki-text);font-size:14px;outline:none}
 .btn.ghost{background:transparent;border:0;color:var(--kaki-text);text-decoration:underline}
+.hand .opts{display:flex;flex-direction:column;gap:8px}
+.hand .opts .btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%}
+.lead-card.hand a.btn{text-decoration:none;color:var(--kaki-on-accent)}
+.hand strong{font-weight:600}
+.moved{display:flex;flex-direction:column;gap:8px;padding:12px;border-top:1px solid var(--kaki-border)}
+.moved .btn{display:flex;align-items:center;justify-content:center}
+.moved a.btn{color:var(--kaki-on-accent);text-decoration:none}
+.moved p{margin:0;text-align:center;font-size:14px;color:var(--kaki-muted)}
 .offline-card .btn{align-self:flex-start}
 .notice[tabindex]:focus{outline:none}
 .fld input:focus-visible,.fld textarea:focus-visible,.chk input:focus-visible,.lnk:focus-visible,.lead-card a:focus-visible{outline:2px solid var(--kaki-accent);outline-offset:2px}

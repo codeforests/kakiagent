@@ -2,6 +2,11 @@ import type { Message } from '@kaki/contracts';
 import { describe, expect, it } from 'vitest';
 import { strings } from './strings.js';
 import {
+  boldParts,
+  handoffErrorText,
+  handoffMenuLabel,
+  handoffOptions,
+  movedView,
   activeCard,
   awaitingTurn,
   chatEnded,
@@ -593,5 +598,102 @@ describe('withdraw card (SCR-WGT-003 withdrawn; FEAT-051 AC-10)', () => {
     expect(keys.length).toBeGreaterThanOrEqual(11);
     for (const k of keys) expect(ALL_STRINGS['zh-Hans']).toHaveProperty(k);
     expect(Object.keys(ALL_STRINGS['zh-Hans']).sort()).toEqual(Object.keys(ALL_STRINGS.en).sort());
+  });
+});
+
+describe('continue elsewhere (SCR-WGT-004, SCR-WGT-002 moved; FEAT-038)', () => {
+  const t = strings('en');
+  const both = { telegram: true, email: true };
+  const base = { privacyNoticeUrl: null, controls: { talkToPerson: true } };
+  const live = { conversationId: CONV, ended: false, preview: false };
+
+  it('offers the menu item after Talk to a person only with a live channel and a chat (AC-1)', () => {
+    expect(menuItems({ ...base, handoff: both }, live)).toEqual([
+      'talkToPerson',
+      'continueElsewhere',
+      'end',
+    ]);
+    const none = { ...base, handoff: { telegram: false, email: false } };
+    expect(menuItems(none, live)).toEqual(['talkToPerson', 'end']);
+    expect(menuItems({ ...base, handoff: both }, { ...live, conversationId: null })).toEqual([
+      'talkToPerson',
+    ]);
+    expect(menuItems({ ...base, handoff: both }, { ...live, ended: true })).toEqual([]);
+    expect(menuItems({ ...base, handoff: both }, { ...live, preview: true })).toEqual([
+      'talkToPerson',
+    ]);
+  });
+
+  it('names one channel when only one is live, and lists only offered channels', () => {
+    expect(handoffMenuLabel(both, t)).toBe('Continue on Telegram or email');
+    expect(handoffMenuLabel({ telegram: false, email: true }, t)).toBe('Continue by email');
+    expect(handoffMenuLabel({ telegram: true, email: false }, t)).toBe('Continue on Telegram');
+    expect(handoffOptions(both)).toEqual(['telegram', 'email']);
+    expect(handoffOptions(both, ['telegram'])).toEqual(['email']);
+    expect(handoffOptions({ telegram: false, email: true })).toEqual(['email']);
+  });
+
+  it('words each error', () => {
+    expect(handoffErrorText('channel_unavailable', 'telegram', t)).toBe(
+      "Telegram isn't available right now. You can keep chatting here.",
+    );
+    expect(handoffErrorText('channel_unavailable', 'email', t)).toMatch(/^Email isn't/);
+    expect(handoffErrorText('rate_limited', 'email', t)).toBe(
+      'Too many tries. Please wait a while and try again.',
+    );
+    expect(handoffErrorText('conversation_closed', 'email', t)).toMatch(/^This chat has ended/);
+    expect(handoffErrorText('invalid_email', 'email', t)).toBe(
+      'Enter an email address, like hello@example.com',
+    );
+    expect(handoffErrorText('failed', 'telegram', t)).toBe("Couldn't do that. Try again.");
+  });
+
+  it('reads the moved state from the stored notice, else from a 409 (AC-8)', () => {
+    const card = {
+      kind: 'moved' as const,
+      channel: 'telegram' as const,
+      url: 'https://t.me/kaki_bot',
+      sentTo: null,
+    };
+    const moved = {
+      ...msg('n', 3, 'system'),
+      body: '',
+      notice: 'This chat continues on Telegram.',
+      noticeKind: 'handoff_moved' as const,
+      card,
+    };
+    const chat = [msg('v', 1, 'visitor'), moved].reduce(withMessage, emptyChat);
+    expect(movedView(chat, null)).toEqual({
+      channel: 'telegram',
+      url: 'https://t.me/kaki_bot',
+      noticeId: 'n',
+    });
+    expect(movedView(emptyChat, 'email')).toEqual({ channel: 'email', url: null, noticeId: null });
+    expect(movedView(emptyChat, null)).toBeNull();
+    // The moved card never opens a card; the notice closes an earlier handoff card.
+    const offer = {
+      ...msg('a', 2, 'agent'),
+      card: { kind: 'handoff' as const, telegram: true, email: true },
+    };
+    expect(activeCard([msg('v', 1, 'visitor'), offer].reduce(withMessage, emptyChat))).toBe('a');
+    expect(activeCard([offer, moved].reduce(withMessage, emptyChat))).toBeNull();
+  });
+
+  it('keeps the recap out of the widget log', () => {
+    const recap = { ...msg('r', 4, 'system'), noticeKind: 'handoff_recap' as const };
+    expect(withMessage(emptyChat, recap).messages).toEqual([]);
+  });
+
+  it('splits the bold word to tap', () => {
+    expect(boldParts('Open Telegram and tap **Start**. Done')).toEqual([
+      { text: 'Open Telegram and tap ', bold: false },
+      { text: 'Start', bold: true },
+      { text: '. Done', bold: false },
+    ]);
+    // A masked address keeps its asterisks.
+    expect(boldParts(t.handoffSent, { to: 'm***@gmail.com' })[0]).toEqual({
+      text: 'Check your inbox at m***@gmail.com and tap ',
+      bold: false,
+    });
   });
 });

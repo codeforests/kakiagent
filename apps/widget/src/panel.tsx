@@ -7,8 +7,15 @@
 import type { LeadCaptureConfig, Message } from '@kaki/contracts';
 import { render, type ComponentChildren } from 'preact';
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
-import { ChatEndedError, createApi } from './api.js';
-import { ContactForm, LeadCard, PrivacyLink, QuoteCard, WithdrawCard } from './cards.js';
+import { ChatEndedError, MovedError, createApi } from './api.js';
+import {
+  ContactForm,
+  HandoffCard,
+  LeadCard,
+  PrivacyLink,
+  QuoteCard,
+  WithdrawCard,
+} from './cards.js';
 import {
   activeCard,
   awaitingTurn,
@@ -17,8 +24,10 @@ import {
   escalationPending,
   emptyChat,
   greetingFor,
+  handoffMenuLabel,
   langOf,
   menuItems,
+  movedView,
   notLiveView,
   pausedNotice,
   pendingText,
@@ -27,6 +36,7 @@ import {
   withMessage,
   withSegment,
   type Chat,
+  type HandoffChannel,
   type MenuItem,
   type NotLiveView,
   type Segment,
@@ -81,12 +91,14 @@ function HeaderMenu({
   t,
   privacyUrl,
   buttonRef,
+  handoffLabel,
   onSelect,
 }: {
   items: MenuItem[];
   t: Strings;
   privacyUrl: string | null;
   buttonRef: { current: HTMLButtonElement | null };
+  handoffLabel: string;
   onSelect(item: MenuItem): void;
 }) {
   const [open, setOpen] = useState(false);
@@ -202,7 +214,11 @@ function HeaderMenu({
                   tabIndex={-1}
                   onClick={() => pick(item)}
                 >
-                  {item === 'end' ? t.endChat : t.talkToPerson}
+                  {item === 'end'
+                    ? t.endChat
+                    : item === 'continueElsewhere'
+                      ? handoffLabel
+                      : t.talkToPerson}
                 </button>
               )}
             </li>
@@ -396,6 +412,11 @@ function Panel({
   // fallback contact form's open state.
   const [lead, setLead] = useState<LeadCaptureConfig | null>(ctx.config.leadCapture ?? null);
   const [contactOpen, setContactOpen] = useState(false);
+  // Continue elsewhere (FEAT-038): the menu's local card (its key) and focus requests for it;
+  // the channel a 409 `moved` named, until the stored moved notice is here.
+  const [localHandoff, setLocalHandoff] = useState<number | null>(null);
+  const [handoffFocus, setHandoffFocus] = useState(0);
+  const [movedTo, setMovedTo] = useState<HandoffChannel | null>(null);
   // Where focus goes after the next render (the target may not exist yet).
   const focusNext = useRef<'title' | 'menu' | 'input' | 'leave' | `notice:${string}` | null>(null);
   useEffect(() => {
@@ -460,6 +481,14 @@ function Panel({
   const growing = waitingFor ? pendingText(chat, waitingFor) : null;
   const privacyUrl = ctx.config.privacyNoticeUrl;
   const openCard = activeCard(chat);
+  // The moved state (SCR-WGT-002; AC-8): the composer gives way to the moved bar.
+  const moved = preview ? null : movedView(chat, movedTo);
+  const movedKey = moved ? (moved.noticeId ?? 'moved') : null;
+  useEffect(() => {
+    if (!movedKey) return;
+    setLocalHandoff(null);
+    logRef.current?.querySelector<HTMLElement>(`[data-notice="${movedKey}"]`)?.focus();
+  }, [movedKey]);
   const business = ctx.config.botName;
   const leadCommon = lead && {
     lead,
@@ -486,7 +515,7 @@ function Panel({
   const items = menuItems(ctx.config, {
     conversationId,
     // Not live: no chat to end or hand over, only the privacy notice.
-    ended: ended || visitorEnded || !!notLive,
+    ended: ended || visitorEnded || !!notLive || !!moved,
     preview: !!preview,
     handover: asking === 'asking' || escalationPending(chat) || staffHandling(chat),
   });
@@ -503,6 +532,11 @@ function Panel({
       if (res.notice) setChat((c) => withMessage(c, res.notice!));
       setAsking('idle');
     } catch (err) {
+      if (err instanceof MovedError) {
+        setAsking('idle');
+        setMovedTo(err.channel);
+        return;
+      }
       if (err instanceof ChatEndedError) {
         setAsking('idle');
         setEndState('ended');
@@ -541,6 +575,8 @@ function Panel({
     setText('');
     setError(false);
     setAsking('idle');
+    setMovedTo(null);
+    setLocalHandoff(null);
     focusNext.current = 'input';
   }
 
@@ -569,6 +605,10 @@ function Panel({
       setChat((c) => withMessage(c, sent));
       setText('');
     } catch (err) {
+      if (err instanceof MovedError) {
+        setMovedTo(err.channel);
+        return;
+      }
       if (err instanceof ChatEndedError) {
         setEndState('ended');
         focusNext.current = 'title';
@@ -592,7 +632,13 @@ function Panel({
             t={t}
             privacyUrl={privacyUrl}
             buttonRef={menuRef}
+            handoffLabel={handoffMenuLabel(ctx.config.handoff, t)}
             onSelect={(item) => {
+              if (item === 'continueElsewhere') {
+                if (localHandoff !== null) setHandoffFocus((n) => n + 1);
+                else setLocalHandoff(Date.now());
+                return;
+              }
               if (item === 'talkToPerson') {
                 focusNext.current = 'menu';
                 void talkToPerson();
@@ -655,7 +701,8 @@ function Panel({
                       class="notice"
                       lang={langOf(r.text)}
                       {...((m.noticeKind === 'lead_captured' ||
-                        m.noticeKind === 'consent_withdrawn') && {
+                        m.noticeKind === 'consent_withdrawn' ||
+                        m.noticeKind === 'handoff_moved') && {
                         'data-notice': m.id,
                         tabIndex: -1,
                       })}
@@ -721,6 +768,23 @@ function Panel({
                   focusComposer={() => inputRef.current?.focus()}
                 />
               ),
+              m.card?.kind === 'handoff' && (
+                <HandoffCard
+                  key={`${m.id}-card`}
+                  id={m.id}
+                  flags={m.card}
+                  active={m.id === openCard && !moved}
+                  local={false}
+                  focusRequest={0}
+                  api={preview ? null : api}
+                  conversationId={conversationId}
+                  t={t}
+                  bot={business}
+                  privacyUrl={privacyUrl}
+                  onMoved={setMovedTo}
+                  focusComposer={() => inputRef.current?.focus()}
+                />
+              ),
               m.id === waitingFor && growing && (
                 <li
                   key={`${m.id}-reply`}
@@ -733,6 +797,28 @@ function Panel({
                 </li>
               ),
             ])}
+            {localHandoff !== null && !moved && (
+              <HandoffCard
+                key={`local-${localHandoff}`}
+                id={`local-${localHandoff}`}
+                flags={ctx.config.handoff}
+                active
+                local
+                focusRequest={handoffFocus}
+                api={preview ? null : api}
+                conversationId={conversationId}
+                t={t}
+                bot={business}
+                privacyUrl={privacyUrl}
+                onMoved={setMovedTo}
+                focusComposer={() => inputRef.current?.focus()}
+              />
+            )}
+            {moved && !moved.noticeId && (
+              <li class="notice" data-notice="moved" tabIndex={-1}>
+                {t.movedNotice(moved.channel === 'telegram')}
+              </li>
+            )}
             {waitingFor && !visitorEnded && !slow && (
               <li class="typing" role="status" aria-label={t.typing(ctx.config.botName)}>
                 <i />
@@ -769,7 +855,23 @@ function Panel({
               </button>
             </p>
           )}
-          {endState !== 'open' ? (
+          {moved ? (
+            <div class="moved" data-moved={moved.channel}>
+              {moved.channel === 'telegram' ? (
+                moved.url && (
+                  <a class="btn pri" href={moved.url} target="_blank" rel="noopener">
+                    {t.openTelegram}
+                    <span class="sr-only"> {t.opensTelegram}</span>
+                  </a>
+                )
+              ) : (
+                <p>{t.movedEmailCaption}</p>
+              )}
+              <button type="button" class="btn ghost" onClick={newChat}>
+                {t.newChatHere}
+              </button>
+            </div>
+          ) : endState !== 'open' ? (
             <div
               class="card"
               role="group"

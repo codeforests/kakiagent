@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ChatEndedError, createApi, mergeMessages } from './api.js';
+import { ChatEndedError, MovedError, createApi, mergeMessages } from './api.js';
 import { ALL_STRINGS, pickLocale, strings } from './strings.js';
 
 const m = (id: string, seq: number) => ({
@@ -111,5 +111,60 @@ describe('lead routes (FEAT-049 §3)', () => {
     });
     vi.stubGlobal('fetch', reply(503));
     await expect(api.submitContact(contact)).rejects.toThrow('contact: 503');
+  });
+});
+
+describe('handoff (FEAT-038 §3)', () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const reply = (status: number, body: unknown = {}) =>
+    vi.fn(async () => new Response(JSON.stringify(body), { status }));
+
+  it('returns the link, and the error codes and network failures as values', async () => {
+    const api = createApi('https://api.test', 'tok');
+    const url = 'https://t.me/kaki_bot?start=c-abc';
+    const expiresAt = new Date().toISOString();
+    vi.stubGlobal('fetch', reply(200, { channel: 'telegram', url, expiresAt }));
+    expect(await api.handoff('c1', { channel: 'telegram' })).toEqual({
+      ok: true,
+      data: { channel: 'telegram', url, expiresAt },
+    });
+    vi.stubGlobal('fetch', reply(422, { error: 'invalid_email', message: 'x' }));
+    expect(await api.handoff('c1', { channel: 'email', email: 'no' })).toEqual({
+      ok: false,
+      error: 'invalid_email',
+    });
+    vi.stubGlobal('fetch', reply(409, { error: 'moved', message: 'x', channel: 'email' }));
+    expect(await api.handoff('c1', { channel: 'telegram' })).toEqual({
+      ok: false,
+      error: 'moved',
+      channel: 'email',
+    });
+    vi.stubGlobal('fetch', reply(429, { error: 'rate_limited', message: 'x' }));
+    expect(await api.handoff('c1', { channel: 'telegram' })).toMatchObject({
+      error: 'rate_limited',
+    });
+    vi.stubGlobal('fetch', reply(502));
+    expect(await api.handoff('c1', { channel: 'telegram' })).toEqual({
+      ok: false,
+      error: 'failed',
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new TypeError('offline');
+      }),
+    );
+    expect(await api.handoff('c1', { channel: 'telegram' })).toEqual({
+      ok: false,
+      error: 'failed',
+    });
+  });
+
+  it('maps a 409 moved on send to MovedError with the channel (AC-8)', async () => {
+    const api = createApi('https://api.test', 'tok');
+    vi.stubGlobal('fetch', reply(409, { error: 'moved', message: 'x', channel: 'telegram' }));
+    const err = await api.send('c1', 'hi', 'm1').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(MovedError);
+    expect((err as MovedError).channel).toBe('telegram');
   });
 });
