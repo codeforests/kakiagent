@@ -37,6 +37,7 @@ Re-derived from SRS CHN-07 ("from the widget, the visitor can continue on Telegr
 
 - api `handoff.int` "confirm page … CSP": now also asserts `referrer-policy: same-origin`, the header that made a browser's POST fail (AC-7).
 - approvals `approvals.int` (FEAT-055): decisions and timers on the drafts' fixed clock (Findings).
+- `handoff.e2e.ts` (this feature's own spec): waits for its Telegram deliveries before `afterEach`; `support.ts` logs what covers an obscured axe target (no assertion changed).
 
 ## Independent execution
 
@@ -74,4 +75,6 @@ CHN-07 Test ref `features/FEAT-038-channel-handoff/acceptance-report.md`; AGT-06
 
 ## CI
 
-CI_LINE
+GitHub CI run 129 at `8636d84`, 2026-11-11: all jobs green (attempt 2; attempt 1 failed Chromium `safety.e2e` injection and the known Firefox `consent-withdrawal.e2e` composer timeout, neither touched by this feature, both passed on the one re-run). `handoff.e2e.ts` passed on Chromium, Firefox and WebKit.
+
+Earlier runs: 125 found the AC-7 bug and FEAT-055's date bomb (Findings); 126–128 failed Chromium `inbox.e2e` phone-width axe after the handoff spec. Run 128's log (the new `support.ts` diagnostics) named the cause: the spec left Telegram degraded (a send rejected after `afterEach` disconnected the bot), and the degraded banner made the page 45 px taller than the viewport, so the sticky tab bar covered the thread dock. Fix `8636d84`: the Telegram test waits until every delivery in its conversation is sent before ending. The layout weakness itself (any banner on the phone thread page) is pre-existing and listed in pending actions.
