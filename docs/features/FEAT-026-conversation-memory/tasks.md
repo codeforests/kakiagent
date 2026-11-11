@@ -1,7 +1,7 @@
 # Tasks: FEAT-026 — Conversation memory and summarisation
 
 > Executes: [technical-design.md](technical-design.md) (screens: none, [ui-design.md](ui-design.md))
-> Status: developer-done · 2026-11-11
+> Status: accepted · 2026-11-11
 
 One build session (backend only, no UI tasks): `Build FEAT-026`.
 
