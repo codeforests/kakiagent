@@ -1,5 +1,5 @@
 # Handoff: FEAT-026 — Conversation memory and summarisation
-Branch: feat/FEAT-026-conversation-memory · PR: (draft, see thread) · Updated: 2026-11-11 by build
+Branch: feat/FEAT-026-conversation-memory · PR: https://github.com/codeforests/kakiagent/pull/65 (draft) · Updated: 2026-11-11 by build
 Stage done: build (T1–T6 of 6), status developer-done
 Next: verify — kickoff: "Verify FEAT-026 on branch feat/FEAT-026-conversation-memory.
 Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
