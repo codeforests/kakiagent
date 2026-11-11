@@ -31,7 +31,7 @@ Re-derived from SRS CHN-08 ("a single contact record across channels, merged by 
 
 ## Corrected tests
 
-None.
+- db `seed.int` (D10 duplicate pair): the name order came from the database collation; now sorted in the test (`4a32c25`). The assertion still checks both contacts share the email.
 
 ## Independent execution
 
@@ -57,4 +57,5 @@ Test ref appended 2026-11-10: CHN-08 (partial: verified phone has no source yet)
 
 ## CI
 
-Pending: GitHub CI dispatched on the PR branch after this commit; the result is recorded here.
+- Run 123 at `1e1dcd3`: every job green, including `contact-merge.e2e` on Chromium, Firefox and WebKit, except db `seed.int`: it ordered names with SQL `order by`, which CI's en_US collation sorts differently. Corrected in `4a32c25` (names sorted in JS; the same assertion).
+- Run 124 at `4a32c25`: all jobs green.
