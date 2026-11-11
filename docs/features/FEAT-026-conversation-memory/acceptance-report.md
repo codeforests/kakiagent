@@ -54,4 +54,4 @@ None rejected. Added (commit `FEAT-026 acceptance: add tests…`): AC-2 gate-clo
 
 ## CI
 
-CI_LINE
+GitHub CI run 130 at `162429a` (2026-11-11): all jobs green except E2E, none of it in this feature's code (no screen or widget changes). Attempt 1: Chromium `inbox.e2e` phone-width axe (sticky tab bar over the thread dock under a degraded-Telegram banner, the pre-existing layout bug in pending actions) and Firefox `consent-withdrawal.e2e` composer timeout. Attempt 2 (failed jobs): Chromium green; Firefox `inbox.e2e` the same layout bug and `telegram-channel.e2e` health check answering 429 (the 30 s "Check again" limit). Merge decision with Ken.
