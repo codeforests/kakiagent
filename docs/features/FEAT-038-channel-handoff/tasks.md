@@ -34,3 +34,5 @@
       Done when: all pass; "Verification evidence" below has one bullet per AC.
 
 ## Verification evidence
+
+- Build notes (backend part 1, 2026-11-11): T1 `db` integration 235 passed (4 new handoff RLS cases); T2 `contracts` `handoff.test.ts`; T3 `channels` unit (token, recap) and `handoff.int` 8 passed, `inbox` `move.int` (suite 97 passed); T4–T6 `api` `handoff.int` 12 passed (Telegram redeem, merge, expired/forged/other-tenant/closed, group; confirm page GET/POST/origin/expired; widget route 200/404/409/422/429, 409 moved). Deviations in handoff.md.
