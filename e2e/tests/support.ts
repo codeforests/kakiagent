@@ -28,13 +28,41 @@ export async function expectNoSeriousA11yViolations(page: Page, include?: string
   const serious = results.violations.filter(
     (v) => v.impact === 'serious' || v.impact === 'critical',
   );
-  // The failure summary names what fails (for target-size, the element covering the target):
-  // CI's trace artifacts can't always be fetched, so the log has to say it.
+  // On failure the message says why, and for an obscured target what covers it and the page's
+  // banners: CI's trace artifacts can't always be fetched, so the log has to say it.
+  const why = serious.length
+    ? await page.evaluate(
+        (nodes) =>
+          nodes
+            .map(({ id, selector, summary }) => {
+              const el = document.querySelector(selector);
+              const r = el?.getBoundingClientRect();
+              const over = r
+                ? document
+                    .elementsFromPoint(r.left + r.width / 2, r.bottom - 2)
+                    .slice(0, 3)
+                    .map((e) => `${e.tagName.toLowerCase()}.${[...e.classList].join('.')}`)
+                    .join(' > ')
+                : 'not found';
+              return `${id} ${selector}: ${summary}\n  at its bottom: ${over}`;
+            })
+            .concat(
+              `banners: ${document.querySelector('.banners')?.textContent ?? 'none'}; ` +
+                `scrollHeight ${document.documentElement.scrollHeight}, innerHeight ${innerHeight}`,
+            )
+            .join('\n'),
+        serious.flatMap((v) =>
+          v.nodes.map((n) => ({
+            id: v.id,
+            selector: String(n.target[0]),
+            summary: n.failureSummary ?? '',
+          })),
+        ),
+      )
+    : '';
   expect(
     serious.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`),
-    serious
-      .flatMap((v) => v.nodes.map((n) => `${v.id} ${n.target.join(' ')}: ${n.failureSummary}`))
-      .join('\n'),
+    why,
   ).toEqual([]);
 }
 
