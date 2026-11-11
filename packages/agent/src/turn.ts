@@ -11,7 +11,6 @@ import {
   hasAssistantMessage,
   markQuestionGap,
   noticeSince,
-  recentMessages,
   recordAbuse,
   replyExists,
   requestEscalation,
@@ -23,6 +22,7 @@ import type { MessageCard } from '@kaki/contracts';
 import { searchVisitorFacts, visitorKb, type VisitorFact } from '@kaki/kb';
 import { consentState, leadCaptureConfig, withdrawalTarget } from '@kaki/leads';
 import { routeReply, type LlmGateway, type LogicalModel } from '@kaki/llm-gateway';
+import { enqueue } from '@kaki/platform/outbox';
 import { openStatus } from '@kaki/tenancy';
 import { answerTurn, type AnswerOutcome, type AnswerResult } from './answer.js';
 import { approvalNotice, autoQuoteFollowUp, withoutFlaggedCommitments } from './approval.js';
@@ -39,7 +39,8 @@ import { aiAllowed } from './gate.js';
 import { systemSlots, type HoursContext } from './hours-text.js';
 import { replyLanguage, type ReplyLanguage } from './language.js';
 import { routeSignals, triage, type TurnPlan } from './plan.js';
-import { HISTORY_LIMIT } from './prompt.js';
+import { MEMORY_FOLD_AT } from './memory.js';
+import { loadConversationHistory } from './memory-store.js';
 import { withGst } from './render.js';
 import type { Violation } from './verify.js';
 import { escalationNotice, safetyText, textsFor, type SafetyKey } from './texts.js';
@@ -74,6 +75,8 @@ type Stored = NonNullable<Awaited<ReturnType<typeof appendAgentReply>>>;
 
 export type TurnResult = Stored & {
   outcome: TurnOutcome;
+  /** Messages after the latest memory (FEAT-026 D5): the worker logs lag past 30, counts only. */
+  unfolded: number;
   timings: (AnswerResult['timings'] & { triageMs: number | null }) | null;
   /** The reply language (AGT-03) and whether the after-hours notice went with it (AGT-09). */
   language: ReplyLanguage;
@@ -134,12 +137,13 @@ export async function runVisitorTurn(
     const gate = await aiAllowed(tx, tenantId, conversationId, wall);
     // APR-01 (FEAT-054 §5.3): read every turn, no cache, so a save applies to the next reply.
     const rules = await rulesInForce(tx, tenantId);
-    const history = await recentMessages(tx, {
+    // AGT-12 (FEAT-026 §5.4): the latest memory and every message after it (at most 30).
+    const loaded = await loadConversationHistory(tx, {
       tenantId,
       conversationId,
       upToSeq: message.seq,
-      limit: HISTORY_LIMIT,
     });
+    const history = loaded.messages;
     const disclosed = await hasAssistantMessage(tx, tenantId, conversationId);
     // AGT-09: the business is closed now, and nobody has been told so this closed period.
     const tenant = gate.tenant;
@@ -161,7 +165,18 @@ export async function runVisitorTurn(
       !(await noticeSince(tx, tenantId, conversationId, 'after_hours', status.since));
     // FEAT-034: the offline notice is stored once, not once per visitor message.
     const lastReply = history.filter((m) => m.author !== 'visitor').at(-1)?.body ?? null;
-    return { message, gate, rules, history, disclosed, hours, noticeDue, lastReply };
+    return {
+      message,
+      gate,
+      rules,
+      history,
+      memory: loaded.memory,
+      unfolded: loaded.unfolded,
+      disclosed,
+      hours,
+      noticeDue,
+      lastReply,
+    };
   });
   if (!prep) return null;
   const { message, gate, hours, rules } = prep;
@@ -320,6 +335,15 @@ export async function runVisitorTurn(
         // FEAT-055: what the commitment request did (a code; never the request or amounts).
         approval: approvalOf() ? auditCode(approvalOf()!.status) : null,
       });
+      // AGT-12 (FEAT-026 §5.3, D4): once 20 messages are unfolded, fold the older ones in the
+      // background on the conversation's own memory group; the job re-checks, so extras are no-ops.
+      if (prep!.unfolded + 1 + (waiting ? 1 : 0) >= MEMORY_FOLD_AT)
+        await enqueue(tx, {
+          tenantId,
+          topic: 'conversation-turns',
+          groupKey: `memory:${conversationId}`,
+          payload: { kind: 'summarise', tenantId, conversationId },
+        });
       return { ...reply, waiting };
     });
     return stored
@@ -327,6 +351,7 @@ export async function runVisitorTurn(
           message: stored.message,
           conversation: stored.conversation,
           outcome,
+          unfolded: prep!.unfolded,
           timings: composed ? { ...composed.timings, triageMs } : null,
           plan,
           dispatched,
@@ -393,10 +418,12 @@ export async function runVisitorTurn(
 
   // Triage runs alongside retrieval (ADR-007: no extra latency on the critical path, NFR-01).
   const triageStart = now();
-  const planned = triage(llm, { history, meta, tail: triageTail(rules.rules) }).then((p) => {
-    triageMs = Math.round(now() - triageStart);
-    return p;
-  });
+  const planned = triage(llm, { history, meta, tail: triageTail(rules.rules, prep.memory) }).then(
+    (p) => {
+      triageMs = Math.round(now() - triageStart);
+      return p;
+    },
+  );
   const retrieved = retrieve();
   async function retrieve(): Promise<VisitorFact[]> {
     const { vectors } = await llm.embed({ texts: [message.body], purpose: 'query', meta });
@@ -649,6 +676,7 @@ export async function runVisitorTurn(
       minConfidence: gate.tenant.routePolicy.minConfidence,
       persona,
       rules: rules.rules,
+      memory: prep.memory,
     },
     {
       llm,

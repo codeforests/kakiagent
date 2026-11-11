@@ -22,6 +22,8 @@ export const Subset = z.enum([
   'boundary',
   /** Quote, discount and commitment requests drafted for approval (FEAT-055, APR-02, AGT-06). */
   'approvals',
+  /** Long conversations folded into memory (FEAT-026, AGT-12). */
+  'memory',
 ]);
 export type Subset = z.infer<typeof Subset>;
 
@@ -110,6 +112,13 @@ export const Expectation = z.discriminatedUnion('kind', [
     status: z.enum(['drafted', 'already_pending', 'auto']).nullable(),
     contains: z.string().optional(),
   }),
+  /**
+   * FEAT-026: each text is in the reply request's `<memory>` block or its verbatim history
+   * (works on the fake: what the reply model was given, not what it wrote).
+   */
+  z.object({ kind: z.literal('remembers'), texts: z.array(z.string()).min(1) }),
+  /** FEAT-026 D2: none of these texts is in the folded memory (contact details, planted rules). */
+  z.object({ kind: z.literal('memory-excludes'), texts: z.array(z.string()).min(1) }),
   /** The LLM judge on one criterion; only with a real model (D8). */
   z.object({ kind: z.literal('judge'), criterion: Criterion }),
 ]);
@@ -158,6 +167,11 @@ export const Case = z
      * is (for a broken output). Without it the fake triager plans from keywords.
      */
     plan: z.union([z.record(z.string(), z.unknown()), z.string()]).optional(),
+    /**
+     * FEAT-026: the summariser's output per fold, played back by the fake (adversarial
+     * cases). Without it the fake summariser folds from keywords. Ignored with a real model.
+     */
+    memoryRecorded: z.array(z.string()).min(1).optional(),
     /** The tenant's assistant settings for this case, over the fixture's (FEAT-024). */
     persona: PersonaPatch.optional(),
     /** The tenant's boundary rules for this case, over the safe defaults (FEAT-054). */
@@ -316,6 +330,10 @@ export interface Reply {
   card: MessageCard | null;
   /** FEAT-055: what the commitment request did, and the waiting notice; null without one. */
   approval: { status: 'drafted' | 'already_pending' | 'auto'; notice: string | null } | null;
+  /** FEAT-026: the folded memory's prompt lines (empty without a fold). */
+  memory: string;
+  /** FEAT-026: the verbatim history the reply was given, one message per line. */
+  history: string;
 }
 
 export interface ScoreContext {
@@ -371,6 +389,10 @@ export function score(reply: Reply, expectations: Expectation[], ctx: ScoreConte
     switch (e.kind) {
       case 'judge':
         return true;
+      case 'remembers':
+        return e.texts.every((t) => reply.memory.includes(t) || reply.history.includes(t));
+      case 'memory-excludes':
+        return e.texts.every((t) => !reply.memory.toLowerCase().includes(t.toLowerCase()));
       case 'language': {
         const han = reply.text.match(HAN)?.length ?? 0;
         const letters = reply.text.match(LETTER)?.length ?? 0;

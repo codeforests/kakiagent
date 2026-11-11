@@ -395,6 +395,37 @@ export async function recentMessages(
   return rows.reverse();
 }
 
+/**
+ * The newest `limit` messages with `afterSeq < seq <= upToSeq`, oldest first, and how many
+ * there are in all (FEAT-026 §5.2: the history after the latest memory; `total` shows lag
+ * the cap would hide). One query: the window count runs before the limit.
+ */
+export async function messagesBetween(
+  tx: Tx,
+  input: {
+    tenantId: string;
+    conversationId: string;
+    afterSeq: number;
+    upToSeq: number;
+    limit: number;
+  },
+): Promise<{ rows: MessageRow[]; total: number }> {
+  const found = await tx
+    .select({ message: schema.messages, total: sql<number>`count(*) over ()`.mapWith(Number) })
+    .from(schema.messages)
+    .where(
+      and(
+        eq(schema.messages.tenantId, input.tenantId),
+        eq(schema.messages.conversationId, input.conversationId),
+        gt(schema.messages.seq, input.afterSeq),
+        lte(schema.messages.seq, input.upToSeq),
+      ),
+    )
+    .orderBy(desc(schema.messages.seq))
+    .limit(input.limit);
+  return { rows: found.map((r) => r.message).reverse(), total: found[0]?.total ?? 0 };
+}
+
 /** Messages after `afterSeq`, oldest first: the resume path for SSE and WebSocket (ADR-017). */
 export async function messagesSince(
   tx: Tx,

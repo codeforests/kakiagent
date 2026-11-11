@@ -1,6 +1,7 @@
 import type { BoundaryRules } from '@kaki/approvals';
 import type { Task, TurnPlan } from './plan.js';
-import { asData } from './prompt.js';
+import { asData } from './data.js';
+import { memoryLines, type ConversationMemory } from './memory.js';
 import type { Violation } from './verify.js';
 
 /**
@@ -89,13 +90,17 @@ export const TRIAGE_TOPICS_HANDLED = 'Topics this business handles: ';
 export const TRIAGE_TOPICS_BLOCKED = "Topics it doesn't discuss: ";
 
 /**
- * Triage's uncached tail with the tenant's topics (D2), as JSON arrays of data. None when
- * both lists are empty, so a tenant without topics sends the same request as before.
+ * Triage's uncached tail with the conversation's memory (FEAT-026, no name) and the tenant's
+ * topics (D2), as data. None when all are empty, so a short chat of a tenant without topics
+ * sends the same request as before.
  */
 export function triageTail(
   rules: Pick<BoundaryRules, 'allowedTopics' | 'blockedTopics'>,
+  /** AGT-12 (FEAT-026 §5.4): items, quantities and dates for task args; never the name. */
+  memory?: ConversationMemory | null,
 ): string | undefined {
   const lines = [
+    ...memoryLines(memory, { name: false }),
     ...(rules.allowedTopics.length
       ? [TRIAGE_TOPICS_HANDLED + JSON.stringify(rules.allowedTopics.map(asData))]
       : []),

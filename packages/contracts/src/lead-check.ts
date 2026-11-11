@@ -40,6 +40,13 @@ export function normaliseSgPhone(input: string): string | null {
 const EMAIL_RE =
   /^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9-]*\.)+[A-Za-z]{2,}$/;
 
+/** `EMAIL_RE` unanchored: finds an address inside free text (FEAT-026 `cleanMemory`). */
+export const EMAIL_IN_TEXT =
+  /[A-Za-z0-9_'+\-.]*[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9-]*\.)+[A-Za-z]{2,}/;
+
+/** An SG number (`normaliseSgPhone`'s spellings) inside free text (FEAT-026 `cleanMemory`). */
+export const SG_PHONE_IN_TEXT = /(?<![\d+])(?:(?:\+|00)65[\s-]?)?[3689]\d{3}[\s-]?\d{4}(?!\d)/;
+
 /** An email address of at most 254 characters, after trimming. */
 export function isEmail(input: string): boolean {
   const s = input.trim();

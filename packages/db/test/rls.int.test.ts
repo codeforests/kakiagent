@@ -5720,3 +5720,103 @@ describe('channel handoff links (FEAT-038)', () => {
     expect((await q(`select id from handoff_links`)).rowCount).toBe(0);
   });
 });
+
+describe('conversation memory (FEAT-026)', () => {
+  const conv: Record<string, string> = {};
+  const q = <T extends pg.QueryResultRow = { id: string }>(sql: string, args: unknown[] = []) =>
+    owner.query<T>(sql, args);
+  const memory = (t: string, seq: number, extra = '{"visitorName":"Siti"}') =>
+    q(
+      `insert into conversation_summaries (tenant_id, conversation_id, upto_seq, memory, messages_folded)
+       values ($1, $2, $3, $4::jsonb, 10) returning id`,
+      [t, conv[t], seq, extra],
+    );
+
+  beforeAll(async () => {
+    for (const t of [TENANT_A, TENANT_B]) {
+      conv[t] = (
+        await q(
+          `insert into conversations (tenant_id, channel, visitor_id) values ($1, 'widget', gen_random_uuid()) returning id`,
+          [t],
+        )
+      ).rows[0]!.id;
+      await memory(t, 10);
+    }
+  });
+
+  afterAll(async () => {
+    for (const t of [TENANT_A, TENANT_B])
+      await q(`delete from conversations where id = $1`, [conv[t]]);
+  });
+
+  it("tenant B can't read or add to A's memories; visitor zone selects and inserts, dashboard only selects", async () => {
+    const seen = await asRole('app_agent_visitor', TENANT_B, async (c) => ({
+      rows: (await c.query(`select tenant_id from conversation_summaries`)).rows,
+      inserted: (
+        await c.query(
+          `insert into conversation_summaries (tenant_id, conversation_id, upto_seq, memory, messages_folded)
+           values ($1, $2, 20, '{}'::jsonb, 10)`,
+          [TENANT_B, conv[TENANT_B]],
+        )
+      ).rowCount,
+    }));
+    expect(seen).toEqual({ rows: [{ tenant_id: TENANT_B }], inserted: 1 });
+    await expect(
+      asRole('app_agent_visitor', TENANT_B, (c) =>
+        c.query(
+          `insert into conversation_summaries (tenant_id, conversation_id, upto_seq, memory, messages_folded)
+           values ($1, $2, 20, '{}'::jsonb, 10)`,
+          [TENANT_A, conv[TENANT_A]],
+        ),
+      ),
+    ).rejects.toThrow(/row-level security/);
+    for (const stmt of [
+      `update conversation_summaries set upto_seq = 11`,
+      `delete from conversation_summaries`,
+    ]) {
+      await expect(asRole('app_agent_visitor', TENANT_A, (c) => c.query(stmt))).rejects.toThrow(
+        /permission denied/,
+      );
+    }
+    const dash = await asRole(
+      'app_dashboard',
+      TENANT_A,
+      async (c) => (await c.query(`select tenant_id from conversation_summaries`)).rows,
+    );
+    expect(dash).toEqual([{ tenant_id: TENANT_A }]);
+    await expect(
+      asRole('app_dashboard', TENANT_A, (c) =>
+        c.query(
+          `insert into conversation_summaries (tenant_id, conversation_id, upto_seq, memory, messages_folded)
+           values ($1, $2, 30, '{}'::jsonb, 10)`,
+          [TENANT_A, conv[TENANT_A]],
+        ),
+      ),
+    ).rejects.toThrow(/permission denied/);
+  });
+
+  it('one row per upto_seq, bounded object memory, and rows go with their conversation', async () => {
+    await expect(memory(TENANT_A, 10)).rejects.toThrow(/conversation_summaries_upto_uq/);
+    await expect(memory(TENANT_A, 20, '[]')).rejects.toThrow(/conversation_summaries_memory_ck/);
+    await expect(
+      memory(TENANT_A, 20, JSON.stringify({ notes: ['x'.repeat(4000)] })),
+    ).rejects.toThrow(/conversation_summaries_memory_ck/);
+    const extra = (
+      await q(
+        `insert into conversations (tenant_id, channel, visitor_id) values ($1, 'widget', gen_random_uuid()) returning id`,
+        [TENANT_A],
+      )
+    ).rows[0]!.id;
+    await q(
+      `insert into conversation_summaries (tenant_id, conversation_id, upto_seq, memory, messages_folded)
+       values ($1, $2, 10, '{}'::jsonb, 10)`,
+      [TENANT_A, extra],
+    );
+    await q(`delete from conversations where id = $1`, [extra]);
+    const left = await q<{ n: string }>(
+      `select count(*) as n from conversation_summaries where conversation_id = $1`,
+      [extra],
+    );
+    expect(left.rows[0]!.n).toBe('0');
+  });
+});

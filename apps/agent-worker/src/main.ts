@@ -1,4 +1,4 @@
-import { fakeAgentScript, runVisitorTurn } from '@kaki/agent';
+import { fakeAgentScript, MEMORY_MAX_VERBATIM, runSummariseJob, runVisitorTurn } from '@kaki/agent';
 import {
   deliverMessage,
   deliveryView,
@@ -303,6 +303,21 @@ const consuming = queue.consume<unknown>(
       log.info({ outcome }, 'escalation reminder');
       return;
     }
+    // AGT-12 (FEAT-026 §5.3): fold a long conversation's older messages into its memory, on
+    // its own FIFO group (D4). A stale or duplicate job re-checks and does nothing; logs carry
+    // IDs and counts, never memory text (ADR-015).
+    if ('kind' in parsed && parsed.kind === 'summarise') {
+      const t = parsed.tenantId;
+      const r = await runSummariseJob(
+        { llm, withTx: (fn) => withTenant(visitorDb, t, fn) },
+        parsed,
+      );
+      logger.info(
+        { outboxId: msg.id, tenantId: t, conversationId: parsed.conversationId, ...r },
+        `memory ${r.outcome}`,
+      );
+      return;
+    }
     // The email handoff's confirmation (CHN-07; FEAT-038 §5.4).
     if ('kind' in parsed && parsed.kind === 'handoff_email') {
       await handoffEmail(parsed, logger.child({ outboxId: msg.id, tenantId: parsed.tenantId }));
@@ -353,6 +368,9 @@ const consuming = queue.consume<unknown>(
       log.info('turn already handled');
       return;
     }
+    // AGT-12 (FEAT-026 D5): the summariser is behind; the turn sent at most 30 messages.
+    if (reply.unfolded > MEMORY_MAX_VERBATIM)
+      log.warn({ unfolded: reply.unfolded }, 'memory lagging');
     const message = toMessage(reply.message);
     // An escalated conversation's summary carries its open escalation (FEAT-044); the
     // visitor zone can't name the assignee, so the dashboard keeps the name it has.

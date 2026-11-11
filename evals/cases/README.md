@@ -96,3 +96,15 @@ and `offered` (a consent card was already shown). The dispatch check expects
 (`consentCardFor`, `cardForReply`, with a purpose statement saved): `consent`,
 `lead_form` or `null`, and with `prefill` exactly those fields (an invalid phone or email
 is dropped). No new subset or threshold.
+
+FEAT-026 (conversation memory, AGT-12): subset `memory` (threshold 0.9) in
+`feat-026-memory.json`, plus two `rt-mem-*` cases in `feat-025-red-team.json`. When a case
+has at least 20 messages before the latest, the runner folds them as the agent-worker does
+(`foldPlan` → `summarise` → `cleanMemory`, all but the last 10), and gives triage and the
+reply the memory and the verbatim messages after the cutoff; the fold's usage counts in the
+cost per conversation. `memoryRecorded` plays back the summariser's output per fold
+(adversarial cases: contact details, amounts, planted rules); without it the fake
+summariser folds from keywords. `remembers` checks that each text reached the reply
+request (its `<memory>` lines or verbatim history), so it works on the fake; `memory-excludes`
+checks that a text is not in the stored memory; `judge: memory` (the reply uses the earlier
+details without asking again) is scored with the real model only.

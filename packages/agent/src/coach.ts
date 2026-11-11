@@ -52,6 +52,7 @@ import { dispatchPlan, dispatchToolCall, type DispatchContext, type ReplyKey } f
 import { systemSlots, type HoursContext } from './hours-text.js';
 import { replyLanguage } from './language.js';
 import { routeSignals, triage, type TurnPlan } from './plan.js';
+import type { ConversationMemory } from './memory.js';
 import { HISTORY_LIMIT, type HistoryMessage } from './prompt.js';
 import { candidatesOf, proposeChange } from './propose.js';
 import { textsFor, type SafetyKey } from './texts.js';
@@ -291,6 +292,8 @@ export async function answerStep(
   plan: TurnPlan | null,
   facts: CoachingFact[] | null,
   dispatch: { replies: ReplyKey[] } | null,
+  /** AGT-12 (FEAT-026 §5.4): a suggestion's or replay's conversation memory; coaching has none. */
+  memory: ConversationMemory | null = null,
 ): Promise<Answered> {
   const { tenant } = prep;
   const persona = tenant.persona;
@@ -338,6 +341,7 @@ export async function answerStep(
       minConfidence: tenant.routePolicy.minConfidence,
       persona,
       rules: prep.rules,
+      memory,
     },
     // D5: the send gate doesn't apply; nothing is published anywhere.
     { llm: deps.llm, gateOpen: async () => true, publish: async () => {} },
@@ -508,7 +512,9 @@ export async function runCoachingTurn(
 ): Promise<CoachTurnResult> {
   const text = piiMask(input.text.trim());
   const prep = await prepare(deps, input);
-  const history = [...toHistory(prep.history), { role: 'user' as const, content: text }];
+  const history = [...toHistory(prep.history), { role: 'user' as const, content: text }].slice(
+    -HISTORY_LIMIT,
+  );
   const turnId = crypto.randomUUID();
   const ctx = dispatchContext(deps, input, prep, turnId);
   const { plan: p, facts } = await plan(deps, input, history, text, prep.rules);

@@ -2,7 +2,7 @@ import type { GenerateRequest, LlmGateway } from '@kaki/llm-gateway';
 import { sgDayAfter, isSgDate, type ProposalInput, type VisitorFact } from '@kaki/kb';
 import { WEEKDAYS, type Weekday, type WeeklyHours } from '@kaki/tenancy';
 import { z } from 'zod';
-import { asData } from './prompt.js';
+import { asData } from './data.js';
 
 /**
  * The propose step (FEAT-027 §5.2, D2, D4): one structured call on logical model

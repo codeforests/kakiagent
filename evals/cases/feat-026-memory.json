@@ -1,0 +1,1341 @@
+[
+  {
+    "id": "mem-40-turns-en",
+    "subset": "memory",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "hi"
+      },
+      {
+        "role": "assistant",
+        "content": "Hi! How can I help?"
+      },
+      {
+        "role": "user",
+        "content": "I'm Siti. I need 40 pcs of chocolate fudge cake for 14 Dec"
+      },
+      {
+        "role": "assistant",
+        "content": "Noted, thank you."
+      },
+      {
+        "role": "user",
+        "content": "what time do you open on Saturday?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "do you have eggless cakes?"
+      },
+      {
+        "role": "assistant",
+        "content": "We do have an eggless chocolate cake."
+      },
+      {
+        "role": "user",
+        "content": "can I pick up at the shop?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "is the pandan chiffon soft?"
+      },
+      {
+        "role": "assistant",
+        "content": "Yes, it is light and soft."
+      },
+      {
+        "role": "user",
+        "content": "ok thanks"
+      },
+      {
+        "role": "assistant",
+        "content": "You're welcome!"
+      },
+      {
+        "role": "user",
+        "content": "what time do you open on Saturday?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "do you have eggless cakes?"
+      },
+      {
+        "role": "assistant",
+        "content": "We do have an eggless chocolate cake."
+      },
+      {
+        "role": "user",
+        "content": "can I pick up at the shop?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "is the pandan chiffon soft?"
+      },
+      {
+        "role": "assistant",
+        "content": "Yes, it is light and soft."
+      },
+      {
+        "role": "user",
+        "content": "ok thanks"
+      },
+      {
+        "role": "assistant",
+        "content": "You're welcome!"
+      },
+      {
+        "role": "user",
+        "content": "what time do you open on Saturday?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "do you have eggless cakes?"
+      },
+      {
+        "role": "assistant",
+        "content": "We do have an eggless chocolate cake."
+      },
+      {
+        "role": "user",
+        "content": "can I pick up at the shop?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "is the pandan chiffon soft?"
+      },
+      {
+        "role": "assistant",
+        "content": "Yes, it is light and soft."
+      },
+      {
+        "role": "user",
+        "content": "ok thanks"
+      },
+      {
+        "role": "assistant",
+        "content": "You're welcome!"
+      },
+      {
+        "role": "user",
+        "content": "what time do you open on Saturday?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "do you have eggless cakes?"
+      },
+      {
+        "role": "assistant",
+        "content": "We do have an eggless chocolate cake."
+      },
+      {
+        "role": "user",
+        "content": "can I pick up at the shop?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "so can you confirm my order?"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "remembers",
+        "texts": ["name: Siti", "quantity: 40", "date: 14 Dec"]
+      },
+      {
+        "kind": "judge",
+        "criterion": "memory"
+      },
+      {
+        "kind": "prices-from-facts"
+      },
+      {
+        "kind": "no-leak"
+      }
+    ]
+  },
+  {
+    "id": "mem-40-turns-zh",
+    "subset": "memory",
+    "messages": [
+      {
+        "role": "user",
+        "content": "hi"
+      },
+      {
+        "role": "assistant",
+        "content": "Hi! How can I help?"
+      },
+      {
+        "role": "user",
+        "content": "我叫美玲，要40个巧克力蛋糕，12月14日"
+      },
+      {
+        "role": "assistant",
+        "content": "Noted, thank you."
+      },
+      {
+        "role": "user",
+        "content": "你们周六几点开门？"
+      },
+      {
+        "role": "assistant",
+        "content": "我先跟团队确认，再回复您。"
+      },
+      {
+        "role": "user",
+        "content": "有无蛋蛋糕吗？"
+      },
+      {
+        "role": "assistant",
+        "content": "有的，我们有无蛋巧克力蛋糕。"
+      },
+      {
+        "role": "user",
+        "content": "可以自取吗？"
+      },
+      {
+        "role": "assistant",
+        "content": "我先跟团队确认，再回复您。"
+      },
+      {
+        "role": "user",
+        "content": "好的谢谢"
+      },
+      {
+        "role": "assistant",
+        "content": "不客气！"
+      },
+      {
+        "role": "user",
+        "content": "你们周六几点开门？"
+      },
+      {
+        "role": "assistant",
+        "content": "我先跟团队确认，再回复您。"
+      },
+      {
+        "role": "user",
+        "content": "有无蛋蛋糕吗？"
+      },
+      {
+        "role": "assistant",
+        "content": "有的，我们有无蛋巧克力蛋糕。"
+      },
+      {
+        "role": "user",
+        "content": "可以自取吗？"
+      },
+      {
+        "role": "assistant",
+        "content": "我先跟团队确认，再回复您。"
+      },
+      {
+        "role": "user",
+        "content": "好的谢谢"
+      },
+      {
+        "role": "assistant",
+        "content": "不客气！"
+      },
+      {
+        "role": "user",
+        "content": "你们周六几点开门？"
+      },
+      {
+        "role": "assistant",
+        "content": "我先跟团队确认，再回复您。"
+      },
+      {
+        "role": "user",
+        "content": "有无蛋蛋糕吗？"
+      },
+      {
+        "role": "assistant",
+        "content": "有的，我们有无蛋巧克力蛋糕。"
+      },
+      {
+        "role": "user",
+        "content": "可以自取吗？"
+      },
+      {
+        "role": "assistant",
+        "content": "我先跟团队确认，再回复您。"
+      },
+      {
+        "role": "user",
+        "content": "好的谢谢"
+      },
+      {
+        "role": "assistant",
+        "content": "不客气！"
+      },
+      {
+        "role": "user",
+        "content": "你们周六几点开门？"
+      },
+      {
+        "role": "assistant",
+        "content": "我先跟团队确认，再回复您。"
+      },
+      {
+        "role": "user",
+        "content": "有无蛋蛋糕吗？"
+      },
+      {
+        "role": "assistant",
+        "content": "有的，我们有无蛋巧克力蛋糕。"
+      },
+      {
+        "role": "user",
+        "content": "可以自取吗？"
+      },
+      {
+        "role": "assistant",
+        "content": "我先跟团队确认，再回复您。"
+      },
+      {
+        "role": "user",
+        "content": "好的谢谢"
+      },
+      {
+        "role": "assistant",
+        "content": "不客气！"
+      },
+      {
+        "role": "user",
+        "content": "你们周六几点开门？"
+      },
+      {
+        "role": "assistant",
+        "content": "我先跟团队确认，再回复您。"
+      },
+      {
+        "role": "user",
+        "content": "有无蛋蛋糕吗？"
+      },
+      {
+        "role": "assistant",
+        "content": "有的，我们有无蛋巧克力蛋糕。"
+      },
+      {
+        "role": "user",
+        "content": "那我的订单可以确认吗？"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "remembers",
+        "texts": ["name: 美玲", "quantity: 40", "date: 12月14日"]
+      },
+      {
+        "kind": "language",
+        "lang": "zh"
+      },
+      {
+        "kind": "judge",
+        "criterion": "memory"
+      },
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
+  },
+  {
+    "id": "mem-correction-latest-wins",
+    "subset": "memory",
+    "fast": true,
+    "messages": [
+      {
+        "role": "user",
+        "content": "hi"
+      },
+      {
+        "role": "assistant",
+        "content": "Hi! How can I help?"
+      },
+      {
+        "role": "user",
+        "content": "I'm Siti. I need 40 pcs of chocolate fudge cake for 14 Dec"
+      },
+      {
+        "role": "assistant",
+        "content": "Noted, thank you."
+      },
+      {
+        "role": "user",
+        "content": "what time do you open on Saturday?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "do you have eggless cakes?"
+      },
+      {
+        "role": "assistant",
+        "content": "We do have an eggless chocolate cake."
+      },
+      {
+        "role": "user",
+        "content": "actually make it 30 not 40 please"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "is the pandan chiffon soft?"
+      },
+      {
+        "role": "assistant",
+        "content": "Yes, it is light and soft."
+      },
+      {
+        "role": "user",
+        "content": "ok thanks"
+      },
+      {
+        "role": "assistant",
+        "content": "You're welcome!"
+      },
+      {
+        "role": "user",
+        "content": "what time do you open on Saturday?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "do you have eggless cakes?"
+      },
+      {
+        "role": "assistant",
+        "content": "We do have an eggless chocolate cake."
+      },
+      {
+        "role": "user",
+        "content": "can I pick up at the shop?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "is the pandan chiffon soft?"
+      },
+      {
+        "role": "assistant",
+        "content": "Yes, it is light and soft."
+      },
+      {
+        "role": "user",
+        "content": "ok thanks"
+      },
+      {
+        "role": "assistant",
+        "content": "You're welcome!"
+      },
+      {
+        "role": "user",
+        "content": "what time do you open on Saturday?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "do you have eggless cakes?"
+      },
+      {
+        "role": "assistant",
+        "content": "We do have an eggless chocolate cake."
+      },
+      {
+        "role": "user",
+        "content": "can I pick up at the shop?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "is the pandan chiffon soft?"
+      },
+      {
+        "role": "assistant",
+        "content": "Yes, it is light and soft."
+      },
+      {
+        "role": "user",
+        "content": "ok thanks"
+      },
+      {
+        "role": "assistant",
+        "content": "You're welcome!"
+      },
+      {
+        "role": "user",
+        "content": "what time do you open on Saturday?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "do you have eggless cakes?"
+      },
+      {
+        "role": "assistant",
+        "content": "We do have an eggless chocolate cake."
+      },
+      {
+        "role": "user",
+        "content": "can I pick up at the shop?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "so can you confirm my order?"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "remembers",
+        "texts": ["quantity: 30"]
+      },
+      {
+        "kind": "memory-excludes",
+        "texts": ["quantity: 40"]
+      },
+      {
+        "kind": "judge",
+        "criterion": "memory"
+      }
+    ]
+  },
+  {
+    "id": "mem-correction-in-recent",
+    "subset": "memory",
+    "messages": [
+      {
+        "role": "user",
+        "content": "hi"
+      },
+      {
+        "role": "assistant",
+        "content": "Hi! How can I help?"
+      },
+      {
+        "role": "user",
+        "content": "I'm Siti. I need 40 pcs of chocolate fudge cake for 14 Dec"
+      },
+      {
+        "role": "assistant",
+        "content": "Noted, thank you."
+      },
+      {
+        "role": "user",
+        "content": "what time do you open on Saturday?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "do you have eggless cakes?"
+      },
+      {
+        "role": "assistant",
+        "content": "We do have an eggless chocolate cake."
+      },
+      {
+        "role": "user",
+        "content": "can I pick up at the shop?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "is the pandan chiffon soft?"
+      },
+      {
+        "role": "assistant",
+        "content": "Yes, it is light and soft."
+      },
+      {
+        "role": "user",
+        "content": "ok thanks"
+      },
+      {
+        "role": "assistant",
+        "content": "You're welcome!"
+      },
+      {
+        "role": "user",
+        "content": "what time do you open on Saturday?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "do you have eggless cakes?"
+      },
+      {
+        "role": "assistant",
+        "content": "We do have an eggless chocolate cake."
+      },
+      {
+        "role": "user",
+        "content": "can I pick up at the shop?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "is the pandan chiffon soft?"
+      },
+      {
+        "role": "assistant",
+        "content": "Yes, it is light and soft."
+      },
+      {
+        "role": "user",
+        "content": "ok thanks"
+      },
+      {
+        "role": "assistant",
+        "content": "You're welcome!"
+      },
+      {
+        "role": "user",
+        "content": "what time do you open on Saturday?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "do you have eggless cakes?"
+      },
+      {
+        "role": "assistant",
+        "content": "We do have an eggless chocolate cake."
+      },
+      {
+        "role": "user",
+        "content": "can I pick up at the shop?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "is the pandan chiffon soft?"
+      },
+      {
+        "role": "assistant",
+        "content": "Yes, it is light and soft."
+      },
+      {
+        "role": "user",
+        "content": "ok thanks"
+      },
+      {
+        "role": "assistant",
+        "content": "You're welcome!"
+      },
+      {
+        "role": "user",
+        "content": "what time do you open on Saturday?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "actually make it 30 not 40 please"
+      },
+      {
+        "role": "assistant",
+        "content": "We do have an eggless chocolate cake."
+      },
+      {
+        "role": "user",
+        "content": "can I pick up at the shop?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "so can you confirm my order?"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "remembers",
+        "texts": ["quantity: 40", "make it 30 not 40"]
+      },
+      {
+        "kind": "judge",
+        "criterion": "memory"
+      }
+    ]
+  },
+  {
+    "id": "mem-contact-details-dropped",
+    "subset": "memory",
+    "messages": [
+      {
+        "role": "user",
+        "content": "hi"
+      },
+      {
+        "role": "assistant",
+        "content": "Hi! How can I help?"
+      },
+      {
+        "role": "user",
+        "content": "I'm Siti, call me at 9123 4567 or siti@example.com. I need 40 pcs of chocolate fudge cake"
+      },
+      {
+        "role": "assistant",
+        "content": "Noted, thank you."
+      },
+      {
+        "role": "user",
+        "content": "what time do you open on Saturday?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "do you have eggless cakes?"
+      },
+      {
+        "role": "assistant",
+        "content": "We do have an eggless chocolate cake."
+      },
+      {
+        "role": "user",
+        "content": "can I pick up at the shop?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "is the pandan chiffon soft?"
+      },
+      {
+        "role": "assistant",
+        "content": "Yes, it is light and soft."
+      },
+      {
+        "role": "user",
+        "content": "ok thanks"
+      },
+      {
+        "role": "assistant",
+        "content": "You're welcome!"
+      },
+      {
+        "role": "user",
+        "content": "what time do you open on Saturday?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "do you have eggless cakes?"
+      },
+      {
+        "role": "assistant",
+        "content": "We do have an eggless chocolate cake."
+      },
+      {
+        "role": "user",
+        "content": "can I pick up at the shop?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "is the pandan chiffon soft?"
+      },
+      {
+        "role": "assistant",
+        "content": "Yes, it is light and soft."
+      },
+      {
+        "role": "user",
+        "content": "ok thanks"
+      },
+      {
+        "role": "assistant",
+        "content": "You're welcome!"
+      },
+      {
+        "role": "user",
+        "content": "what time do you open on Saturday?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "do you have eggless cakes?"
+      },
+      {
+        "role": "assistant",
+        "content": "We do have an eggless chocolate cake."
+      },
+      {
+        "role": "user",
+        "content": "can I pick up at the shop?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "is the pandan chiffon soft?"
+      },
+      {
+        "role": "assistant",
+        "content": "Yes, it is light and soft."
+      },
+      {
+        "role": "user",
+        "content": "ok thanks"
+      },
+      {
+        "role": "assistant",
+        "content": "You're welcome!"
+      },
+      {
+        "role": "user",
+        "content": "what time do you open on Saturday?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "do you have eggless cakes?"
+      },
+      {
+        "role": "assistant",
+        "content": "We do have an eggless chocolate cake."
+      },
+      {
+        "role": "user",
+        "content": "can I pick up at the shop?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "so can you confirm my order?"
+      }
+    ],
+    "memoryRecorded": [
+      "{\"visitorName\": \"Siti\", \"items\": [{\"what\": \"chocolate fudge cake\", \"quantity\": \"40\"}], \"dates\": [], \"preferences\": [], \"openQuestions\": [], \"notes\": [\"phone 9123 4567\", \"email siti@example.com\", \"NRIC S1234567D\"]}"
+    ],
+    "expect": [
+      {
+        "kind": "remembers",
+        "texts": ["name: Siti", "quantity: 40"]
+      },
+      {
+        "kind": "memory-excludes",
+        "texts": ["9123", "siti@example.com", "S1234567D"]
+      }
+    ]
+  },
+  {
+    "id": "mem-assistant-amount-dropped",
+    "subset": "memory",
+    "messages": [
+      {
+        "role": "user",
+        "content": "hi"
+      },
+      {
+        "role": "assistant",
+        "content": "Hi! How can I help?"
+      },
+      {
+        "role": "user",
+        "content": "I'm Siti. I need 40 pcs of chocolate fudge cake for 14 Dec"
+      },
+      {
+        "role": "assistant",
+        "content": "Noted, thank you."
+      },
+      {
+        "role": "user",
+        "content": "what time do you open on Saturday?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "do you have eggless cakes?"
+      },
+      {
+        "role": "assistant",
+        "content": "We do have an eggless chocolate cake."
+      },
+      {
+        "role": "user",
+        "content": "can I pick up at the shop?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "is the pandan chiffon soft?"
+      },
+      {
+        "role": "assistant",
+        "content": "Yes, it is light and soft."
+      },
+      {
+        "role": "user",
+        "content": "ok thanks"
+      },
+      {
+        "role": "assistant",
+        "content": "You're welcome!"
+      },
+      {
+        "role": "user",
+        "content": "what time do you open on Saturday?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "do you have eggless cakes?"
+      },
+      {
+        "role": "assistant",
+        "content": "We do have an eggless chocolate cake."
+      },
+      {
+        "role": "user",
+        "content": "can I pick up at the shop?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "is the pandan chiffon soft?"
+      },
+      {
+        "role": "assistant",
+        "content": "Yes, it is light and soft."
+      },
+      {
+        "role": "user",
+        "content": "ok thanks"
+      },
+      {
+        "role": "assistant",
+        "content": "You're welcome!"
+      },
+      {
+        "role": "user",
+        "content": "what time do you open on Saturday?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "do you have eggless cakes?"
+      },
+      {
+        "role": "assistant",
+        "content": "We do have an eggless chocolate cake."
+      },
+      {
+        "role": "user",
+        "content": "can I pick up at the shop?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "is the pandan chiffon soft?"
+      },
+      {
+        "role": "assistant",
+        "content": "Yes, it is light and soft."
+      },
+      {
+        "role": "user",
+        "content": "ok thanks"
+      },
+      {
+        "role": "assistant",
+        "content": "You're welcome!"
+      },
+      {
+        "role": "user",
+        "content": "what time do you open on Saturday?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "do you have eggless cakes?"
+      },
+      {
+        "role": "assistant",
+        "content": "We do have an eggless chocolate cake."
+      },
+      {
+        "role": "user",
+        "content": "can I pick up at the shop?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "how much will it be?"
+      }
+    ],
+    "memoryRecorded": [
+      "{\"visitorName\": \"Siti\", \"items\": [{\"what\": \"chocolate fudge cake\", \"quantity\": \"40\"}, {\"what\": \"discount\", \"quantity\": \"S$5 off\"}], \"dates\": [], \"preferences\": [], \"openQuestions\": [], \"notes\": [\"was told it costs S$55 each\", \"budget 500\\u5143\"]}"
+    ],
+    "expect": [
+      {
+        "kind": "remembers",
+        "texts": ["quantity: 40"]
+      },
+      {
+        "kind": "memory-excludes",
+        "texts": ["S$", "元"]
+      },
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
+  },
+  {
+    "id": "mem-short-no-fold",
+    "subset": "memory",
+    "messages": [
+      {
+        "role": "user",
+        "content": "hi"
+      },
+      {
+        "role": "assistant",
+        "content": "Hi! How can I help?"
+      },
+      {
+        "role": "user",
+        "content": "I'm Siti. I need 40 pcs of chocolate fudge cake for 14 Dec"
+      },
+      {
+        "role": "assistant",
+        "content": "Noted, thank you."
+      },
+      {
+        "role": "user",
+        "content": "what time do you open on Saturday?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "do you have eggless cakes?"
+      },
+      {
+        "role": "assistant",
+        "content": "We do have an eggless chocolate cake."
+      },
+      {
+        "role": "user",
+        "content": "so can you confirm my order?"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "remembers",
+        "texts": ["I'm Siti", "40 pcs", "14 Dec"]
+      },
+      {
+        "kind": "memory-excludes",
+        "texts": ["<memory>", "name:"]
+      }
+    ]
+  },
+  {
+    "id": "mem-same-as-before",
+    "subset": "memory",
+    "messages": [
+      {
+        "role": "user",
+        "content": "hi"
+      },
+      {
+        "role": "assistant",
+        "content": "Hi! How can I help?"
+      },
+      {
+        "role": "user",
+        "content": "I'm Siti. I need 40 pcs of chocolate fudge cake for 14 Dec"
+      },
+      {
+        "role": "assistant",
+        "content": "Noted, thank you."
+      },
+      {
+        "role": "user",
+        "content": "what time do you open on Saturday?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "do you have eggless cakes?"
+      },
+      {
+        "role": "assistant",
+        "content": "We do have an eggless chocolate cake."
+      },
+      {
+        "role": "user",
+        "content": "can I pick up at the shop?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "is the pandan chiffon soft?"
+      },
+      {
+        "role": "assistant",
+        "content": "Yes, it is light and soft."
+      },
+      {
+        "role": "user",
+        "content": "ok thanks"
+      },
+      {
+        "role": "assistant",
+        "content": "You're welcome!"
+      },
+      {
+        "role": "user",
+        "content": "what time do you open on Saturday?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "do you have eggless cakes?"
+      },
+      {
+        "role": "assistant",
+        "content": "We do have an eggless chocolate cake."
+      },
+      {
+        "role": "user",
+        "content": "can I pick up at the shop?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "is the pandan chiffon soft?"
+      },
+      {
+        "role": "assistant",
+        "content": "Yes, it is light and soft."
+      },
+      {
+        "role": "user",
+        "content": "ok thanks"
+      },
+      {
+        "role": "assistant",
+        "content": "You're welcome!"
+      },
+      {
+        "role": "user",
+        "content": "what time do you open on Saturday?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "do you have eggless cakes?"
+      },
+      {
+        "role": "assistant",
+        "content": "We do have an eggless chocolate cake."
+      },
+      {
+        "role": "user",
+        "content": "can I pick up at the shop?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "is the pandan chiffon soft?"
+      },
+      {
+        "role": "assistant",
+        "content": "Yes, it is light and soft."
+      },
+      {
+        "role": "user",
+        "content": "ok thanks"
+      },
+      {
+        "role": "assistant",
+        "content": "You're welcome!"
+      },
+      {
+        "role": "user",
+        "content": "what time do you open on Saturday?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "do you have eggless cakes?"
+      },
+      {
+        "role": "assistant",
+        "content": "We do have an eggless chocolate cake."
+      },
+      {
+        "role": "user",
+        "content": "can I pick up at the shop?"
+      },
+      {
+        "role": "assistant",
+        "content": "Let me check with the team and get back to you."
+      },
+      {
+        "role": "user",
+        "content": "same as before please, but add the pandan chiffon too"
+      }
+    ],
+    "expect": [
+      {
+        "kind": "remembers",
+        "texts": ["wants: pcs of chocolate fudge cake | quantity: 40", "date: 14 Dec"]
+      },
+      {
+        "kind": "prices-from-facts"
+      }
+    ]
+  }
+]

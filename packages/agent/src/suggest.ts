@@ -8,7 +8,6 @@ import {
   latestVisitorMessage,
   NotOwnerError,
   ownerOf,
-  recentMessages,
   storeSuggestion,
   suggestionRetryAfter,
   type SuggestionOutcome,
@@ -21,8 +20,8 @@ import { applyBoundary, triageTail } from './boundary.js';
 import { answerStep, type AnswerMeta, type CoachOutcome } from './coach.js';
 import { dispatchPlan } from './dispatch.js';
 import { replyLanguage } from './language.js';
+import { loadConversationHistory } from './memory-store.js';
 import { triage, type TurnPlan } from './plan.js';
-import { HISTORY_LIMIT } from './prompt.js';
 import { replayContext, replayRegistry, ReplayPorts } from './replay-dispatch.js';
 
 /**
@@ -107,20 +106,19 @@ async function prepare(deps: SuggestDeps, input: SuggestInput, now: Date) {
           }
         : null;
     // D4: the thread up to the latest question; AI and staff replies are both the assistant's.
-    const history = (
-      await recentMessages(tx, {
-        tenantId,
-        conversationId,
-        upToSeq: question.seq,
-        limit: HISTORY_LIMIT,
-      })
-    )
+    // FEAT-026 §5.4: the memory as of this question and the messages after it.
+    const loaded = await loadConversationHistory(tx, {
+      tenantId,
+      conversationId,
+      upToSeq: question.seq,
+    });
+    const history = loaded.messages
       .filter((m) => m.author !== 'system')
       .map((m) => ({
         role: m.author === 'visitor' ? ('user' as const) : ('assistant' as const),
         content: m.body,
       }));
-    return { tenant, rules, hours, history, question };
+    return { tenant, rules, hours, history, question, memory: loaded.memory };
   });
 }
 
@@ -139,7 +137,7 @@ export async function suggestReply(deps: SuggestDeps, input: SuggestInput): Prom
   const meta: AnswerMeta = { tenantId, conversationId, turnId: id };
 
   const [p, f] = await Promise.allSettled([
-    triage(deps.llm, { history: prep.history, meta, tail: triageTail(prep.rules) }),
+    triage(deps.llm, { history: prep.history, meta, tail: triageTail(prep.rules, prep.memory) }),
     search(deps, input, id, text),
   ]);
   const plan: TurnPlan | null =
@@ -166,7 +164,17 @@ export async function suggestReply(deps: SuggestDeps, input: SuggestInput): Prom
     // A crisis or abuse turn: staff answer it themselves; the AI's fixed text isn't a draft.
     outcome = 'no_checked_answer';
   } else {
-    const a = await answerStep(deps, meta, prep, text, prep.history, plan, facts, dispatch);
+    const a = await answerStep(
+      deps,
+      meta,
+      prep,
+      text,
+      prep.history,
+      plan,
+      facts,
+      dispatch,
+      prep.memory,
+    );
     outcome = plan && facts && dispatch ? suggestionOutcome(a.outcome) : 'unavailable';
     if (outcome === 'ready') {
       body = a.body;

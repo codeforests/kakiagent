@@ -6,7 +6,6 @@ import {
   getMessage,
   listAskedConversations,
   messagesSince,
-  recentMessages,
   visitorMessageCount,
   type ConversationRow,
   type MessageRow,
@@ -30,7 +29,9 @@ import { dispatchPlan } from './dispatch.js';
 import type { HoursContext } from './hours-text.js';
 import { replyLanguage } from './language.js';
 import { triage, type TurnPlan } from './plan.js';
-import { HISTORY_LIMIT, type HistoryMessage } from './prompt.js';
+import type { ConversationMemory } from './memory.js';
+import { loadConversationHistory } from './memory-store.js';
+import type { HistoryMessage } from './prompt.js';
 import {
   abuseTurns,
   effectsOf,
@@ -284,6 +285,8 @@ interface ReplayPrep {
   question: MessageRow;
   history: HistoryMessage[];
   priorAbuse: number;
+  /** FEAT-026 D3: the memory as it was before this question. */
+  memory: ConversationMemory | null;
 }
 
 async function prepareQuestion(deps: ReplayDeps, input: ReplayQuestionInput): Promise<ReplayPrep> {
@@ -324,14 +327,13 @@ async function prepareQuestion(deps: ReplayDeps, input: ReplayQuestionInput): Pr
           }
         : null;
     // D3: the original conversation up to this question, mapped as the visitor turn maps it.
-    const history = (
-      await recentMessages(tx, {
-        tenantId,
-        conversationId: input.conversationId,
-        upToSeq: question.seq,
-        limit: HISTORY_LIMIT,
-      })
-    ).map((m) => ({
+    // FEAT-026 D3: the memory as it was before this question, and the messages after it.
+    const loaded = await loadConversationHistory(tx, {
+      tenantId,
+      conversationId: input.conversationId,
+      upToSeq: question.seq,
+    });
+    const history = loaded.messages.map((m) => ({
       role: m.author === 'visitor' ? ('user' as const) : ('assistant' as const),
       content: m.body,
     }));
@@ -349,7 +351,7 @@ async function prepareQuestion(deps: ReplayDeps, input: ReplayQuestionInput): Pr
       earlier.filter((r) => (seqs.get(r.replayOf!) ?? Infinity) < question.seq).map(storedEffects),
     );
     const { rules } = await rulesInForce(tx, tenantId);
-    return { tenant, rules, hours, question, history, priorAbuse };
+    return { tenant, rules, hours, question, history, priorAbuse, memory: loaded.memory };
   });
 }
 
@@ -382,7 +384,7 @@ export async function replayQuestion(
   const meta = { tenantId: input.tenantId, coachingSessionId: input.sessionId };
   // The live visitor triage prompt, not coaching's (D3).
   const [p, f] = await Promise.allSettled([
-    triage(deps.llm, { history: prep.history, meta, tail: triageTail(prep.rules) }),
+    triage(deps.llm, { history: prep.history, meta, tail: triageTail(prep.rules, prep.memory) }),
     search(deps, input, text),
   ]);
   const plan: TurnPlan | null =
@@ -423,7 +425,17 @@ export async function replayQuestion(
       channelLive: deps.channelLive ? await deps.channelLive() : true,
     });
   } else {
-    const a = await answerStep(deps, meta, prep, text, prep.history, plan, facts, dispatch);
+    const a = await answerStep(
+      deps,
+      meta,
+      prep,
+      text,
+      prep.history,
+      plan,
+      facts,
+      dispatch,
+      prep.memory,
+    );
     ({ body, outcome, factIds, explainer } = a);
   }
 

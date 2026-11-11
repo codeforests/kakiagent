@@ -2921,6 +2921,42 @@ export const handoffLinks = pgTable(
   ],
 );
 
+/**
+ * A conversation's structured memory: older messages folded by the `summarise` job (AGT-12;
+ * FEAT-026 §4). Append-only, one row per fold keyed by `upto_seq` (D3); cascades with the
+ * conversation (ADR-015).
+ */
+export const conversationSummaries = pgTable(
+  'conversation_summaries',
+  {
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id),
+    id: uuid('id').notNull().defaultRandom(),
+    conversationId: uuid('conversation_id').notNull(),
+    /** The last message seq folded into `memory`. */
+    uptoSeq: bigint('upto_seq', { mode: 'number' }).notNull(),
+    memory: jsonb('memory').$type<Record<string, unknown>>().notNull(),
+    messagesFolded: integer('messages_folded').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.id] }),
+    // Also serves "latest at or before" (a backward index scan), so no second index.
+    uniqueIndex('conversation_summaries_upto_uq').on(t.tenantId, t.conversationId, t.uptoSeq),
+    foreignKey({
+      name: 'conversation_summaries_conversation_fk',
+      columns: [t.tenantId, t.conversationId],
+      foreignColumns: [conversations.tenantId, conversations.id],
+    }).onDelete('cascade'),
+    check(
+      'conversation_summaries_memory_ck',
+      sql`jsonb_typeof(${t.memory}) = 'object' and octet_length(${t.memory}::text) <= 4000`,
+    ),
+    check('conversation_summaries_folded_ck', sql`${t.messagesFolded} > 0 and ${t.uptoSeq} > 0`),
+  ],
+);
+
 export const TENANT_SCOPED_TABLES = [
   'tenants',
   'conversations',
@@ -2975,4 +3011,5 @@ export const TENANT_SCOPED_TABLES = [
   'contact_identities',
   'contact_merges',
   'handoff_links',
+  'conversation_summaries',
 ] as const;

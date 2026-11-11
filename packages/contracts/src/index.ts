@@ -2072,13 +2072,21 @@ export const HandoffEmailJob = z.object({
   linkId: z.uuid(),
 });
 export type HandoffEmailJob = z.infer<typeof HandoffEmailJob>;
-/** Everything on `conversation-turns`: an auto-close, escalation reminder, approval timer or delivery-failed job, or a visitor turn. */
+/** Folds a long conversation's older messages into its memory (AGT-12; FEAT-026 §5.3). Own FIFO group `memory:<conversationId>`. */
+export const SummariseJob = z.object({
+  kind: z.literal('summarise'),
+  tenantId: z.uuid(),
+  conversationId: z.uuid(),
+});
+export type SummariseJob = z.infer<typeof SummariseJob>;
+/** Everything on `conversation-turns`: an auto-close, escalation reminder, approval timer, delivery-failed, handoff-email or summarise job, or a visitor turn. */
 export const TurnQueueJob = z.union([
   AutoCloseJob,
   EscalationReminderJob,
   ApprovalTimerJob,
   DeliveryFailedJob,
   HandoffEmailJob,
+  SummariseJob,
   TurnJob,
 ]);
 export type TurnQueueJob = z.infer<typeof TurnQueueJob>;
