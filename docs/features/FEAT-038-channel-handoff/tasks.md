@@ -1,7 +1,7 @@
 # Tasks: FEAT-038 — Continue on another channel with the history
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: designed · 2026-11-11
+> Status: developer-done · 2026-11-11
 
 - [x] T1 — Schema: `0056_channel_handoff.sql` and `schema.ts`: `handoff_links` (checks, index, forced RLS, policy, grants, `TENANT_SCOPED_TABLES`), `UPDATE (channel)` on `conversations` for `app_agent_visitor`, `contact_identities` source `link` checks, notice kinds `handoff_recap`/`handoff_moved`, NOLOGIN `kaki_handoff_purge` + `handoff_links_purge()`, definer `handoff_link_tenant(link_id)` (design §4; AC-10)
       Done when: `drizzle-kit generate` reports no drift after 0056; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes with new `rls.int` cases: tenant B can't read A's links; a `link` identity without `verified_at` fails; `handoff_links_purge()` deletes only rows 7 days past expiry and `app_agent_visitor`/`app_dashboard` can't execute it; an email link without `email` fails.
@@ -30,7 +30,7 @@
 - [x] T11 — E2E `e2e/tests/handoff.e2e.ts`: email path end to end through Mailpit (request in the widget, open the link, confirm, recap email arrives, widget shows moved, inbox divider); Telegram path through the fake bot webhook (`@kaki/channels/telegram-fake`) posting `/start <code>` read from the widget's link; axe at desktop and phone (5000 px tall) (AC-3, AC-7, AC-8, AC-11, AC-12)
       Done when: the spec typechecks and lints; it runs in the verify stage's GitHub CI.
       Note: no tags with digits (fake triage reads numbers as quantities); restore the dev tenant's channel state in `afterEach`.
-- [ ] T12 — Verify: full `pnpm lint` and `pnpm typecheck`, this feature's unit and integration suites, `node scripts/check-rtm.mjs FEAT-038`; status `developer-done`; draft PR.
+- [x] T12 — Verify: full `pnpm lint` and `pnpm typecheck`, this feature's unit and integration suites, `node scripts/check-rtm.mjs FEAT-038`; status `developer-done`; draft PR.
       Done when: all pass; "Verification evidence" below has one bullet per AC.
 
 ## Verification evidence
@@ -41,3 +41,16 @@
 - Build notes (UI, 2026-11-11): T9 `widget` unit 65 passed (new: menu item conditions and label, options/removed, error texts, `movedView` from notice or 409, recap dropped, `boldParts` keeps `m***@`; `api.handoff` values incl. network failure, 409 `moved` → `MovedError`); build + size: panel 24.4 KB gz (≤ 35), loader 4.47 KB (unchanged). Stubbed-API Playwright (static `dist/w/v1`, `page.route`, SSE one-shot with `retry`): card from the menu with focus on "Continue on Telegram"; Telegram link `target=_blank rel=noopener`, focus on it; email client-invalid and 422 → `aria-invalid` + error id in `aria-describedby`, focus on the field; 429 alert text; sent state with the masked address and focus on the sent line; menu again focuses the open card (one card); moved notice over SSE → moved bar (`https://t.me/kaki_bot`), composer gone, focus on the notice, menu only Privacy notice; "Start a new chat here" → composer, focus in it. The stub found a bug (masked `***` split as bold), fixed.
   T10 `dashboard` unit 286 passed (new: `eventText` moved → "Moved to Telegram · 2:31 pm" / "Moved to email", `recapView` label by channel and two-line preview, `cardCaption('handoff')`); `inbox` `move.int` 2 passed (`threadEvents` returns `moved` with `channel`). The recap renders as `RecapNotice` in `conversation-parts.tsx` (label, two lines, "Show all" `aria-expanded`/`aria-controls`, `DeliveryLine`); the moved divider uses the existing `Divider`.
   T11 `e2e/tests/handoff.e2e.ts` (two tests: email via the agent card, Mailpit confirm link, hosted page GET/POST/expired, recap email, moved widget, inbox divider and recap, new chat; Telegram via the menu, deep link, fake `/start c-…`, recap sendMessage, moved widget with the bot link, follow-up joins the same conversation, divider and recap; axe on the widget at 1280 and 375×5000 and on the confirm page and thread) typechecks; it runs in the verify stage's GitHub CI. The Telegram fake is `scripts/telegram-fake.mjs` (not a `@kaki/channels/telegram-fake` entry as tasks.md said).
+  T12 (2026-11-11): `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `node scripts/check-rtm.mjs FEAT-038` all PASS; `api` handoff.int 12, `channels` handoff.int 9, `agent` handoff.int 3, `widget` unit 65, `dashboard` unit 286 passed.
+- Per AC (developer evidence; verify re-checks):
+  - AC-1: api handoff.int (config flags, 409 `channel_unavailable`); widget `menuItems`/`handoffOptions` tests; E2E Telegram test (menu names only the live channel).
+  - AC-2: channels unit (token) + api handoff.int (Telegram link, 30 min, audit); E2E checks the `t.me/<bot>?start=c-` link.
+  - AC-3: api handoff.int (redeem, merge, recap); E2E Telegram (`/start`, recap sendMessage, follow-up joins the same conversation).
+  - AC-4, AC-5: api handoff.int (expired/forged/other-tenant/closed; group).
+  - AC-6: api + channels handoff.int (mail, masked, limits, 422); E2E email (sent state, confirmation email).
+  - AC-7: api handoff.int (GET never consumes, POST, second POST expired); E2E email (confirm page, expired, recap email).
+  - AC-8: api handoff.int (409 `moved`); widget `movedView`/`MovedError` tests and the stubbed browser check; E2E both paths (moved without reload, Start a new chat here). Resume after a reload isn't covered: the widget keeps no conversation across reloads (handoff.md).
+  - AC-9: agent unit/int and `pnpm eval --fast` (backend session).
+  - AC-10: db RLS cases, scheduler purge, channels purge int (backend session).
+  - AC-11: dashboard `eventText`/`recapView` tests, inbox `move.int`; E2E divider and recap on both paths.
+  - AC-12: widget tests and stubbed check (focus, `aria-invalid`, errors); E2E axe at 1280 and 375×5000 (CI).
