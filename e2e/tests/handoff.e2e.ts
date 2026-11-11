@@ -303,14 +303,18 @@ test('a widget visitor continues the same chat on Telegram (AC-1, AC-3, AC-8, AC
   ).toBeVisible();
   await expect(page.getByTestId('thread-recap')).toContainText('Recap sent on Telegram');
   await expectNoSeriousA11yViolations(page);
-  // Every reply has gone out before `afterEach` disconnects the bot: a send after it is
-  // rejected and leaves Telegram degraded, and its banner would follow every later spec.
+  // Every reply, including the AI's answer to the follow-up, has gone out before `afterEach`
+  // disconnects the bot, so no send is left in flight for a bot that is gone.
   await expect(async () => {
     const res = await page.request.get(`/api/v1/conversations/${conversationId}`);
     const { messages } = (await res.json()) as {
-      messages: { author: string; delivery?: { status: string } | null }[];
+      messages: { author: string; body: string; delivery?: { status: string } | null }[];
     };
-    expect(messages.some((m) => m.author === 'agent' && m.delivery?.status === 'sent')).toBe(true);
+    const asked = messages.findIndex((m) => m.author === 'visitor' && m.body.includes(followUp));
+    expect(asked).toBeGreaterThanOrEqual(0);
+    expect(
+      messages.slice(asked + 1).some((m) => m.author === 'agent' && m.delivery?.status === 'sent'),
+    ).toBe(true);
     expect(messages.filter((m) => m.delivery?.status === 'sending')).toEqual([]);
   }).toPass({ timeout: 30_000 });
   await visitor.page.context().close();

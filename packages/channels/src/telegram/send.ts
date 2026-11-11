@@ -34,7 +34,9 @@ export function telegramSender(cfg: TelegramSenderConfig): ChannelSender {
       const { rows } = await tx.execute<{ ciphertext: Buffer; key_ref: string }>(
         sql`select ciphertext, key_ref from channel_credential(${input.connectionId})`,
       );
-      if (!rows[0]) return { ok: false, failed: 'auth' };
+      // Disconnected since the reply was queued: nothing to send with. That's not a rejected
+      // login, so the channel isn't degraded (the bot is gone); staff see it wasn't delivered.
+      if (!rows[0]) return { ok: false, failed: 'permanent' };
       try {
         const cred = await openTelegram(cfg.sealer, {
           connectionId: input.connectionId,
