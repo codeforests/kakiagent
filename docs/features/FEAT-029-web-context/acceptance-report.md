@@ -58,4 +58,4 @@ In this session through `scripts/test-env.sh scripts/check-summary.sh`: `pnpm fo
 
 ## CI
 
-CI_LINE
+GitHub CI run 132 at `96c1a46` (2026-11-12): all 11 jobs green, including E2E on Chromium, Firefox and WebKit (`web-context.e2e` passes). Attempt 1 failed only the `search-volume.int` 2-char Chinese timing check (2385 ms against 2000 ms, known CI noise); attempt 2 (failed job only) green. Later commits are docs only.
