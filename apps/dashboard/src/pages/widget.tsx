@@ -11,6 +11,7 @@ import {
   InstallCheck,
   OriginsList,
   SnippetBox,
+  TrackingSection,
   UnsavedPrompt,
   WidgetPreview,
 } from './widget-parts.tsx';
@@ -120,6 +121,7 @@ export function WidgetSettingsPage() {
             </h2>
             <OriginsList settings={data} idPrefix="widget" />
           </section>
+          <TrackingSection settings={data} onSaved={editor.setToast} />
         </div>
       </div>
       <UnsavedPrompt editor={editor} />

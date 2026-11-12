@@ -115,6 +115,7 @@ export function useWidgetEditor() {
     detect,
     blocker,
     toast,
+    setToast,
   };
 }
 
