@@ -78,6 +78,8 @@ export async function appendVisitorMessage(
     visitorId: string;
     text: string;
     clientMessageId: string;
+    /** The widget visitor's current page, path only (FEAT-029 D2); masked like the text. */
+    page?: string;
     /** False for a message with nothing to answer, e.g. an attachment-only email (FEAT-036 §5.1). */
     scheduleTurn?: boolean;
   },
@@ -123,6 +125,7 @@ export async function appendVisitorMessage(
       author: 'visitor',
       body: piiMask(input.text),
       clientMessageId: input.clientMessageId,
+      pagePath: input.page ? piiMask(input.page).slice(0, 512) : null,
     })
     .onConflictDoNothing()
     .returning();
