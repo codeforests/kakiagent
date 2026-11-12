@@ -375,7 +375,8 @@
         "extended_by": [
           "features/FEAT-043-takeover/ui-design.md#scr-app-015--conversation-partial",
           "features/FEAT-044-escalation-routing/ui-design.md#scr-app-015--conversation-partial",
-          "features/FEAT-045-suggested-replies/ui-design.md#scr-app-015--conversation-partial"
+          "features/FEAT-045-suggested-replies/ui-design.md#scr-app-015--conversation-partial",
+          "features/FEAT-029-web-context/ui-design.md#scr-app-015--conversation-partial-intent-block"
         ]
       },
       "states": {
@@ -419,7 +420,9 @@
           "suggestion unavailable",
           "suggestions rate limited",
           "suggest disabled (paused)",
-          "suggestion error"
+          "suggestion error",
+          "intent full",
+          "intent page only"
         ],
         "gaps": [
           "internal notes and tags (FEAT-047)"
@@ -439,7 +442,8 @@
         "POST /api/v1/conversations/:id/messages",
         "POST /api/v1/conversations/:id/handover-request",
         "WS /ws (member events)",
-        "POST /api/v1/conversations/:id/suggestion"
+        "POST /api/v1/conversations/:id/suggestion",
+        "GET conversation thread (sidebar.web)"
       ],
       "conformance": {
         "result": "pass",
@@ -1261,7 +1265,10 @@
       "strategy": "code-native",
       "source": {
         "spec": "02-design/anchor-screens.md#scr-wgt-002--chat-panel",
-        "prototype": "02-design/anchors/scr-wgt-002-chat-panel.html"
+        "prototype": "02-design/anchors/scr-wgt-002-chat-panel.html",
+        "extended_by": [
+          "features/FEAT-029-web-context/ui-design.md#scr-wgt-002--chat-panel-partial-menu-items"
+        ]
       },
       "states": {
         "covered": [
@@ -1402,7 +1409,10 @@
       "feature": "FEAT-032",
       "strategy": "code-native",
       "source": {
-        "spec": "features/FEAT-032-widget-install-theme/ui-design.md#scr-app-037--website-widget"
+        "spec": "features/FEAT-032-widget-install-theme/ui-design.md#scr-app-037--website-widget",
+        "extended_by": [
+          "features/FEAT-029-web-context/ui-design.md#scr-app-037--website-widget-partial-tracking-section"
+        ]
       },
       "states": {
         "covered": [
@@ -1416,11 +1426,14 @@
           "install detected",
           "wrong domain",
           "adjusted colour",
-          "permission"
+          "permission",
+          "tracking on",
+          "tracking off",
+          "consent mode",
+          "tracking save error"
         ],
         "gaps": [
           "Pre-live mode (FEAT-034)",
-          "Tracking and consent mode (FEAT-029)",
           "Proactive greetings (FEAT-030)"
         ],
         "supplements": []
@@ -1432,7 +1445,8 @@
         "PUT /api/v1/widget/logo",
         "DELETE /api/v1/widget/logo",
         "POST /api/v1/widget/origins",
-        "DELETE /api/v1/widget/origins/:origin"
+        "DELETE /api/v1/widget/origins/:origin",
+        "PUT /api/v1/widget/tracking"
       ],
       "conformance": {
         "result": "pass",
@@ -2493,6 +2507,36 @@
       },
       "status": "designed",
       "designed_at": "2026-11-11"
+    },
+    "SCR-WGT-007": {
+      "name": "Tracking consent",
+      "surface": "WGT",
+      "feature": "FEAT-029",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-029-web-context/ui-design.md#scr-wgt-007--tracking-consent"
+      },
+      "states": {
+        "covered": [
+          "asked",
+          "accepted",
+          "declined"
+        ],
+        "gaps": [],
+        "supplements": []
+      },
+      "contract_bindings": [
+        "GET /widget/v1/config (tracking)",
+        "POST /widget/v1/tracking-choice",
+        "POST /widget/v1/events"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-11-12"
     }
   }
 }
