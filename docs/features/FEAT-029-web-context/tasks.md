@@ -1,7 +1,7 @@
 # Tasks: FEAT-029 — Web context and first-party intent tracking; consent mode
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: `developer-done` · 2026-11-12
+> Status: `accepted` · 2026-11-12
 
 - [x] T1 — Schema: `0058_web_context.sql` and `schema.ts`: `widget_settings` tracking columns, `messages.page_path` + check, `visitor_events` and `visitor_tracking_choices` (checks, index, forced RLS, policies, grants, `TENANT_SCOPED_TABLES`), NOLOGIN `kaki_tracking_purge` + `visitor_events_purge()` (design §4; AC-9)
       Done when: `drizzle-kit generate` reports no drift after 0058; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes with new `rls.int` cases: tenant B can't read or write A's events or choices; `app_agent_visitor` can update only `dwell_ms`/`scroll_pct`; a `page_path` without a leading `/` fails; `visitor_events_purge()` deletes only events past 180 days and choices past 13 months, and app roles can't execute it.
