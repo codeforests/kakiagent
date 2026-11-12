@@ -21,6 +21,7 @@ import { answerStep, type AnswerMeta, type CoachOutcome } from './coach.js';
 import { dispatchPlan } from './dispatch.js';
 import { replyLanguage } from './language.js';
 import { loadConversationHistory } from './memory-store.js';
+import { webContextOf } from './web-context.js';
 import { triage, type TurnPlan } from './plan.js';
 import { replayContext, replayRegistry, ReplayPorts } from './replay-dispatch.js';
 
@@ -118,7 +119,9 @@ async function prepare(deps: SuggestDeps, input: SuggestInput, now: Date) {
         role: m.author === 'visitor' ? ('user' as const) : ('assistant' as const),
         content: m.body,
       }));
-    return { tenant, rules, hours, history, question, memory: loaded.memory };
+    // FEAT-029 §5.5: the web context as of this question (the sidebar's scope, D7).
+    const web = await webContextOf(tx, { tenantId, conversationId, upToSeq: question.seq });
+    return { tenant, rules, hours, history, question, memory: loaded.memory, web };
   });
 }
 
@@ -137,7 +140,11 @@ export async function suggestReply(deps: SuggestDeps, input: SuggestInput): Prom
   const meta: AnswerMeta = { tenantId, conversationId, turnId: id };
 
   const [p, f] = await Promise.allSettled([
-    triage(deps.llm, { history: prep.history, meta, tail: triageTail(prep.rules, prep.memory) }),
+    triage(deps.llm, {
+      history: prep.history,
+      meta,
+      tail: triageTail(prep.rules, prep.memory, prep.web.currentPage),
+    }),
     search(deps, input, id, text),
   ]);
   const plan: TurnPlan | null =
@@ -174,6 +181,7 @@ export async function suggestReply(deps: SuggestDeps, input: SuggestInput): Prom
       facts,
       dispatch,
       prep.memory,
+      prep.web,
     );
     outcome = plan && facts && dispatch ? suggestionOutcome(a.outcome) : 'unavailable';
     if (outcome === 'ready') {

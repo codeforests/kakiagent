@@ -1,3 +1,4 @@
+import type { WebContext } from '@kaki/contracts';
 import type { GenerateRequest } from '@kaki/llm-gateway';
 import type { Violation } from './verify.js';
 
@@ -88,4 +89,76 @@ function modelTyped(text: string, spans: [number, number][]): string {
     pos += ch.length;
   }
   return out;
+}
+
+/**
+ * Phrases that reveal page tracking (AGT-05; FEAT-029 §5.6, D5): no reply says what the visitor
+ * viewed, how long they stayed, how they arrived or that they came before.
+ */
+export const TRACKING_MARKERS: RegExp[] = [
+  /\byou(?:'ve|\s+have)?\s+(?:just\s+|already\s+)?(?:viewed|visited|browsed|looked\s+at)\b/iu,
+  /\bwelcome\s+back\b/iu,
+  /\bspent\s+\d+\s+(?:seconds?|secs?|minutes?|mins?)\b/iu,
+  /\byou\s+came\s+from\b/iu,
+  /\breturning\s+visitor\b/iu,
+  /\byour\s+browsing\b/iu,
+  /你(?:刚才)?(?:看过|浏览过?)/u,
+  /欢迎回来/u,
+];
+
+export interface TrackingGuard {
+  check(text: string, spans: [number, number][]): Violation[];
+}
+
+/** A path's last segment as words: `/cakes/kueh-lapis` → `kueh lapis`. */
+export function pathWords(path: string): string {
+  const last = path.split('/').filter(Boolean).at(-1) ?? '';
+  return words(decodeSafe(last)).join(' ');
+}
+
+function decodeSafe(s: string): string {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return s;
+  }
+}
+
+/**
+ * The tracking guard (AGT-05; FEAT-029 §5.6), run after the leak guard: a segment fails if it
+ * matches a tracking phrase, or names a viewed page other than the current one, as its path or
+ * its last segment's words. Words the model also has from elsewhere (the visitor's messages, the
+ * facts, the memory, the current page: `known`) are allowed, so "kueh" after a kueh question
+ * passes. Without web context (coaching) nothing is checked.
+ */
+export function trackingGuard(
+  web: WebContext | null | undefined,
+  known: string[] = [],
+): TrackingGuard {
+  if (!web) return { check: () => [] };
+  const knownText = ` ${known.flatMap((k) => words(k)).join(' ')} `;
+  const current = web.currentPage;
+  const named = web.viewed
+    .map((v) => v.path)
+    .filter((p) => p !== current && p !== '/')
+    .map((p) => ({ path: p, phrase: pathWords(p) }))
+    .filter((v) => v.phrase.length >= 3 && !knownText.includes(` ${v.phrase} `));
+  return {
+    check(text, spans) {
+      const typed = modelTyped(text, spans);
+      const found: Violation[] = [];
+      for (const re of TRACKING_MARKERS) {
+        const m = re.exec(typed);
+        if (m) found.push({ kind: 'tracking', text: m[0] });
+      }
+      const typedWords = ` ${words(typed).join(' ')} `;
+      const lower = typed.toLowerCase();
+      for (const v of named)
+        if (lower.includes(v.path.toLowerCase()) || typedWords.includes(` ${v.phrase} `)) {
+          found.push({ kind: 'tracking', text: v.phrase });
+          break;
+        }
+      return found;
+    },
+  };
 }

@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { TaskKind, type LeakGuard } from '@kaki/agent';
-import type { MessageCard } from '@kaki/contracts';
+import { WebContext, type MessageCard } from '@kaki/contracts';
 import { WeeklyHours } from '@kaki/tenancy';
 import { z } from 'zod';
 import { Criterion } from './judge.js';
@@ -24,6 +24,8 @@ export const Subset = z.enum([
   'approvals',
   /** Long conversations folded into memory (FEAT-026, AGT-12). */
   'memory',
+  /** The visitor's page context; replies never reveal tracking (FEAT-029, AGT-05). */
+  'web-context',
 ]);
 export type Subset = z.infer<typeof Subset>;
 
@@ -218,6 +220,8 @@ export const Case = z
      * visitor-only handlers are refused `scope`.
      */
     scope: z.enum(['visitor', 'coaching']).default('visitor'),
+    /** FEAT-029: the turn's web context (`webContextOf`); absent: none, as before. */
+    web: WebContext.optional(),
     /** FEAT-055 D4: the conversation already has a pending approval. */
     pendingApproval: z.boolean().default(false),
     /** Earlier abuse turns in the conversation (FEAT-025): seeds the abuse count. */

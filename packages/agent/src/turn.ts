@@ -41,6 +41,7 @@ import { replyLanguage, type ReplyLanguage } from './language.js';
 import { routeSignals, triage, type TurnPlan } from './plan.js';
 import { MEMORY_FOLD_AT } from './memory.js';
 import { loadConversationHistory } from './memory-store.js';
+import { webAudit, webContextOf } from './web-context.js';
 import { withGst } from './render.js';
 import type { Violation } from './verify.js';
 import { escalationNotice, safetyText, textsFor, type SafetyKey } from './texts.js';
@@ -144,6 +145,8 @@ export async function runVisitorTurn(
       upToSeq: message.seq,
     });
     const history = loaded.messages;
+    // AGT-05 (FEAT-029 §5.5): the page context this turn may use, as of the message.
+    const web = await webContextOf(tx, { tenantId, conversationId, upToSeq: message.seq });
     const disclosed = await hasAssistantMessage(tx, tenantId, conversationId);
     // AGT-09: the business is closed now, and nobody has been told so this closed period.
     const tenant = gate.tenant;
@@ -171,6 +174,7 @@ export async function runVisitorTurn(
       rules,
       history,
       memory: loaded.memory,
+      web,
       unfolded: loaded.unfolded,
       disclosed,
       hours,
@@ -334,6 +338,8 @@ export async function runVisitorTurn(
         card: attached ? auditCode(attached.kind) : null,
         // FEAT-055: what the commitment request did (a code; never the request or amounts).
         approval: approvalOf() ? auditCode(approvalOf()!.status) : null,
+        // FEAT-029 (AGT-05, AC-7): the web context used; masked paths and counts only.
+        ...webAudit(prep!.web),
       });
       // AGT-12 (FEAT-026 §5.3, D4): once 20 messages are unfolded, fold the older ones in the
       // background on the conversation's own memory group; the job re-checks, so extras are no-ops.
@@ -418,12 +424,14 @@ export async function runVisitorTurn(
 
   // Triage runs alongside retrieval (ADR-007: no extra latency on the critical path, NFR-01).
   const triageStart = now();
-  const planned = triage(llm, { history, meta, tail: triageTail(rules.rules, prep.memory) }).then(
-    (p) => {
-      triageMs = Math.round(now() - triageStart);
-      return p;
-    },
-  );
+  const planned = triage(llm, {
+    history,
+    meta,
+    tail: triageTail(rules.rules, prep.memory, prep.web.currentPage),
+  }).then((p) => {
+    triageMs = Math.round(now() - triageStart);
+    return p;
+  });
   const retrieved = retrieve();
   async function retrieve(): Promise<VisitorFact[]> {
     const { vectors } = await llm.embed({ texts: [message.body], purpose: 'query', meta });
@@ -677,6 +685,7 @@ export async function runVisitorTurn(
       persona,
       rules: rules.rules,
       memory: prep.memory,
+      web: prep.web,
     },
     {
       llm,

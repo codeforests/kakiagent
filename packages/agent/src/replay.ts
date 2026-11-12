@@ -31,6 +31,7 @@ import { replyLanguage } from './language.js';
 import { triage, type TurnPlan } from './plan.js';
 import type { ConversationMemory } from './memory.js';
 import { loadConversationHistory } from './memory-store.js';
+import { replayWebContext } from './web-context.js';
 import type { HistoryMessage } from './prompt.js';
 import {
   abuseTurns,
@@ -384,7 +385,11 @@ export async function replayQuestion(
   const meta = { tenantId: input.tenantId, coachingSessionId: input.sessionId };
   // The live visitor triage prompt, not coaching's (D3).
   const [p, f] = await Promise.allSettled([
-    triage(deps.llm, { history: prep.history, meta, tail: triageTail(prep.rules, prep.memory) }),
+    triage(deps.llm, {
+      history: prep.history,
+      meta,
+      tail: triageTail(prep.rules, prep.memory, prep.question.pagePath),
+    }),
     search(deps, input, text),
   ]);
   const plan: TurnPlan | null =
@@ -435,6 +440,8 @@ export async function replayQuestion(
       facts,
       dispatch,
       prep.memory,
+      // FEAT-029 §5.5: replay uses only the question's stored page (events aren't replayed).
+      replayWebContext(prep.question.pagePath),
     );
     ({ body, outcome, factIds, explainer } = a);
   }

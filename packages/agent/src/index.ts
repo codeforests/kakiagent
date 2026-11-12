@@ -64,8 +64,19 @@ export {
   type TaskResult,
 } from './dispatch.js';
 export { fakeVisitorResponder } from './fake-responder.js';
-export { leakGuard, LEAK_MARKERS, ruleText, WINDOW, type LeakGuard } from './guard.js';
-export { asData, buildVisitorPrompt } from './prompt.js';
+export {
+  leakGuard,
+  LEAK_MARKERS,
+  ruleText,
+  WINDOW,
+  trackingGuard,
+  TRACKING_MARKERS,
+  pathWords,
+  type LeakGuard,
+  type TrackingGuard,
+} from './guard.js';
+export { replayWebContext, webAudit, webContextOf } from './web-context.js';
+export { asData, buildVisitorPrompt, pageLines, PAGE_RULE } from './prompt.js';
 export { fakeTriage } from './fake-triage.js';
 export {
   CaptureLeadArgs,

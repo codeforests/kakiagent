@@ -41,6 +41,26 @@ function promiseOf(question: string, tail: string, zh: boolean): string | null {
   return zh ? '可以给您打折！' : 'Sure, we can give you a special price!';
 }
 
+/**
+ * FEAT-029: asked what they looked at, the fake names a viewed page from the `<page>` block, for
+ * the tracking guard to block; told the draft was blocked, it offers help with this page.
+ */
+const VIEWED_Q =
+  /\bwhat (?:did|have) i (?:look(?:ed)? at|view(?:ed)?|see|seen|brows(?:e|ed))\b|我(?:刚才)?看过什么/i;
+const BLOCKED_TRACKING = /^Your previous continuation was blocked .*tracking "/m;
+
+function viewedOf(question: string, tail: string, zh: boolean): string | null {
+  if (!VIEWED_Q.test(question)) return null;
+  if (BLOCKED_TRACKING.test(tail))
+    return zh
+      ? '有什么关于这个页面的问题，我都乐意帮忙。'
+      : "I'm happy to help with anything on this page.";
+  const viewed = /^viewed: ([^,\n]+)/m.exec(tail)?.[1];
+  if (!viewed) return null;
+  const name = viewed.split('/').filter(Boolean).at(-1)?.replaceAll('-', ' ') ?? viewed;
+  return zh ? `您看过 ${name}。` : `You looked at our ${name} page earlier.`;
+}
+
 function answerOf(req: GenerateRequest): string {
   const tail = req.tail ?? '';
   const zh = /^Reply language: Chinese/m.test(tail);
@@ -53,6 +73,8 @@ function answerOf(req: GenerateRequest): string {
       : `I'm ${name}, the AI assistant here. How can I help?`;
   const promise = promiseOf(question, tail, zh);
   if (promise) return promise;
+  const viewed = viewedOf(question, tail, zh);
+  if (viewed) return viewed;
   if (HOURS_Q.test(question) && /\[\[s:hours\.today\]\]/.test(tail))
     return hoursAnswer(question, tail, zh);
   const facts = [
