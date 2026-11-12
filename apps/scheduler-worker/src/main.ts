@@ -37,6 +37,7 @@ import { approvalTimersOnce } from './approval-timers.js';
 import { channelDeliveriesOnce } from './channel-deliveries.js';
 import { autoCloseOnce } from './auto-close.js';
 import { handoffPurgeOnce } from './handoff-purge.js';
+import { trackingPurgeOnce } from './tracking-purge.js';
 import { escalationRemindersOnce } from './escalation-reminders.js';
 
 const config = loadConfig(
@@ -106,6 +107,8 @@ const config = loadConfig(
       DELIVERY_SWEEP_MS: z.coerce.number().int().positive().default(60_000),
       /** Purges used and expired handoff links 7 days after expiry (FEAT-038 §5.9): daily. */
       HANDOFF_PURGE_MS: z.coerce.number().int().positive().default(86_400_000),
+      /** Purges page events past 180 days and tracking choices past 13 months (FEAT-029 §5.9): daily. */
+      TRACKING_PURGE_MS: z.coerce.number().int().positive().default(86_400_000),
       /** The custom sending domain's checks (FEAT-036 §5.1): SES v2, or `fixture` locally. */
       EMAIL_IDENTITY_PROVIDER: z.enum(['ses', 'fixture']).default('ses'),
       SES_CONFIGURATION_SET: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
@@ -303,6 +306,14 @@ const handoffPurgeTimer = setInterval(
   config.HANDOFF_PURGE_MS,
 );
 
+// Page tracking (FEAT-029 §5.9, D6; ADR-015): once a day, deletes events past 180 days and
+// choices past 13 months.
+const trackingPurgeRun = trackingPurgeOnce(outboxDb, logger);
+const trackingPurgeTimer = setInterval(
+  () => void trackingPurgeOnce(outboxDb, logger),
+  config.TRACKING_PURGE_MS,
+);
+
 // Escalation reminders (FEAT-044 §5.5): queues a reminder job for each open escalation whose
 // time has come; the agent-worker reminds the assignee (and from the third, owners and admins).
 const escalationRun = escalationRemindersOnce(outboxDb, logger);
@@ -338,6 +349,7 @@ async function shutdown() {
   clearInterval(channelTimer);
   clearInterval(autoCloseTimer);
   clearInterval(handoffPurgeTimer);
+  clearInterval(trackingPurgeTimer);
   clearInterval(escalationTimer);
   clearInterval(approvalTimer);
   clearInterval(deliveryTimer);
@@ -352,6 +364,7 @@ async function shutdown() {
     channelRun,
     autoCloseRun,
     handoffPurgeRun,
+    trackingPurgeRun,
     escalationRun,
     approvalRun,
     deliveryRun,
