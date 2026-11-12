@@ -1160,6 +1160,51 @@ a {
   margin: 0;
   padding-left: var(--space-5);
 }
+/* FEAT-029: the Intent block's page context (SCR-APP-015). */
+.web-intent {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-1) var(--space-3);
+  font-size: var(--type-body-sm-size);
+  line-height: var(--type-body-sm-line);
+}
+.web-intent dt {
+  color: var(--color-text-secondary);
+}
+.web-intent dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.web-intent__path {
+  font-family: var(--font-family-mono);
+}
+.web-intent__viewed {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.web-intent__more {
+  margin-top: var(--space-1);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-text-link);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  min-height: 24px;
+}
+.web-intent__more:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+.tracking-toggle {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
 .details-drawer {
   width: min(320px, 100%);
 }

@@ -49,6 +49,7 @@ const settings = (over: Partial<WidgetSettings> = {}): WidgetSettings => ({
   allowedOrigins: [],
   install,
   previewUrl: 'http://localhost:5175/w/v1/preview.html',
+  tracking: { mode: 'on', updatedAt: null },
   ...over,
 });
 

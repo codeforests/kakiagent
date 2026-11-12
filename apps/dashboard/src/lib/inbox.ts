@@ -16,6 +16,7 @@ import type {
   ConversationChannel,
   MessageAttachment,
   MessageDelivery,
+  WebContext,
 } from '@kaki/contracts';
 import type { InfiniteData } from '@tanstack/react-query';
 
@@ -656,4 +657,38 @@ export function attachmentStatus(a: MessageAttachment): string | null {
   if (a.status === 'clean') return null;
   if (a.status === 'scanning') return 'Checking…';
   return `Not stored: ${a.rejectReason ? REJECT_REASON[a.rejectReason] : 'file type not allowed'}`;
+}
+
+/** "under a minute", "3 min", "1 h 5 min" (FEAT-029 ui-design SCR-APP-015). */
+export function formatDwell(ms: number): string {
+  const min = Math.round(ms / 60_000);
+  if (ms < 60_000 || min < 1) return 'under a minute';
+  if (min < 60) return `${min} min`;
+  const h = Math.floor(min / 60);
+  const rest = min % 60;
+  return rest ? `${h} h ${rest} min` : `${h} h`;
+}
+
+const UTM_ORDER = ['source', 'medium', 'campaign', 'term', 'content'] as const;
+/** The Source row: UTM keys present, else the referrer host, else "Direct". */
+export function sourceLine(source: WebContext['source']): { text: string; mono: boolean } {
+  const utm = source?.utm;
+  const parts = utm ? UTM_ORDER.filter((k) => utm[k]).map((k) => `utm_${k}=${utm[k]}`) : [];
+  if (parts.length) return { text: parts.join(' · '), mono: true };
+  if (source?.referrer) return { text: `From ${source.referrer}`, mono: false };
+  return { text: 'Direct', mono: false };
+}
+
+/** What the Intent block shows for a conversation's web context, by scope (D7). */
+export function webRows(web: WebContext) {
+  const full = web.scope === 'full';
+  // Viewed only when the visitor saw at least one page other than the current one.
+  const viewed = full && web.viewed.some((v) => v.path !== web.currentPage) ? web.viewed : [];
+  return {
+    nowOn: web.currentPage,
+    viewed: viewed.slice(0, 10).map((v) => ({ path: v.path, dwell: formatDwell(v.dwellMs) })),
+    source: full ? sourceLine(web.source) : null,
+    returning: full && web.returning,
+    pageOnly: !full,
+  };
 }

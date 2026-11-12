@@ -233,6 +233,11 @@ describe('runVisitorTurn (UC-20)', () => {
       card: null,
       // FEAT-055: no commitment request this turn.
       approval: null,
+      // FEAT-029: tracking is on and the message carries no page; nothing viewed.
+      webScope: 'full',
+      webPage: null,
+      webViewed: 0,
+      webReturning: false,
     });
     expect((decision.payload.factIds as string[]).sort()).toEqual(result!.message.factIds.sort());
   });

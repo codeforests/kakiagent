@@ -26,7 +26,9 @@ import {
   WidgetDetectResponse,
   WidgetOriginBody,
   WidgetSettings,
+  WidgetTrackingBody,
 } from '@kaki/contracts';
+import { setTrackingMode } from '@kaki/channels/tracking';
 import { withTenant } from '@kaki/db';
 import { can } from '@kaki/identity';
 import { resolveWidgetKey } from '@kaki/tenancy';
@@ -93,6 +95,16 @@ export function registerWidgetRoutes(
     getWidgetSettings(ctx, urls).then((r) => WidgetSettings.parse(r));
 
   app.get('/api/v1/widget', async (req) => inTenant(await manager(req), settings));
+
+  // CHN-03 (FEAT-029 §5.1): off, on, or consent mode; audited `widget.tracking_changed`.
+  app.put('/api/v1/widget/tracking', async (req) => {
+    const s = await manager(req);
+    const body = bodyOf(WidgetTrackingBody, req.body);
+    return inTenant(s, async (ctx) => {
+      await setTrackingMode(ctx, body.mode);
+      return settings(ctx);
+    });
+  });
 
   app.put('/api/v1/widget/appearance', async (req) => {
     const s = await manager(req);

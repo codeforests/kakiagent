@@ -112,6 +112,7 @@ import {
 import { FactNotFound, ForbiddenError, registerFactRoutes } from './facts.js';
 import { movedReply, registerHandoffRoutes, registerWidgetHandoffRoute } from './handoff.js';
 import { handoffOptions } from '@kaki/channels/handoff';
+import { visitorTrackingMode } from '@kaki/channels/tracking';
 import { registerPrivacyRoutes } from './privacy.js';
 import { registerRuleRoutes, rulesErrorReply } from './rules.js';
 import { createServer, type Deps } from './server.js';
@@ -121,6 +122,7 @@ import { registerReviewRoutes, toPreview } from './review.js';
 import { InvalidBodyError, InvalidQueryError, registerCorrectionRoutes } from './corrections.js';
 import { registerCoverageRoutes } from './coverage.js';
 import { registerSettingsRoutes } from './settings.js';
+import { registerTrackingRoutes } from './tracking.js';
 import { registerWidgetRoutes, widgetErrorReply } from './widget.js';
 import { channelErrorReply, registerChannelRoutes } from './channels.js';
 import { emailErrorReply, registerEmailChannelRoutes } from './email-channel.js';
@@ -495,10 +497,8 @@ export async function buildApp(deps: Deps) {
       config.VISITOR_TOKEN_SECRET,
     );
     // FEAT-024: the tenant's name and greeting, through the visitor zone's function only.
-    const { tenantState, theme, privacy, channel, leadCapture, handoff } = await withTenant(
-      visitorDb,
-      install.tenantId,
-      async (tx) => {
+    const { tenantState, theme, privacy, channel, leadCapture, handoff, trackingMode } =
+      await withTenant(visitorDb, install.tenantId, async (tx) => {
         // The first load on an allowed origin is the install (ADR-016 decision 6, D8).
         await recordInstallSeen(
           tx,
@@ -516,9 +516,10 @@ export async function buildApp(deps: Deps) {
           leadCapture: await leadCaptureConfig(tx),
           // CHN-07 (FEAT-038 §3): the channels a visitor can continue on.
           handoff: await handoffOptions(tx, install.tenantId),
+          // CHN-03 (FEAT-029 §5.1): off, on, or consent mode (the panel asks first).
+          trackingMode: await visitorTrackingMode(tx, install.tenantId),
         };
-      },
-    );
+      });
     const persona = tenantState?.persona;
     reply.header('access-control-allow-origin', origin).header('vary', 'origin');
     return WidgetConfigResponse.parse({
@@ -551,6 +552,7 @@ export async function buildApp(deps: Deps) {
         : null,
       leadCapture,
       handoff,
+      tracking: { mode: trackingMode },
     });
   });
 
@@ -597,6 +599,7 @@ export async function buildApp(deps: Deps) {
           visitorId: v.v,
           text: body.text,
           clientMessageId: body.clientMessageId,
+          ...(body.page ? { page: body.page } : {}),
         });
       });
       if ('moved' in result) return movedReply(reply, result.moved);
@@ -683,6 +686,7 @@ export async function buildApp(deps: Deps) {
 
   // CHN-07 (FEAT-038 §5.2): continue on Telegram or by email.
   registerWidgetHandoffRoute(app, deps, visitorFrom);
+  registerTrackingRoutes(app, deps, visitorFrom);
 
   // LED-01, LED-02 (FEAT-049 §5.4): the consent card, the lead form and the contact form.
   registerLeadWidgetRoutes(app, deps, visitorFrom, notify, summaryFor);

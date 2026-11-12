@@ -8,6 +8,7 @@ import type {
   LeadScoring,
   ThreadEvent,
   ThreadMessage,
+  WebContext,
 } from '@kaki/contracts';
 import { scoreLabel } from '../lib/leads.ts';
 import { Button } from '@kaki/ui';
@@ -34,6 +35,7 @@ import {
   STATE_ICON,
   STATE_LABEL,
   STATE_TOKEN,
+  webRows,
 } from '../lib/inbox.ts';
 
 // Lucide-style 24-px strokes for the inbox (design.md §2.4); decorative, labels carry meaning.
@@ -503,9 +505,73 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
+/**
+ * The Intent block's page context (FEAT-029 ui-design SCR-APP-015): Now on, Viewed (5, then
+ * "Show all"), Source and Returning in `full` scope; only Now on in `page_only`.
+ */
+export function WebIntent({ web }: { web: WebContext }) {
+  const rows = webRows(web);
+  const [all, setAll] = useState(false);
+  const shown = all ? rows.viewed : rows.viewed.slice(0, 5);
+  if (!rows.nowOn && rows.viewed.length === 0 && !rows.source && !rows.returning) return null;
+  return (
+    <>
+      <dl className="web-intent" data-testid="web-intent">
+        {rows.nowOn && (
+          <>
+            <dt>Now on</dt>
+            <dd className="web-intent__path">{rows.nowOn}</dd>
+          </>
+        )}
+        {rows.viewed.length > 0 && (
+          <>
+            <dt>Viewed</dt>
+            <dd>
+              <ul className="web-intent__viewed" id="web-intent-viewed">
+                {shown.map((v, i) => (
+                  <li key={`${v.path}-${i}`}>
+                    <span className="web-intent__path">{v.path}</span> · {v.dwell}
+                  </li>
+                ))}
+              </ul>
+              {rows.viewed.length > 5 && (
+                <button
+                  type="button"
+                  className="web-intent__more"
+                  aria-expanded={all}
+                  aria-controls="web-intent-viewed"
+                  onClick={() => setAll((a) => !a)}
+                >
+                  {all ? 'Show fewer' : 'Show all'}
+                </button>
+              )}
+            </dd>
+          </>
+        )}
+        {rows.source && (
+          <>
+            <dt>Source</dt>
+            <dd className={rows.source.mono ? 'web-intent__path' : undefined}>
+              {rows.source.text}
+            </dd>
+          </>
+        )}
+      </dl>
+      {rows.returning && (
+        <p>
+          <span className="chip chip--neutral">Returning visitor</span>
+        </p>
+      )}
+      {rows.pageOnly && rows.nowOn && (
+        <p className="sidebar-caption">Page history isn't shared for this visitor.</p>
+      )}
+    </>
+  );
+}
+
 /** INB-04's context: contact, channel, intents, lead and the facts used (SCR-APP-015). */
 export function ContextSidebar({ thread }: { thread: ConversationThread }) {
-  const { contact, channel, intents, facts, lead, approval } = thread.sidebar;
+  const { contact, channel, intents, facts, lead, approval, web } = thread.sidebar;
   const earlier = contact.previousConversations;
   return (
     <div className="context-sidebar" data-testid="context-sidebar">
@@ -557,6 +623,8 @@ export function ContextSidebar({ thread }: { thread: ConversationThread }) {
         <p>{CHANNEL_LABEL[channel]}</p>
       </Section>
       <Section title="Intent">
+        <WebIntent web={web} />
+        {web.currentPage && <p className="sidebar-caption">Signals</p>}
         {intents.length === 0 ? (
           <p className="sidebar-caption">No signals yet.</p>
         ) : (

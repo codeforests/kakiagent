@@ -118,6 +118,7 @@ import {
   UploadTicket,
   WidgetDetectResponse,
   WidgetSettings,
+  type WidgetTrackingBody,
   type WidgetAppearanceBody,
   type ApproveFactBody,
   type AssistantSettingsBody,
@@ -615,6 +616,8 @@ export const api = {
     }
     return WidgetSettings.parse(await res.json());
   },
+  setWidgetTracking: (body: WidgetTrackingBody) =>
+    request('PUT', '/api/v1/widget/tracking', WidgetSettings, body),
   deleteWidgetLogo: () => request('DELETE', '/api/v1/widget/logo', WidgetSettings),
   addWidgetOrigin: (origin: string) =>
     request('POST', '/api/v1/widget/origins', WidgetSettings, { origin }),

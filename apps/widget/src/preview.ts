@@ -101,6 +101,7 @@ function show(m: PreviewMessage) {
     aiPaused: null,
     leadCapture: null,
     handoff: { telegram: false, email: false },
+    tracking: { mode: 'off' },
   } satisfies WidgetConfigResponse;
   mountPanel({
     shadow,

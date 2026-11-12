@@ -89,6 +89,16 @@ export function createApi(apiUrl: string, token: string) {
       if (!r.ok) throw new Error(`withdraw: ${r.status}`);
       return (await r.json()) as WithdrawResponse;
     },
+    /** The tracking prompt's answer (SCR-WGT-007); the caller keeps the choice even on failure. */
+    async trackingChoice(choice: 'accepted' | 'declined'): Promise<void> {
+      const r = await fetch(`${apiUrl}/widget/v1/tracking-choice`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ choice }),
+        credentials: 'omit',
+      });
+      if (!r.ok) throw new Error(`tracking-choice: ${r.status}`);
+    },
     async createConversation(): Promise<string> {
       const r = await fetch(`${apiUrl}/widget/v1/conversations`, {
         method: 'POST',
@@ -99,11 +109,17 @@ export function createApi(apiUrl: string, token: string) {
       if (!r.ok) throw new Error(`create conversation: ${r.status}`);
       return ((await r.json()) as { conversationId: string }).conversationId;
     },
-    async send(conversationId: string, text: string, clientMessageId: string): Promise<Message> {
+    /** `page`: the path the visitor is on (FEAT-029 D2), sent in every tracking mode. */
+    async send(
+      conversationId: string,
+      text: string,
+      clientMessageId: string,
+      page?: string,
+    ): Promise<Message> {
       const r = await fetch(`${apiUrl}/widget/v1/conversations/${conversationId}/messages`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ text, clientMessageId }),
+        body: JSON.stringify(page ? { text, clientMessageId, page } : { text, clientMessageId }),
         credentials: 'omit',
       });
       if (r.status === 409) throw await conflictOf(r);

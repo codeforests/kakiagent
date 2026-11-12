@@ -1,4 +1,9 @@
-import { WIDGET_LOGO_MAX_BYTES, WIDGET_LOGO_TYPES, type WidgetSettings } from '@kaki/contracts';
+import {
+  WIDGET_LOGO_MAX_BYTES,
+  WIDGET_LOGO_TYPES,
+  type TrackingMode,
+  type WidgetSettings,
+} from '@kaki/contracts';
 import type { Scheme } from '@kaki/channels/theme';
 import { Button, ConfirmDialog } from '@kaki/ui';
 import * as Tabs from '@radix-ui/react-tabs';
@@ -7,7 +12,10 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { api, ApiError } from '../lib/api.ts';
 import { Field } from '../lib/field.tsx';
 import { describedBy } from '../lib/form.ts';
+import { formatDay } from '../lib/privacy.ts';
 import {
+  trackingModeOf,
+  trackingToggles,
   adjustedNote,
   defaultAccent,
   detecting,
@@ -680,6 +688,100 @@ export function OriginsList({
         The chat button disappears from {hostOf(removing ?? '')} the next time a page loads.
       </ConfirmDialog>
     </div>
+  );
+}
+
+/**
+ * Visitor tracking (FEAT-029 ui-design SCR-APP-037): two toggles that apply at once; an
+ * error leaves the saved mode showing and says so under the heading.
+ */
+export function TrackingSection({
+  settings,
+  onSaved,
+}: {
+  settings: WidgetSettings;
+  onSaved(text: string): void;
+}) {
+  const setWidget = useSetWidget();
+  const save = useMutation({
+    mutationFn: (mode: TrackingMode) => api.setWidgetTracking({ mode }),
+    onSuccess: (s) => {
+      setWidget(s);
+      onSaved('Tracking settings saved.');
+    },
+  });
+  // While saving, the toggles show the asked-for mode; on error, the saved one.
+  const mode = save.isPending && save.variables ? save.variables : settings.tracking.mode;
+  const { track, consent } = trackingToggles(mode);
+  const set = (next: TrackingMode) => {
+    if (save.isPending || next === settings.tracking.mode) return;
+    save.mutate(next);
+  };
+  return (
+    <section className="card stack" aria-labelledby="widget-tracking">
+      <h2 className="section-title" id="widget-tracking">
+        Visitor tracking
+      </h2>
+      {save.isError && (
+        <div className="alert alert--danger" role="alert">
+          <p>Couldn't save. Try again.</p>
+        </div>
+      )}
+      <p className="field__help">
+        The widget can note which pages of your site a visitor views, so the assistant's answers fit
+        and your team sees what they looked at. It uses no cookies, and the data stays anonymous
+        until the visitor leaves their details.
+      </p>
+      <div className="tracking-toggle">
+        <div className="fact-form__status">
+          <button
+            type="button"
+            role="switch"
+            className="toggle"
+            aria-checked={track}
+            aria-labelledby="widget-track-label"
+            aria-describedby="widget-track-help"
+            aria-busy={save.isPending || undefined}
+            disabled={save.isPending}
+            onClick={() => set(trackingModeOf(!track, consent))}
+          >
+            <span className="toggle__thumb" aria-hidden="true" />
+          </button>
+          <span id="widget-track-label">Track pages visitors view</span>
+          {save.isPending && <span className="spinner spinner--sm" aria-hidden="true" />}
+        </div>
+        <p className="field__help" id="widget-track-help">
+          When off, only the page a visitor is on when they send a message is used.
+        </p>
+      </div>
+      <div className="tracking-toggle">
+        <div className="fact-form__status">
+          <button
+            type="button"
+            role="switch"
+            className="toggle"
+            aria-checked={consent}
+            aria-labelledby="widget-consent-label"
+            aria-describedby="widget-consent-help"
+            aria-disabled={!track || undefined}
+            disabled={save.isPending}
+            onClick={() => track && set(trackingModeOf(true, !consent))}
+          >
+            <span className="toggle__thumb" aria-hidden="true" />
+          </button>
+          <span id="widget-consent-label">Ask visitors first (consent mode)</span>
+        </div>
+        <p className="field__help" id="widget-consent-help">
+          {track
+            ? 'Visitors see a short prompt when they open the chat. Nothing is tracked until they allow it.'
+            : 'Turn on tracking to use this.'}
+        </p>
+      </div>
+      <p className="field__help tracking-caption">
+        Page history is kept for 180 days.
+        {settings.tracking.updatedAt && ` Last changed ${formatDay(settings.tracking.updatedAt)}.`}
+      </p>
+    </section>
   );
 }
 

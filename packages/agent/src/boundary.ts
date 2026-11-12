@@ -88,6 +88,7 @@ export function applyBoundary(
 
 export const TRIAGE_TOPICS_HANDLED = 'Topics this business handles: ';
 export const TRIAGE_TOPICS_BLOCKED = "Topics it doesn't discuss: ";
+export const TRIAGE_CURRENT_PAGE = 'Visitor is on page: ';
 
 /**
  * Triage's uncached tail with the conversation's memory (FEAT-026, no name) and the tenant's
@@ -98,9 +99,12 @@ export function triageTail(
   rules: Pick<BoundaryRules, 'allowedTopics' | 'blockedTopics'>,
   /** AGT-12 (FEAT-026 §5.4): items, quantities and dates for task args; never the name. */
   memory?: ConversationMemory | null,
+  /** AGT-05 (FEAT-029 §5.6): the visitor's current page only; never viewed pages or source. */
+  page?: string | null,
 ): string | undefined {
   const lines = [
     ...memoryLines(memory, { name: false }),
+    ...(page ? [`${TRIAGE_CURRENT_PAGE}${asData(page)}`] : []),
     ...(rules.allowedTopics.length
       ? [TRIAGE_TOPICS_HANDLED + JSON.stringify(rules.allowedTopics.map(asData))]
       : []),

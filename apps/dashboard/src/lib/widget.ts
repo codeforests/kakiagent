@@ -4,6 +4,7 @@ import type {
   FontChoice,
   InstallCheck,
   ThemeOverrides,
+  TrackingMode,
   WidgetPosition,
   WidgetSettings,
   WidgetTheme,
@@ -251,3 +252,13 @@ export const isPreviewReady = (data: unknown) =>
   typeof data === 'object' &&
   data !== null &&
   (data as { type?: unknown }).type === 'kaki-preview-ready';
+
+/** The tracking section's two toggles from the stored mode (FEAT-029 ui-design SCR-APP-037). */
+export const trackingToggles = (mode: TrackingMode) => ({
+  track: mode !== 'off',
+  consent: mode === 'consent',
+});
+/** The mode a toggle change asks for; consent mode needs tracking on. */
+export function trackingModeOf(track: boolean, consent: boolean): TrackingMode {
+  return !track ? 'off' : consent ? 'consent' : 'on';
+}

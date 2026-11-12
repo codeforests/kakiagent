@@ -175,6 +175,7 @@ const thread = (messages: Message[]): ConversationThread => ({
     lead: null,
     facts: [],
     approval: null,
+    web: { scope: 'page_only', currentPage: null, viewed: [], source: null, returning: false },
   },
 });
 

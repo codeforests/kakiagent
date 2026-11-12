@@ -53,6 +53,7 @@ import { systemSlots, type HoursContext } from './hours-text.js';
 import { replyLanguage } from './language.js';
 import { routeSignals, triage, type TurnPlan } from './plan.js';
 import type { ConversationMemory } from './memory.js';
+import type { WebContext } from '@kaki/contracts';
 import { HISTORY_LIMIT, type HistoryMessage } from './prompt.js';
 import { candidatesOf, proposeChange } from './propose.js';
 import { textsFor, type SafetyKey } from './texts.js';
@@ -294,6 +295,8 @@ export async function answerStep(
   dispatch: { replies: ReplyKey[] } | null,
   /** AGT-12 (FEAT-026 §5.4): a suggestion's or replay's conversation memory; coaching has none. */
   memory: ConversationMemory | null = null,
+  /** AGT-05 (FEAT-029 §5.5): a suggestion's or replay's web context; coaching has none. */
+  web: WebContext | null = null,
 ): Promise<Answered> {
   const { tenant } = prep;
   const persona = tenant.persona;
@@ -342,6 +345,7 @@ export async function answerStep(
       persona,
       rules: prep.rules,
       memory,
+      web,
     },
     // D5: the send gate doesn't apply; nothing is published anywhere.
     { llm: deps.llm, gateOpen: async () => true, publish: async () => {} },

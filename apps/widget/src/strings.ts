@@ -135,6 +135,17 @@ const STRINGS = {
     quoteTotal: 'Total',
     gstInclusive: 'Prices include GST',
     gstExclusive: 'Prices before GST',
+    // Page tracking consent (SCR-WGT-007; FEAT-029), wording version `tracking-v1`
+    trackTitle: 'Help us help you faster?',
+    trackBody: (business: string) =>
+      `Let ${business} see which pages of this site you visit, so answers fit what you're looking at. We don't use cookies or share this.`,
+    trackAllow: 'Allow',
+    trackNo: 'No thanks',
+    trackAccepted: 'Thanks. You can stop this from the menu.',
+    trackDeclined: "OK, we won't track pages. You can change this from the menu.",
+    trackStop: 'Stop sharing pages',
+    trackShare: 'Share pages I view',
+    trackStopped: "We've stopped tracking pages and removed what we had.",
   },
   'zh-Hans': {
     aiLabel: 'AI 助手',
@@ -263,6 +274,17 @@ const STRINGS = {
     quoteTotal: '总计',
     gstInclusive: '价格已含消费税',
     gstExclusive: '价格未含消费税',
+    // 页面记录同意 (SCR-WGT-007; FEAT-029)
+    trackTitle: '让我们更快帮到您？',
+    trackBody: (business: string) =>
+      `允许${business}查看您在本网站浏览的页面，让回答更贴合您正在看的内容。我们不使用 Cookie，也不会分享这些信息。`,
+    trackAllow: '允许',
+    trackNo: '不用了',
+    trackAccepted: '谢谢。您可以随时在菜单中停止。',
+    trackDeclined: '好的，我们不会记录页面。您可以在菜单中更改。',
+    trackStop: '停止分享页面',
+    trackShare: '分享我浏览的页面',
+    trackStopped: '我们已停止记录页面，并删除了已有记录。',
   },
 } as const;
 

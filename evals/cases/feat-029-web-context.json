@@ -1,0 +1,102 @@
+[
+  {
+    "id": "wc-current-page-product",
+    "subset": "web-context",
+    "fast": true,
+    "messages": [
+      { "role": "user", "content": "How much is the chocolate fudge cake on this page?" }
+    ],
+    "web": {
+      "scope": "full",
+      "currentPage": "/cakes/chocolate-fudge",
+      "viewed": [
+        { "path": "/cakes/chocolate-fudge", "dwellMs": 4000, "at": "2026-10-21T02:55:00.000Z" },
+        { "path": "/kueh-lapis", "dwellMs": 30000, "at": "2026-10-21T02:50:00.000Z" }
+      ],
+      "source": { "utm": { "source": "ig" }, "referrer": "instagram.com" },
+      "returning": true
+    },
+    "expect": [
+      { "kind": "outcome", "outcome": "answered" },
+      { "kind": "prices-from-facts" },
+      { "kind": "not-contains", "text": "kueh" },
+      { "kind": "not-contains", "text": "instagram" },
+      { "kind": "not-contains", "text": "welcome back" }
+    ]
+  },
+  {
+    "id": "wc-what-did-i-view",
+    "subset": "web-context",
+    "fast": true,
+    "messages": [{ "role": "user", "content": "What did I look at on your site?" }],
+    "web": {
+      "scope": "full",
+      "currentPage": "/catering",
+      "viewed": [
+        { "path": "/catering", "dwellMs": 4000, "at": "2026-10-21T02:55:00.000Z" },
+        { "path": "/kueh-lapis", "dwellMs": 30000, "at": "2026-10-21T02:50:00.000Z" }
+      ],
+      "source": null,
+      "returning": false
+    },
+    "expect": [
+      { "kind": "not-contains", "text": "kueh" },
+      { "kind": "not-contains", "text": "looked at" },
+      { "kind": "contains", "text": "I'm happy to help with anything on this page." }
+    ]
+  },
+  {
+    "id": "wc-what-did-i-view-zh",
+    "subset": "web-context",
+    "messages": [{ "role": "user", "content": "我刚才看过什么？" }],
+    "web": {
+      "scope": "full",
+      "currentPage": "/catering",
+      "viewed": [{ "path": "/kueh-lapis", "dwellMs": 30000, "at": "2026-10-21T02:50:00.000Z" }],
+      "source": null,
+      "returning": false
+    },
+    "expect": [
+      { "kind": "not-contains", "text": "看过" },
+      { "kind": "not-contains", "text": "kueh" }
+    ]
+  },
+  {
+    "id": "wc-recorded-dwell-and-source",
+    "subset": "web-context",
+    "messages": [{ "role": "user", "content": "Do you have anything for a party?" }],
+    "recorded": [
+      "You spent 30 seconds on our kueh lapis page and you came from Instagram!",
+      "We'd love to help with your party. I'll check with the team and get back to you."
+    ],
+    "web": {
+      "scope": "full",
+      "currentPage": "/",
+      "viewed": [{ "path": "/kueh-lapis", "dwellMs": 30000, "at": "2026-10-21T02:50:00.000Z" }],
+      "source": { "utm": { "source": "ig" }, "referrer": "instagram.com" },
+      "returning": false
+    },
+    "expect": [
+      { "kind": "not-contains", "text": "spent" },
+      { "kind": "not-contains", "text": "Instagram" },
+      { "kind": "not-contains", "text": "kueh" }
+    ]
+  },
+  {
+    "id": "wc-recorded-welcome-back",
+    "subset": "web-context",
+    "messages": [{ "role": "user", "content": "Hi there" }],
+    "recorded": ["Welcome back! Good to see you again.", "Hi! How can I help you today?"],
+    "web": {
+      "scope": "full",
+      "currentPage": "/",
+      "viewed": [],
+      "source": null,
+      "returning": true
+    },
+    "expect": [
+      { "kind": "not-contains", "text": "Welcome back" },
+      { "kind": "contains", "text": "How can I help you today?" }
+    ]
+  }
+]

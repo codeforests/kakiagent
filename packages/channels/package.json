@@ -10,7 +10,8 @@
     "./contract-suite": "./src/contract-suite.ts",
     "./telegram-fake": "./src/telegram/fake.ts",
     "./contacts": "./src/contacts/index.ts",
-    "./handoff": "./src/handoff/index.ts"
+    "./handoff": "./src/handoff/index.ts",
+    "./tracking": "./src/tracking/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

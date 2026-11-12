@@ -1,10 +1,11 @@
 import { SAFE_DEFAULTS, type BoundaryRules } from '@kaki/approvals';
+import type { WebContext } from '@kaki/contracts';
 import type { VisitorFact } from '@kaki/kb';
 import type { GenerateRequest, LlmGateway, LogicalModel } from '@kaki/llm-gateway';
 import type { Persona } from '@kaki/tenancy';
 import { boundaryGuard } from './boundary.js';
 import { stripEmoji } from './emoji.js';
-import { leakGuard, type LeakGuard } from './guard.js';
+import { leakGuard, trackingGuard, type LeakGuard, type TrackingGuard } from './guard.js';
 import type { HoursContext } from './hours-text.js';
 import type { Register, ReplyLanguage } from './language.js';
 import type { ConversationMemory } from './memory.js';
@@ -49,6 +50,8 @@ export interface ComposeInput {
   persona?: Persona | undefined;
   /** AGT-12 (FEAT-026): the conversation's memory, for the tail (every attempt). */
   memory?: ConversationMemory | null | undefined;
+  /** AGT-05 (FEAT-029): the page context for the tail and the tracking guard; coaching has none. */
+  web?: WebContext | null | undefined;
   /** AGT-07, AGT-16 (FEAT-025): triage's flags, for the tail. */
   injection?: boolean | undefined;
   impersonation?: boolean | undefined;
@@ -113,6 +116,7 @@ export async function composeReply(input: ComposeInput, deps: ComposeDeps): Prom
   const noEmoji = input.persona?.emoji === false;
   let emojiRemoved = false;
   let guard: LeakGuard = leakGuard({ system: '' });
+  let tracking: TrackingGuard = trackingGuard(null);
   const boundary = boundaryGuard(input.rules ?? SAFE_DEFAULTS);
 
   const result = (outcome: ComposeOutcome, attempts: number): ComposeResult => ({
@@ -153,6 +157,9 @@ export async function composeReply(input: ComposeInput, deps: ComposeDeps): Prom
     // FEAT-054: no discount offer and no forbidden commitment (APR-01, ADR-008 decision 3).
     const promises = boundary.check(rendered.text, rendered.spans);
     if (promises.length) return { kind: 'fail', violations: promises };
+    // FEAT-029: no viewed page, dwell, source or "welcome back" (AGT-05).
+    const tracked = tracking.check(rendered.text, rendered.spans);
+    if (tracked.length) return { kind: 'fail', violations: tracked };
     if (!(await release(rendered.text))) return { kind: 'closed' };
     for (const id of rendered.factIds) factIds.add(id);
     for (const name of rendered.slots) slots.add(name);
@@ -190,8 +197,14 @@ export async function composeReply(input: ComposeInput, deps: ComposeDeps): Prom
       impersonation: input.impersonation,
       rules: input.rules,
       memory: input.memory,
+      web: input.web,
     });
     guard = leakGuard(req);
+    tracking = trackingGuard(input.web, [
+      ...visitorTexts,
+      (req.tail ?? '').replace(/<page>[\s\S]*?<\/page>/, ''),
+      input.web?.currentPage?.replaceAll('/', ' ') ?? '',
+    ]);
     const segmenter = new Segmenter();
     let step: Step = { kind: 'ok' };
     try {

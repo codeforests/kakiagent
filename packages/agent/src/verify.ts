@@ -21,7 +21,9 @@ export type ViolationKind =
   | 'prompt_leak'
   /** FEAT-054: a commitment the business forbids, or a discount offer (`boundary.ts`). */
   | 'commitment'
-  | 'discount_offer';
+  | 'discount_offer'
+  /** FEAT-029: the reply revealed page tracking (`guard.ts` `trackingGuard`, AGT-05). */
+  | 'tracking';
 
 export interface Violation {
   kind: ViolationKind;

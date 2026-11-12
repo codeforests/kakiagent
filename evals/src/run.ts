@@ -462,7 +462,11 @@ async function runCase(c: Case) {
   // FEAT-054: the case's rules over the safe defaults, applied as the worker applies them.
   const rules: BoundaryRules = { ...SAFE_DEFAULTS, ...c.rules };
   const { memory, history } = await foldCase(llm, c.messages, meta);
-  const triaged = await triage(llm, { history, meta, tail: triageTail(rules, memory) });
+  const triaged = await triage(llm, {
+    history,
+    meta,
+    tail: triageTail(rules, memory, c.web?.currentPage ?? null),
+  });
   const plan = withoutFlaggedCommitments(applyBoundary(triaged, rules, query).plan);
   const hours = hoursAt(fixture, c, at);
   const facts = retrieve(c.tenant, query);
@@ -623,6 +627,7 @@ async function runCase(c: Case) {
       persona,
       rules,
       memory,
+      web: c.web ?? null,
     },
     { llm, gateOpen: async () => true, publish: async () => {} },
   );

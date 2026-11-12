@@ -25,7 +25,10 @@ const input: ComposeInput = {
   meta: { tenantId: '11111111-1111-4111-8111-111111111111' },
 };
 
-function run(script: FakeScript, opts: { gate?: () => Promise<boolean>; chunkSize?: number } = {}) {
+function run(
+  script: FakeScript,
+  opts: { gate?: () => Promise<boolean>; chunkSize?: number; input?: ComposeInput } = {},
+) {
   const prompts: GenerateRequest[] = [];
   const llm = createGateway(defaultRegistry('fake'), [
     createFakeProvider(
@@ -37,7 +40,7 @@ function run(script: FakeScript, opts: { gate?: () => Promise<boolean>; chunkSiz
     ),
   ]);
   const published: { seq: number; text: string }[] = [];
-  return composeReply(input, {
+  return composeReply(opts.input ?? input, {
     llm,
     gateOpen: opts.gate ?? (async () => true),
     publish: async (s) => {
@@ -91,6 +94,27 @@ describe('composeReply (ADR-008)', () => {
     expect(published).toEqual([{ seq: 0, text: texts.escalation }]);
     expect(result.violations.map((v) => v.kind)).toEqual(['currency', 'currency']);
     expect(result.attempts).toBe(2);
+  });
+
+  it('AC-6 (FEAT-029 verify): a reply revealing tracking twice is escalated and never published', async () => {
+    const web = {
+      scope: 'full' as const,
+      currentPage: '/cakes/chocolate-fudge',
+      viewed: [{ path: '/kueh-lapis', dwellMs: 40_000, at: '2026-11-12T02:00:00.000Z' }],
+      source: null,
+      returning: true,
+    };
+    const { result, published } = await run(
+      scriptedOutputs([
+        'I see you also looked at our kueh lapis.',
+        'Welcome back! Happy to help with the fudge cake.',
+      ]),
+      { input: { ...input, web } },
+    );
+    expect(result.outcome).toBe('escalated');
+    expect(published).toEqual([{ seq: 0, text: texts.escalation }]);
+    expect(result.violations.map((v) => v.kind)).toEqual(['tracking', 'tracking']);
+    expect(published.some((p) => /kueh|welcome back/i.test(p.text))).toBe(false);
   });
 
   it('fails a slot that names a fact outside the turn (another tenant, a stale ref)', async () => {

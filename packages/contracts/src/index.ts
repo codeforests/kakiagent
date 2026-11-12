@@ -317,6 +317,75 @@ export const WidgetTheme = z.object({
 export type WidgetTheme = z.infer<typeof WidgetTheme>;
 
 export const WidgetConfigQuery = z.object({ key: z.string().min(1).max(100) });
+// ---- Web context (AGT-05, CHN-03; FEAT-029 §3) -----------------------------------
+
+/** Stored as two booleans on `widget_settings` (FEAT-029 §4): off, on, or consent mode (D8). */
+export const TrackingMode = z.enum(['off', 'on', 'consent']);
+export type TrackingMode = z.infer<typeof TrackingMode>;
+/** A page path only: no origin, query or fragment (FEAT-029 §5.2). */
+export const PagePath = z.string().trim().min(1).max(512).regex(/^\//);
+export const Utm = z
+  .object({
+    source: z.string().max(100).optional(),
+    medium: z.string().max(100).optional(),
+    campaign: z.string().max(100).optional(),
+    term: z.string().max(100).optional(),
+    content: z.string().max(100).optional(),
+  })
+  .strict();
+export type Utm = z.infer<typeof Utm>;
+export const TrackEvent = z.discriminatedUnion('type', [
+  z
+    .object({
+      type: z.literal('view'),
+      id: z.uuid(),
+      sessionId: z.uuid(),
+      path: PagePath,
+      /** The external referrer's host only. */
+      referrer: z.string().max(253).optional(),
+      utm: Utm.optional(),
+      at: z.iso.datetime({ offset: true }),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('engage'),
+      id: z.uuid(),
+      dwellMs: z.number().int().min(0).max(86_400_000),
+      scroll: z.number().int().min(0).max(100),
+    })
+    .strict(),
+]);
+export type TrackEvent = z.infer<typeof TrackEvent>;
+/** `POST /widget/v1/events`: the token travels in the body because `sendBeacon` can't set headers. */
+export const TrackBody = z
+  .object({ token: z.string().max(2048), events: z.array(TrackEvent).min(1).max(20) })
+  .strict();
+export type TrackBody = z.infer<typeof TrackBody>;
+/** The tracking prompt's wording version, stored with the visitor's answer (PDPA evidence). */
+export const TRACKING_PROMPT_VERSION = 'tracking-v1';
+/** `POST /widget/v1/tracking-choice` (consent mode only). */
+export const TrackingChoiceBody = z.object({ choice: z.enum(['accepted', 'declined']) }).strict();
+export type TrackingChoiceBody = z.infer<typeof TrackingChoiceBody>;
+/** `PUT /api/v1/widget/tracking`. */
+export const WidgetTrackingBody = z.object({ mode: TrackingMode }).strict();
+export type WidgetTrackingBody = z.infer<typeof WidgetTrackingBody>;
+/** The sidebar's Intent block (INB-04): what this conversation may use (FEAT-029 §5.5, §5.7). */
+export const WebContext = z.object({
+  /** `page_only` when tracking is off or not consented. */
+  scope: z.enum(['full', 'page_only']),
+  /** The latest visitor message's page. */
+  currentPage: PagePath.nullable(),
+  viewed: z
+    .array(
+      z.object({ path: PagePath, dwellMs: z.number().int(), at: z.iso.datetime({ offset: true }) }),
+    )
+    .max(10),
+  source: z.object({ utm: Utm.nullable(), referrer: z.string().nullable() }).nullable(),
+  returning: z.boolean(),
+});
+export type WebContext = z.infer<typeof WebContext>;
+
 export const WidgetConfigResponse = z.object({
   token: z.string(),
   visitorId: z.uuid(),
@@ -367,6 +436,8 @@ export const WidgetConfigResponse = z.object({
   handoff: z
     .object({ telegram: z.boolean(), email: z.boolean() })
     .default({ telegram: false, email: false }),
+  /** Page tracking (CHN-03; FEAT-029 §3): `consent` → the tracker waits for the panel's prompt. */
+  tracking: z.object({ mode: TrackingMode }).default({ mode: 'off' }),
 });
 export type WidgetConfigResponse = z.infer<typeof WidgetConfigResponse>;
 
@@ -375,6 +446,8 @@ export const CreateConversationResponse = z.object({ conversationId: z.uuid() })
 export const SendMessageBody = z.object({
   text: z.string().trim().min(1).max(4000),
   clientMessageId: z.string().min(8).max(64),
+  /** The page the visitor is on, path only (FEAT-029 §3); stored on the message in every mode. */
+  page: PagePath.optional(),
 });
 export const SendMessageResponse = z.object({ message: Message });
 
@@ -1959,6 +2032,11 @@ export const WidgetSettings = z.object({
   install: InstallCheck,
   /** The widget's preview page, shown in an iframe (D6). */
   previewUrl: z.url(),
+  /** Page tracking (FEAT-029 §3); `updatedAt` null until the owner first changes it. */
+  tracking: z.object({
+    mode: TrackingMode,
+    updatedAt: z.iso.datetime({ offset: true }).nullable(),
+  }),
 });
 export type WidgetSettings = z.infer<typeof WidgetSettings>;
 export const WidgetAppearanceBody = z
@@ -2912,6 +2990,8 @@ export const ContextSidebar = z.object({
       slaDueAt: z.iso.datetime({ offset: true }),
     })
     .nullable(),
+  /** Web context (INB-04; FEAT-029 §5.7): current page always; the rest only in `full` scope. */
+  web: WebContext,
 });
 export type ContextSidebar = z.infer<typeof ContextSidebar>;
 
