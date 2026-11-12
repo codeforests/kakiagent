@@ -28,6 +28,7 @@ import { websiteOrigins } from '@kaki/kb';
 import { enqueue } from '@kaki/platform/outbox';
 import { InvalidOriginError, normaliseOrigin } from './origin.js';
 import type { LiveTheme } from './theme/index.js';
+import { trackingMode } from './tracking/settings.js';
 
 export interface WidgetContext {
   tx: Tx;
@@ -151,6 +152,9 @@ export async function getWidgetSettings(
       lastSeenAt: ws.lastSeenAt,
       rejectedOrigin: ws.rejectedOrigin,
       rejectedAt: ws.rejectedAt,
+      trackingEnabled: ws.trackingEnabled,
+      trackingConsentMode: ws.trackingConsentMode,
+      trackingUpdatedAt: ws.trackingUpdatedAt,
     })
     .from(ws)
     .where(eq(ws.tenantId, ctx.tenantId));
@@ -168,6 +172,10 @@ export async function getWidgetSettings(
     allowedOrigins: origins,
     install: installCheckOf(row, allowed),
     previewUrl: urls.previewUrl,
+    tracking: {
+      mode: trackingMode({ enabled: row.trackingEnabled, consentMode: row.trackingConsentMode }),
+      updatedAt: iso(row.trackingUpdatedAt),
+    },
   };
 }
 

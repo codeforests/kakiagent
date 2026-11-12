@@ -101,6 +101,13 @@ describe('inbox contracts (FEAT-042 §3)', () => {
         lead: null,
         facts: [{ id: ID, type: 'product', label: 'Fudge cake', status: 'approved', uses: 1 }],
         approval: null,
+        web: {
+          scope: 'page_only',
+          currentPage: '/menu',
+          viewed: [],
+          source: null,
+          returning: false,
+        },
       },
     };
     expect(ConversationThread.parse(thread)).toEqual(thread);

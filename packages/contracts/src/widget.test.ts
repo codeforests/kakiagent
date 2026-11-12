@@ -43,6 +43,7 @@ describe('website widget contracts (FEAT-032 §3)', () => {
         rejectedAt: null,
       },
       previewUrl: 'https://cdn.kaki.test/w/v1/preview.html',
+      tracking: { mode: 'on', updatedAt: null },
     });
     expect(s.theme.overrides.accent).toBe('#c2410c');
   });
