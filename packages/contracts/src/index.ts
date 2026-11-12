@@ -362,6 +362,8 @@ export const TrackBody = z
   .object({ token: z.string().max(2048), events: z.array(TrackEvent).min(1).max(20) })
   .strict();
 export type TrackBody = z.infer<typeof TrackBody>;
+/** The tracking prompt's wording version, stored with the visitor's answer (PDPA evidence). */
+export const TRACKING_PROMPT_VERSION = 'tracking-v1';
 /** `POST /widget/v1/tracking-choice` (consent mode only). */
 export const TrackingChoiceBody = z.object({ choice: z.enum(['accepted', 'declined']) }).strict();
 export type TrackingChoiceBody = z.infer<typeof TrackingChoiceBody>;
