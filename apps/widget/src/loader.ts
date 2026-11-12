@@ -11,6 +11,7 @@ import type { WidgetConfigResponse } from '@kaki/contracts';
 import { detectTheme, type LiveTheme } from '@kaki/channels/theme';
 import { mounts } from './availability.js';
 import { CHAT_ICON, LAUNCHER_CSS } from './launcher.css.js';
+import { startTracker, storeChoice, storedChoice, tracks, type TrackingChoice } from './track.js';
 import { followPage, hostSheetCss, hostStyle, resolved, tokenSheet } from './theme.js';
 import type { PanelContext, PanelModule } from './types.js';
 
@@ -93,10 +94,42 @@ function mount(config: WidgetConfigResponse, apiUrl: string) {
     if (host.getAttribute('style') !== style) host.setAttribute('style', style);
   }).observe(host, { attributes: true, attributeFilter: ['style'] });
 
+  // Page tracking per mode (FEAT-029 §5.2): `on`, or consent mode once accepted.
+  const mode = config.tracking?.mode ?? 'off';
+  let tracker: { stop(): void } | null = null;
+  // Kept in memory too, so a blocked storage still honours this page's answer.
+  let choice = storedChoice();
+  const retrack = () => {
+    const want = tracks(mode, choice);
+    if (want && !tracker) tracker = startTracker(apiUrl, config.token);
+    else if (!want && tracker) {
+      tracker.stop();
+      tracker = null;
+    }
+  };
+  retrack();
+  const tracking = {
+    mode,
+    choice: () => choice,
+    setChoice(c: TrackingChoice) {
+      choice = c;
+      storeChoice(c);
+      retrack();
+    },
+  };
+
   let panel: Promise<{ focus(): void }> | null = null;
   const load = () => {
     if (!panel) {
-      const ctx: PanelContext = { shadow, mount: panelMount, config, apiUrl, close, adopt };
+      const ctx: PanelContext = {
+        shadow,
+        mount: panelMount,
+        config,
+        apiUrl,
+        close,
+        adopt,
+        tracking,
+      };
       panel = (import(/* webpackIgnore: true */ config.panelUrl) as Promise<PanelModule>).then(
         (m) => m.mountPanel(ctx),
       );

@@ -14,8 +14,10 @@ import {
   LeadCard,
   PrivacyLink,
   QuoteCard,
+  TrackingPrompt,
   WithdrawCard,
 } from './cards.js';
+import { pathOf } from './track.js';
 import {
   activeCard,
   awaitingTurn,
@@ -27,6 +29,7 @@ import {
   handoffMenuLabel,
   langOf,
   menuItems,
+  trackingPromptShown,
   movedView,
   notLiveView,
   pausedNotice,
@@ -218,7 +221,11 @@ function HeaderMenu({
                     ? t.endChat
                     : item === 'continueElsewhere'
                       ? handoffLabel
-                      : t.talkToPerson}
+                      : item === 'stopTracking'
+                        ? t.trackStop
+                        : item === 'shareTracking'
+                          ? t.trackShare
+                          : t.talkToPerson}
                 </button>
               )}
             </li>
@@ -418,7 +425,22 @@ function Panel({
   const [handoffFocus, setHandoffFocus] = useState(0);
   const [movedTo, setMovedTo] = useState<HandoffChannel | null>(null);
   // Where focus goes after the next render (the target may not exist yet).
-  const focusNext = useRef<'title' | 'menu' | 'input' | 'leave' | `notice:${string}` | null>(null);
+  // Page tracking (FEAT-029 §5.8): the stored choice, the prompt card (where and its state),
+  // and the stopped notice.
+  const tracking = preview ? undefined : ctx.tracking;
+  const trackMode = tracking?.mode ?? 'off';
+  const [trackChoice, setTrackChoice] = useState(() => tracking?.choice() ?? null);
+  const [trackCard, setTrackCard] = useState<{
+    at: 'top' | 'end';
+    state: 'ask' | 'accepted' | 'declined';
+  } | null>(() =>
+    trackingPromptShown(trackMode, tracking?.choice() ?? null) ? { at: 'top', state: 'ask' } : null,
+  );
+  const [trackStopped, setTrackStopped] = useState(false);
+  const allowRef = useRef<HTMLButtonElement | null>(null);
+  const focusNext = useRef<
+    'title' | 'menu' | 'input' | 'leave' | 'allow' | `notice:${string}` | null
+  >(null);
   useEffect(() => {
     const target = focusNext.current;
     focusNext.current = null;
@@ -432,6 +454,7 @@ function Panel({
       if (menuRef.current) menuRef.current.focus();
       else focusNext.current = 'menu';
     } else if (target === 'input') inputRef.current?.focus();
+    else if (target === 'allow') allowRef.current?.focus();
   });
 
   // The chrome follows the latest reply's language (FEAT-033 D3, AC-7).
@@ -518,7 +541,20 @@ function Panel({
     ended: ended || visitorEnded || !!notLive || !!moved,
     preview: !!preview,
     handover: asking === 'asking' || escalationPending(chat) || staffHandling(chat),
+    tracking: { mode: trackMode, choice: trackChoice },
   });
+
+  /** The visitor's tracking answer: kept locally even if saving fails (FEAT-029 §5.8). */
+  function setTracking(c: 'accepted' | 'declined') {
+    tracking?.setChoice(c);
+    setTrackChoice(c);
+    void api.trackingChoice(c).catch(() => {});
+  }
+  function chooseTracking(c: 'accepted' | 'declined') {
+    setTracking(c);
+    setTrackCard((card) => card && { ...card, state: c });
+    focusNext.current = 'input';
+  }
 
   /** Creates the conversation if needed, then asks for a person (FEAT-044 §5.7). */
   async function talkToPerson() {
@@ -601,7 +637,7 @@ function Panel({
     try {
       const id = conversationId ?? (await api.createConversation());
       if (!conversationId) setConversationId(id);
-      const sent = await api.send(id, body, newId());
+      const sent = await api.send(id, body, newId(), pathOf(location));
       setChat((c) => withMessage(c, sent));
       setText('');
     } catch (err) {
@@ -637,6 +673,19 @@ function Panel({
               if (item === 'continueElsewhere') {
                 if (localHandoff !== null) setHandoffFocus((n) => n + 1);
                 else setLocalHandoff(Date.now());
+                return;
+              }
+              if (item === 'stopTracking') {
+                setTracking('declined');
+                setTrackCard(null);
+                setTrackStopped(true);
+                focusNext.current = 'notice:tracking-stopped';
+                return;
+              }
+              if (item === 'shareTracking') {
+                setTrackStopped(false);
+                setTrackCard({ at: 'end', state: 'ask' });
+                focusNext.current = 'allow';
                 return;
               }
               if (item === 'talkToPerson') {
@@ -679,6 +728,16 @@ function Panel({
                 business={business}
                 contact={contactForm}
                 onLeave={onLeave}
+              />
+            )}
+            {trackCard?.at === 'top' && (
+              <TrackingPrompt
+                state={trackCard.state}
+                t={t}
+                business={business}
+                privacyUrl={privacyUrl}
+                onChoose={chooseTracking}
+                allowRef={allowRef}
               />
             )}
             {!paused && chat.messages.length === 0 && (
@@ -817,6 +876,21 @@ function Panel({
             {moved && !moved.noticeId && (
               <li class="notice" data-notice="moved" tabIndex={-1}>
                 {t.movedNotice(moved.channel === 'telegram')}
+              </li>
+            )}
+            {trackCard?.at === 'end' && (
+              <TrackingPrompt
+                state={trackCard.state}
+                t={t}
+                business={business}
+                privacyUrl={privacyUrl}
+                onChoose={chooseTracking}
+                allowRef={allowRef}
+              />
+            )}
+            {trackStopped && (
+              <li class="notice" data-notice="tracking-stopped" tabIndex={-1}>
+                {t.trackStopped}
               </li>
             )}
             {waitingFor && !visitorEnded && !slow && (

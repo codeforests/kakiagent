@@ -1164,3 +1164,54 @@ export function HandoffCard(p: {
     </li>
   );
 }
+
+/**
+ * The page tracking prompt (SCR-WGT-007; FEAT-029 §5.8), styled like the consent card.
+ * Asked: Allow / No thanks; answered: one caption line. The panel owns the state and focus.
+ */
+export function TrackingPrompt({
+  state,
+  t,
+  business,
+  privacyUrl,
+  onChoose,
+  allowRef,
+}: {
+  state: 'ask' | 'accepted' | 'declined';
+  t: Strings;
+  business: string;
+  privacyUrl: string | null;
+  onChoose(c: 'accepted' | 'declined'): void;
+  allowRef?: { current: HTMLButtonElement | null };
+}) {
+  if (state !== 'ask')
+    return (
+      <li class="lead-done" data-card="tracking" data-state={state}>
+        <p class="lead-line">
+          {state === 'accepted' && TICK_ICON}
+          {state === 'accepted' ? t.trackAccepted : t.trackDeclined}
+        </p>
+      </li>
+    );
+  return (
+    <li class="lead-item" data-card="tracking">
+      <div class="lead-card" role="group" aria-labelledby="k-track-title">
+        <h3 id="k-track-title">{t.trackTitle}</h3>
+        <p class="cap">{t.trackBody(business)}</p>
+        {privacyUrl && (
+          <p class="cap">
+            <PrivacyLink url={privacyUrl} t={t} />
+          </p>
+        )}
+        <div class="row">
+          <button type="button" class="btn sec" onClick={() => onChoose('declined')}>
+            {t.trackNo}
+          </button>
+          <button type="button" class="btn pri" ref={allowRef} onClick={() => onChoose('accepted')}>
+            {t.trackAllow}
+          </button>
+        </div>
+      </div>
+    </li>
+  );
+}

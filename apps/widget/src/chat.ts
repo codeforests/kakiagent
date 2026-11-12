@@ -3,6 +3,7 @@ import type {
   LeadPrefill,
   Message,
   MessageCard,
+  TrackingMode,
   WidgetConfigResponse,
 } from '@kaki/contracts';
 import { formatSgd } from '@kaki/contracts/quote';
@@ -162,7 +163,16 @@ export function chromeLocale(c: Chat, navLang: string | undefined): Locale {
   return pickLocale(navLang);
 }
 
-export type MenuItem = 'talkToPerson' | 'continueElsewhere' | 'privacy' | 'end';
+export type MenuItem =
+  'talkToPerson' | 'continueElsewhere' | 'privacy' | 'stopTracking' | 'shareTracking' | 'end';
+
+/** The tracking prompt shows only in consent mode with no stored choice (FEAT-029 §5.8). */
+export function trackingPromptShown(
+  mode: TrackingMode,
+  choice: 'accepted' | 'declined' | null,
+): boolean {
+  return mode === 'consent' && choice === null;
+}
 
 /**
  * The header menu's items, in order (SCR-WGT-002; FEAT-033 AC-5, AC-6). Talk to a person
@@ -171,7 +181,14 @@ export type MenuItem = 'talkToPerson' | 'continueElsewhere' | 'privacy' | 'end';
 export function menuItems(
   config: Pick<WidgetConfigResponse, 'privacyNoticeUrl' | 'controls'> &
     Partial<Pick<WidgetConfigResponse, 'handoff'>>,
-  s: { conversationId: string | null; ended: boolean; preview: boolean; handover?: boolean },
+  s: {
+    conversationId: string | null;
+    ended: boolean;
+    preview: boolean;
+    handover?: boolean;
+    /** Consent mode only (SCR-WGT-002, FEAT-029): stop or share by the stored choice. */
+    tracking?: { mode: TrackingMode; choice: 'accepted' | 'declined' | null };
+  },
 ): MenuItem[] {
   const items: MenuItem[] = [];
   if (config.controls.talkToPerson && !s.ended && !s.handover) items.push('talkToPerson');
@@ -185,6 +202,10 @@ export function menuItems(
   )
     items.push('continueElsewhere');
   if (config.privacyNoticeUrl) items.push('privacy');
+  if (s.tracking?.mode === 'consent' && !s.preview) {
+    if (s.tracking.choice === 'accepted') items.push('stopTracking');
+    else if (s.tracking.choice === 'declined') items.push('shareTracking');
+  }
   if (s.conversationId && !s.ended && !s.preview) items.push('end');
   return items;
 }
