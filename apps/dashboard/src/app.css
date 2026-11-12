@@ -1172,14 +1172,27 @@ a {
     padding-bottom: env(safe-area-inset-bottom);
   }
 }
+/* Below 1024 px an open thread fills the space the shell leaves for the page, sized by layout
+   rather than calc(100dvh - …): the shell is held to the viewport, so the main row is whatever the
+   top bar and the tab bar leave, and the thread takes what the alert and page banners above it leave.
+   A banner then shrinks the thread instead of pushing its dock under the sticky tab bar. */
 @media (max-width: 1023px) {
-  .inbox--thread .inbox__thread {
-    height: calc(100dvh - var(--size-topbar) - var(--size-bottom-nav) - 2 * var(--space-5));
+  .shell:has(.inbox--thread) {
+    height: 100dvh;
   }
-}
-@media (min-width: 768px) and (max-width: 1023px) {
+  .content:has(.inbox--thread) {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow-y: auto;
+  }
+  .content > .inbox--thread {
+    flex: 1;
+    min-height: 0;
+    grid-template-rows: minmax(0, 1fr);
+  }
   .inbox--thread .inbox__thread {
-    height: calc(100dvh - var(--size-topbar) - 2 * var(--space-5));
+    min-height: 0;
   }
 }
 .skeleton-list {

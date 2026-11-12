@@ -182,6 +182,21 @@ describe('deliverMessage on Telegram (FEAT-037 §5.4)', () => {
     expect(await delivery(again)).toMatchObject({ failed_reason: 'blocked' });
   });
 
+  it('a bot disconnected since the reply was queued: failed/rejected, and the channel is not degraded', async () => {
+    const { conv, chatId } = await chat();
+    // disconnectTelegram clears the credential and resets health.
+    await owner.query(
+      `update channel_connections set credential_ciphertext = null, credential_key_ref = null, health = 'unknown' where id = $1`,
+      [connectionId],
+    );
+    const m = await message(conv, 'agent', 'Your cake is ready.');
+    expect((await deliver(m)).outcome).toBe('failed');
+    expect(await delivery(m)).toMatchObject({ status: 'failed', failed_reason: 'rejected' });
+    expect(await escalations(conv)).toEqual(['delivery_failed']);
+    expect(await health()).toEqual({ health: 'unknown', health_reason: null });
+    expect(sentTo(chatId)).toEqual([]);
+  });
+
   it('a revoked token degrades the channel and the reply is retried; a 429 waits as asked', async () => {
     const { conv } = await chat();
     await seal(`${BOT}:revokedxxxxxxxxxxxxxxxxxxxxxxxxxxxx`);

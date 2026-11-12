@@ -261,6 +261,10 @@ test('the Owner connects a Telegram bot, customers get AI replies, and alerts re
     const texts = (await sentTo(botId, ownerChat)).slice(before).map((s) => s.text ?? '');
     expect(texts.some((t) => /talk to a person/.test(t))).toBe(true);
   }).toPass({ timeout: 60_000 });
+  // Ali's escalation notice goes out on its own path from the owner's alert. Revoking before it
+  // is sent has it rejected: a `send_rejected` degrade and a Telegram alert retried on the
+  // revoked bot, each of which marks the channel just checked, so "Check again" stays 429.
+  await waitSent(botId, asker, 1);
 
   // A revoked token shows as degraded after a check (AC-5), with the Replace action.
   await fetch(`${FAKE}/_fake/revoke`, {
