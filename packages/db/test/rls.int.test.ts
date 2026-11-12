@@ -5820,3 +5820,162 @@ describe('conversation memory (FEAT-026)', () => {
     expect(left.rows[0]!.n).toBe('0');
   });
 });
+
+describe('web context tracking (FEAT-029)', () => {
+  const q = <T extends pg.QueryResultRow = { id: string }>(sql: string, args: unknown[] = []) =>
+    owner.query<T>(sql, args);
+  const visitor = { [TENANT_A]: randomUUID(), [TENANT_B]: randomUUID() };
+  const event = (t: string, viewedAt = 'now()') =>
+    q(
+      `insert into visitor_events (tenant_id, id, visitor_id, session_id, path, consented, viewed_at)
+       values ($1, gen_random_uuid(), $2, gen_random_uuid(), '/menu', false, ${viewedAt}) returning id`,
+      [t, visitor[t]],
+    );
+  const choice = (t: string, decidedAt = 'now()') =>
+    q(
+      `insert into visitor_tracking_choices (tenant_id, visitor_id, choice, wording, decided_at)
+       values ($1, $2, 'accepted', 'v1', ${decidedAt})
+       on conflict (tenant_id, visitor_id) do update set decided_at = excluded.decided_at`,
+      [t, visitor[t]],
+    );
+
+  afterAll(async () => {
+    await q(`delete from visitor_events`);
+    await q(`delete from visitor_tracking_choices`);
+  });
+
+  it("tenant B can't read or write tenant A's events or choices", async () => {
+    const a = (await event(TENANT_A)).rows[0]!.id;
+    await choice(TENANT_A);
+    for (const role of ['app_agent_visitor', 'app_dashboard'] as const) {
+      const seen = await asRole(role, TENANT_B, async (c) => ({
+        events: (await c.query(`select 1 from visitor_events`)).rowCount,
+        choices: (await c.query(`select 1 from visitor_tracking_choices`)).rowCount,
+      }));
+      expect(seen).toEqual({ events: 0, choices: 0 });
+    }
+    const writes = await asRole('app_agent_visitor', TENANT_B, async (c) => ({
+      engage: (await c.query(`update visitor_events set dwell_ms = 5 where id = $1`, [a])).rowCount,
+      del: (await c.query(`delete from visitor_events where id = $1`, [a])).rowCount,
+      choice: (
+        await c.query(
+          `update visitor_tracking_choices set choice = 'declined' where visitor_id = $1`,
+          [visitor[TENANT_A]],
+        )
+      ).rowCount,
+    }));
+    expect(writes).toEqual({ engage: 0, del: 0, choice: 0 });
+    await expect(
+      asRole('app_agent_visitor', TENANT_B, (c) =>
+        c.query(
+          `insert into visitor_events (tenant_id, id, visitor_id, session_id, path, consented, viewed_at)
+           values ($1, gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), '/x', false, now())`,
+          [TENANT_A],
+        ),
+      ),
+    ).rejects.toThrow(/row-level security/);
+    const own = await asRole('app_agent_visitor', TENANT_A, async (c) => ({
+      engage: (
+        await c.query(`update visitor_events set dwell_ms = 5, scroll_pct = 40 where id = $1`, [a])
+      ).rowCount,
+      read: (await c.query(`select 1 from visitor_tracking_choices`)).rowCount,
+    }));
+    expect(own).toEqual({ engage: 1, read: 1 });
+    await q(`delete from visitor_events`);
+    await q(`delete from visitor_tracking_choices`);
+  });
+
+  it('the visitor zone can update only dwell and scroll; the dashboard only reads', async () => {
+    const a = (await event(TENANT_A)).rows[0]!.id;
+    for (const col of [
+      `path = '/other'`,
+      `consented = true`,
+      `viewed_at = now()`,
+      `visitor_id = gen_random_uuid()`,
+    ])
+      await expect(
+        asRole('app_agent_visitor', TENANT_A, (c) =>
+          c.query(`update visitor_events set ${col} where id = $1`, [a]),
+        ),
+      ).rejects.toThrow(/permission denied/);
+    for (const sql of [
+      `update visitor_events set dwell_ms = 1`,
+      `delete from visitor_events`,
+      `insert into visitor_tracking_choices (tenant_id, visitor_id, choice, wording) values ('${TENANT_A}', gen_random_uuid(), 'accepted', 'v1')`,
+    ])
+      await expect(asRole('app_dashboard', TENANT_A, (c) => c.query(sql))).rejects.toThrow(
+        /permission denied/,
+      );
+    await q(`delete from visitor_events`);
+  });
+
+  it('the dashboard sets the tracking mode and the visitor zone reads it', async () => {
+    const out = await asRole(
+      'app_dashboard',
+      TENANT_A,
+      async (c) =>
+        (
+          await c.query(
+            `update widget_settings set tracking_enabled = true, tracking_consent_mode = true, tracking_updated_at = now()`,
+          )
+        ).rowCount,
+    );
+    expect(out).toBe(1);
+    const read = await asRole(
+      'app_agent_visitor',
+      TENANT_A,
+      async (c) =>
+        (await c.query(`select tracking_enabled, tracking_consent_mode from widget_settings`)).rows,
+    );
+    expect(read).toEqual([{ tracking_enabled: true, tracking_consent_mode: false }]);
+    await expect(
+      asRole('app_agent_visitor', TENANT_A, (c) =>
+        c.query(`update widget_settings set tracking_enabled = false`),
+      ),
+    ).rejects.toThrow(/permission denied/);
+  });
+
+  it('paths start with a slash and fit 512 characters', async () => {
+    const conv = (await q(`select id from conversations where tenant_id = $1 limit 1`, [TENANT_A]))
+      .rows[0]!.id;
+    const msg = (page: string) =>
+      q(
+        `insert into messages (tenant_id, conversation_id, author, body, page_path) values ($1, $2, 'visitor', 'hi', $3)`,
+        [TENANT_A, conv, page],
+      );
+    await expect(msg('menu')).rejects.toThrow(/messages_page_path_ck/);
+    await expect(msg('/' + 'x'.repeat(512))).rejects.toThrow(/messages_page_path_ck/);
+    await expect(
+      q(
+        `insert into visitor_events (tenant_id, id, visitor_id, session_id, path, consented, viewed_at)
+         values ($1, gen_random_uuid(), gen_random_uuid(), gen_random_uuid(), 'menu', false, now())`,
+        [TENANT_A],
+      ),
+    ).rejects.toThrow(/visitor_events_path_ck/);
+    const e = (await event(TENANT_A)).rows[0]!.id;
+    await expect(
+      q(`update visitor_events set scroll_pct = 101 where id = $1`, [e]),
+    ).rejects.toThrow(/visitor_events_engage_ck/);
+    await q(`delete from messages where page_path is not null`);
+    await q(`delete from visitor_events`);
+  });
+
+  it('visitor_events_purge() deletes events past 180 days and choices past 13 months, for the scheduler only', async () => {
+    for (const t of [TENANT_A, TENANT_B]) {
+      await event(t, `now() - interval '181 days'`);
+      await event(t, `now() - interval '179 days'`);
+    }
+    await choice(TENANT_A, `now() - interval '14 months'`);
+    await choice(TENANT_B, `now() - interval '12 months'`);
+    const n = await asRole('app_outbox', null, async (c) => {
+      const first = (await c.query<{ n: number }>(`select visitor_events_purge() as n`)).rows[0]!.n;
+      const left = (await c.query<{ n: number }>(`select visitor_events_purge() as n`)).rows[0]!.n;
+      return { first, left };
+    });
+    expect(n).toEqual({ first: 3, left: 0 });
+    for (const role of ['app_agent_visitor', 'app_dashboard'] as const)
+      await expect(
+        asRole(role, TENANT_A, (c) => c.query(`select visitor_events_purge()`)),
+      ).rejects.toThrow(/permission denied/);
+  });
+});

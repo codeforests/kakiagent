@@ -402,6 +402,8 @@ export const messages = pgTable(
       .default(sql`'{}'::text[]`),
     /** A widget card on an agent reply (`MessageCard`, FEAT-049 §3): consent or lead form. */
     card: jsonb('card').$type<Record<string, unknown>>(),
+    /** The page a widget visitor sent the message from, path only, masked (FEAT-029 §4). */
+    pagePath: text('page_path'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -410,6 +412,10 @@ export const messages = pgTable(
       columns: [t.tenantId, t.conversationId],
       foreignColumns: [conversations.tenantId, conversations.id],
     }),
+    check(
+      'messages_page_path_ck',
+      sql`${t.pagePath} is null or (left(${t.pagePath}, 1) = '/' and length(${t.pagePath}) <= 512)`,
+    ),
     check(
       'messages_card_ck',
       sql`${t.card} is null or (${t.author} in ('agent', 'system') and ${t.card}->>'kind' in ('consent', 'lead_form', 'quote', 'withdraw', 'handoff', 'moved'))`,
@@ -1558,6 +1564,10 @@ export const widgetSettings = pgTable(
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true }),
     rejectedOrigin: text('rejected_origin'),
     rejectedAt: timestamp('rejected_at', { withTimezone: true }),
+    /** Tracking mode (FEAT-029 §4, D8): off = not enabled; consent = enabled + consent mode. */
+    trackingEnabled: boolean('tracking_enabled').notNull().default(true),
+    trackingConsentMode: boolean('tracking_consent_mode').notNull().default(false),
+    trackingUpdatedAt: timestamp('tracking_updated_at', { withTimezone: true }),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
@@ -2957,6 +2967,64 @@ export const conversationSummaries = pgTable(
   ],
 );
 
+/**
+ * One first-party page view by a widget visitor (CHN-03, AGT-05; FEAT-029 §4). `id` is the
+ * client's view ID, so a retried beacon is one row; `engage` raises dwell and scroll. No contact
+ * ID: events stay pseudonymous (D8). Purged after 180 days by `visitor_events_purge()` (D6).
+ */
+export const visitorEvents = pgTable(
+  'visitor_events',
+  {
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id),
+    id: uuid('id').notNull(),
+    visitorId: uuid('visitor_id').notNull(),
+    sessionId: uuid('session_id').notNull(),
+    path: text('path').notNull(),
+    /** The external referrer's host only. */
+    referrer: text('referrer'),
+    utm: jsonb('utm').$type<Record<string, string>>(),
+    dwellMs: integer('dwell_ms').notNull().default(0),
+    scrollPct: smallint('scroll_pct').notNull().default(0),
+    /** Collected under an accepted consent prompt (consent mode). */
+    consented: boolean('consented').notNull(),
+    viewedAt: timestamp('viewed_at', { withTimezone: true }).notNull(),
+    receivedAt: timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.id] }),
+    index('visitor_events_visitor_idx').on(t.tenantId, t.visitorId, t.viewedAt.desc()),
+    check('visitor_events_path_ck', sql`left(${t.path}, 1) = '/' and length(${t.path}) <= 512`),
+    check('visitor_events_referrer_ck', sql`${t.referrer} is null or length(${t.referrer}) <= 253`),
+    check('visitor_events_utm_ck', sql`${t.utm} is null or jsonb_typeof(${t.utm}) = 'object'`),
+    check(
+      'visitor_events_engage_ck',
+      sql`${t.dwellMs} between 0 and 86400000 and ${t.scrollPct} between 0 and 100`,
+    ),
+  ],
+);
+
+/** A widget visitor's answer to the consent-mode tracking prompt (PDPA evidence; FEAT-029 §4). */
+export const visitorTrackingChoices = pgTable(
+  'visitor_tracking_choices',
+  {
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id),
+    visitorId: uuid('visitor_id').notNull(),
+    choice: text('choice', { enum: ['accepted', 'declined'] }).notNull(),
+    /** The prompt wording version shown (the widget strings' `trackingPromptVersion`). */
+    wording: text('wording').notNull(),
+    decidedAt: timestamp('decided_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.visitorId] }),
+    check('visitor_tracking_choices_choice_ck', sql`${t.choice} in ('accepted', 'declined')`),
+    check('visitor_tracking_choices_wording_ck', sql`length(${t.wording}) between 1 and 32`),
+  ],
+);
+
 export const TENANT_SCOPED_TABLES = [
   'tenants',
   'conversations',
@@ -3012,4 +3080,6 @@ export const TENANT_SCOPED_TABLES = [
   'contact_merges',
   'handoff_links',
   'conversation_summaries',
+  'visitor_events',
+  'visitor_tracking_choices',
 ] as const;
