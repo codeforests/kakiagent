@@ -1,7 +1,7 @@
 # Tasks: FEAT-029 — Web context and first-party intent tracking; consent mode
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: designed · 2026-11-12
+> Status: `developer-done` · 2026-11-12
 
 - [x] T1 — Schema: `0058_web_context.sql` and `schema.ts`: `widget_settings` tracking columns, `messages.page_path` + check, `visitor_events` and `visitor_tracking_choices` (checks, index, forced RLS, policies, grants, `TENANT_SCOPED_TABLES`), NOLOGIN `kaki_tracking_purge` + `visitor_events_purge()` (design §4; AC-9)
       Done when: `drizzle-kit generate` reports no drift after 0058; `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes with new `rls.int` cases: tenant B can't read or write A's events or choices; `app_agent_visitor` can update only `dwell_ms`/`scroll_pct`; a `page_path` without a leading `/` fails; `visitor_events_purge()` deletes only events past 180 days and choices past 13 months, and app roles can't execute it.
@@ -34,9 +34,19 @@
       Done when: the spec typechecks and lints; it runs in the verify stage's GitHub CI.
       Note: no tags with digits; restore the dev tenant's tracking mode in `afterEach` so other specs keep the default.
       Note (build): `e2e/tests/web-context.e2e.ts` (2 tests, serial) typechecks and lints; route changes are `history.pushState` on the host page (the tracker's 1 s path check); events are counted from `requestfinished` on `/widget/v1/events`. Runs in the verify stage's GitHub CI.
-- [ ] T12 — Verify: full `pnpm lint` and `pnpm typecheck`, this feature's unit and integration suites, `pnpm size`, `node scripts/check-rtm.mjs FEAT-029`; status `developer-done`; draft PR.
+- [x] T12 — Verify: full `pnpm lint` and `pnpm typecheck`, this feature's unit and integration suites, `pnpm size`, `node scripts/check-rtm.mjs FEAT-029`; status `developer-done`; draft PR.
       Done when: all pass; "Verification evidence" below has one bullet per AC.
 
 ## Verification evidence
 
-- (filled by the build sessions, one bullet per AC)
+Local (2026-11-12, build UI session): `pnpm format:check`, `pnpm lint`, `pnpm typecheck` pass; `pnpm test` 166 files / 1895 tests; integration channels 71, agent 146, db 242 pass; widget build and `pnpm size` (loader 5.96 KB gz, panel 25.6 KB); `node scripts/check-rtm.mjs FEAT-029` passes.
+
+- AC-1: `PUT /api/v1/widget/tracking` and audit in `apps/api/test/tracking.int.test.ts` (backend); SCR-APP-037 toggles in `lib/web-context.test.ts` and `web-context.e2e.ts` (CI).
+- AC-2: `track.test.ts` (path, UTM, referrer) and the stubbed Playwright run (view per load and `pushState`, engage on hide, path only, `history` untouched).
+- AC-3: stubbed run (no event before Allow; events after; withdraw stops them); server drop in `channels` tracking int (backend); E2E (CI).
+- AC-4: `page` on every message (stubbed run: body carried `/menu`); `page_only` scope in agent int (backend); E2E second test (CI).
+- AC-5, AC-6, AC-7: agent unit/int and `evals/cases/feat-029-web-context.json` (backend, T5).
+- AC-8: `webRows`/`formatDwell`/`sourceLine` unit tests; api sidebar int (backend); E2E (CI).
+- AC-9: db RLS suite 242 pass; scheduler purge (backend, T6).
+- AC-10: loader +1.49 KB gz (≤ 14 KB); `track.test.ts` blocked storage; every tracker handler in try/catch.
+- AC-11: axe on prompt (desktop, 375×5000) and settings section in `web-context.e2e.ts` (CI); `en`/`zh-Hans` strings parity test passes.
