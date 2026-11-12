@@ -1,5 +1,5 @@
 # Handoff: FEAT-029 — Web context and first-party intent tracking; consent mode
-Branch: feat/FEAT-029-web-context · PR: draft (see the PR list) · Updated: 2026-11-12 by build (UI)
+Branch: feat/FEAT-029-web-context · PR: https://github.com/codeforests/kakiagent/pull/67 (draft) · Updated: 2026-11-12 by build (UI)
 Stage done: build (T1–T12 of 12), status `developer-done`
 Next: verify — kickoff: "Verify FEAT-029 on branch feat/FEAT-029-web-context.
 Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
