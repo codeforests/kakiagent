@@ -15,8 +15,9 @@
       Done when: `pnpm --filter @kaki/agent test` passes (prompt tail with and without `full`; guard fails on a viewed path, on each marker in en and zh, passes the current page's product), `scripts/test-env.sh pnpm --filter @kaki/agent test:integration` passes a turn case (full context in the tail and the audit; `off` tenant → `page_only`; a fake reply naming a viewed page regenerates), and `pnpm eval --fast` passes thresholds with the new cases.
 - [ ] T6 — Scheduler: `tracking-purge.ts` daily sweep wired in `apps/scheduler-worker/src/main.ts` (design §5.9; AC-9)
       Done when: `pnpm --filter @kaki/scheduler-worker test` passes `tracking-purge.test.ts` (calls the purge on the outbox zone, logs `{ deleted }`, survives errors).
-- [ ] T7 — Inbox sidebar: `sidebarWeb` in `views.ts` filling `ContextSidebar.web` via `webContextOf` (design §5.7; D7; AC-8)
+- [x] T7 — Inbox sidebar: `sidebarWeb` in `views.ts` filling `ContextSidebar.web` via `webContextOf` (design §5.7; D7; AC-8)
       Done when: `scripts/test-env.sh pnpm --filter @kaki/inbox test:integration` passes cases: `full` conversation returns current page, viewed with dwell, source and returning; `page_only` returns only the current page; an email conversation returns nulls.
+      Note (build): the sidebar is assembled in `apps/api/src/inbox.ts` (like `duplicateCount` and `pendingApprovalOf`; inbox doesn't depend on channels), so `web` is filled there via `webContextOf` and the cases live in `apps/api/test/tracking.int.test.ts` ("the inbox sidebar web context"); the logic's own cases are in `packages/channels/test/tracking.int.test.ts`. Full api integration: 44/45 files pass; `uploads.int` needs LocalStack (no Docker here).
 
 ## Build session 2 (UI)
 

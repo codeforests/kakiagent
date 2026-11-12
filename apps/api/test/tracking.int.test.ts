@@ -196,3 +196,58 @@ describe('widget config, messages and dashboard settings (FEAT-029 §5.1)', () =
     expect(rows.length).toBeGreaterThanOrEqual(1);
   });
 });
+
+describe('the inbox sidebar web context (FEAT-029 §5.7; AC-8)', () => {
+  const thread = async (id: string) =>
+    (
+      await app.inject({
+        method: 'GET',
+        url: `/api/v1/conversations/${id}`,
+        headers: { cookie: asA },
+      })
+    ).json().sidebar.web;
+  async function chat(visitorId: string, channel = 'widget', createdAt = 'now()') {
+    const { rows } = await owner.query<{ id: string }>(
+      `insert into conversations (tenant_id, channel, visitor_id, created_at) values ($1, $2, $3, ${createdAt}) returning id`,
+      [TENANT_A, channel, visitorId],
+    );
+    await owner.query(
+      `insert into messages (tenant_id, conversation_id, author, body, page_path) values ($1, $2, 'visitor', 'hi', $3)`,
+      [TENANT_A, rows[0]!.id, channel === 'widget' ? '/cakes/premium' : null],
+    );
+    return rows[0]!.id;
+  }
+
+  it('full: current page, viewed with dwell, source and returning; off: current page only; email: nulls', async () => {
+    const v = randomUUID();
+    await chat(v, 'widget', `now() - interval '3 days'`);
+    const e = view();
+    await beacon({
+      token: token(v),
+      events: [{ ...e, path: '/cakes', utm: { source: 'ig' }, referrer: 'instagram.com' }],
+    });
+    await beacon({
+      token: token(v),
+      events: [{ type: 'engage', id: e.id, dwellMs: 42000, scroll: 80 }],
+    });
+    const id = await chat(v);
+    const web = await thread(id);
+    expect(web).toMatchObject({
+      scope: 'full',
+      currentPage: '/cakes/premium',
+      viewed: [{ path: '/cakes', dwellMs: 42000 }],
+      source: { utm: { source: 'ig' }, referrer: 'instagram.com' },
+      returning: true,
+    });
+    await setMode(false, false);
+    expect(await thread(id)).toEqual({
+      scope: 'page_only',
+      currentPage: '/cakes/premium',
+      viewed: [],
+      source: null,
+      returning: false,
+    });
+    const mail = await chat(randomUUID(), 'email');
+    expect(await thread(mail)).toMatchObject({ currentPage: null, viewed: [], source: null });
+  });
+});

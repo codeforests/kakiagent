@@ -66,6 +66,7 @@ import {
 } from '@kaki/inbox';
 import { dashboardKb, factChips, proposeReplyEdit } from '@kaki/kb';
 import { duplicateCount } from '@kaki/channels/contacts';
+import { webContextOf } from '@kaki/channels/tracking';
 import { contactOf, leadSummaryOf } from '@kaki/leads';
 import { channels } from '@kaki/platform';
 import type { FastifyReply, FastifyRequest } from 'fastify';
@@ -227,6 +228,8 @@ export function registerInboxRoutes(
         lead: await leadSummaryOf(tx, t, id),
         // FEAT-055 §5.3: the pending approval (api-side: inbox never imports approvals).
         approval: await pendingApprovalOf(tx, t, id),
+        // FEAT-029 §5.7 (D7): the web context the turn may use (channels; api-side like duplicates).
+        web: await webContextOf(tx, { tenantId: t, conversationId: id }),
         facts: chips.map((chip) => ({
           ...chip,
           uses: used.find((u) => u.factId === chip.id)!.uses,
@@ -271,6 +274,7 @@ export function registerInboxRoutes(
         },
         channel: data.row.channel,
         intents: data.intents,
+        web: data.web,
         lead: data.lead,
         facts: data.facts,
         approval: data.approval
