@@ -1267,6 +1267,7 @@
         "spec": "02-design/anchor-screens.md#scr-wgt-002--chat-panel",
         "prototype": "02-design/anchors/scr-wgt-002-chat-panel.html",
         "extended_by": [
+          "features/FEAT-003-pii-masking/ui-design.md#scr-wgt-002--chat-panel",
           "features/FEAT-029-web-context/ui-design.md#scr-wgt-002--chat-panel-partial-menu-items"
         ]
       },
@@ -1764,7 +1765,10 @@
       "feature": "FEAT-034",
       "strategy": "code-native",
       "source": {
-        "spec": "features/FEAT-034-channels/ui-design.md#scr-app-036--channels"
+        "spec": "features/FEAT-034-channels/ui-design.md#scr-app-036--channels",
+        "extended_by": [
+          "features/FEAT-035-onboarding-wizard/ui-design.md#scr-app-036--channels-not-ready-alert"
+        ]
       },
       "states": {
         "covered": [

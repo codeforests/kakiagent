@@ -224,3 +224,13 @@ Designed: "yes" = a feature technical design is in the Design ref; "ADR only" = 
 | NFR-18 | Must | Foundations (§7), M6 verification, FEAT-036, FEAT-052 | yes | partially |
 | NFR-19 | Must | Foundations (§7), M6 verification, every UI feature (§3 gate) | ADR only | pending |
 | NFR-20 | Must | Foundations (§7), M6 verification, FEAT-069, FEAT-071 | ADR only | pending |
+
+## Follow-up (2026-11-13, Ken chose "fix now, with the guard")
+
+Fixed in the same PR (#68). Rerun of `python3 scripts/pipeline-verify.py`: **0 errors, 3 warnings.**
+
+- **PR #60's M3 fixes, brought onto this branch** (two conflicts resolved: NFR-16 takes #60's Test refs, NFR-17/18 keep `main`'s M4 refs; SCR-WGT-002 keeps both `extended_by` entries): plan §4 rows of FEAT-007, 019, 035, 043, 044, 045, 049, 050, 051, 054; eight NFR Test refs; FEAT-035's "Implements:"; manifest `extended_by` for SCR-APP-036 and SCR-WGT-002. PR #60 can be closed.
+- **M4 plan rows:** FEAT-036 (CHN-01, CHN-12), FEAT-037 (CHN-01, CHN-12, DSH-09), FEAT-039 (LED-09), FEAT-029 (INB-04), each `(p: …)` as in the RTM Test ref. The plan header's amendment line says so.
+- **FEAT-050's "Implements:"** adds LED-02 (p).
+- **Guard:** `scripts/check-rtm.mjs` (run by `pnpm lint`) now fails when a row's Plan ref names a feature whose §4 FRs column doesn't list the requirement (NFRs may instead be in the §7 ownership table). Against `main`'s plan it reports exactly the 33 errors above; against this branch it passes.
+- **Remaining warnings (M6):** NFR-03 (FEAT-004) and NFR-05 (FEAT-006, FEAT-034), which those reports don't verify; k6 and the ASVS checklist at M6 do.
