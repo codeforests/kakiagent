@@ -15,6 +15,9 @@
 //   - once features/<dir>/acceptance-report.md exists, Test ref cites it (verify appends it).
 // For every row, each acceptance report its Test ref cites must exist, and that feature
 // must also be in the row's Plan ref and its technical design in the row's Design ref.
+// Every feature a row's Plan ref names must list that requirement in its implementation-plan
+// §4 row's FRs column (or, for an NFR, in the §7 NFR ownership table). Detailed design amends
+// the §4 row when it widens a feature's scope; --fix never edits the plan.
 // --fix appends the Design and Plan refs (never Test refs: those need the verifier's
 // judgement of full or partial). Exit 1 if anything is missing.
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -155,6 +158,36 @@ for (const [id, row] of rows) {
       continue;
     }
     checkDesignAndPlan(feat, dir, id, row, `its Test ref cites ${feat}'s report`);
+  }
+}
+
+// RTM Plan ref -> plan §4 row (M3 and M4 pipeline-verify: designs widened scope, rows didn't).
+const PLAN = 'docs/03-planning/implementation-plan.md';
+const plan = readFileSync(PLAN, 'utf8');
+const sec = (from, to) => plan.slice(plan.indexOf(from), plan.indexOf(to));
+const planRows = new Map(); // FEAT-NNN -> Set of requirement IDs in the FRs column
+for (const line of sec('## 4. ', '## 5. ').split('\n')) {
+  const cells = line.trim().split(' | ');
+  const m = /^\| (FEAT-\d{3})$/.exec(cells[0] ?? '');
+  if (m && cells.length >= 6) planRows.set(m[1], new Set(cells[3].match(reqPattern) ?? []));
+}
+const nfrOwners = new Map(); // NFR-NN -> { feats, every }
+for (const line of sec('## 7. ', '## 8. ').split('\n')) {
+  const m = /^\| (NFR-\d+)\b[^|]*\| ([^|]*)\|/.exec(line.trim());
+  if (m) nfrOwners.set(m[1], { feats: m[2], every: /\bevery\b/.test(m[2]) });
+}
+if (planRows.size === 0) problems.add(`${PLAN}: no FEAT rows found in §4`);
+for (const [id, row] of rows) {
+  if (row.cells[COL.status].startsWith('Removed')) continue;
+  for (const feat of new Set(row.cells[COL.plan].match(/FEAT-\d{3}/g) ?? [])) {
+    if (only.length && !only.includes(feat)) continue;
+    const listed = planRows.get(feat);
+    if (!listed || listed.has(id)) continue;
+    const nfr = nfrOwners.get(id);
+    if (nfr && (nfr.every || featIdIn(nfr.feats, feat))) continue;
+    problems.add(
+      `${id}: Plan ref names ${feat}, but ${feat}'s plan §4 FRs column doesn't list ${id} (amend the row)`,
+    );
   }
 }
 

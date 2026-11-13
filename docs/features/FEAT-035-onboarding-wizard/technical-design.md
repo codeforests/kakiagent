@@ -1,6 +1,6 @@
 # Technical design: FEAT-035 — Onboarding wizard frame and go-live readiness check
 
-> Implements: ONB-02 (guided wizard, progress saved at every step, resume, skip after the profile), ONB-09 (go-live readiness check: blocking items and warnings), ONB-08 (p: instrumented: sign-up and first go-live timestamps; the pilot median is read from them) · Realizes: UC-03 (1a, 9–11, 7a, 10a) · Screens: SCR-APP-012 (new), the wizard frame of SCR-APP-006..011, SCR-APP-009 (adds persona and disclosure) · Module: `tenancy` (`readiness`, `onboarding`)
+> Implements: ONB-02 (guided wizard, progress saved at every step, resume, skip after the profile), ONB-09 (go-live readiness check: blocking items and warnings), ONB-08 (p: instrumented: sign-up and first go-live timestamps; the pilot median is read from them), ONB-10 (the readiness gate before going live), AGT-08 and AGT-11 (the persona setup-step block; added 2026-11-08 to match the acceptance report and RTM, pipeline-verify) · Realizes: UC-03 (1a, 9–11, 7a, 10a) · Screens: SCR-APP-012 (new), the wizard frame of SCR-APP-006..011, SCR-APP-009 (adds persona and disclosure) · Module: `tenancy` (`readiness`, `onboarding`)
 > Status: designed · 2026-10-30
 
 ## 1. Intent
