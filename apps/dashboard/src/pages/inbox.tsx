@@ -195,8 +195,10 @@ function InboxList({
     queryFn: () => api.conversation(selected ?? ''),
     enabled: false,
   });
+  // Lists are patched synchronously by live events while the thread is only refetched, so
+  // a cached row is the freshest copy; the thread covers a conversation in no loaded page.
   const summary = selected
-    ? (thread.data?.conversation ?? rowsOf(queryClient, selected))
+    ? (rowsOf(queryClient, selected) ?? thread.data?.conversation)
     : undefined;
   const to = (f: InboxFilter) =>
     `/inbox${selected && inView(summary, f, meId) ? `/${selected}` : ''}${searchFromView(f)}`;

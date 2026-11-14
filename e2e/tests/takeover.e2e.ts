@@ -100,7 +100,9 @@ test('take over, reply, be asked to hand over, hand back (AC-1–AC-7, AC-10)', 
     ).toContainText('You');
     await expectNoSeriousA11yViolations(mei.page);
 
-    // "Mine" lists it for her (AC-7); the owner sees it under Mei Ling.
+    // "Mine" lists it for her (AC-7); the owner sees it under Mei Ling. The filter sits in
+    // the Filters panel (FEAT-075).
+    await mei.page.getByRole('button', { name: /^Filters/ }).click();
     await mei.page.getByTestId('assignee-filter').selectOption('me');
     await expect(mei.page).toHaveURL(/assignee=me/);
     await expect(
