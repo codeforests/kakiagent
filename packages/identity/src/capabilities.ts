@@ -28,7 +28,9 @@ export type Capability =
   /** Export leads as CSV, after re-auth (LED-05, AUTH-03; FEAT-050 D1). Owner and Admin. */
   | 'leads.export'
   /** Merge contacts and undo merges (CHN-08; FEAT-039 §5.4). All staff. */
-  | 'contacts.merge';
+  | 'contacts.merge'
+  /** Read, verify and export the audit log (GOV-01, GOV-02; FEAT-060 D2). Owner and Admin. */
+  | 'audit.read';
 
 const POLICY: Record<Role, ReadonlySet<Capability>> = {
   owner: new Set([
@@ -46,6 +48,7 @@ const POLICY: Record<Role, ReadonlySet<Capability>> = {
     'leads.manage',
     'leads.export',
     'contacts.merge',
+    'audit.read',
   ]),
   admin: new Set([
     'inbox.read',
@@ -60,6 +63,7 @@ const POLICY: Record<Role, ReadonlySet<Capability>> = {
     'leads.manage',
     'leads.export',
     'contacts.merge',
+    'audit.read',
   ]),
   agent: new Set(['inbox.read', 'inbox.reply', 'contacts.merge']),
 };
