@@ -22,6 +22,7 @@ import {
   offersWithdrawable,
   type LeadsFilter,
 } from '../lib/leads.ts';
+import { save } from '../lib/download.ts';
 import { ReauthCancelled, useReauthGuard } from '../lib/reauth.ts';
 import { Glyph, ScoreChip } from './conversation-parts.tsx';
 
@@ -96,19 +97,6 @@ export function WithdrawnChip() {
 
 export function MarketingFlag({ marketing }: { marketing: LeadMarketing }) {
   return <span className="lead-marketing">{marketingText(marketing)}</span>;
-}
-
-/** Saves the CSV under its name through a temporary object URL. */
-export function save(blob: Blob, name: string) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = name;
-  // Attached for Firefox, which ignores clicks on a detached link.
-  document.body.append(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 /**

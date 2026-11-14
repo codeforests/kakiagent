@@ -1,7 +1,7 @@
 # Tasks: FEAT-060 — Audit log viewer, chain verification and export
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: designed · Last updated: 2026-11-14 (build, backend T1–T5)
+> Status: developer-done · Last updated: 2026-11-14 (build, UI T6–T9)
 
 - [x] T1 — Contracts and capability: section "Dashboard API: audit log" (§3: `AUDIT_EVENT_GROUPS`, `AuditGroup`, `auditGroupOf` also as the Zod-free `@kaki/contracts/audit` export, `AUDIT_PAGE_MAX`, `AUDIT_EXPORT_MAX`, `AuditQuery`, `AuditSubject`, `AuditRow`, `AuditPage`, `AuditFilters`, `AuditVerifyResult`, `AuditLastVerified`, `AuditExportBody`, `AuditTooMany`); identity `audit.read` for Owner and Admin (design §3, §5.5; D2, D6)
       Done when: `pnpm --filter @kaki/contracts test` passes (`auditGroupOf` maps one code per group, `ai.paused` → assistant, an unknown prefix → other; `AuditQuery` defaults `limit` 50, refuses 101, a bad date and unknown keys; `AuditExportBody` needs `format`) and `pnpm --filter @kaki/identity test` passes the capability table (Agent lacks `audit.read`).
@@ -27,7 +27,7 @@
 - [x] T8 — E2E `e2e/tests/audit-log.e2e.ts`: Owner opens Audit log from Settings, filters by group, opens an entry, verifies the chain (intact), exports CSV after re-auth and sees the `audit.exported` entry appear; from a conversation's sidebar link the list is filtered to it; Agent sees no Settings row; axe at desktop and 375 × 5000 (AC-6, AC-7, AC-8)
       Done when: the spec typechecks (`pnpm --filter e2e typecheck` or the repo typecheck); it runs in the verify stage's GitHub CI.
       Note: no Docker locally; E2E runs in CI.
-- [ ] T9 — Verify: full `pnpm format:check`, `pnpm lint` (incl. `check-rtm`), `pnpm typecheck`, `pnpm test`, the governance and api integration suites through `scripts/test-env.sh scripts/check-summary.sh`; status `developer-done`; draft PR
+- [x] T9 — Verify: full `pnpm format:check`, `pnpm lint` (incl. `check-rtm`), `pnpm typecheck`, `pnpm test`, the governance and api integration suites through `scripts/test-env.sh scripts/check-summary.sh`; status `developer-done`; draft PR
       Done when: all pass; "Verification evidence" below has one bullet per AC.
 
 ## Verification evidence
@@ -41,3 +41,9 @@ Backend session (2026-11-14):
 - AC-4: `governance/test/audit-export.int.test.ts` (conversation and date filters, JSON recomputes `hash`, formula cell prefixed, appends during the export left out, cap, one `audit.exported` with IDs/codes) and the api's re-auth 403, CSV/JSON headers, 413 cases pass; `audit-export.test.ts` unit (BOM, CRLF, round-trip of commas, quotes, newlines, Chinese).
 - AC-5: 75,000 entries: CSV 1.3 s, JSON 0.6 s, verify 2.2 s (asserted < 60 s each).
 - AC-6–AC-8: UI session.
+
+UI session (2026-11-14):
+- AC-6: `lib/audit.test.ts` (17 unit: URL round-trip and malformed values dropped, member ⇒ `user`, date error, quick ranges, event text and fallback, actors, subject links, SGT times, payload values); stubbed-API Playwright run: rows, Load more (`before`), detail with linked subject and hashes, focus back to the row, filtered-empty, no sideways scroll at 375. E2E `audit-log.e2e.ts` (type filter in URL kept on reload, detail, focus) runs in the verify stage's CI.
+- AC-7: unit verify texts (intact with anchors / none_yet / unavailable, tamper reason words, Show entry seq, cooldown/running); stubbed run: tamper → "Problem found at entry #4,512…" → Show entry opens #4,512, then 429 → cooldown text, button disabled. E2E: verify → chip Intact, last-verified line, `audit.verified` row.
+- AC-8: stubbed run: export dialog (format, filter line), JSON body with the URL filters, 403 → "Confirm it's you"; Agent → no-access. E2E: CSV through re-auth, header, toast, focus back, `audit.exported` row, sidebar link → `?conversation=`, Agent sees no row or link; axe at 1440 and 375 × 5000 (stubbed axe: no serious/critical at 1280 and 375).
+- Checks: `pnpm format:check`, `pnpm lint` (incl. check-rtm), `pnpm typecheck`, `pnpm test` (170 files, 1925 tests) pass; governance integration 7/8 and api integration 45/46 files pass, the two failures are the S3 suites (`anchors.int`, `uploads.int` presigner) that need Docker/LocalStack (not runnable in cloud sessions).

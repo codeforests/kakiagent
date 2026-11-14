@@ -38,9 +38,9 @@ import {
   without,
   type AuditFilter,
 } from '../lib/audit.ts';
+import { save } from '../lib/download.ts';
 import { ReauthCancelled, useReauthGuard } from '../lib/reauth.ts';
 import { Glyph } from './conversation-parts.tsx';
-import { save } from './leads-parts.tsx';
 
 /** The parts of SCR-APP-050 Audit log (FEAT-060 ui-design). */
 
