@@ -1,5 +1,5 @@
 # Handoff: FEAT-075 — Inbox redesign
-Branch: feat/FEAT-075-inbox-redesign · PR: PR_LINK · Updated: 2026-11-14 by build
+Branch: feat/FEAT-075-inbox-redesign · PR: https://github.com/codeforests/kakiagent/pull/71 (draft) · Updated: 2026-11-14 by build
 Stage done: build (T1–T10 of 10), status `developer-done`
 Next: verify — kickoff: "Verify FEAT-075 on branch feat/FEAT-075-inbox-redesign. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
 
