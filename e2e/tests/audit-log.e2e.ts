@@ -58,9 +58,23 @@ async function ageReauth(email: string) {
 test('the owner filters, opens an entry, verifies the chain and exports', async ({
   page,
   context,
+  browserName,
 }) => {
+  // A cooldown wait (up to 35 s) and two verifies can pass the 60 s default.
+  test.setTimeout(150_000);
   await page.setViewportSize({ width: 1440, height: 1000 });
   await signIn(page, OWNER);
+
+  // The seeded tenant has no team entries of its own; an invite and its revoke give the
+  // Team filter below entries to show, whatever ran before this spec.
+  const invited = await page.request.post('/api/v1/team/invitations', {
+    data: { email: `audit-team-${browserName}@example.test`, role: 'agent' },
+  });
+  expect(invited.status()).toBe(201);
+  const invitation = (await invited.json()) as { id: string };
+  expect((await page.request.delete(`/api/v1/team/invitations/${invitation.id}`)).status()).toBe(
+    204,
+  );
 
   // Settings → Privacy and data → Audit log (AC-8).
   await page.goto('/settings');
