@@ -221,7 +221,7 @@ test('the redesigned inbox: layout, filters and chips, and the selection rule (F
   await expect(owner.getByRole('list', { name: 'Active filters' })).toContainText(
     'Channel: Website chat',
   );
-  await expect(filters).toHaveAccessibleName('Filters, 1 active');
+  await expect(filters).toHaveAccessibleName('Filters 1 active');
   await owner.getByRole('link', { name: 'Remove filter Channel: Website chat' }).click();
   await expect(owner).toHaveURL(new RegExp(`/inbox/${id}$`));
   await expect(owner.getByRole('list', { name: 'Active filters' })).toHaveCount(0);

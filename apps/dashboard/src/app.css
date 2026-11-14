@@ -575,8 +575,14 @@ a {
     justify-content: center;
     padding: 0 var(--space-3);
   }
+  /* Visually hidden, not display: none: the label stays in the button's name (rework R1). */
   .filters-button__label {
-    display: none;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
   }
   .inbox__toolbar .search-field__input {
     min-height: var(--size-control-lg);
@@ -606,8 +612,14 @@ a {
   .filters-button {
     padding: 0 var(--space-3);
   }
+  /* Visually hidden, not display: none: the label stays in the button's name (rework R1). */
   .filters-button__label {
-    display: none;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
   }
   .tabs.inbox__views {
     gap: var(--space-2);
@@ -643,7 +655,11 @@ a {
     height: 100dvh;
     grid-template-rows: var(--size-topbar) minmax(0, 1fr);
   }
+  /* position: relative makes the content (and the list's rows) the containing block of the
+     absolutely positioned .sr-only and badge spans, so its overflow clips them; otherwise a
+     hidden "Escalated:" in a row below the fold grows the page (AC-1; rework R2). */
   .content:has(.inbox) {
+    position: relative;
     display: flex;
     flex-direction: column;
     min-height: 0;
@@ -682,6 +698,7 @@ a {
     background: var(--color-bg-canvas);
   }
   .inbox__rows {
+    position: relative;
     flex: 1;
     min-height: 0;
     overflow-y: auto;
@@ -1718,6 +1735,7 @@ a {
     height: 100dvh;
   }
   .content:has(.inbox--thread) {
+    position: relative;
     display: flex;
     flex-direction: column;
     min-height: 0;

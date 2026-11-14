@@ -225,16 +225,18 @@ function InboxList({
               className={`kaki-btn kaki-btn--secondary filters-button${active > 0 ? ' filters-button--active' : ''}`}
               aria-expanded={filtersOpen}
               aria-controls="inbox-filters"
-              aria-label={active > 0 ? `Filters, ${active} active` : 'Filters'}
               ref={filtersButton}
               onClick={() => setFiltersOpen((o) => !o)}
             >
+              {/* Named by its content, "Filters 1 active", so the name holds the visible
+                  label and count (WCAG 2.5.3; FEAT-075 rework R1). */}
               <Glyph name="sliders" size={16} />
               <span className="filters-button__label">Filters</span>
               {active > 0 && (
-                <span className="filters-button__count" aria-hidden="true">
-                  {active}
-                </span>
+                <>
+                  <span className="filters-button__count">{active}</span>
+                  <span className="sr-only"> active</span>
+                </>
               )}
             </button>
           )}
@@ -461,9 +463,20 @@ function ViewTabs({
           <DropdownMenu.Trigger
             className="tabs__tab inbox__more"
             data-state={inMore ? 'active' : 'inactive'}
-            aria-label={inMore ? `More views, ${VIEW_LABEL[filter.view]} selected` : 'More views'}
           >
-            {inMore ? VIEW_SHORT_LABEL[filter.view] : 'More'}
+            {/* Named by its content ("More views 2", "More views, Flagged selected 2"), so the
+                name holds the visible text (WCAG 2.5.3; FEAT-075 rework R1). */}
+            {inMore ? (
+              <>
+                <span className="sr-only">More views, </span>
+                {VIEW_SHORT_LABEL[filter.view]}
+                <span className="sr-only"> selected</span>
+              </>
+            ) : (
+              <>
+                More<span className="sr-only"> views</span>
+              </>
+            )}
             {pill('flagged')}
             <Glyph name="chevron-down" size={14} />
           </DropdownMenu.Trigger>
