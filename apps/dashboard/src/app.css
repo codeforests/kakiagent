@@ -501,11 +501,30 @@ a {
 .inbox__list > .alert {
   margin-bottom: var(--space-4);
 }
+/* FEAT-075 (§5.2, AC-1): at ≥ 1024 the inbox fills what the top bar and banners leave; the page
+   doesn't scroll, each pane scrolls on its own, and in the thread only the log scrolls. */
 @media (min-width: 1024px) {
-  .inbox {
+  .shell:has(.inbox) {
+    height: 100dvh;
+    grid-template-rows: var(--size-topbar) minmax(0, 1fr);
+  }
+  .content:has(.inbox) {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    padding: 0;
+  }
+  .content:has(.inbox) > .alert,
+  .content:has(.inbox) > .banners {
+    flex: none;
+  }
+  .content > .inbox {
+    flex: 1;
+    min-height: 0;
     grid-template-columns: 360px minmax(0, 1fr);
-    height: calc(100dvh - var(--size-topbar) - 2 * var(--space-5));
-    min-height: calc(var(--space-11) * 6);
+    grid-template-rows: minmax(0, 1fr);
+    gap: 0;
   }
   .inbox--thread .inbox__list,
   .inbox--list .inbox__thread {
@@ -515,14 +534,93 @@ a {
   .inbox__thread {
     min-height: 0;
   }
+  .inbox__list {
+    background: var(--color-bg-surface);
+    border-right: 1px solid var(--color-border-default);
+  }
+  .inbox__thread {
+    background: var(--color-bg-canvas);
+  }
   .inbox__rows {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
   }
+  .inbox__list .conversation-list {
+    border: 0;
+    border-radius: 0;
+  }
+  .inbox__thread .conversation {
+    gap: 0;
+  }
+  .inbox__thread .conversation__main {
+    border: 0;
+    border-radius: 0;
+    background: var(--color-bg-canvas);
+  }
+  .inbox__thread .conversation__sidebar {
+    border: 0;
+    border-left: 1px solid var(--color-border-default);
+    border-radius: 0;
+  }
   .thread-header .thread-header__back {
     display: none;
   }
+}
+@media (min-width: 1280px) {
+  .content > .inbox {
+    grid-template-columns: 400px minmax(0, 1fr);
+  }
+}
+/* The thread pane with nothing selected (FEAT-075 ui-design Empty state). */
+.inbox-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  max-width: 360px;
+  margin: 0 auto;
+  padding: var(--space-6);
+  text-align: center;
+}
+.inbox-empty__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(var(--space-8) + var(--space-7));
+  height: calc(var(--space-8) + var(--space-7));
+  border-radius: var(--radius-full);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-default);
+}
+.inbox-empty__title {
+  margin: 0;
+  font-size: var(--type-title-size);
+  line-height: var(--type-title-line);
+  font-weight: var(--type-title-weight);
+}
+.inbox-empty__text {
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+.inbox-empty__card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2) var(--space-3);
+  margin-top: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  font-size: var(--type-body-sm-size);
+}
+.inbox-empty__warn {
+  display: inline-flex;
+  color: var(--color-warning-default);
 }
 .conversation-list {
   list-style: none;

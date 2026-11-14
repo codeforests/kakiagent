@@ -21,6 +21,7 @@ import {
 import { inboxEvents, useLiveState, type LiveState } from '../lib/realtime.ts';
 import { useInboxSearch } from '../lib/search.ts';
 import { ConversationPane } from './conversation.tsx';
+import { Glyph } from './conversation-parts.tsx';
 import { Row } from './inbox-row.tsx';
 import { SearchField, SearchResults } from './inbox-search.tsx';
 
@@ -51,6 +52,7 @@ export function InboxPage() {
   const filter = viewFromSearch(search);
   const qs = searchFromView(filter);
   const live = useLiveState();
+  const counts = useCounts();
 
   return (
     <div className={`inbox ${conversationId ? 'inbox--thread' : 'inbox--list'}`}>
@@ -61,11 +63,48 @@ export function InboxPage() {
         {conversationId ? (
           <ConversationPane key={conversationId} id={conversationId} backTo={`/inbox${qs}`} />
         ) : (
-          <EmptyState title="Pick a conversation">
-            Choose a conversation from the list to read it.
-          </EmptyState>
+          <NothingSelected filter={filter} escalated={counts.data?.escalated ?? 0} />
         )}
       </section>
+    </div>
+  );
+}
+
+/** The tab counts, shared by the views and the empty state (one cached query). */
+function useCounts() {
+  return useQuery({
+    queryKey: COUNTS_KEY,
+    queryFn: async () =>
+      (await api.conversations({ view: 'open', channel: null, limit: 1 })).counts,
+  });
+}
+
+/** The thread pane with nothing selected (FEAT-075 ui-design Empty state; D6). */
+function NothingSelected({ filter, escalated }: { filter: InboxFilter; escalated: number }) {
+  return (
+    <div className="inbox-empty">
+      <span className="inbox-empty__icon" aria-hidden="true">
+        <Glyph name="message-square-text" size={24} />
+      </span>
+      <h2 className="inbox-empty__title">Pick a conversation</h2>
+      <p className="inbox-empty__text">
+        Choose a conversation from the list to read it. The visitor's details open beside it.
+      </p>
+      {escalated > 0 && filter.view !== 'escalated' && (
+        <div className="inbox-empty__card" data-testid="escalated-shortcut">
+          <span className="inbox-empty__warn" aria-hidden="true">
+            <Glyph name="alert-triangle" size={16} />
+          </span>
+          <span>
+            {escalated} escalated conversation{escalated === 1 ? '' : 's'} waiting.
+          </span>
+          <Button variant="ghost" asChild>
+            <Link to={`/inbox${searchFromView({ ...filter, view: 'escalated' })}`}>
+              Show escalated
+            </Link>
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -115,11 +154,7 @@ function InboxList({
   const navigate = useNavigate();
   const announcement = useAnnouncement();
   const search = useInboxSearch();
-  const counts = useQuery({
-    queryKey: COUNTS_KEY,
-    queryFn: async () =>
-      (await api.conversations({ view: 'open', channel: null, limit: 1 })).counts,
-  });
+  const counts = useCounts();
   const list = useInfiniteQuery({
     queryKey: listKey(filter),
     queryFn: ({ pageParam }) => api.conversations({ ...filter, cursor: pageParam }),
