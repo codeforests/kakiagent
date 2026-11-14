@@ -612,7 +612,7 @@ export function ContextSidebar({ thread }: { thread: ConversationThread }) {
   return (
     <div className="context-sidebar" data-testid="context-sidebar">
       <Section title="Contact">
-        <p className="sidebar-strong">{contact.name ?? contact.label}</p>
+        <p className="sidebar-name">{contact.name ?? contact.label}</p>
         {contact.email && (
           <CopyRow
             label="email"
@@ -629,8 +629,8 @@ export function ContextSidebar({ thread }: { thread: ConversationThread }) {
             badge={contact.verified.telegram && <VerifiedMark />}
           />
         )}
-        <p>First seen {shortDate(contact.firstSeenAt)}</p>
-        <p>
+        <p className="sidebar-caption">
+          First seen {shortDate(contact.firstSeenAt)} ·{' '}
           {earlier === 0
             ? 'First conversation'
             : `${earlier} earlier conversation${earlier === 1 ? '' : 's'}`}
@@ -655,8 +655,36 @@ export function ContextSidebar({ thread }: { thread: ConversationThread }) {
           </p>
         )}
       </Section>
-      <Section title="Channel">
-        <p>{CHANNEL_LABEL[channel]}</p>
+      <Section title="Channel · Lead">
+        <div className="sidebar-columns">
+          <div>
+            <p className="sidebar-label">Channel</p>
+            <p>{CHANNEL_LABEL[channel]}</p>
+          </div>
+          <div>
+            <p className="sidebar-label">Lead</p>
+            {lead ? (
+              <div className="sidebar-lead" data-testid="sidebar-lead">
+                <span className={`chip chip--${LEAD_STATUS[lead.status].tone}`}>
+                  {LEAD_STATUS[lead.status].label}
+                </span>{' '}
+                <ScoreChip scoring={lead.scoring} />
+                <p>Updated {clockTime(lead.updatedAt)}</p>
+                <p>{leadLines(lead).consent}</p>
+                <p>{leadLines(lead).offers}</p>
+                {leadLines(lead).withdrawn && (
+                  <p className="consent-withdrawn" data-testid="sidebar-withdrawn">
+                    <Glyph name="alert" size={14} />
+                    {leadLines(lead).withdrawn}
+                  </p>
+                )}
+                <Link to={`/leads/${lead.id}`}>Open lead</Link>
+              </div>
+            ) : (
+              <p className="sidebar-caption">No details left yet.</p>
+            )}
+          </div>
+        </div>
       </Section>
       <Section title="Intent">
         <WebIntent web={web} />
@@ -664,9 +692,9 @@ export function ContextSidebar({ thread }: { thread: ConversationThread }) {
         {intents.length === 0 ? (
           <p className="sidebar-caption">No signals yet.</p>
         ) : (
-          <ul className="sidebar-list" data-testid="intent-list">
+          <ul className="intent-tags" data-testid="intent-list">
             {intents.map((i) => (
-              <li key={i.signal}>
+              <li key={i.signal} className="intent-tag">
                 {intentLabel(i.signal)}
                 {i.count > 1 && ` (${i.count})`}
               </li>
@@ -683,28 +711,6 @@ export function ContextSidebar({ thread }: { thread: ConversationThread }) {
           </div>
         </Section>
       )}
-      <Section title="Lead">
-        {lead ? (
-          <div className="sidebar-lead" data-testid="sidebar-lead">
-            <span className={`chip chip--${LEAD_STATUS[lead.status].tone}`}>
-              {LEAD_STATUS[lead.status].label}
-            </span>{' '}
-            <ScoreChip scoring={lead.scoring} />
-            <p>Updated {clockTime(lead.updatedAt)}</p>
-            <p>{leadLines(lead).consent}</p>
-            <p>{leadLines(lead).offers}</p>
-            {leadLines(lead).withdrawn && (
-              <p className="consent-withdrawn" data-testid="sidebar-withdrawn">
-                <Glyph name="alert" size={14} />
-                {leadLines(lead).withdrawn}
-              </p>
-            )}
-            <Link to={`/leads/${lead.id}`}>Open lead</Link>
-          </div>
-        ) : (
-          <p className="sidebar-caption">No details left yet.</p>
-        )}
-      </Section>
       <Section title="Facts used">
         {facts.length === 0 ? (
           <p className="sidebar-caption">

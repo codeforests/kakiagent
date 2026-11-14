@@ -1601,6 +1601,57 @@ a {
   margin: 0;
   padding-left: var(--space-5);
 }
+/* FEAT-075: the details panel (ui-design Details panel). */
+.sidebar-section summary {
+  padding: 0 var(--space-6);
+}
+.sidebar-section summary h3 {
+  color: var(--color-text-secondary);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.sidebar-section__body {
+  padding: 0 var(--space-6) var(--space-6);
+}
+.sidebar-name {
+  font-size: var(--type-title-sm-size);
+  line-height: var(--type-title-sm-line);
+  font-weight: var(--type-title-sm-weight);
+}
+.sidebar-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: var(--space-4);
+}
+.sidebar-columns > div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.sidebar-label {
+  color: var(--color-text-secondary);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+}
+.intent-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.intent-tag {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-full);
+  font-size: var(--type-body-sm-size);
+  line-height: var(--type-body-sm-line);
+}
 /* FEAT-029: the Intent block's page context (SCR-APP-015). */
 .web-intent {
   margin: 0;
