@@ -314,7 +314,12 @@
           "consent and lead dividers",
           "card captions",
           "contact search hit",
-          "lead consent withdrawn"
+          "lead consent withdrawn",
+          "filters panel and active filter chips",
+          "views More menu (phone)",
+          "merged urgent escalation chip",
+          "nothing selected with escalated shortcut",
+          "selection cleared by a view or filter change"
         ],
         "gaps": [],
         "supplements": [
@@ -361,7 +366,11 @@
         "escalations": []
       },
       "status": "designed",
-      "designed_at": "2026-10-31"
+      "designed_at": "2026-10-31",
+      "amended_by": [
+        "features/FEAT-075-inbox-redesign/ui-design.md#scr-app-014--inbox"
+      ],
+      "amendment_note": "Layout redesigned by FEAT-075 (owner request 2026-11-14): its ui-design is the current spec for layout, header, filters, views, rows, empty state, conversation header, thread styling, dock placement and details panel; FEAT-042 and the partials stay the source for behaviour and copy it doesn't restate. Visual reference: the approved prototype canvas named there."
     },
     "SCR-APP-015": {
       "name": "Conversation",
@@ -377,7 +386,8 @@
           "features/FEAT-044-escalation-routing/ui-design.md#scr-app-015--conversation-partial",
           "features/FEAT-045-suggested-replies/ui-design.md#scr-app-015--conversation-partial",
           "features/FEAT-029-web-context/ui-design.md#scr-app-015--conversation-partial-intent-block"
-        ]
+        ],
+        "prototype_status": "superseded by FEAT-075 (D3): the anchor prototype is no longer the visual reference"
       },
       "states": {
         "covered": [
@@ -422,7 +432,10 @@
           "suggest disabled (paused)",
           "suggestion error",
           "intent full",
-          "intent page only"
+          "intent page only",
+          "one-row header and two-line phone header",
+          "visitor saw notice box and event pills",
+          "dock row / stacked phone layout"
         ],
         "gaps": [
           "internal notes and tags (FEAT-047)"
@@ -453,7 +466,11 @@
         "escalations": []
       },
       "status": "designed",
-      "designed_at": "2026-10-31"
+      "designed_at": "2026-10-31",
+      "amended_by": [
+        "features/FEAT-075-inbox-redesign/ui-design.md#scr-app-015--conversation"
+      ],
+      "amendment_note": "Layout redesigned by FEAT-075 (owner request 2026-11-14): its ui-design is the current spec for layout, header, filters, views, rows, empty state, conversation header, thread styling, dock placement and details panel; FEAT-042 and the partials stay the source for behaviour and copy it doesn't restate. Visual reference: the approved prototype canvas named there."
     },
     "SCR-APP-016": {
       "name": "Contact",
