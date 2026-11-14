@@ -151,19 +151,57 @@ test('the redesigned inbox: layout, filters and chips, and the selection rule (F
   const id = await firstMessage(visitor.page, visitor.send, `do you have pandan cake? ${token()}`);
   await visitor.context.close();
   const details = owner.getByRole('complementary', { name: 'Conversation details' });
+  // AC-1 holds with a channel-health banner showing: report the first channel as degraded.
+  await owner.route('**/api/v1/channels', async (route) => {
+    const res = await route.fetch();
+    const body = (await res.json()) as { channels: { health: string | null }[] };
+    expect(body.channels.length).toBeGreaterThan(0);
+    body.channels[0]!.health = 'degraded';
+    await route.fulfill({ response: res, json: body });
+  });
+  const views = owner.getByRole('navigation', { name: 'Views' });
+  const viewsFit = () =>
+    views.evaluate((nav) => ({ scroll: nav.scrollWidth, client: nav.clientWidth }));
+  // The search placeholder clears the icon by at least 8 px (AC-7, review finding 1).
+  const searchClear = () =>
+    owner.evaluate(() => {
+      const input = document.querySelector<HTMLInputElement>('.search-field__input')!;
+      const icon = document.querySelector('.search-field__icon')!.getBoundingClientRect();
+      const text =
+        input.getBoundingClientRect().left + parseFloat(getComputedStyle(input).paddingLeft);
+      return text - icon.right;
+    });
 
   // Nothing selected: the empty state, and no details pane (AC-2).
   await owner.goto('/inbox');
   const row = owner.locator(`[data-testid="conversation-row"][data-id="${id}"]`);
   await expect(row).toBeVisible();
+  await expect(owner.getByRole('region', { name: 'Channel problem' })).toBeVisible();
   await expect(owner.getByRole('heading', { name: 'Pick a conversation' })).toBeVisible();
   await expect(details).toHaveCount(0);
   await expectNoSeriousA11yViolations(owner);
+  expect(await searchClear()).toBeGreaterThanOrEqual(8);
 
-  // Open it: the page doesn't scroll and the dock is on screen (AC-1).
+  // All five views fit without scrolling at 1440 and 1024 (AC-4).
+  for (const name of [/^Open/, /^Escalated/, /^Approval/, /^Flagged/, /^Closed/])
+    await expect(views.getByRole('link', { name })).toBeVisible();
+  let fit = await viewsFit();
+  expect(fit.scroll).toBeLessThanOrEqual(fit.client);
+  await owner.setViewportSize({ width: 1024, height: 900 });
+  await expect(views.getByRole('link', { name: /^Closed/ })).toBeVisible();
+  fit = await viewsFit();
+  expect(fit.scroll).toBeLessThanOrEqual(fit.client);
+  await owner.setViewportSize({ width: 1440, height: 900 });
+
+  // Open it: the page doesn't scroll and the dock is on screen, banner and all (AC-1).
   await row.getByRole('link').click();
   await expect(owner).toHaveURL(new RegExp(`/inbox/${id}$`));
   await expect(details).toBeVisible();
+  await expect(owner.getByRole('region', { name: 'Channel problem' })).toBeVisible();
+  // A widget visitor with no contact name is labelled by channel (AC-8).
+  await expect(
+    owner.getByRole('log', { name: 'Conversation' }).locator('.bubble-meta__author').first(),
+  ).toHaveText('Website visitor');
   const dock = owner.getByTestId('thread-dock');
   await expect(dock).toBeVisible();
   const fits = await owner.evaluate(() => ({
@@ -202,9 +240,38 @@ test('the redesigned inbox: layout, filters and chips, and the selection rule (F
   await owner.goto('/inbox');
   await expect(row).toBeVisible();
   await expectNoSeriousA11yViolations(owner);
+  expect(await searchClear()).toBeGreaterThanOrEqual(8); // AC-7
+
+  // Below 640 px Flagged and Closed sit in the More menu (AC-4).
+  await expect(views.getByRole('link', { name: /^Flagged/ })).toHaveCount(0);
+  await views.getByRole('button', { name: 'More views' }).click();
+  const menu = owner.getByRole('menu');
+  await expect(menu.getByRole('menuitem', { name: /^Flagged/ })).toHaveAttribute(
+    'href',
+    '/inbox?view=flagged',
+  );
+  await expect(menu.getByRole('menuitem', { name: /^Closed/ })).toHaveAttribute(
+    'href',
+    '/inbox?view=closed',
+  );
+  await owner.keyboard.press('Escape');
+
   await owner.goto(`/inbox/${id}`);
   await expect(owner.getByRole('log', { name: 'Conversation' })).toBeVisible();
   await expectNoSeriousA11yViolations(owner);
+  // The phone header: at most two text lines, Back, details and More as 44 px targets (AC-10).
+  const header = owner.locator('.thread-header');
+  const text = await header.locator('.thread-header__text').boundingBox();
+  expect(text!.height).toBeLessThanOrEqual(48);
+  for (const target of [
+    header.getByRole('link', { name: 'Back to inbox' }),
+    header.getByRole('button', { name: 'Conversation details' }),
+    header.getByRole('button', { name: 'More actions' }),
+  ]) {
+    const box = await target.boundingBox();
+    expect(box!.width).toBeGreaterThanOrEqual(44);
+    expect(box!.height).toBeGreaterThanOrEqual(44);
+  }
 });
 
 test('a crisis message lists the conversation under Flagged (AGT-13)', async ({
