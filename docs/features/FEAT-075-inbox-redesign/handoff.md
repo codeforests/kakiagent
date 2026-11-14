@@ -1,19 +1,23 @@
 # Handoff: FEAT-075 — Inbox redesign
-Branch: feat/FEAT-075-inbox-redesign · PR: none yet · Updated: 2026-11-14 by design
-Stage done: design
-Next: build (UI, one session) — kickoff: "Build FEAT-075 on branch feat/FEAT-075-inbox-redesign. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage build."
+Branch: feat/FEAT-075-inbox-redesign · PR: PR_LINK · Updated: 2026-11-14 by build
+Stage done: build (T1–T10 of 10), status `developer-done`
+Next: verify — kickoff: "Verify FEAT-075 on branch feat/FEAT-075-inbox-redesign. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
 
 ## What the next stage needs
-- Dashboard only: no contract, schema or package change. Tasks T1–T10 in `tasks.md`.
-- Owner request (Ken, 2026-11-14), approved from a prototype canvas (link in ui-design.md, private to Ken). Same functionality; ui-design.md restates only what changes, and its "Unchanged" list must keep passing.
-- D2 changes FEAT-042 behaviour: `to(f)` in `inbox.tsx` stops keeping the selected id when the conversation isn't in the new view/filters (`inView` mirrors `viewFilter` in `packages/inbox/src/views.ts`; status is `waiting_approval`). Live events never deselect.
-- D4 copy change "Live" → "Connected" on `live-state`; update the five E2E expectations listed in T9 (copy change, not a weakened test). `assignee-filter` keeps its testid but sits in the Filters panel.
-- D6: the empty-state card uses `counts.escalated` (no per-user count in the API).
-- There is no shared menu in `@kaki/ui`; the phone "More" views menu reuses Radix `DropdownMenu` like the header's More actions.
-- PR #66 fixed the thread height under a banner at phone width; T2 extends that to desktop (review: at 1440 × 900 the dock fell below the fold).
+- Dashboard + E2E only: no contract, schema or package change. Evidence per task in `tasks.md`.
+- Built and checked on Windows against the local WSL api through a dashboard dev server on :5190 (Edge, Playwright scripts); no E2E run here (see below).
+- Deviations from ui-design, all to meet an AC (recorded in tasks.md evidence):
+  - Views use `space-between` (min gap `--space-3`) and caption-size labels in the 360 px pane; the fixed `--space-6` gap overflowed (AC-4). Checked with counts 128/12/9/14.
+  - Filters is icon-only at 1024–1279 as well as on phone, and the search input drops its clear-button padding while empty, so the placeholder shows in full (AC-7).
+  - At < 640 the state chip sits on header line 2 beside "party · channel"; beside the subject it cut the subject to two letters (AC-10).
+  - Desktop header shows More only when it has an item (Hand back, when mine).
+- D2: `to(f)` prefers the cached list row over the thread copy (live events patch lists synchronously, the thread only refetches). inbox.e2e's reopen → Open step depends on this.
+- `UrgentChip` (testid `urgent-chip`) is gone; urgent is `StateChip urgent` ("Escalated · Urgent", testid `state-chip`). No spec used `urgent-chip`.
+- The dashboard has no `test:coverage` script (report-only coverage); T10 ran `vitest run --coverage` directly.
+- Windows notes: turbo needs a `pnpm.cmd` on PATH; `pnpm format:check` flags every file in a CRLF working copy (run prettier on the changed files instead, or check on Linux/CI).
 
 ## Left to CI or later
-- E2E and axe runs in the verify stage's GitHub CI run if the session has no Docker.
+- E2E (inbox, takeover, skeleton changed; every other inbox spec unchanged, AC-11) and its axe runs: the verify stage's GitHub CI run. The only stack on this machine is Ken's WSL dev stack, so E2E wasn't run against it. Axe was pre-checked through the harness (clean at 1440 × 900 and 375 × 812).
 
 ## Pending for Ken
 - Where FEAT-075 sits in the build order: plan §5 and STATE.md put it before M5's FEAT-060 (owner request); say if it should wait.
