@@ -600,8 +600,15 @@ a {
   padding: 0 var(--space-1);
   line-height: var(--type-caption-line);
 }
-/* The 360 px pane (1024–1279): caption-size labels, so five views and four counts still fit. */
+/* The 360 px pane (1024–1279): caption-size labels, so five views and four counts still fit,
+   and an icon-only Filters button, so the search placeholder isn't cut off. */
 @media (min-width: 1024px) and (max-width: 1279px) {
+  .filters-button {
+    padding: 0 var(--space-3);
+  }
+  .filters-button__label {
+    display: none;
+  }
   .tabs.inbox__views {
     gap: var(--space-2);
   }
@@ -769,14 +776,26 @@ a {
 .conversation-list > li:last-child {
   border-bottom: 0;
 }
+/* FEAT-075 ui-design Row: avatar · four lines (name · channel · time, subject, preview, chips). */
 .conversation-row {
-  display: flex;
-  align-items: center;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
   gap: var(--space-4);
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-4) var(--space-5);
   min-height: calc(var(--size-control-lg) + var(--space-5));
   color: inherit;
   text-decoration: none;
+}
+.conversation-row .visitor-avatar {
+  width: calc(var(--space-8) + var(--space-2));
+  height: calc(var(--space-8) + var(--space-2));
+}
+@media (max-width: 639px) {
+  .conversation-row .visitor-avatar {
+    width: var(--space-9);
+    height: var(--space-9);
+  }
 }
 .conversation-row:hover {
   background: var(--color-bg-subtle);
@@ -788,6 +807,10 @@ a {
   outline: 2px solid var(--color-focus);
   outline-offset: -2px;
 }
+.conversation-row--skeleton {
+  display: flex;
+  align-items: center;
+}
 .conversation-row--skeleton .skeleton-line {
   flex: 1;
 }
@@ -797,19 +820,52 @@ a {
   }
 }
 .conversation-row__main {
-  flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
+  gap: var(--space-1);
+}
+.conversation-row__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
 }
 .conversation-row__title {
-  font-weight: var(--font-weight-medium);
-}
-.conversation-row__preview {
-  color: var(--color-text-secondary);
+  min-width: 0;
+  font-weight: var(--font-weight-semibold);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.conversation-row__channel {
+  flex: none;
+  color: var(--color-text-secondary);
+  font-size: var(--type-caption-size);
+}
+.conversation-row__time {
+  flex: none;
+  margin-left: auto;
+  color: var(--color-text-secondary);
+  font-size: var(--type-caption-size);
+}
+.conversation-row__preview {
+  color: var(--color-text-secondary);
+  font-size: var(--type-body-sm-size);
+  line-height: var(--type-body-sm-line);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (max-width: 639px) {
+  .conversation-row__preview {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
 }
 /* Inbox search (FEAT-046, ui-design SCR-APP-014). */
 .search-field {
@@ -830,6 +886,10 @@ a {
   /* FEAT-075 finding 1: clear of the icon (inset + icon + gap). */
   padding-left: calc(var(--space-4) + var(--size-icon-sm) + var(--space-3));
   padding-right: var(--size-control-md);
+}
+/* No clear button while empty: the placeholder gets the room (FEAT-075 AC-7). */
+.search-field .search-field__input:placeholder-shown {
+  padding-right: var(--space-3);
 }
 .search-field__input::-webkit-search-cancel-button {
   appearance: none;
@@ -867,17 +927,12 @@ a {
   color: var(--color-text-primary);
   border-radius: var(--radius-sm);
 }
-.conversation-row__meta {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: var(--space-2);
-  color: var(--color-text-secondary);
-  font-size: var(--type-caption-size);
-}
 .conversation-row__chips {
   display: flex;
-  gap: var(--space-2);
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin-top: var(--space-1);
 }
 .load-more__button {
   width: 100%;
@@ -1106,7 +1161,7 @@ a {
   color: var(--color-text-secondary);
 }
 .conversation-row__subject {
-  font-weight: var(--font-weight-semibold);
+  font-weight: var(--font-weight-medium);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

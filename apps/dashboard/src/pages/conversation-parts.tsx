@@ -109,7 +109,21 @@ export function Glyph({ name, size = 16 }: { name: GlyphName; size?: number }) {
   );
 }
 
-export function StateChip({ status }: { status: ConversationStatus }) {
+/** The state chip; an urgent escalation shows one danger chip "Escalated · Urgent" (FEAT-075 AC-6). */
+export function StateChip({
+  status,
+  urgent = false,
+}: {
+  status: ConversationStatus;
+  urgent?: boolean;
+}) {
+  if (urgent && status === 'escalated')
+    return (
+      <span className="state-chip state-chip--urgent" data-testid="state-chip">
+        <Glyph name="alert-triangle" size={12} />
+        {STATE_LABEL.escalated} · Urgent
+      </span>
+    );
   return (
     <span className={`state-chip state-chip--${STATE_TOKEN[status]}`} data-testid="state-chip">
       <Glyph name={STATE_ICON[status] as GlyphName} size={12} />
@@ -123,16 +137,6 @@ export function FlaggedChip() {
     <span className="state-chip state-chip--flagged" data-testid="flagged-chip">
       <Glyph name="flag" size={12} />
       Flagged
-    </span>
-  );
-}
-
-/** An urgent escalation (FEAT-044 ui-design SCR-APP-014): text, never colour only. */
-export function UrgentChip() {
-  return (
-    <span className="state-chip state-chip--urgent" data-testid="urgent-chip">
-      <Glyph name="alert-triangle" size={12} />
-      Urgent
     </span>
   );
 }
