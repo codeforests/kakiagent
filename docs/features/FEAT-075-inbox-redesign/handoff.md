@@ -1,23 +1,18 @@
 # Handoff: FEAT-075 — Inbox redesign
-Branch: feat/FEAT-075-inbox-redesign · PR: https://github.com/codeforests/kakiagent/pull/71 (draft) · Updated: 2026-11-14 by build
-Stage done: build (T1–T10 of 10), status `developer-done`
-Next: verify — kickoff: "Verify FEAT-075 on branch feat/FEAT-075-inbox-redesign. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
+Branch: feat/FEAT-075-inbox-redesign · PR: https://github.com/codeforests/kakiagent/pull/71 (draft) · Updated: 2026-11-14 by verify
+Stage done: verify (rework) — see `rework-1.md`
+Next: build (rework R1, R2) — kickoff: "Build FEAT-075 (rework R1, R2) on branch feat/FEAT-075-inbox-redesign. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage build; the findings are in docs/features/FEAT-075-inbox-redesign/rework-1.md."
+Then: a fresh verify session (same kickoff as before).
 
 ## What the next stage needs
-- Dashboard + E2E only: no contract, schema or package change. Evidence per task in `tasks.md`.
-- Built and checked on Windows against the local WSL api through a dashboard dev server on :5190 (Edge, Playwright scripts); no E2E run here (see below).
-- Deviations from ui-design, all to meet an AC (recorded in tasks.md evidence):
-  - Views use `space-between` (min gap `--space-3`) and caption-size labels in the 360 px pane; the fixed `--space-6` gap overflowed (AC-4). Checked with counts 128/12/9/14.
-  - Filters is icon-only at 1024–1279 as well as on phone, and the search input drops its clear-button padding while empty, so the placeholder shows in full (AC-7).
-  - At < 640 the state chip sits on header line 2 beside "party · channel"; beside the subject it cut the subject to two letters (AC-10).
-  - Desktop header shows More only when it has an item (Hand back, when mine).
-- D2: `to(f)` prefers the cached list row over the thread copy (live events patch lists synchronously, the thread only refetches). inbox.e2e's reopen → Open step depends on this.
-- `UrgentChip` (testid `urgent-chip`) is gone; urgent is `StateChip urgent` ("Escalated · Urgent", testid `state-chip`). No spec used `urgent-chip`.
-- The dashboard has no `test:coverage` script (report-only coverage); T10 ran `vitest run --coverage` directly.
-- Windows notes: turbo needs a `pnpm.cmd` on PATH; `pnpm format:check` flags every file in a CRLF working copy (run prettier on the changed files instead, or check on Linux/CI).
+- R1: axe `label-content-name-mismatch` (serious) on `.filters-button` (`inbox.tsx` ~l. 223: `aria-label="Filters, N active"` vs visible "Filters" + count) and the phone More views trigger (~l. 461: `aria-label="More views…"` vs visible "More"/"Flagged" + count). The name must contain the visible text: e.g. drop the `aria-label` and let the visible label and count plus a visually hidden " active" form the name (then the E2E `toHaveAccessibleName('Filters, 1 active')` in `inbox.e2e` may need the new exact name; keep it asserting the count). Fails `email-channel.e2e:212`, `telegram-channel.e2e:194`, `escalation.e2e:145`, `inbox.e2e:311` in all browsers.
+- R2: AC-1 still fails in CI: at 1440 × 900 with a degraded-channel banner, `/inbox/:id` scrolls (`inbox.e2e:211`, Chromium and WebKit). Trace in CI run 136's artifacts.
+- Verify corrected two specs in `2d6c13e` (escalation urgent chip; extra FEAT-075 assertions): keep them; make them pass.
+- Don't trust the harness axe pre-check: run `expectNoSeriousA11yViolations` (e2e/tests/support.ts) or CI.
+- Windows: no `pnpm` on PATH here; a `pnpm.cmd` shim calling `corepack pnpm` works for turbo.
 
 ## Left to CI or later
-- E2E (inbox, takeover, skeleton changed; every other inbox spec unchanged, AC-11) and its axe runs: the verify stage's GitHub CI run. The only stack on this machine is Ken's WSL dev stack, so E2E wasn't run against it. Axe was pre-checked through the harness (clean at 1440 × 900 and 375 × 812).
+- E2E: start GitHub CI on the fixed head in the next verify session.
 
 ## Pending for Ken
-- Where FEAT-075 sits in the build order: plan §5 and STATE.md put it before M5's FEAT-060 (owner request); say if it should wait.
+- None blocking; merge waits for acceptance.
