@@ -27,6 +27,7 @@ module.exports = {
           '^packages/ui/src/styles\\.css$',
           '^packages/contracts/src/lead-check\\.ts$',
           '^packages/contracts/src/quote\\.ts$',
+          '^packages/contracts/src/audit\\.ts$',
         ],
       },
     },

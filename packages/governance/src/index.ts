@@ -72,3 +72,13 @@ export {
 } from './notice-template.js';
 export { dataFlowPdf, dpaPdf } from './documents.js';
 export { aiPauseState, setAiPaused, type AiPauseState } from './kill-switch.js';
+export {
+  actorIdsOf,
+  auditCount,
+  auditEntry,
+  auditRange,
+  auditWhere,
+  listAudit,
+  toAuditRow,
+  type AuditRecord,
+} from './audit-read.js';
