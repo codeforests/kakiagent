@@ -1,5 +1,5 @@
 # Handoff: FEAT-060 — Audit log viewer, chain verification and export
-Branch: feat/FEAT-060-audit-viewer · PR: PR_LINK · Updated: 2026-11-14 by build (UI)
+Branch: feat/FEAT-060-audit-viewer · PR: https://github.com/codeforests/kakiagent/pull/70 · Updated: 2026-11-14 by build (UI)
 Stage done: build (T1–T9 of 9), status developer-done
 Next: verify — kickoff: "Verify FEAT-060 on branch feat/FEAT-060-audit-viewer. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
 
