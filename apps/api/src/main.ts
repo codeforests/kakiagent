@@ -1,6 +1,7 @@
 import { fakeAgentScript } from '@kaki/agent';
 import { usageSink } from '@kaki/analytics';
 import { createZoneDb } from '@kaki/db';
+import { createS3AnchorStore } from '@kaki/governance';
 import { createGoogleSignIn } from '@kaki/identity';
 import { gatewayFromEnv } from '@kaki/llm-gateway';
 import {
@@ -35,6 +36,11 @@ const deps = {
   identityDb: createZoneDb('identity', config.IDENTITY_DATABASE_URL),
   mailer: createSmtpMailer(config.SMTP_URL, config.EMAIL_FROM),
   rateLimiter: createRateLimiter(config.VALKEY_URL),
+  auditAnchors: createS3AnchorStore({
+    bucket: config.AUDIT_ANCHOR_BUCKET,
+    region: config.AWS_REGION,
+    endpoint: config.AWS_ENDPOINT_URL,
+  }),
   uploads: s3UploadSigner({
     bucket: config.QUARANTINE_BUCKET,
     region: config.AWS_REGION,

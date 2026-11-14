@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1152.0",
+    "@kaki/contracts": "workspace:*",
     "@kaki/db": "workspace:*",
     "@kaki/platform": "workspace:*",
     "pdf-lib": "1.17.1",

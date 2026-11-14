@@ -1,6 +1,7 @@
 import { fakeAgentScript } from '@kaki/agent';
 import { sql } from '@kaki/db';
 import type { TestDatabase } from '@kaki/db/testing';
+import type { AnchorSource } from '@kaki/governance';
 import { SESSION_COOKIE, startSession, type GoogleSignIn } from '@kaki/identity';
 import type { Resolver } from '@kaki/kb';
 import { gatewayFromConfig, type LlmGateway } from '@kaki/llm-gateway';
@@ -74,6 +75,7 @@ export function testConfig(tdb: TestDatabase, env: Record<string, string> = {}) 
     QUARANTINE_BUCKET: 'kaki-test-quarantine',
     EMAIL_INBOUND_DOMAIN: 'in.kaki.test',
     ATTACHMENTS_BUCKET: 'kaki-test-attachments',
+    AUDIT_ANCHOR_BUCKET: 'kaki-test-audit-anchors',
     EMAIL_IDENTITY_PROVIDER: 'fixture',
     ...env,
   });
@@ -94,6 +96,8 @@ export async function testApp(
     logger?: ReturnType<typeof createLogger>;
     email?: EmailDeps;
     telegram?: TelegramDeps;
+    auditAnchors?: AnchorSource;
+    auditExportMax?: number;
   } = {},
 ) {
   return buildApp({
@@ -112,6 +116,8 @@ export async function testApp(
     ...(opts.resolve ? { resolve: opts.resolve } : {}),
     ...(opts.email ? { email: opts.email } : {}),
     ...(opts.telegram ? { telegram: opts.telegram } : {}),
+    auditAnchors: opts.auditAnchors ?? { list: async () => [] },
+    ...(opts.auditExportMax === undefined ? {} : { auditExportMax: opts.auditExportMax }),
   });
 }
 

@@ -793,6 +793,9 @@ importers:
       '@aws-sdk/client-s3':
         specifier: 3.1152.0
         version: 3.1152.0
+      '@kaki/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@kaki/db':
         specifier: workspace:*
         version: link:../db

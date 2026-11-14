@@ -142,3 +142,11 @@ describe('lead capabilities (FEAT-050 D1, D4)', () => {
     expect(can('agent', 'inbox.read')).toBe(true);
   });
 });
+
+describe('audit capability (FEAT-060 D2)', () => {
+  it('Owner and Admin read the audit log; Agents do not', () => {
+    expect(can('owner', 'audit.read')).toBe(true);
+    expect(can('admin', 'audit.read')).toBe(true);
+    expect(can('agent', 'audit.read')).toBe(false);
+  });
+});
