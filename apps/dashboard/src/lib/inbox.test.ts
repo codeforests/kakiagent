@@ -28,6 +28,11 @@ import {
   flattenPages,
   listKey,
   matchesView,
+  inView,
+  visitorLabel,
+  VIEW_SHORT_LABEL,
+  VIEW_LABEL,
+  VIEWS,
   memberToastText,
   ownerText,
   takeoverErrorText,
@@ -92,6 +97,88 @@ describe('matchesView', () => {
     expect(matchesView(flaggedClosed, 'closed', null)).toBe(true);
     expect(matchesView(summary(1, { status: 'waiting_approval' }), 'approval', null)).toBe(true);
     expect(matchesView(summary(1), 'escalated', null)).toBe(false);
+  });
+});
+
+describe('inView (FEAT-075 D2)', () => {
+  const ME = id(90);
+  const MEI = id(91);
+  const f = (
+    view: (typeof VIEWS)[number],
+    over: Partial<{
+      channel: 'widget' | 'email' | 'telegram' | null;
+      assignee: string | null;
+    }> = {},
+  ) => ({
+    view,
+    channel: null,
+    assignee: null,
+    ...over,
+  });
+  const statuses = ['ai', 'human', 'escalated', 'waiting_approval', 'closed'] as const;
+  const expected: Record<(typeof VIEWS)[number], (s: (typeof statuses)[number]) => boolean> = {
+    open: (s) => s !== 'closed',
+    escalated: (s) => s === 'escalated',
+    approval: (s) => s === 'waiting_approval',
+    flagged: () => false,
+    closed: (s) => s === 'closed',
+  };
+  it('pins each view against each status, mirroring the server viewFilter', () => {
+    for (const v of VIEWS)
+      for (const s of statuses)
+        expect([v, s, inView(summary(1, { status: s }), f(v), ME)]).toEqual([v, s, expected[v](s)]);
+  });
+  it('a flagged conversation is in Flagged whatever its status, and closed ones also in Closed', () => {
+    const fc = summary(1, { status: 'closed', flaggedAt: '2026-10-31T01:00:00.000Z' });
+    expect(inView(fc, f('flagged'), ME)).toBe(true);
+    expect(inView(fc, f('closed'), ME)).toBe(true);
+    expect(inView(fc, f('open'), ME)).toBe(false);
+  });
+  it('matches the channel filter', () => {
+    expect(inView(summary(1, { channel: 'email' }), f('open', { channel: 'email' }), ME)).toBe(
+      true,
+    );
+    expect(inView(summary(1), f('open', { channel: 'email' }), ME)).toBe(false);
+  });
+  it('matches the assignee filter on the owner, else the escalation assignee', () => {
+    const owned = summary(1, { status: 'human', owner: { userId: ME, name: 'Me' } });
+    const esc = summary(2, {
+      status: 'escalated',
+      escalation: {
+        id: id(70),
+        assignee: { userId: MEI, name: 'Mei Ling' },
+        since: '2026-10-31T01:00:00.000Z',
+        source: 'visitor_button',
+        urgent: false,
+        afterHours: false,
+        reminders: 0,
+      },
+    });
+    expect(inView(owned, f('open', { assignee: 'me' }), ME)).toBe(true);
+    expect(inView(owned, f('open', { assignee: 'none' }), ME)).toBe(false);
+    expect(inView(owned, f('open', { assignee: MEI }), ME)).toBe(false);
+    expect(inView(esc, f('open', { assignee: MEI }), ME)).toBe(true);
+    expect(inView(esc, f('open', { assignee: 'me' }), ME)).toBe(false);
+    expect(inView(esc, f('escalated', { assignee: 'me' }), MEI)).toBe(true);
+    expect(inView(summary(3), f('open', { assignee: 'none' }), ME)).toBe(true);
+  });
+  it('an unknown summary is not in any view', () => {
+    expect(inView(undefined, f('open'), ME)).toBe(false);
+    expect(inView(null, f('open'), ME)).toBe(false);
+  });
+  it('short view labels (D5) and the visitor label (AC-8)', () => {
+    expect(VIEWS.map((v) => VIEW_SHORT_LABEL[v])).toEqual([
+      'Open',
+      'Escalated',
+      'Approval',
+      'Flagged',
+      'Closed',
+    ]);
+    expect(VIEW_LABEL.approval).toBe('Waiting for approval');
+    expect(visitorLabel('widget')).toBe('Website visitor');
+    expect(visitorLabel('email', null)).toBe('Email customer');
+    expect(visitorLabel('telegram', '  ')).toBe('Telegram customer');
+    expect(visitorLabel('email', 'Tan Ah Kow')).toBe('Tan Ah Kow');
   });
 });
 

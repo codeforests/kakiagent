@@ -40,6 +40,11 @@ export const VIEW_LABEL: Record<InboxView, string> = {
   flagged: 'Flagged',
   closed: 'Closed',
 };
+/** Tab labels (FEAT-075 D5): short, with the full `VIEW_LABEL` as the tab's `title`. */
+export const VIEW_SHORT_LABEL: Record<InboxView, string> = {
+  ...VIEW_LABEL,
+  approval: 'Approval',
+};
 export const CHANNEL_LABEL: Record<ConversationSummary['channel'], string> = {
   widget: 'Website chat',
   email: 'Email',
@@ -116,6 +121,23 @@ export function matchesView(
     case 'closed':
       return s.status === 'closed';
   }
+}
+
+/**
+ * Whether a conversation belongs in a view and its filters (FEAT-075 §5.1, D2): decides
+ * whether a view or filter change keeps the open conversation. An unknown summary doesn't.
+ */
+export function inView(
+  c: ConversationSummary | null | undefined,
+  f: InboxFilter,
+  meId: string | null,
+): boolean {
+  return c ? matchesView(c, f.view, f.channel, f.assignee, meId) : false;
+}
+
+/** The thread's label for visitor messages (FEAT-075 AC-8): the contact's name, else by channel. */
+export function visitorLabel(channel: ConversationChannel, contactName?: string | null): string {
+  return contactName?.trim() || PARTY_LABEL[channel];
 }
 
 /** Newest activity first, then ID descending: the server's keyset order. */

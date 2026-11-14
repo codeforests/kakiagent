@@ -4,7 +4,7 @@
 > Status: `designed` · 2026-11-14
 > One build session (UI only: no contract, schema or package change). Visual reference: the approved prototype canvas named in ui-design.md.
 
-- [ ] T1 — `lib/inbox.ts`: `inView(summary, filter, meId)` mirroring `viewFilter` in `packages/inbox/src/views.ts` plus the channel and assignee rules; `VIEW_SHORT_LABEL`; visitor author label helper (contact name, else `PARTY_LABEL[channel]`) (design §5.1, §5.3; D2, D5; AC-3, AC-8)
+- [x] T1 — `lib/inbox.ts`: `inView(summary, filter, meId)` mirroring `viewFilter` in `packages/inbox/src/views.ts` plus the channel and assignee rules; `VIEW_SHORT_LABEL`; visitor author label helper (contact name, else `PARTY_LABEL[channel]`) (design §5.1, §5.3; D2, D5; AC-3, AC-8)
       Done when: `pnpm --filter @kaki/dashboard test` passes with new `inbox.test.ts` cases: each view × each status (incl. `waiting_approval`, flagged + closed), channel match/mismatch, assignee `me`/`none`/user against owner and escalation assignee, unknown summary → false; author label per channel and with a contact name.
 - [ ] T2 — Layout: full-height `.inbox` flex row under the top bar and banners, independent pane scroll, list 400/360 px, thread header and dock `flex: none`, log scrolls; empty state with the escalated card (`counts.escalated`, Show escalated), no details pane when nothing is selected (design §5.2; ui-design Layout, Empty state; D6; AC-1, AC-2)
       Done when: typecheck passes; a stubbed-API Playwright script at 1440 × 900 with a banner logs `document.scrollingElement.scrollHeight <= innerHeight` and the dock's bottom ≤ innerHeight; at `/inbox` logs no `aside[aria-label="Conversation details"]`.
@@ -29,3 +29,4 @@
 - [ ] T10 — Verify: full `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm --filter @kaki/dashboard test:coverage`, `node scripts/check-rtm.mjs FEAT-075`; status `developer-done`; draft PR.
 
 ## Verification evidence
+- T1: `pnpm --filter @kaki/dashboard test` 26 files / 300 tests pass; new `inView (FEAT-075 D2)` block pins 5 views × 5 statuses, flagged+closed, channel, assignee me/none/user vs owner and escalation assignee, unknown summary, `VIEW_SHORT_LABEL`, `visitorLabel`. `inView` wraps the existing `matchesView` (same rules as the live-update cache patch).
