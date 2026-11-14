@@ -1,7 +1,7 @@
 # Tasks: FEAT-060 — Audit log viewer, chain verification and export
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: developer-done · Last updated: 2026-11-14 (build, UI T6–T9)
+> Status: accepted · Last updated: 2026-11-14 (verify)
 
 - [x] T1 — Contracts and capability: section "Dashboard API: audit log" (§3: `AUDIT_EVENT_GROUPS`, `AuditGroup`, `auditGroupOf` also as the Zod-free `@kaki/contracts/audit` export, `AUDIT_PAGE_MAX`, `AUDIT_EXPORT_MAX`, `AuditQuery`, `AuditSubject`, `AuditRow`, `AuditPage`, `AuditFilters`, `AuditVerifyResult`, `AuditLastVerified`, `AuditExportBody`, `AuditTooMany`); identity `audit.read` for Owner and Admin (design §3, §5.5; D2, D6)
       Done when: `pnpm --filter @kaki/contracts test` passes (`auditGroupOf` maps one code per group, `ai.paused` → assistant, an unknown prefix → other; `AuditQuery` defaults `limit` 50, refuses 101, a bad date and unknown keys; `AuditExportBody` needs `format`) and `pnpm --filter @kaki/identity test` passes the capability table (Agent lacks `audit.read`).
