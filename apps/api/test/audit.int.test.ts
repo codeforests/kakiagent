@@ -1,6 +1,6 @@
 import { AuditPage, AuditRow, AuditVerifyResult, ReauthRequired } from '@kaki/contracts';
 import { withTenant } from '@kaki/db';
-import { startTestDatabase, TENANT_A, TENANT_B, type TestDatabase } from '@kaki/db/testing';
+import { startTestDatabase, TENANT_A, type TestDatabase } from '@kaki/db/testing';
 import { audit, type AnchorSource } from '@kaki/governance';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
