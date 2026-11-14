@@ -66,6 +66,8 @@ export const schema = envSchemas.base
     EMAIL_INBOUND_DOMAIN: z.string().min(3),
     /** Scanned email attachments; staff download them through 5-minute presigned GETs. */
     ATTACHMENTS_BUCKET: z.string().min(3),
+    /** The audit anchors bucket, listed (never read) by "Verify audit chain" (FEAT-060 §5.6). */
+    AUDIT_ANCHOR_BUCKET: z.string().min(3),
     /** The custom sending domain's provider: SES v2, or `fixture` locally (refused in production). */
     EMAIL_IDENTITY_PROVIDER: z.enum(['ses', 'fixture']).default('ses'),
     SES_CONFIGURATION_SET: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
