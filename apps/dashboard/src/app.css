@@ -1359,6 +1359,160 @@ a {
   font-size: var(--type-caption-size);
   text-align: center;
 }
+/* FEAT-075: the conversation header, thread and dock (ui-design SCR-APP-015). */
+.thread-header {
+  flex: none;
+  padding: var(--space-4) var(--space-6);
+  padding-top: max(var(--space-4), env(safe-area-inset-top));
+  background: var(--color-bg-surface);
+}
+.thread-header .visitor-avatar {
+  width: calc(var(--space-8) + var(--space-2));
+  height: calc(var(--space-8) + var(--space-2));
+}
+.thread-header__title h2 {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.thread-header__title .thread-header__subject {
+  display: inline;
+  font: inherit;
+}
+.thread-header__party + .thread-header__subject::before {
+  content: ' · ';
+}
+.thread-header__close {
+  flex: none;
+}
+.thread-scroll {
+  padding: var(--space-6);
+}
+.thread-day {
+  display: flex;
+  justify-content: center;
+  color: var(--color-text-secondary);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+}
+.thread-log .thread-item {
+  max-width: min(72%, var(--size-reading-max));
+}
+.thread-log .bubble {
+  border-radius: var(--radius-xl);
+}
+.thread-log .thread-item--in .bubble {
+  border-top-left-radius: var(--radius-sm);
+}
+.thread-log .thread-item--out .bubble {
+  border-top-right-radius: var(--radius-sm);
+}
+.bubble-meta__author {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+}
+.thread-log .fact-chip {
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-default);
+}
+.thread-log .thread-notice {
+  align-self: center;
+  max-width: min(100%, var(--size-reading-max));
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-bg-subtle);
+  border-radius: var(--radius-lg);
+  font-size: var(--type-body-sm-size);
+  line-height: var(--type-body-sm-line);
+}
+.thread-notice svg {
+  flex: none;
+}
+.thread-notice strong {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+}
+.thread-divider > span {
+  padding: var(--space-1) var(--space-3);
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-full);
+}
+.inbox__thread .thread-dock {
+  flex: none;
+  padding: var(--space-4) var(--space-6);
+  padding-bottom: max(var(--space-4), env(safe-area-inset-bottom));
+  background: var(--color-bg-surface);
+}
+.thread-dock--bar > p,
+.thread-dock--bar .escalation-strip {
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+.escalation-strip p:first-child {
+  font-weight: var(--font-weight-medium);
+}
+.thread-dock--bar .thread-dock__actions {
+  flex: none;
+}
+@media (max-width: 639px) {
+  .thread-header {
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    padding-top: max(var(--space-2), env(safe-area-inset-top));
+  }
+  .thread-header .visitor-avatar {
+    display: none;
+  }
+  .thread-header .icon-button {
+    flex: none;
+    width: var(--size-control-lg);
+    height: var(--size-control-lg);
+  }
+  .thread-header__title {
+    flex-wrap: nowrap;
+    min-width: 0;
+  }
+  .thread-header__caption {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  .thread-header__caption .state-chip {
+    flex: none;
+  }
+  .thread-header__who {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .thread-header__caption {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .thread-scroll {
+    padding: var(--space-4);
+  }
+  .thread-log .thread-item {
+    max-width: 82%;
+  }
+  .thread-dock--bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .thread-dock--bar > p,
+  .thread-dock--bar .escalation-strip {
+    flex: none;
+  }
+  .thread-dock--bar .thread-dock__actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .thread-dock--bar .thread-dock__actions .kaki-btn {
+    min-height: var(--size-control-lg);
+  }
+}
 .avatar--sm {
   width: var(--size-control-sm);
   height: var(--size-control-sm);

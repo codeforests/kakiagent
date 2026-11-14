@@ -36,6 +36,7 @@ import {
   STATE_LABEL,
   STATE_TOKEN,
   webRows,
+  visitorLabel,
 } from '../lib/inbox.ts';
 
 // Lucide-style 24-px strokes for the inbox (design.md §2.4); decorative, labels carry meaning.
@@ -211,8 +212,18 @@ const AUTHOR_LABEL: Record<ThreadMessage['author'], string> = {
   system: 'Assistant',
 };
 
-/** A staff bubble's label: "You" for mine, else the name, else "Team member". */
-function authorLabel(m: ThreadMessage, meId: string | null): string {
+/**
+ * A bubble's label: the visitor by contact name, else by channel (FEAT-075 AC-8); staff
+ * "You" for mine, else the name, else "Team member".
+ */
+function authorLabel(
+  m: ThreadMessage,
+  meId: string | null,
+  channel: ConversationSummary['channel'] | undefined,
+  visitorName: string | null | undefined,
+): string {
+  if (m.author === 'visitor')
+    return channel ? visitorLabel(channel, visitorName) : AUTHOR_LABEL.visitor;
   if (m.author !== 'staff') return AUTHOR_LABEL[m.author];
   if (m.authorUserId && m.authorUserId === meId) return 'You';
   return m.authorName ?? AUTHOR_LABEL.staff;
@@ -299,9 +310,12 @@ export function Bubble({
   match = false,
   onRetryError,
   channel,
+  visitorName,
 }: {
   message: ThreadMessage;
   facts: Map<string, FactChip>;
+  /** The contact's name, for the visitor's bubbles (FEAT-075 AC-8). */
+  visitorName?: string | null;
   meId?: string | null;
   /** The message a search result opened at (FEAT-046). */
   match?: boolean;
@@ -324,8 +338,10 @@ export function Bubble({
   if (message.body === '' && message.notice)
     return (
       <li className="thread-notice" data-testid="thread-notice" data-kind={message.noticeKind}>
-        <Glyph name="chat" size={16} />
-        <span>Visitor saw: {message.notice}</span>
+        <Glyph name="eye" size={16} />
+        <span>
+          <strong>Visitor saw:</strong> {message.notice}
+        </span>
       </li>
     );
   const side = message.author === 'visitor' ? 'in' : 'out';
@@ -339,7 +355,9 @@ export function Bubble({
       data-match={match ? 'true' : undefined}
     >
       <div className="bubble-meta">
-        <span>{authorLabel(message, meId)}</span>
+        <span className="bubble-meta__author">
+          {authorLabel(message, meId, channel, visitorName)}
+        </span>
         <time dateTime={message.createdAt}>{clockTime(message.createdAt)}</time>
       </div>
       <div
@@ -409,6 +427,15 @@ function RecapNotice({
         </Button>
       )}
       <DeliveryLine message={message} onRetryError={onRetryError} />
+    </li>
+  );
+}
+
+/** A day divider in the thread (FEAT-075 ui-design Thread): "Today", "Yesterday", "12 Nov". */
+export function DayDivider({ label }: { label: string }) {
+  return (
+    <li className="thread-day" data-testid="thread-day">
+      <span>{label}</span>
     </li>
   );
 }

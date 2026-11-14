@@ -476,6 +476,17 @@ export function rowTime(iso: string, now = new Date()): string {
   return dayMonth.format(d);
 }
 
+/** The Singapore calendar day of a time, for the thread's day dividers (FEAT-075). */
+export const threadDay = (iso: string) => dayKey.format(new Date(iso));
+
+/** A thread day divider: "Today", "Yesterday", else "12 Nov" (Singapore time). */
+export function dayLabel(iso: string, now = new Date()): string {
+  const key = threadDay(iso);
+  if (key === dayKey.format(now)) return 'Today';
+  if (key === dayKey.format(new Date(now.getTime() - 86_400_000))) return 'Yesterday';
+  return dayMonth.format(new Date(iso));
+}
+
 /** How long an escalation has waited: "just now", "6 min", "2 h", then the date. */
 export function waitingFor(since: string, now = new Date()): string {
   const min = Math.floor((now.getTime() - new Date(since).getTime()) / 60_000);

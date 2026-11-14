@@ -29,6 +29,8 @@ import {
   listKey,
   matchesView,
   inView,
+  dayLabel,
+  threadDay,
   visitorLabel,
   VIEW_SHORT_LABEL,
   VIEW_LABEL,
@@ -179,6 +181,19 @@ describe('inView (FEAT-075 D2)', () => {
     expect(visitorLabel('email', null)).toBe('Email customer');
     expect(visitorLabel('telegram', '  ')).toBe('Telegram customer');
     expect(visitorLabel('email', 'Tan Ah Kow')).toBe('Tan Ah Kow');
+  });
+});
+
+describe('day dividers (FEAT-075)', () => {
+  const now = new Date('2026-11-14T04:00:00.000Z'); // 12:00 in Singapore
+  it('labels today, yesterday and older days in Singapore time', () => {
+    expect(dayLabel('2026-11-13T16:30:00.000Z', now)).toBe('Today'); // 00:30 SGT on the 14th
+    expect(dayLabel('2026-11-13T15:30:00.000Z', now)).toBe('Yesterday'); // 23:30 SGT on the 13th
+    expect(dayLabel('2026-11-12T03:00:00.000Z', now)).toBe('12 Nov');
+  });
+  it('threadDay changes at Singapore midnight', () => {
+    expect(threadDay('2026-11-13T15:59:00.000Z')).not.toBe(threadDay('2026-11-13T16:00:00.000Z'));
+    expect(threadDay('2026-11-13T16:00:00.000Z')).toBe(threadDay('2026-11-14T15:59:00.000Z'));
   });
 });
 
