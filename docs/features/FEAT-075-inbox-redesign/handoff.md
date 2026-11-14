@@ -1,7 +1,7 @@
 # Handoff: FEAT-075 — Inbox redesign
 Branch: feat/FEAT-075-inbox-redesign · PR: https://github.com/codeforests/kakiagent/pull/71 (ready) · Updated: 2026-11-14 by verify
 Stage done: verify (accepted, after rework 1)
-Next: merge on Ken's go-ahead, then M5 design — kickoff: "Design FEAT-060. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage design."
+Next: merge on Ken's go-ahead, then M5 design (Ken pauses after FEAT-060 to review existing screens first) — kickoff: "Design FEAT-061. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage design."
 
 ## What the next stage needs
 - `acceptance-report.md` is the verdict; `rework-1.md` is kept as the first verify's history.

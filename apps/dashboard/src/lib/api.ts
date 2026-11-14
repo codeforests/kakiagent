@@ -1,5 +1,12 @@
 import {
   Account,
+  AuditFilters,
+  AuditLastVerified,
+  AuditPage,
+  AuditRow,
+  AuditVerifyResult,
+  type AuditExportBody,
+  type AuditQuery,
   ApprovalDetail,
   ApprovalList,
   type ApprovalDecision,
@@ -471,6 +478,18 @@ export const api = {
     // The bytes as sent (with the BOM Excel needs); `text()` would drop it.
     const blob = await res.blob();
     return { name: name ?? null, blob, text: await blob.text() };
+  },
+  // Audit log (SCR-APP-050, FEAT-060 §3): Owner and Admin.
+  auditEntries: (q: Partial<AuditQuery>) => getJson(`/api/v1/audit/entries${query(q)}`, AuditPage),
+  auditEntry: (seq: number) => getJson(`/api/v1/audit/entries/${seq}`, AuditRow),
+  auditFilters: () => getJson('/api/v1/audit/filters', AuditFilters),
+  auditVerification: () => getJson('/api/v1/audit/verification', AuditLastVerified),
+  verifyAudit: () => request('POST', '/api/v1/audit/verify', AuditVerifyResult),
+  /** The file in the response (D1): filters in the body, after re-auth (AUTH-03). */
+  exportAudit: async (body: AuditExportBody) => {
+    const res = await send('POST', '/api/v1/audit/export', body);
+    const name = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') ?? '')?.[1];
+    return { name: name ?? null, blob: await res.blob() };
   },
   /** A plain link: the browser downloads it with the session cookie. */
   documentUrl: (doc: 'data-flow' | 'dpa') => `/api/v1/settings/privacy/documents/${doc}.pdf`,

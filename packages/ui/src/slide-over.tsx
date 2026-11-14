@@ -12,6 +12,11 @@ export interface SlideOverProps {
   children: ReactNode;
   /** Extra class on the panel, e.g. a bottom-sheet variant on phones. */
   className?: string;
+  /**
+   * Where focus goes on close. Radix returns it to a `Dialog.Trigger`, and this panel has
+   * none, so a caller opened from a row passes this (`preventDefault()`, then focus it).
+   */
+  onCloseAutoFocus?: (e: Event) => void;
 }
 
 /**
@@ -27,6 +32,7 @@ export function SlideOver({
   closeLabel = 'Close',
   children,
   className,
+  onCloseAutoFocus,
 }: SlideOverProps) {
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -35,6 +41,7 @@ export function SlideOver({
         <Dialog.Content
           className={className ? `kaki-slide-over ${className}` : 'kaki-slide-over'}
           aria-describedby={undefined}
+          {...(onCloseAutoFocus ? { onCloseAutoFocus } : {})}
         >
           <div className="kaki-slide-over__head">
             <Dialog.Title className="kaki-dialog__title">{title}</Dialog.Title>

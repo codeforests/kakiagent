@@ -157,6 +157,20 @@ data "aws_iam_policy_document" "audit_anchor_writer" {
   }
 }
 
+# "Verify audit chain" from the dashboard (FEAT-060 §5.6): the api lists the anchors of a
+# tenant (`audit/<tenant>/`); a listing alone yields every anchor, so no GetObject or KMS.
+data "aws_iam_policy_document" "audit_anchor_reader" {
+  statement {
+    actions   = ["s3:ListBucket"]
+    resources = [module.storage.bucket_arns["audit-anchors"]]
+    condition {
+      test     = "StringLike"
+      variable = "s3:prefix"
+      values   = ["audit/*"]
+    }
+  }
+}
+
 # File uploads (FEAT-015 §5.8). The api only signs PUTs under quarantine/uploads/ (the
 # browser does the PUT with the api's signature). The ingest worker reads, tags-checks
 # and deletes quarantine objects and keeps clean copies in sources. ListBucket lets a
@@ -284,6 +298,7 @@ module "service" {
       uploads     = data.aws_iam_policy_document.upload_signer.json
       identities  = data.aws_iam_policy_document.email_identities.json
       attachments = data.aws_iam_policy_document.attachment_reader.json
+      audit       = data.aws_iam_policy_document.audit_anchor_reader.json
     }
     agent-worker = {
       sqs  = data.aws_iam_policy_document.turns_consumer.json
@@ -322,6 +337,8 @@ module "service" {
         SES_CONFIGURATION_SET     = module.mail.configuration_set_name
         # The Telegram channel (FEAT-037 §5.6): webhooks arrive at /hooks/telegram/<id>.
         PUBLIC_HOOKS_URL = local.public_url
+        # "Verify audit chain" lists the anchors (FEAT-060 §5.6).
+        AUDIT_ANCHOR_BUCKET = module.storage.bucket_names["audit-anchors"]
       }
       realtime = { PORT = "3001", VALKEY_URL = local.valkey }
       agent-worker = {
