@@ -1,4 +1,5 @@
 import type { ZoneDb } from '@kaki/db';
+import type { AnchorSource } from '@kaki/governance';
 import type { GoogleSignIn } from '@kaki/identity';
 import type { Resolver } from '@kaki/kb';
 import type { LlmGateway } from '@kaki/llm-gateway';
@@ -38,6 +39,10 @@ export interface Deps {
   email?: EmailDeps;
   /** The Telegram Bot API (FEAT-037); from config when absent, a fake `fetch` in tests. */
   telegram?: TelegramDeps;
+  /** The audit chain's S3 anchors, listed by "Verify audit chain" (FEAT-060 §5.4). */
+  auditAnchors: AnchorSource;
+  /** Tests only: a lower audit export cap than `AUDIT_EXPORT_MAX`. */
+  auditExportMax?: number;
 }
 
 /** The Telegram channel's ports (FEAT-037); from config unless a test passes its own. */

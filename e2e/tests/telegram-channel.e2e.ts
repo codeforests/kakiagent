@@ -1,4 +1,6 @@
+import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
+import pg from 'pg';
 import { expectNoSeriousA11yViolations, signIn } from './support.ts';
 
 /**
@@ -277,10 +279,20 @@ test('the Owner connects a Telegram bot, customers get AI replies, and alerts re
   };
   // "Check again" is 429 within 30 s of the last health check (connect, go-live or the
   // health job may have just run), so retry until the check itself runs.
-  await expect(async () => {
-    const res = await page.request.post(`/api/v1/channels/${tg.connection.id}/check`);
-    expect(res.status()).toBe(200);
-  }).toPass({ timeout: 60_000, intervals: [5_000] });
+  const checks: string[] = [];
+  try {
+    await expect(async () => {
+      const res = await page.request.post(`/api/v1/channels/${tg.connection.id}/check`);
+      checks.push(`${new Date().toISOString()} ${res.status()}`);
+      expect(res.status()).toBe(200);
+    }).toPass({ timeout: 60_000, intervals: [5_000] });
+  } catch (e) {
+    // Diagnostics for the CI-only case where the check stays 429 (FEAT-060 verify): what
+    // keeps marking the channel as just checked.
+    console.log(`telegram check-again diagnostics:\n${checks.join('\n')}`);
+    console.log(await checkAgainDiagnostics(tg.connection.id));
+    throw e;
+  }
   await page.goto('/settings/channels/telegram');
   await expect(page.getByTestId('telegram-degraded')).toContainText(
     'Telegram stopped accepting the bot token',
@@ -298,3 +310,30 @@ test('the Owner connects a Telegram bot, customers get AI replies, and alerts re
   await expect(page.getByRole('status').filter({ hasText: 'Bot disconnected.' })).toBeVisible();
   await expect(page.getByLabel('Bot token')).toBeFocused();
 });
+
+/** CI diagnostics only: the connection's health times and the Telegram alerts still retrying. */
+async function checkAgainDiagnostics(connectionId: string): Promise<string> {
+  const url =
+    process.env.DATABASE_OWNER_URL ??
+    /^DATABASE_OWNER_URL=(.+)$/m
+      .exec(readFileSync(new URL('../../packages/db/.env', import.meta.url), 'utf8'))?.[1]
+      ?.trim();
+  if (!url) return 'no DATABASE_OWNER_URL';
+  const db = new pg.Client({ connectionString: url });
+  await db.connect();
+  try {
+    const conn = await db.query(
+      `select health, health_reason, health_failures, health_checked_at, now() as db_now
+         from channel_connections where id = $1`,
+      [connectionId],
+    );
+    const alerts = await db.query(
+      `select kind, channel, status, attempts, next_attempt_at, created_at, sent_at
+         from notifications where channel = 'telegram' and created_at > now() - interval '15 minutes'
+        order by created_at`,
+    );
+    return JSON.stringify({ connection: conn.rows, telegramAlerts: alerts.rows }, null, 1);
+  } finally {
+    await db.end();
+  }
+}

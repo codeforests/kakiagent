@@ -216,7 +216,7 @@ Feature IDs are in definition order and are permanent: they are never renumbered
 | FEAT-057 | Kill switch (pause and resume AI on all channels) | M | GOV-08 | UC-31 | SCR-APP-058, SCR-WGT-005 | send gate; Valkey flag + Postgres | tenants (ai_paused) |
 | FEAT-058 | Privacy notice and template, consent wording, data-processing documents | M | GOV-14, GOV-07, GOV-11, LED-02 (p: wording) | UC-03, UC-35 | SCR-APP-047 (p), SCR-APP-009 (p) | `/settings/privacy` | privacy_settings, wording_versions |
 | FEAT-059 | Retention settings and purge job | M | GOV-06 | UC-35 | SCR-APP-047 (p) | scheduler purge | all contact-keyed tables |
-| FEAT-060 | Audit log viewer, chain verification and export | M | GOV-02 | UC-32 | SCR-APP-050 | `/audit/*` (re-auth on export) | audit_entries |
+| FEAT-060 | Audit log viewer, chain verification and export | M | GOV-02, GOV-01 (p: the Verify audit chain action), AUTH-03 (p: audit export re-auth) | UC-32 | SCR-APP-050, SCR-APP-014 (p) | `/audit/*` (re-auth on export) | audit_entries |
 | FEAT-061 | Data-subject requests: find, export, correct, delete across stores | M | GOV-05 | UC-30 | SCR-APP-048, -049 | `governance.dsr.*` | dsr_requests; all PII stores |
 | FEAT-062 | Tenant data export | M | GOV-12 | UC-24 | SCR-APP-051 | export job → S3 link (24 h) | exports |
 | FEAT-063 | Support access grants (tenant side and operator session) | M | DSH-06 (p) | UC-33 | SCR-APP-052, SCR-OPS-004 | grant-scoped read-only role | support_grants |

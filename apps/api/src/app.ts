@@ -142,6 +142,7 @@ import { escalationErrorReply, registerEscalationRoutes } from './escalation.js'
 import { leadsErrorReply, registerLeadWidgetRoutes } from './leads-widget.js';
 import { contactsErrorReply, registerContactRoutes } from './contacts.js';
 import { leadSettingsErrorReply, registerLeadRoutes, registerLeadSettingsRoutes } from './leads.js';
+import { auditErrorReply, registerAuditRoutes } from './audit.js';
 import {
   AttestationRequiredError,
   FileTooLargeError,
@@ -413,6 +414,11 @@ export async function buildApp(deps: Deps) {
     if (channel) return reply.code(channel.status).send(channel.body);
     const leads = leadsErrorReply(err) ?? leadSettingsErrorReply(err) ?? contactsErrorReply(err);
     if (leads) return reply.code(leads.status).send(leads.body);
+    const auditErr = auditErrorReply(err);
+    if (auditErr) {
+      if (auditErr.retryAfterS) reply.header('Retry-After', String(auditErr.retryAfterS));
+      return reply.code(auditErr.status).send(auditErr.body);
+    }
     const widget = widgetErrorReply(err, req.url);
     if (widget) return reply.code(widget.status).send(widget.body);
     req.log.error({ err }, 'unhandled error');
@@ -725,6 +731,7 @@ export async function buildApp(deps: Deps) {
   registerLeadSettingsRoutes(app, deps, sessionFrom);
   registerLeadRoutes(app, deps, sessionFrom);
   registerContactRoutes(app, deps, sessionFrom);
+  registerAuditRoutes(app, deps, sessionFrom);
 
   return app;
 }

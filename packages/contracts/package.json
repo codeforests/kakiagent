@@ -7,7 +7,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./lead-check": "./src/lead-check.ts",
-    "./quote": "./src/quote.ts"
+    "./quote": "./src/quote.ts",
+    "./audit": "./src/audit.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

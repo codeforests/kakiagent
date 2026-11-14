@@ -28,6 +28,7 @@ import { EmailChannelPage } from './pages/email-channel.tsx';
 import { TelegramChannelPage } from './pages/telegram-channel.tsx';
 import { PrivacyPage } from './pages/privacy.tsx';
 import { LeadsSettingsPage } from './pages/leads-settings.tsx';
+import { AuditPage } from './pages/audit.tsx';
 import { LeadsPage } from './pages/leads.tsx';
 import { LeadPage } from './pages/lead.tsx';
 import { ContactPage } from './pages/contact.tsx';
@@ -132,6 +133,8 @@ export const router = createBrowserRouter([
       { path: 'settings/rules', element: <RulesPage /> },
       // Leads and consent (FEAT-049, SCR-APP-043).
       { path: 'settings/leads', element: <LeadsSettingsPage /> },
+      // Audit log (FEAT-060, SCR-APP-050).
+      { path: 'settings/audit', element: <AuditPage /> },
       // Team (FEAT-006 two-step part, FEAT-007 members and invitations; SCR-APP-045).
       { path: 'settings/team', element: <TeamPage /> },
       // Channels (FEAT-034, SCR-APP-036).

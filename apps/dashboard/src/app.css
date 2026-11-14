@@ -5994,3 +5994,214 @@ a.settings-row:hover {
   align-items: center;
   gap: var(--space-2);
 }
+
+/* ---- Audit log (SCR-APP-050, FEAT-060 ui-design) ---- */
+.audit-mono {
+  font-family: var(--font-family-mono);
+  font-size: var(--type-caption-size);
+}
+.audit-verify {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+.audit-verify__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.audit-verify__title {
+  margin: 0;
+  font-size: var(--type-title-sm-size);
+}
+.audit-verify__last,
+.audit-verify__note {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--type-body-sm-size);
+}
+.audit-verify .alert {
+  margin: 0;
+}
+.audit-filters-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+.audit-filters-inline {
+  flex: 1 1 100%;
+}
+.audit-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-4);
+}
+.audit-filters__dates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.audit-filters__quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.audit-filters__select {
+  min-width: calc(var(--space-11) * 2);
+}
+.audit-chip {
+  min-height: var(--size-control-md);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-full);
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: var(--type-body-sm-size);
+  cursor: pointer;
+}
+.audit-chip[aria-pressed='true'] {
+  border-color: var(--color-accent-default);
+  background: var(--color-bg-subtle);
+}
+.audit-chip:focus-visible,
+.audit-conversation__clear:focus-visible,
+.audit-row__open:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+.audit-filters-toggle {
+  display: none;
+}
+.audit-conversation {
+  gap: var(--space-2);
+  margin-left: 0;
+}
+.audit-conversation__clear {
+  min-width: var(--space-6);
+  min-height: var(--space-6);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.audit-sheet__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-5);
+}
+.audit-sheet .audit-filters {
+  flex-direction: column;
+  align-items: stretch;
+}
+.audit-row__open {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.audit-row__what {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.audit-row__code {
+  color: var(--color-text-secondary);
+  overflow-wrap: anywhere;
+}
+.audit-row__when,
+.audit-row__about {
+  color: var(--color-text-secondary);
+}
+.audit-detail {
+  width: min(480px, 100%);
+}
+.audit-dl,
+.audit-payload {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+}
+.audit-payload {
+  gap: var(--space-2);
+}
+.audit-dl dt {
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  font-size: var(--type-body-sm-size);
+}
+.audit-dl dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.audit-payload pre {
+  margin: 0;
+  white-space: pre-wrap;
+}
+.audit-subjects {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.audit-hash dd {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.audit-hash__value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.sidebar-audit {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--size-control-sm);
+  gap: var(--space-2);
+}
+@media (max-width: 639px) {
+  .audit-filters-inline {
+    display: none;
+  }
+  .audit-filters-toggle {
+    display: inline-flex;
+  }
+  .audit-detail {
+    width: 100%;
+  }
+}
+@media (max-width: 767px) {
+  .audit-row {
+    grid-template-areas: 'what when' 'who about';
+    grid-template-columns: 1fr auto;
+  }
+  .audit-row__what {
+    grid-area: what;
+  }
+  .audit-row__code {
+    display: none;
+  }
+  .audit-row__when {
+    grid-area: when;
+    font-size: var(--type-body-sm-size);
+    color: var(--color-text-secondary);
+  }
+  .audit-row__who {
+    grid-area: who;
+    font-size: var(--type-body-sm-size);
+    color: var(--color-text-secondary);
+  }
+  .audit-row__about {
+    grid-area: about;
+    font-size: var(--type-body-sm-size);
+    text-align: right;
+  }
+}

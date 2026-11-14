@@ -1,5 +1,12 @@
 import { z } from 'zod';
 import { isEmail, LEAD_FIELD_KEYS, normaliseSgPhone } from './lead-check.js';
+import {
+  AUDIT_ACTOR_TYPES,
+  AUDIT_BREAK_REASONS,
+  AUDIT_GROUP_KEYS,
+  AUDIT_PAGE_MAX,
+  type AuditGroupKey,
+} from './audit.js';
 
 export * from './lead-check.js';
 
@@ -3996,3 +4003,143 @@ export const HandoffError = z.object({
   channel: HandoffChannel.optional(),
 });
 export type HandoffError = z.infer<typeof HandoffError>;
+
+// ---- Dashboard API: audit log (GOV-01, GOV-02; FEAT-060 §3) ----------------------------------
+
+export * from './audit.js';
+
+/** An event group (D6): the eight named groups plus `other`. */
+export const AuditGroup = z.enum(AUDIT_GROUP_KEYS as [AuditGroupKey, ...AuditGroupKey[]]);
+export type AuditGroup = z.infer<typeof AuditGroup>;
+export const AuditActorType = z.enum(AUDIT_ACTOR_TYPES);
+export type AuditActorType = z.infer<typeof AuditActorType>;
+
+const auditFilterShape = {
+  /** SGT days, inclusive. */
+  from: SgDate.optional(),
+  to: SgDate.optional(),
+  conversation: z.uuid().optional(),
+  actorType: AuditActorType.optional(),
+  /** A member; implies `actorType` `user`. */
+  actor: z.uuid().optional(),
+  group: AuditGroup.optional(),
+};
+
+type AuditFilterLike = {
+  from?: string | undefined;
+  to?: string | undefined;
+  actorType?: string | undefined;
+  actor?: string | undefined;
+};
+function auditFilterChecks(q: AuditFilterLike, ctx: z.core.$RefinementCtx) {
+  if (q.from && q.to && q.to < q.from)
+    ctx.addIssue({
+      code: 'custom',
+      path: ['to'],
+      message: 'The end date is before the start date',
+    });
+  if (q.actor && q.actorType && q.actorType !== 'user')
+    ctx.addIssue({
+      code: 'custom',
+      path: ['actor'],
+      message: 'A member filter needs actor type user',
+    });
+}
+
+/** `GET /api/v1/audit/entries` query; all optional. Newest first, keyset on `seq`. */
+export const AuditQuery = z
+  .strictObject({
+    ...auditFilterShape,
+    /** Keyset: entries with `seq < before`. */
+    before: z.coerce.number().int().positive().optional(),
+    limit: z.coerce.number().int().min(1).max(AUDIT_PAGE_MAX).default(50),
+  })
+  .superRefine(auditFilterChecks);
+export type AuditQuery = z.infer<typeof AuditQuery>;
+/** The filters alone, shared by list, count and export. */
+export type AuditFilter = Omit<AuditQuery, 'before' | 'limit'>;
+
+/** A parsed `subject_refs` entry, `type:id` split at the first colon. */
+export const AuditSubject = z.object({ type: z.string(), id: z.string() });
+export type AuditSubject = z.infer<typeof AuditSubject>;
+
+export const AuditRow = z.object({
+  seq: z.number().int(),
+  ts: z.iso.datetime({ offset: true }),
+  actorType: AuditActorType,
+  actorId: z.string().nullable(),
+  /** The member's current name; null for a non-user or a former member. */
+  actorName: z.string().nullable(),
+  eventType: z.string(),
+  group: AuditGroup,
+  /** Primary subject first. */
+  subjects: z.array(AuditSubject),
+  payload: z.record(z.string(), z.unknown()),
+  /** Linked personal data: none, still kept, or erased (D5). Its contents are never returned. */
+  pii: z.enum(['none', 'kept', 'erased']),
+  prevHash: z.string(),
+  hash: z.string(),
+});
+export type AuditRow = z.infer<typeof AuditRow>;
+
+export const AuditPage = z.object({
+  entries: z.array(AuditRow),
+  next: z.number().int().nullable(),
+});
+export type AuditPage = z.infer<typeof AuditPage>;
+
+export const AuditFilters = z.object({
+  members: z.array(z.object({ id: z.uuid(), name: z.string() })),
+});
+export type AuditFilters = z.infer<typeof AuditFilters>;
+
+export const AuditBreakReason = z.enum(AUDIT_BREAK_REASONS);
+export type AuditBreakReason = z.infer<typeof AuditBreakReason>;
+
+/** `POST /api/v1/audit/verify` 200, also when broken (`ok: false`). */
+export const AuditVerifyResult = z.object({
+  ok: z.boolean(),
+  checked: z.number().int(),
+  headSeq: z.number().int(),
+  anchors: z.enum(['checked', 'none_yet', 'unavailable']),
+  anchorsChecked: z.number().int(),
+  piiChecked: z.number().int(),
+  broken: z.object({ seq: z.number().int(), reason: AuditBreakReason }).nullable(),
+  verifiedAt: z.iso.datetime({ offset: true }),
+  durationMs: z.number().int(),
+});
+export type AuditVerifyResult = z.infer<typeof AuditVerifyResult>;
+
+/** `GET /api/v1/audit/verification`: the latest `audit.verified` entry; `by` = member name. */
+export const AuditLastVerified = z.object({
+  last: z
+    .object({
+      ok: z.boolean(),
+      headSeq: z.number().int(),
+      verifiedAt: z.iso.datetime({ offset: true }),
+      by: z.string().nullable(),
+    })
+    .nullable(),
+});
+export type AuditLastVerified = z.infer<typeof AuditLastVerified>;
+
+/** 409 `verify_running` / 429 `verify_cooldown` (D4). */
+export const AuditVerifyBusy = z.object({
+  error: z.enum(['verify_running', 'verify_cooldown']),
+  retryAfterS: z.number().int().optional(),
+});
+export type AuditVerifyBusy = z.infer<typeof AuditVerifyBusy>;
+
+/** `POST /api/v1/audit/export` (D1): filters in the body, after re-auth (AUTH-03). */
+export const AuditExportBody = z
+  .strictObject({ ...auditFilterShape, format: z.enum(['csv', 'json']) })
+  .superRefine(auditFilterChecks);
+export type AuditExportBody = z.infer<typeof AuditExportBody>;
+
+/** 413 above `AUDIT_EXPORT_MAX`. */
+export const AuditTooMany = z.object({
+  error: z.literal('too_many'),
+  count: z.number().int(),
+  max: z.number().int(),
+});
+export type AuditTooMany = z.infer<typeof AuditTooMany>;

@@ -12,7 +12,7 @@ import type {
 } from '@kaki/contracts';
 import { scoreLabel } from '../lib/leads.ts';
 import { Button } from '@kaki/ui';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
 import { api } from '../lib/api.ts';
 import { Link } from 'react-router';
@@ -81,6 +81,8 @@ const GLYPHS = {
   'git-merge':
     'M18 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 21V9a9 9 0 0 0 9 9',
   'undo-2': 'M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5 5.5 5.5 0 0 1-5.5 5.5H11',
+  // Audit log link and rows (FEAT-060 ui-design): Lucide list.
+  list: 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01',
   paperclip:
     'm21.4 11-9.2 9.2a6 6 0 0 1-8.5-8.5l8.6-8.6a4 4 0 0 1 5.7 5.7l-8.6 8.6a2 2 0 0 1-2.8-2.8l8.5-8.5',
 } as const;
@@ -573,6 +575,9 @@ export function WebIntent({ web }: { web: WebContext }) {
 export function ContextSidebar({ thread }: { thread: ConversationThread }) {
   const { contact, channel, intents, facts, lead, approval, web } = thread.sidebar;
   const earlier = contact.previousConversations;
+  // Owner and Admin only (FEAT-060, SCR-APP-014 partial).
+  const me = useQuery({ queryKey: ['me'], queryFn: api.me });
+  const manager = me.data?.role === 'owner' || me.data?.role === 'admin';
   return (
     <div className="context-sidebar" data-testid="context-sidebar">
       <Section title="Contact">
@@ -684,6 +689,16 @@ export function ContextSidebar({ thread }: { thread: ConversationThread }) {
           </ul>
         )}
       </Section>
+      {manager && (
+        <Section title="Audit log">
+          <Link
+            className="sidebar-audit"
+            to={`/settings/audit?conversation=${encodeURIComponent(thread.conversation.id)}`}
+          >
+            <Glyph name="list" size={14} /> View audit log
+          </Link>
+        </Section>
+      )}
     </div>
   );
 }
