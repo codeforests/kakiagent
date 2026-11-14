@@ -279,7 +279,8 @@
           "features/FEAT-043-takeover/ui-design.md#scr-app-014--inbox-partial",
           "features/FEAT-044-escalation-routing/ui-design.md#scr-app-014--inbox-partial",
           "features/FEAT-046-conversation-search/ui-design.md#scr-app-014--inbox-partial-search",
-          "features/FEAT-049-lead-capture/ui-design.md#scr-app-014--inbox-partial-contact-lead-consent"
+          "features/FEAT-049-lead-capture/ui-design.md#scr-app-014--inbox-partial-contact-lead-consent",
+          "features/FEAT-060-audit-viewer/ui-design.md#scr-app-014--inbox-partial"
         ]
       },
       "states": {
@@ -314,7 +315,8 @@
           "consent and lead dividers",
           "card captions",
           "contact search hit",
-          "lead consent withdrawn"
+          "lead consent withdrawn",
+          "audit log link (Owner/Admin)"
         ],
         "gaps": [],
         "supplements": [
@@ -1225,6 +1227,58 @@
         "GET /api/v1/settings/business-profile",
         "PUT /api/v1/settings/business-profile"
       ]
+    },
+    "SCR-APP-050": {
+      "name": "Audit log",
+      "surface": "APP",
+      "feature": "FEAT-060",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-060-audit-viewer/ui-design.md#scr-app-050--audit-log"
+      },
+      "states": {
+        "covered": [
+          "loading",
+          "empty",
+          "filtered-empty",
+          "error",
+          "populated",
+          "load more",
+          "filters in URL",
+          "conversation filter chip",
+          "entry detail",
+          "detail not found",
+          "never verified",
+          "verifying",
+          "verified",
+          "verified (no anchors yet)",
+          "anchors unavailable",
+          "tamper detected",
+          "verify cooldown",
+          "verify running",
+          "exporting",
+          "export too many",
+          "export failed",
+          "permission (Agent)"
+        ],
+        "gaps": [],
+        "supplements": []
+      },
+      "contract_bindings": [
+        "GET /api/v1/audit/entries",
+        "GET /api/v1/audit/entries/:seq",
+        "GET /api/v1/audit/filters",
+        "GET /api/v1/audit/verification",
+        "POST /api/v1/audit/verify",
+        "POST /api/v1/audit/export"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-11-14"
     },
     "SCR-APP-059": {
       "name": "System pages",
