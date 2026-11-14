@@ -14,8 +14,9 @@
 - [x] T4 — API: `apps/api/src/audit.ts` `registerAuditRoutes` (six routes, `audit.read`, export `requireReauth`, 413, `audit.exported`), wired in `app.ts`; `Deps.auditAnchors` from config `AUDIT_ANCHOR_BUCKET` in `main.ts`; `.env.example`, `gen-local-env.mjs` (design §3, §5.4; AC-1, AC-3, AC-4)
       Done when: `scripts/test-env.sh pnpm --filter @kaki/api test:integration` passes a new `audit.int.test.ts`: list/detail/filters/verification as Owner and Admin 200, Agent 403 on every route; 404 on an unknown seq; 400 on `to` < `from`; verify 200 (fake anchors), 429 on the second call; export without re-auth 403 `reauth_required` (`staleReauth`), with it CSV and JSON 200 with `attachment` + `no-store`, conversation filter honoured, 413 with the cap lowered through the domain's parameter; exactly one `audit.exported`; tenant B session sees none of A's entries and can't fetch A's seq.
       Note (build): `gen-local-env.mjs` copies `AUDIT_ANCHOR_BUCKET` from `.env.example`, so it needed no change. Names come from identity in the api (governance can't import identity: identity depends on governance). 429 also sends `Retry-After`. The test cap is `Deps.auditExportMax` (tests only).
-- [ ] T5 — Infra: terraform `envs/prod/main.tf` api env `AUDIT_ANCHOR_BUCKET` and policy `audit_anchor_reader` (`s3:ListBucket` on the anchors bucket, prefix `audit/*`) on the api task role (design §5.6)
+- [x] T5 — Infra: terraform `envs/prod/main.tf` api env `AUDIT_ANCHOR_BUCKET` and policy `audit_anchor_reader` (`s3:ListBucket` on the anchors bucket, prefix `audit/*`) on the api task role (design §5.6)
       Done when: `terraform -chdir=infra/terraform/envs/prod validate` and `terraform test` pass (or, without the terraform binary in the session, `terraform fmt -check` is recorded as left to CI with a Note).
+      Note (build): `terraform fmt -check -recursive` passes (1.16.6, CI's version); `init` can't reach registry.terraform.io from the cloud session, so `validate` and `terraform test` (one new assert in `profiles.tftest.hcl`: api env + `audit` policy) are left to CI's terraform job.
 
 ## Build session 2 (UI)
 

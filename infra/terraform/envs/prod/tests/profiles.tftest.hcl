@@ -100,6 +100,11 @@ run "launch_profile" {
     condition     = alltrue([for r in ["api", "scheduler-worker"] : contains(keys(module.service[r].environment), "PUBLIC_HOOKS_URL")]) && alltrue([for r in ["api", "agent-worker", "scheduler-worker"] : contains(module.service[r].secret_names, "CHANNEL_SECRET_KEY")])
     error_message = "The api and the scheduler need the hook URL, and every role that calls Telegram the channel secret."
   }
+  # FEAT-060 §5.6: "Verify audit chain" lists the anchors bucket from the api.
+  assert {
+    condition     = module.service["api"].environment.AUDIT_ANCHOR_BUCKET == module.storage.bucket_names["audit-anchors"] && contains(module.service["api"].task_policy_names, "audit")
+    error_message = "The api lists the audit anchors bucket (FEAT-060)."
+  }
 }
 
 run "full_profile" {
