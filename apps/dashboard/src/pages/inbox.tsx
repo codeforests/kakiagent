@@ -1,7 +1,7 @@
 import type { InboxCounts, InboxView } from '@kaki/contracts';
 import { Button, EmptyState, ErrorState } from '@kaki/ui';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { api } from '../lib/api.ts';
 import {
@@ -113,7 +113,7 @@ function LiveBadge({ live }: { live: LiveState }) {
   return (
     <span className={`live live--${live}`} data-testid="live-state">
       <span className="live__dot" aria-hidden="true" />
-      {live === 'live' ? 'Live' : live === 'connecting' ? 'Connecting…' : 'Reconnecting…'}
+      {live === 'live' ? 'Connected' : live === 'connecting' ? 'Connecting…' : 'Reconnecting…'}
     </span>
   );
 }
@@ -173,92 +173,159 @@ function InboxList({
   const meId = me.data?.user.id ?? null;
   const now = useMinuteNow();
   // Switching views keeps the open conversation on screen (the thread pane, ≥ 1024).
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const filtersButton = useRef<HTMLButtonElement>(null);
+  const active = (filter.channel ? 1 : 0) + (filter.assignee ? 1 : 0);
   const to = (f: InboxFilter) => `/inbox${selected ? `/${selected}` : ''}${searchFromView(f)}`;
 
   return (
     <>
-      <div className="page-header inbox__header">
-        <h1 className="page-title" id="inbox-title">
-          Inbox
-        </h1>
-        <LiveBadge live={live} />
-      </div>
-      {live === 'offline' && (
-        <div className="alert alert--info" role="status">
-          Reconnecting. New messages will appear when the connection is back.
+      <div className="inbox__top">
+        <div className="inbox__header">
+          <h1 className="page-title" id="inbox-title">
+            Inbox
+          </h1>
+          <LiveBadge live={live} />
         </div>
-      )}
-      <SearchField />
+        {live === 'offline' && (
+          <div className="alert alert--info" role="status">
+            Reconnecting. New messages will appear when the connection is back.
+          </div>
+        )}
+        <div className="inbox__toolbar">
+          <SearchField />
+          {!search.active && (
+            <button
+              type="button"
+              className={`kaki-btn kaki-btn--secondary filters-button${active > 0 ? ' filters-button--active' : ''}`}
+              aria-expanded={filtersOpen}
+              aria-controls="inbox-filters"
+              aria-label={active > 0 ? `Filters, ${active} active` : 'Filters'}
+              ref={filtersButton}
+              onClick={() => setFiltersOpen((o) => !o)}
+            >
+              <Glyph name="sliders" size={16} />
+              <span className="filters-button__label">Filters</span>
+              {active > 0 && (
+                <span className="filters-button__count" aria-hidden="true">
+                  {active}
+                </span>
+              )}
+            </button>
+          )}
+        </div>
+        {!search.active && (
+          <>
+            <div
+              className="filters-panel"
+              id="inbox-filters"
+              hidden={!filtersOpen}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  e.stopPropagation();
+                  setFiltersOpen(false);
+                  filtersButton.current?.focus();
+                }
+              }}
+            >
+              <label className="field">
+                <span className="field__label">Channel</span>
+                <select
+                  className="input"
+                  value={filter.channel ?? ''}
+                  onChange={(e) =>
+                    void navigate(to({ ...filter, channel: channelOf(e.target.value) }))
+                  }
+                >
+                  <option value="">All channels</option>
+                  {CHANNELS.map((ch) => (
+                    <option value={ch} key={ch}>
+                      {CHANNEL_LABEL[ch]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span className="field__label">Assigned to</span>
+                <select
+                  className="input"
+                  data-testid="assignee-filter"
+                  aria-describedby="assignee-help"
+                  value={filter.assignee ?? ''}
+                  onChange={(e) =>
+                    void navigate(to({ ...filter, assignee: e.target.value || null }))
+                  }
+                >
+                  <option value="">Anyone</option>
+                  <option value="me">Mine</option>
+                  <option value="none">Unassigned</option>
+                  {members.data?.members
+                    .filter((m) => m.userId !== meId)
+                    .map((m) => (
+                      <option key={m.userId} value={m.userId}>
+                        {m.name}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <span id="assignee-help" className="sr-only">
+                Who has it, or who it was escalated to.
+              </span>
+            </div>
+            {active > 0 && (
+              <ul className="filter-chips" aria-label="Active filters">
+                {filter.channel && (
+                  <FilterChip
+                    text={`Channel: ${CHANNEL_LABEL[filter.channel]}`}
+                    to={to({ ...filter, channel: null })}
+                  />
+                )}
+                {filter.assignee && (
+                  <FilterChip
+                    text={`Assigned: ${assigneeLabel(filter.assignee, members.data?.members)}`}
+                    to={to({ ...filter, assignee: null })}
+                  />
+                )}
+                <li>
+                  <Link
+                    className="filter-chips__clear"
+                    to={to({ ...filter, channel: null, assignee: null })}
+                  >
+                    Clear all
+                  </Link>
+                </li>
+              </ul>
+            )}
+            <nav className="tabs inbox__views" aria-label="Views">
+              {VIEWS.map((v) => {
+                const key = COUNT_OF[v];
+                const n = key && counts.data ? counts.data[key] : 0;
+                const current = v === filter.view;
+                return (
+                  <Link
+                    key={v}
+                    to={to({ ...filter, view: v })}
+                    className="tabs__tab"
+                    data-state={current ? 'active' : 'inactive'}
+                    aria-current={current ? 'page' : undefined}
+                  >
+                    {VIEW_LABEL[v]}
+                    {n > 0 && (
+                      <span className="count-pill" data-testid={`count-${v}`}>
+                        {n}
+                      </span>
+                    )}
+                  </Link>
+                );
+              })}
+            </nav>
+          </>
+        )}
+      </div>
       {search.active ? (
         <SearchResults qs={qs} selected={selected} meId={meId} now={now} />
       ) : (
         <>
-          <nav className="tabs inbox__views" aria-label="Views">
-            {VIEWS.map((v) => {
-              const key = COUNT_OF[v];
-              const n = key && counts.data ? counts.data[key] : 0;
-              const active = v === filter.view;
-              return (
-                <Link
-                  key={v}
-                  to={to({ ...filter, view: v })}
-                  className="tabs__tab"
-                  data-state={active ? 'active' : 'inactive'}
-                  aria-current={active ? 'page' : undefined}
-                >
-                  {VIEW_LABEL[v]}
-                  {n > 0 && (
-                    <span className="count-pill" data-testid={`count-${v}`}>
-                      {n}
-                    </span>
-                  )}
-                </Link>
-              );
-            })}
-          </nav>
-          <div className="inbox__filters">
-            <label className="field field--inline">
-              <span className="field__label">Channel</span>
-              <select
-                className="input"
-                value={filter.channel ?? ''}
-                onChange={(e) =>
-                  void navigate(to({ ...filter, channel: channelOf(e.target.value) }))
-                }
-              >
-                <option value="">All channels</option>
-                {CHANNELS.map((ch) => (
-                  <option value={ch} key={ch}>
-                    {CHANNEL_LABEL[ch]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="field field--inline">
-              <span className="field__label">Assigned to</span>
-              <select
-                className="input"
-                data-testid="assignee-filter"
-                aria-describedby="assignee-help"
-                value={filter.assignee ?? ''}
-                onChange={(e) => void navigate(to({ ...filter, assignee: e.target.value || null }))}
-              >
-                <option value="">Anyone</option>
-                <option value="me">Mine</option>
-                <option value="none">Unassigned</option>
-                {members.data?.members
-                  .filter((m) => m.userId !== meId)
-                  .map((m) => (
-                    <option key={m.userId} value={m.userId}>
-                      {m.name}
-                    </option>
-                  ))}
-              </select>
-            </label>
-            <span id="assignee-help" className="sr-only">
-              Who has it, or who it was escalated to.
-            </span>
-          </div>
           <div className="inbox__rows">
             {list.isPending && (
               <ul className="conversation-list" aria-busy="true" aria-label="Loading conversations">
@@ -333,6 +400,25 @@ function InboxList({
     </>
   );
 }
+
+/** A removable active-filter chip (FEAT-075 ui-design Filters panel). */
+function FilterChip({ text, to }: { text: string; to: string }) {
+  return (
+    <li className="filter-chip">
+      {text}
+      <Link className="filter-chip__remove" to={to} aria-label={`Remove filter ${text}`}>
+        <Glyph name="x" size={12} />
+      </Link>
+    </li>
+  );
+}
+
+const assigneeLabel = (a: string, members: { userId: string; name: string }[] | undefined) =>
+  a === 'me'
+    ? 'Mine'
+    : a === 'none'
+      ? 'Unassigned'
+      : (members?.find((m) => m.userId === a)?.name ?? 'A team member');
 
 function ListEmpty({ filter, onClear }: { filter: InboxFilter; onClear: () => void }) {
   if (filter.channel || filter.assignee)

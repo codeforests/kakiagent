@@ -426,29 +426,24 @@ a {
 }
 
 /* FEAT-042: the inbox (SCR-APP-014) and conversation (SCR-APP-015), ui-design Layout. */
+/* FEAT-075 (D4): the connection state, a caption with a dot beside the title. */
 .live {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
   font-size: var(--type-caption-size);
-  padding: var(--space-1) var(--space-3);
-  border-radius: var(--radius-full);
-  margin-bottom: var(--space-5);
+  line-height: var(--type-caption-line);
+  color: var(--color-text-secondary);
 }
 .live__dot {
-  width: var(--space-2);
-  height: var(--space-2);
+  width: calc(var(--space-2) + var(--space-1));
+  height: calc(var(--space-2) + var(--space-1));
   border-radius: var(--radius-full);
-  background: currentColor;
+  background: var(--color-success-default);
 }
-.live--live {
-  background: var(--color-success-soft);
-  color: var(--color-success-default);
-}
-.live--connecting,
-.live--offline {
-  background: var(--color-warning-soft);
-  color: var(--color-warning-default);
+.live--connecting .live__dot,
+.live--offline .live__dot {
+  background: var(--color-warning-default);
 }
 .content:has(.inbox) {
   max-width: none;
@@ -468,14 +463,124 @@ a {
   display: flex;
   flex-direction: column;
 }
+.inbox__top {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+.inbox__header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-4);
+}
 .inbox__header .page-title {
-  margin-bottom: var(--space-4);
+  margin: 0;
+  font-size: var(--type-title-size);
+  line-height: var(--type-title-line);
+  font-weight: var(--type-title-weight);
 }
-.inbox__header .live {
-  margin-bottom: var(--space-4);
+.inbox__top > .alert {
+  margin: 0;
 }
-.inbox__views {
-  margin-bottom: var(--space-4);
+.inbox__toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.inbox__toolbar .search-field {
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 0;
+}
+.filters-button {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--size-control-md);
+}
+.filters-button--active {
+  border-color: var(--color-accent-default);
+}
+.filters-button__count {
+  min-width: var(--space-5);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-full);
+  background: var(--color-accent-default);
+  color: var(--color-text-on-accent);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+  text-align: center;
+}
+.filters-panel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+  padding: var(--space-4);
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+.filters-panel[hidden] {
+  display: none;
+}
+@media (max-width: 399px) {
+  .filters-panel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding-left: var(--space-3);
+  background: var(--color-bg-subtle);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-full);
+  font-size: var(--type-body-sm-size);
+  line-height: var(--type-body-sm-line);
+}
+.filter-chip__remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size-control-sm);
+  height: var(--size-control-sm);
+  border-radius: var(--radius-full);
+  color: var(--color-text-secondary);
+}
+.filter-chip__remove:hover {
+  color: var(--color-text-primary);
+}
+.filter-chips__clear {
+  padding: 0 var(--space-2);
+  color: var(--color-text-link);
+  font-size: var(--type-body-sm-size);
+}
+@media (max-width: 639px) {
+  .filters-button {
+    min-height: var(--size-control-lg);
+    min-width: var(--size-control-lg);
+    justify-content: center;
+    padding: 0 var(--space-3);
+  }
+  .filters-button__label {
+    display: none;
+  }
+  .inbox__toolbar .search-field__input {
+    min-height: var(--size-control-lg);
+  }
 }
 .inbox__views .tabs__tab {
   display: inline-flex;
@@ -491,15 +596,6 @@ a {
   color: var(--color-text-secondary);
   font-size: var(--type-caption-size);
   text-align: center;
-}
-.inbox__filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-3);
-  margin-bottom: var(--space-4);
-}
-.inbox__list > .alert {
-  margin-bottom: var(--space-4);
 }
 /* FEAT-075 (§5.2, AC-1): at ≥ 1024 the inbox fills what the top bar and banners leave; the page
    doesn't scroll, each pane scrolls on its own, and in the thread only the log scrolls. */
@@ -537,6 +633,11 @@ a {
   .inbox__list {
     background: var(--color-bg-surface);
     border-right: 1px solid var(--color-border-default);
+  }
+  .inbox__top {
+    flex: none;
+    margin: 0;
+    padding: var(--space-5) var(--space-5) 0;
   }
   .inbox__thread {
     background: var(--color-bg-canvas);
@@ -687,14 +788,15 @@ a {
 }
 .search-field__icon {
   position: absolute;
-  left: var(--space-3);
+  left: var(--space-4);
   display: inline-flex;
   color: var(--color-text-secondary);
   pointer-events: none;
 }
-.search-field__input {
+.search-field .search-field__input {
   width: 100%;
-  padding-left: calc(var(--space-3) + var(--space-5));
+  /* FEAT-075 finding 1: clear of the icon (inset + icon + gap). */
+  padding-left: calc(var(--space-4) + var(--size-icon-sm) + var(--space-3));
   padding-right: var(--size-control-md);
 }
 .search-field__input::-webkit-search-cancel-button {
@@ -705,7 +807,7 @@ a {
   right: 0;
 }
 @media (pointer: coarse) {
-  .search-field__input {
+  .search-field .search-field__input {
     padding-right: var(--size-control-lg);
   }
 }
