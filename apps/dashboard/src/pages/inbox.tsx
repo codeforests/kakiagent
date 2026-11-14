@@ -1,9 +1,11 @@
 import type { InboxCounts, InboxView } from '@kaki/contracts';
 import { Button, EmptyState, ErrorState } from '@kaki/ui';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { api } from '../lib/api.ts';
+import { useMedia } from '../lib/media.ts';
 import {
   CHANNEL_LABEL,
   CHANNELS,
@@ -14,6 +16,7 @@ import {
   MEMBERS_KEY,
   searchFromView,
   VIEW_LABEL,
+  VIEW_SHORT_LABEL,
   VIEWS,
   viewFromSearch,
   type InboxFilter,
@@ -296,29 +299,7 @@ function InboxList({
                 </li>
               </ul>
             )}
-            <nav className="tabs inbox__views" aria-label="Views">
-              {VIEWS.map((v) => {
-                const key = COUNT_OF[v];
-                const n = key && counts.data ? counts.data[key] : 0;
-                const current = v === filter.view;
-                return (
-                  <Link
-                    key={v}
-                    to={to({ ...filter, view: v })}
-                    className="tabs__tab"
-                    data-state={current ? 'active' : 'inactive'}
-                    aria-current={current ? 'page' : undefined}
-                  >
-                    {VIEW_LABEL[v]}
-                    {n > 0 && (
-                      <span className="count-pill" data-testid={`count-${v}`}>
-                        {n}
-                      </span>
-                    )}
-                  </Link>
-                );
-              })}
-            </nav>
+            <ViewTabs filter={filter} counts={counts.data} to={to} />
           </>
         )}
       </div>
@@ -398,6 +379,90 @@ function InboxList({
         {announcement}
       </div>
     </>
+  );
+}
+
+const PHONE_MORE: InboxView[] = ['flagged', 'closed'];
+const WARN_PILL: Partial<Record<InboxView, true>> = { escalated: true, flagged: true };
+
+/**
+ * The views (FEAT-075 ui-design Views; D5): short labels with the full name as `title`.
+ * Below 640 px Flagged and Closed move into a More menu whose trigger shows Flagged's count.
+ */
+function ViewTabs({
+  filter,
+  counts,
+  to,
+}: {
+  filter: InboxFilter;
+  counts: InboxCounts | undefined;
+  to: (f: InboxFilter) => string;
+}) {
+  const phone = useMedia('(max-width: 639px)');
+  const count = (v: InboxView) => {
+    const key = COUNT_OF[v];
+    return key && counts ? counts[key] : 0;
+  };
+  const pill = (v: InboxView) => {
+    const n = count(v);
+    return n > 0 ? (
+      <span
+        className={`count-pill${WARN_PILL[v] ? ' count-pill--warning' : ''}`}
+        data-testid={`count-${v}`}
+      >
+        {n}
+      </span>
+    ) : null;
+  };
+  const shown = phone ? VIEWS.filter((v) => !PHONE_MORE.includes(v)) : VIEWS;
+  const inMore = phone && PHONE_MORE.includes(filter.view);
+  return (
+    <nav className="tabs inbox__views" aria-label="Views">
+      {shown.map((v) => {
+        const current = v === filter.view;
+        return (
+          <Link
+            key={v}
+            to={to({ ...filter, view: v })}
+            className="tabs__tab"
+            title={VIEW_SHORT_LABEL[v] === VIEW_LABEL[v] ? undefined : VIEW_LABEL[v]}
+            data-state={current ? 'active' : 'inactive'}
+            aria-current={current ? 'page' : undefined}
+          >
+            {VIEW_SHORT_LABEL[v]}
+            {pill(v)}
+          </Link>
+        );
+      })}
+      {phone && (
+        <DropdownMenu.Root modal={false}>
+          <DropdownMenu.Trigger
+            className="tabs__tab inbox__more"
+            data-state={inMore ? 'active' : 'inactive'}
+            aria-label={inMore ? `More views, ${VIEW_LABEL[filter.view]} selected` : 'More views'}
+          >
+            {inMore ? VIEW_SHORT_LABEL[filter.view] : 'More'}
+            {pill('flagged')}
+            <Glyph name="chevron-down" size={14} />
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Portal>
+            <DropdownMenu.Content className="menu" align="end" sideOffset={4}>
+              {PHONE_MORE.map((v) => (
+                <DropdownMenu.Item key={v} className="menu__item" asChild>
+                  <Link
+                    to={to({ ...filter, view: v })}
+                    aria-current={v === filter.view ? 'page' : undefined}
+                  >
+                    {VIEW_LABEL[v]}
+                    {count(v) > 0 && ` (${count(v)})`}
+                  </Link>
+                </DropdownMenu.Item>
+              ))}
+            </DropdownMenu.Content>
+          </DropdownMenu.Portal>
+        </DropdownMenu.Root>
+      )}
+    </nav>
   );
 }
 

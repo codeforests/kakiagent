@@ -582,11 +582,43 @@ a {
     min-height: var(--size-control-lg);
   }
 }
+/* FEAT-075 (AC-4): all five views fit the list pane at ≥ 1024, no scrollbar. */
+.tabs.inbox__views {
+  gap: var(--space-3);
+  justify-content: space-between;
+}
 .inbox__views .tabs__tab {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
+  padding: 0;
+  font-size: var(--type-body-sm-size);
   text-decoration: none;
+}
+.inbox__views .count-pill {
+  min-width: var(--space-5);
+  padding: 0 var(--space-1);
+  line-height: var(--type-caption-line);
+}
+/* The 360 px pane (1024–1279): caption-size labels, so five views and four counts still fit. */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .tabs.inbox__views {
+    gap: var(--space-2);
+  }
+  .inbox__views .tabs__tab {
+    gap: var(--space-1);
+    font-size: var(--type-caption-size);
+  }
+}
+.inbox__views .tabs__tab[data-state='active'] {
+  font-weight: var(--font-weight-semibold);
+}
+.inbox__more {
+  margin-left: auto;
+}
+.count-pill--warning {
+  background: var(--color-warning-soft);
+  color: var(--color-warning-default);
 }
 .count-pill {
   min-width: var(--space-5);
