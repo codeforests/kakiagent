@@ -72,6 +72,13 @@ export function auditSearchOf(f: AuditFilter): string {
   return s ? `?${s}` : '';
 }
 
+/** A copy of the filter without some keys. */
+export function without(f: AuditFilter, ...keys: (keyof AuditFilter)[]): AuditFilter {
+  const out = { ...f };
+  for (const k of keys) delete out[k];
+  return out;
+}
+
 /** How many filters are set (the phone "Filters (2)" button); a date range counts once. */
 export function filterCount(f: AuditFilter): number {
   return (
@@ -447,9 +454,10 @@ export function auditExportErrorText(err: unknown): string {
 export const AUDIT_KEY = ['audit'] as const;
 const entriesKey = (f: AuditFilter) => ['audit', 'entries', auditSearchOf(f)] as const;
 
-export function useAuditEntries(f: AuditFilter) {
+export function useAuditEntries(f: AuditFilter, enabled = true) {
   return useInfiniteQuery({
     queryKey: entriesKey(f),
+    enabled,
     queryFn: ({ pageParam }) =>
       api.auditEntries({ ...auditApiFilter(f), ...(pageParam ? { before: pageParam } : {}) }),
     initialPageParam: undefined as number | undefined,
@@ -500,3 +508,13 @@ export const exportBodyOf = (f: AuditFilter, format: 'csv' | 'json'): AuditExpor
   ...auditApiFilter(f),
   format,
 });
+
+/** The detail panel's state from the loaded row or its own fetch. */
+export function detailState(
+  row: AuditRow | undefined,
+  q: { isError: boolean; error: unknown },
+): 'loading' | 'not_found' | 'error' | 'ready' {
+  if (row) return 'ready';
+  if (q.error instanceof ApiError && q.error.status === 404) return 'not_found';
+  return q.isError ? 'error' : 'loading';
+}

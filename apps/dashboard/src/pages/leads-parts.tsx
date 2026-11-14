@@ -99,7 +99,7 @@ export function MarketingFlag({ marketing }: { marketing: LeadMarketing }) {
 }
 
 /** Saves the CSV under its name through a temporary object URL. */
-function save(blob: Blob, name: string) {
+export function save(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

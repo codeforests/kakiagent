@@ -1,10 +1,14 @@
+import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
+import { api } from '../lib/api.ts';
 
 interface Row {
   name: string;
   purpose: string;
   /** Built screens link; the rest show "Coming soon" (FEAT-024 ui-design, Settings index). */
   to?: string;
+  /** Owner and Admin only: Agents don't see the row (FEAT-060). */
+  managers?: true;
 }
 
 /** The Settings groups from the IA (ux-foundations "Settings"), in its order. */
@@ -59,7 +63,12 @@ const GROUPS: { title: string; rows: Row[] }[] = [
         purpose: 'Fields visitors fill in and the consent they give',
         to: '/settings/leads',
       },
-      { name: 'Audit log', purpose: 'Every decision and change, verifiable' },
+      {
+        name: 'Audit log',
+        purpose: 'Every decision and change, verifiable',
+        to: '/settings/audit',
+        managers: true,
+      },
     ],
   },
   {
@@ -70,6 +79,8 @@ const GROUPS: { title: string; rows: Row[] }[] = [
 
 /** The Settings section's landing list (FEAT-024 ui-design); other rows link as they are built. */
 export function SettingsPage() {
+  const me = useQuery({ queryKey: ['me'], queryFn: api.me });
+  const manager = me.data?.role === 'owner' || me.data?.role === 'admin';
   return (
     <>
       <h1 className="page-title">Settings</h1>
@@ -78,27 +89,29 @@ export function SettingsPage() {
           <section className="card settings-group" key={g.title} aria-label={g.title}>
             <h2 className="settings-group__title">{g.title}</h2>
             <ul className="settings-list">
-              {g.rows.map((r) => (
-                <li key={r.name}>
-                  {r.to ? (
-                    <Link className="settings-row" to={r.to}>
-                      <span className="settings-row__text">
-                        <span className="settings-row__name">{r.name}</span>
-                        <span className="settings-row__purpose">{r.purpose}</span>
-                      </span>
-                      <span aria-hidden="true">›</span>
-                    </Link>
-                  ) : (
-                    <div className="settings-row settings-row--soon">
-                      <span className="settings-row__text">
-                        <span className="settings-row__name">{r.name}</span>
-                        <span>{r.purpose}</span>
-                      </span>
-                      <span className="settings-row__soon">Coming soon</span>
-                    </div>
-                  )}
-                </li>
-              ))}
+              {g.rows
+                .filter((r) => !r.managers || manager)
+                .map((r) => (
+                  <li key={r.name}>
+                    {r.to ? (
+                      <Link className="settings-row" to={r.to}>
+                        <span className="settings-row__text">
+                          <span className="settings-row__name">{r.name}</span>
+                          <span className="settings-row__purpose">{r.purpose}</span>
+                        </span>
+                        <span aria-hidden="true">›</span>
+                      </Link>
+                    ) : (
+                      <div className="settings-row settings-row--soon">
+                        <span className="settings-row__text">
+                          <span className="settings-row__name">{r.name}</span>
+                          <span>{r.purpose}</span>
+                        </span>
+                        <span className="settings-row__soon">Coming soon</span>
+                      </div>
+                    )}
+                  </li>
+                ))}
             </ul>
           </section>
         ))}
