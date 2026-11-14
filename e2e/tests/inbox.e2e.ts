@@ -71,7 +71,7 @@ test('a widget chat shows live in the inbox and thread; close, then a new messag
   await signIn(owner, 'owner@kaki-bakery.test');
   await createFact(owner, name, '18');
   await owner.goto('/inbox');
-  await expect(owner.getByTestId('live-state')).toHaveText('Live');
+  await expect(owner.getByTestId('live-state')).toHaveText('Connected');
 
   // A visitor asks; the row arrives in the Open list without a reload.
   const visitor = await visitorChat(browser);
@@ -137,6 +137,141 @@ test('a widget chat shows live in the inbox and thread; close, then a new messag
     owner.getByTestId('thread-divider').filter({ hasText: 'Reopened by a new visitor message' }),
   ).toBeVisible();
   await visitor.context.close();
+});
+
+// FEAT-075 (Inbox redesign): the full-height layout, the empty state, the Filters panel and
+// chips, and the selection rule (D2) at 1440 × 900; axe at 1440 × 900 and 375 × 812.
+test('the redesigned inbox: layout, filters and chips, and the selection rule (FEAT-075)', async ({
+  page: owner,
+  browser,
+}) => {
+  await owner.setViewportSize({ width: 1440, height: 900 });
+  await signIn(owner, 'owner@kaki-bakery.test');
+  const visitor = await visitorChat(browser);
+  const id = await firstMessage(visitor.page, visitor.send, `do you have pandan cake? ${token()}`);
+  await visitor.context.close();
+  const details = owner.getByRole('complementary', { name: 'Conversation details' });
+  // AC-1 holds with a channel-health banner showing: report the first channel as degraded.
+  await owner.route('**/api/v1/channels', async (route) => {
+    const res = await route.fetch();
+    const body = (await res.json()) as { channels: { health: string | null }[] };
+    expect(body.channels.length).toBeGreaterThan(0);
+    body.channels[0]!.health = 'degraded';
+    await route.fulfill({ response: res, json: body });
+  });
+  const views = owner.getByRole('navigation', { name: 'Views' });
+  const viewsFit = () =>
+    views.evaluate((nav) => ({ scroll: nav.scrollWidth, client: nav.clientWidth }));
+  // The search placeholder clears the icon by at least 8 px (AC-7, review finding 1).
+  const searchClear = () =>
+    owner.evaluate(() => {
+      const input = document.querySelector<HTMLInputElement>('.search-field__input')!;
+      const icon = document.querySelector('.search-field__icon')!.getBoundingClientRect();
+      const text =
+        input.getBoundingClientRect().left + parseFloat(getComputedStyle(input).paddingLeft);
+      return text - icon.right;
+    });
+
+  // Nothing selected: the empty state, and no details pane (AC-2).
+  await owner.goto('/inbox');
+  const row = owner.locator(`[data-testid="conversation-row"][data-id="${id}"]`);
+  await expect(row).toBeVisible();
+  await expect(owner.getByRole('region', { name: 'Channel problem' })).toBeVisible();
+  await expect(owner.getByRole('heading', { name: 'Pick a conversation' })).toBeVisible();
+  await expect(details).toHaveCount(0);
+  await expectNoSeriousA11yViolations(owner);
+  expect(await searchClear()).toBeGreaterThanOrEqual(8);
+
+  // All five views fit without scrolling at 1440 and 1024 (AC-4).
+  for (const name of [/^Open/, /^Escalated/, /^Approval/, /^Flagged/, /^Closed/])
+    await expect(views.getByRole('link', { name })).toBeVisible();
+  let fit = await viewsFit();
+  expect(fit.scroll).toBeLessThanOrEqual(fit.client);
+  await owner.setViewportSize({ width: 1024, height: 900 });
+  await expect(views.getByRole('link', { name: /^Closed/ })).toBeVisible();
+  fit = await viewsFit();
+  expect(fit.scroll).toBeLessThanOrEqual(fit.client);
+  await owner.setViewportSize({ width: 1440, height: 900 });
+
+  // Open it: the page doesn't scroll and the dock is on screen, banner and all (AC-1).
+  await row.getByRole('link').click();
+  await expect(owner).toHaveURL(new RegExp(`/inbox/${id}$`));
+  await expect(details).toBeVisible();
+  await expect(owner.getByRole('region', { name: 'Channel problem' })).toBeVisible();
+  // A widget visitor with no contact name is labelled by channel (AC-8).
+  await expect(
+    owner.getByRole('log', { name: 'Conversation' }).locator('.bubble-meta__author').first(),
+  ).toHaveText('Website visitor');
+  const dock = owner.getByTestId('thread-dock');
+  await expect(dock).toBeVisible();
+  const fits = await owner.evaluate(() => ({
+    page: document.scrollingElement!.scrollHeight <= window.innerHeight,
+    dock: document.querySelector('[data-testid="thread-dock"]')!.getBoundingClientRect().bottom,
+  }));
+  expect(fits.page).toBe(true);
+  expect(fits.dock).toBeLessThanOrEqual(900);
+  await expectNoSeriousA11yViolations(owner);
+
+  // A filter the open conversation matches keeps it, and shows a chip (AC-3, AC-5).
+  const filters = owner.getByRole('button', { name: /^Filters/ });
+  await filters.click();
+  await expect(filters).toHaveAttribute('aria-expanded', 'true');
+  await owner.locator('#inbox-filters').getByLabel('Channel').selectOption('widget');
+  await expect(owner).toHaveURL(new RegExp(`/inbox/${id}\\?channel=widget$`));
+  await expect(owner.getByRole('list', { name: 'Active filters' })).toContainText(
+    'Channel: Website chat',
+  );
+  await expect(filters).toHaveAccessibleName('Filters 1 active');
+  await owner.getByRole('link', { name: 'Remove filter Channel: Website chat' }).click();
+  await expect(owner).toHaveURL(new RegExp(`/inbox/${id}$`));
+  await expect(owner.getByRole('list', { name: 'Active filters' })).toHaveCount(0);
+
+  // A view it isn't in clears the selection: the empty state shows (AC-3, D2).
+  await owner
+    .getByRole('navigation', { name: 'Views' })
+    .getByRole('link', { name: /^Escalated/ })
+    .click();
+  await expect(owner).toHaveURL(/\/inbox\?view=escalated$/);
+  await expect(owner.getByRole('heading', { name: 'Pick a conversation' })).toBeVisible();
+  await expect(details).toHaveCount(0);
+
+  // Phone width (AC-12).
+  await owner.setViewportSize({ width: 375, height: 812 });
+  await owner.goto('/inbox');
+  await expect(row).toBeVisible();
+  await expectNoSeriousA11yViolations(owner);
+  expect(await searchClear()).toBeGreaterThanOrEqual(8); // AC-7
+
+  // Below 640 px Flagged and Closed sit in the More menu (AC-4).
+  await expect(views.getByRole('link', { name: /^Flagged/ })).toHaveCount(0);
+  await views.getByRole('button', { name: 'More views' }).click();
+  const menu = owner.getByRole('menu');
+  await expect(menu.getByRole('menuitem', { name: /^Flagged/ })).toHaveAttribute(
+    'href',
+    '/inbox?view=flagged',
+  );
+  await expect(menu.getByRole('menuitem', { name: /^Closed/ })).toHaveAttribute(
+    'href',
+    '/inbox?view=closed',
+  );
+  await owner.keyboard.press('Escape');
+
+  await owner.goto(`/inbox/${id}`);
+  await expect(owner.getByRole('log', { name: 'Conversation' })).toBeVisible();
+  await expectNoSeriousA11yViolations(owner);
+  // The phone header: at most two text lines, Back, details and More as 44 px targets (AC-10).
+  const header = owner.locator('.thread-header');
+  const text = await header.locator('.thread-header__text').boundingBox();
+  expect(text!.height).toBeLessThanOrEqual(48);
+  for (const target of [
+    header.getByRole('link', { name: 'Back to inbox' }),
+    header.getByRole('button', { name: 'Conversation details' }),
+    header.getByRole('button', { name: 'More actions' }),
+  ]) {
+    const box = await target.boundingBox();
+    expect(box!.width).toBeGreaterThanOrEqual(44);
+    expect(box!.height).toBeGreaterThanOrEqual(44);
+  }
 });
 
 test('a crisis message lists the conversation under Flagged (AGT-13)', async ({
@@ -221,7 +356,7 @@ test('a dropped socket shows Reconnecting, and reconnecting loses nothing (AC-1)
   });
   await signIn(owner, 'owner@kaki-bakery.test');
   await owner.goto('/inbox');
-  await expect(owner.getByTestId('live-state')).toHaveText('Live');
+  await expect(owner.getByTestId('live-state')).toHaveText('Connected');
 
   down = true;
   await current!.close({ code: 4000, reason: 'test: dropped' });
@@ -234,6 +369,6 @@ test('a dropped socket shows Reconnecting, and reconnecting loses nothing (AC-1)
   await visitor.context.close();
 
   down = false;
-  await expect(owner.getByTestId('live-state')).toHaveText('Live', { timeout: 30_000 });
+  await expect(owner.getByTestId('live-state')).toHaveText('Connected', { timeout: 30_000 });
   await expect(owner.locator(`[data-testid="conversation-row"][data-id="${id}"]`)).toBeVisible();
 });

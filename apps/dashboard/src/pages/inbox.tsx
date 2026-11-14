@@ -1,19 +1,30 @@
-import type { InboxCounts, InboxView } from '@kaki/contracts';
+import type { ConversationList, InboxCounts, InboxView } from '@kaki/contracts';
 import { Button, EmptyState, ErrorState } from '@kaki/ui';
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import {
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+  type InfiniteData,
+  type QueryClient,
+} from '@tanstack/react-query';
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { api } from '../lib/api.ts';
+import { useMedia } from '../lib/media.ts';
 import {
   CHANNEL_LABEL,
   CHANNELS,
   channelOf,
   COUNTS_KEY,
   flattenPages,
+  inView,
   listKey,
   MEMBERS_KEY,
   searchFromView,
+  threadKey,
   VIEW_LABEL,
+  VIEW_SHORT_LABEL,
   VIEWS,
   viewFromSearch,
   type InboxFilter,
@@ -21,6 +32,7 @@ import {
 import { inboxEvents, useLiveState, type LiveState } from '../lib/realtime.ts';
 import { useInboxSearch } from '../lib/search.ts';
 import { ConversationPane } from './conversation.tsx';
+import { Glyph } from './conversation-parts.tsx';
 import { Row } from './inbox-row.tsx';
 import { SearchField, SearchResults } from './inbox-search.tsx';
 
@@ -51,6 +63,7 @@ export function InboxPage() {
   const filter = viewFromSearch(search);
   const qs = searchFromView(filter);
   const live = useLiveState();
+  const counts = useCounts();
 
   return (
     <div className={`inbox ${conversationId ? 'inbox--thread' : 'inbox--list'}`}>
@@ -61,11 +74,48 @@ export function InboxPage() {
         {conversationId ? (
           <ConversationPane key={conversationId} id={conversationId} backTo={`/inbox${qs}`} />
         ) : (
-          <EmptyState title="Pick a conversation">
-            Choose a conversation from the list to read it.
-          </EmptyState>
+          <NothingSelected filter={filter} escalated={counts.data?.escalated ?? 0} />
         )}
       </section>
+    </div>
+  );
+}
+
+/** The tab counts, shared by the views and the empty state (one cached query). */
+function useCounts() {
+  return useQuery({
+    queryKey: COUNTS_KEY,
+    queryFn: async () =>
+      (await api.conversations({ view: 'open', channel: null, limit: 1 })).counts,
+  });
+}
+
+/** The thread pane with nothing selected (FEAT-075 ui-design Empty state; D6). */
+function NothingSelected({ filter, escalated }: { filter: InboxFilter; escalated: number }) {
+  return (
+    <div className="inbox-empty">
+      <span className="inbox-empty__icon" aria-hidden="true">
+        <Glyph name="message-square-text" size={24} />
+      </span>
+      <h2 className="inbox-empty__title">Pick a conversation</h2>
+      <p className="inbox-empty__text">
+        Choose a conversation from the list to read it. The visitor's details open beside it.
+      </p>
+      {escalated > 0 && filter.view !== 'escalated' && (
+        <div className="inbox-empty__card" data-testid="escalated-shortcut">
+          <span className="inbox-empty__warn" aria-hidden="true">
+            <Glyph name="alert-triangle" size={16} />
+          </span>
+          <span>
+            {escalated} escalated conversation{escalated === 1 ? '' : 's'} waiting.
+          </span>
+          <Button variant="ghost" asChild>
+            <Link to={`/inbox${searchFromView({ ...filter, view: 'escalated' })}`}>
+              Show escalated
+            </Link>
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -74,7 +124,7 @@ function LiveBadge({ live }: { live: LiveState }) {
   return (
     <span className={`live live--${live}`} data-testid="live-state">
       <span className="live__dot" aria-hidden="true" />
-      {live === 'live' ? 'Live' : live === 'connecting' ? 'Connecting…' : 'Reconnecting…'}
+      {live === 'live' ? 'Connected' : live === 'connecting' ? 'Connecting…' : 'Reconnecting…'}
     </span>
   );
 }
@@ -113,13 +163,10 @@ function InboxList({
   selected: string | null;
 }) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const announcement = useAnnouncement();
   const search = useInboxSearch();
-  const counts = useQuery({
-    queryKey: COUNTS_KEY,
-    queryFn: async () =>
-      (await api.conversations({ view: 'open', channel: null, limit: 1 })).counts,
-  });
+  const counts = useCounts();
   const list = useInfiniteQuery({
     queryKey: listKey(filter),
     queryFn: ({ pageParam }) => api.conversations({ ...filter, cursor: pageParam }),
@@ -137,93 +184,153 @@ function InboxList({
   });
   const meId = me.data?.user.id ?? null;
   const now = useMinuteNow();
-  // Switching views keeps the open conversation on screen (the thread pane, ≥ 1024).
-  const to = (f: InboxFilter) => `/inbox${selected ? `/${selected}` : ''}${searchFromView(f)}`;
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const filtersButton = useRef<HTMLButtonElement>(null);
+  const active = (filter.channel ? 1 : 0) + (filter.assignee ? 1 : 0);
+  // FEAT-075 D2: a view or filter change keeps the open conversation only when it belongs in
+  // the result (`inView`, from the summary the client already has); otherwise the empty state.
+  // A live change never deselects: only these links and selects go through `to`.
+  const thread = useQuery({
+    queryKey: threadKey(selected ?? ''),
+    queryFn: () => api.conversation(selected ?? ''),
+    enabled: false,
+  });
+  // Lists are patched synchronously by live events while the thread is only refetched, so
+  // a cached row is the freshest copy; the thread covers a conversation in no loaded page.
+  const summary = selected
+    ? (rowsOf(queryClient, selected) ?? thread.data?.conversation)
+    : undefined;
+  const to = (f: InboxFilter) =>
+    `/inbox${selected && inView(summary, f, meId) ? `/${selected}` : ''}${searchFromView(f)}`;
 
   return (
     <>
-      <div className="page-header inbox__header">
-        <h1 className="page-title" id="inbox-title">
-          Inbox
-        </h1>
-        <LiveBadge live={live} />
-      </div>
-      {live === 'offline' && (
-        <div className="alert alert--info" role="status">
-          Reconnecting. New messages will appear when the connection is back.
+      <div className="inbox__top">
+        <div className="inbox__header">
+          <h1 className="page-title" id="inbox-title">
+            Inbox
+          </h1>
+          <LiveBadge live={live} />
         </div>
-      )}
-      <SearchField />
+        {live === 'offline' && (
+          <div className="alert alert--info" role="status">
+            Reconnecting. New messages will appear when the connection is back.
+          </div>
+        )}
+        <div className="inbox__toolbar">
+          <SearchField />
+          {!search.active && (
+            <button
+              type="button"
+              className={`kaki-btn kaki-btn--secondary filters-button${active > 0 ? ' filters-button--active' : ''}`}
+              aria-expanded={filtersOpen}
+              aria-controls="inbox-filters"
+              ref={filtersButton}
+              onClick={() => setFiltersOpen((o) => !o)}
+            >
+              {/* Named by its content, "Filters 1 active", so the name holds the visible
+                  label and count (WCAG 2.5.3; FEAT-075 rework R1). */}
+              <Glyph name="sliders" size={16} />
+              <span className="filters-button__label">Filters</span>
+              {active > 0 && (
+                <>
+                  <span className="filters-button__count">{active}</span>
+                  <span className="sr-only"> active</span>
+                </>
+              )}
+            </button>
+          )}
+        </div>
+        {!search.active && (
+          <>
+            <div
+              className="filters-panel"
+              id="inbox-filters"
+              hidden={!filtersOpen}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  e.stopPropagation();
+                  setFiltersOpen(false);
+                  filtersButton.current?.focus();
+                }
+              }}
+            >
+              <label className="field">
+                <span className="field__label">Channel</span>
+                <select
+                  className="input"
+                  value={filter.channel ?? ''}
+                  onChange={(e) =>
+                    void navigate(to({ ...filter, channel: channelOf(e.target.value) }))
+                  }
+                >
+                  <option value="">All channels</option>
+                  {CHANNELS.map((ch) => (
+                    <option value={ch} key={ch}>
+                      {CHANNEL_LABEL[ch]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span className="field__label">Assigned to</span>
+                <select
+                  className="input"
+                  data-testid="assignee-filter"
+                  aria-describedby="assignee-help"
+                  value={filter.assignee ?? ''}
+                  onChange={(e) =>
+                    void navigate(to({ ...filter, assignee: e.target.value || null }))
+                  }
+                >
+                  <option value="">Anyone</option>
+                  <option value="me">Mine</option>
+                  <option value="none">Unassigned</option>
+                  {members.data?.members
+                    .filter((m) => m.userId !== meId)
+                    .map((m) => (
+                      <option key={m.userId} value={m.userId}>
+                        {m.name}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <span id="assignee-help" className="sr-only">
+                Who has it, or who it was escalated to.
+              </span>
+            </div>
+            {active > 0 && (
+              <ul className="filter-chips" aria-label="Active filters">
+                {filter.channel && (
+                  <FilterChip
+                    text={`Channel: ${CHANNEL_LABEL[filter.channel]}`}
+                    to={to({ ...filter, channel: null })}
+                  />
+                )}
+                {filter.assignee && (
+                  <FilterChip
+                    text={`Assigned: ${assigneeLabel(filter.assignee, members.data?.members)}`}
+                    to={to({ ...filter, assignee: null })}
+                  />
+                )}
+                <li>
+                  <Link
+                    className="filter-chips__clear"
+                    to={to({ ...filter, channel: null, assignee: null })}
+                  >
+                    Clear all
+                  </Link>
+                </li>
+              </ul>
+            )}
+            <ViewTabs filter={filter} counts={counts.data} to={to} />
+          </>
+        )}
+      </div>
       {search.active ? (
         <SearchResults qs={qs} selected={selected} meId={meId} now={now} />
       ) : (
         <>
-          <nav className="tabs inbox__views" aria-label="Views">
-            {VIEWS.map((v) => {
-              const key = COUNT_OF[v];
-              const n = key && counts.data ? counts.data[key] : 0;
-              const active = v === filter.view;
-              return (
-                <Link
-                  key={v}
-                  to={to({ ...filter, view: v })}
-                  className="tabs__tab"
-                  data-state={active ? 'active' : 'inactive'}
-                  aria-current={active ? 'page' : undefined}
-                >
-                  {VIEW_LABEL[v]}
-                  {n > 0 && (
-                    <span className="count-pill" data-testid={`count-${v}`}>
-                      {n}
-                    </span>
-                  )}
-                </Link>
-              );
-            })}
-          </nav>
-          <div className="inbox__filters">
-            <label className="field field--inline">
-              <span className="field__label">Channel</span>
-              <select
-                className="input"
-                value={filter.channel ?? ''}
-                onChange={(e) =>
-                  void navigate(to({ ...filter, channel: channelOf(e.target.value) }))
-                }
-              >
-                <option value="">All channels</option>
-                {CHANNELS.map((ch) => (
-                  <option value={ch} key={ch}>
-                    {CHANNEL_LABEL[ch]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="field field--inline">
-              <span className="field__label">Assigned to</span>
-              <select
-                className="input"
-                data-testid="assignee-filter"
-                aria-describedby="assignee-help"
-                value={filter.assignee ?? ''}
-                onChange={(e) => void navigate(to({ ...filter, assignee: e.target.value || null }))}
-              >
-                <option value="">Anyone</option>
-                <option value="me">Mine</option>
-                <option value="none">Unassigned</option>
-                {members.data?.members
-                  .filter((m) => m.userId !== meId)
-                  .map((m) => (
-                    <option key={m.userId} value={m.userId}>
-                      {m.name}
-                    </option>
-                  ))}
-              </select>
-            </label>
-            <span id="assignee-help" className="sr-only">
-              Who has it, or who it was escalated to.
-            </span>
-          </div>
           <div className="inbox__rows">
             {list.isPending && (
               <ul className="conversation-list" aria-busy="true" aria-label="Loading conversations">
@@ -299,6 +406,120 @@ function InboxList({
   );
 }
 
+const PHONE_MORE: InboxView[] = ['flagged', 'closed'];
+const WARN_PILL: Partial<Record<InboxView, true>> = { escalated: true, flagged: true };
+
+/**
+ * The views (FEAT-075 ui-design Views; D5): short labels with the full name as `title`.
+ * Below 640 px Flagged and Closed move into a More menu whose trigger shows Flagged's count.
+ */
+function ViewTabs({
+  filter,
+  counts,
+  to,
+}: {
+  filter: InboxFilter;
+  counts: InboxCounts | undefined;
+  to: (f: InboxFilter) => string;
+}) {
+  const phone = useMedia('(max-width: 639px)');
+  const count = (v: InboxView) => {
+    const key = COUNT_OF[v];
+    return key && counts ? counts[key] : 0;
+  };
+  const pill = (v: InboxView) => {
+    const n = count(v);
+    return n > 0 ? (
+      <span
+        className={`count-pill${WARN_PILL[v] ? ' count-pill--warning' : ''}`}
+        data-testid={`count-${v}`}
+      >
+        {n}
+      </span>
+    ) : null;
+  };
+  const shown = phone ? VIEWS.filter((v) => !PHONE_MORE.includes(v)) : VIEWS;
+  const inMore = phone && PHONE_MORE.includes(filter.view);
+  return (
+    <nav className="tabs inbox__views" aria-label="Views">
+      {shown.map((v) => {
+        const current = v === filter.view;
+        return (
+          <Link
+            key={v}
+            to={to({ ...filter, view: v })}
+            className="tabs__tab"
+            title={VIEW_SHORT_LABEL[v] === VIEW_LABEL[v] ? undefined : VIEW_LABEL[v]}
+            data-state={current ? 'active' : 'inactive'}
+            aria-current={current ? 'page' : undefined}
+          >
+            {VIEW_SHORT_LABEL[v]}
+            {pill(v)}
+          </Link>
+        );
+      })}
+      {phone && (
+        <DropdownMenu.Root modal={false}>
+          <DropdownMenu.Trigger
+            className="tabs__tab inbox__more"
+            data-state={inMore ? 'active' : 'inactive'}
+          >
+            {/* Named by its content ("More views 2", "More views, Flagged selected 2"), so the
+                name holds the visible text (WCAG 2.5.3; FEAT-075 rework R1). */}
+            {inMore ? (
+              <>
+                <span className="sr-only">More views, </span>
+                {VIEW_SHORT_LABEL[filter.view]}
+                <span className="sr-only"> selected</span>
+              </>
+            ) : (
+              <>
+                More<span className="sr-only"> views</span>
+              </>
+            )}
+            {pill('flagged')}
+            <Glyph name="chevron-down" size={14} />
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Portal>
+            <DropdownMenu.Content className="menu" align="end" sideOffset={4}>
+              {PHONE_MORE.map((v) => (
+                <DropdownMenu.Item key={v} className="menu__item" asChild>
+                  <Link
+                    to={to({ ...filter, view: v })}
+                    aria-current={v === filter.view ? 'page' : undefined}
+                  >
+                    {VIEW_LABEL[v]}
+                    {count(v) > 0 && ` (${count(v)})`}
+                  </Link>
+                </DropdownMenu.Item>
+              ))}
+            </DropdownMenu.Content>
+          </DropdownMenu.Portal>
+        </DropdownMenu.Root>
+      )}
+    </nav>
+  );
+}
+
+/** A removable active-filter chip (FEAT-075 ui-design Filters panel). */
+function FilterChip({ text, to }: { text: string; to: string }) {
+  return (
+    <li className="filter-chip">
+      {text}
+      <Link className="filter-chip__remove" to={to} aria-label={`Remove filter ${text}`}>
+        <Glyph name="x" size={12} />
+      </Link>
+    </li>
+  );
+}
+
+const assigneeLabel = (a: string, members: { userId: string; name: string }[] | undefined) =>
+  a === 'me'
+    ? 'Mine'
+    : a === 'none'
+      ? 'Unassigned'
+      : (members?.find((m) => m.userId === a)?.name ?? 'A team member');
+
 function ListEmpty({ filter, onClear }: { filter: InboxFilter; onClear: () => void }) {
   if (filter.channel || filter.assignee)
     return (
@@ -325,6 +546,17 @@ function ListEmpty({ filter, onClear }: { filter: InboxFilter; onClear: () => vo
       </EmptyState>
     );
   return <EmptyState title={EMPTY_TITLE[filter.view]}>{EMPTY_VIEW[filter.view]}</EmptyState>;
+}
+
+/** The open conversation's summary from any cached list page, when the thread isn't loaded. */
+function rowsOf(queryClient: QueryClient, id: string) {
+  for (const [, data] of queryClient.getQueriesData<InfiniteData<ConversationList, unknown>>({
+    queryKey: ['conversations'],
+  })) {
+    const hit = flattenPages(data).find((c) => c.id === id);
+    if (hit) return hit;
+  }
+  return undefined;
 }
 
 /** The current time, refreshed every minute (escalation wait times, FEAT-044). */

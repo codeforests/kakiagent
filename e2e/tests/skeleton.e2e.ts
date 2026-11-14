@@ -19,7 +19,7 @@ test('a widget message gets a reply and shows up live in the inbox', async ({
   // Owner signs in with an emailed link (FEAT-005) and lands in the inbox.
   await signIn(owner, 'owner@kaki-bakery.test');
   await expect(owner.getByTestId('tenant-name')).toHaveText('Kaki Bakery');
-  await expect(owner.getByTestId('live-state')).toHaveText('Live');
+  await expect(owner.getByTestId('live-state')).toHaveText('Connected');
   await expectNoSeriousA11yViolations(owner);
   const rows = owner.getByTestId('conversation-row');
 
@@ -50,7 +50,7 @@ test('a widget message gets a reply and shows up live in the inbox', async ({
 test("the second tenant's owner cannot see the first tenant's conversations", async ({ page }) => {
   await signIn(page, 'owner@second-tenant.test');
   await expect(page.getByTestId('tenant-name')).toHaveText('Second Tenant Pte Ltd');
-  await expect(page.getByTestId('live-state')).toHaveText('Live');
+  await expect(page.getByTestId('live-state')).toHaveText('Connected');
   await expect(page.getByTestId('conversation-row').filter({ hasText: 'pandan' })).toHaveCount(0);
 });
 

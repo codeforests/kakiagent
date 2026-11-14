@@ -131,7 +131,17 @@ test('a visitor asks for a person and Mei Ling picks it up (AC-1, AC-3, AC-4, AC
     await expect(row.getByTestId('conversation-escalation')).toContainText(
       /For you · (just now|\d+ min)/,
     );
-    await expect(row.getByTestId('state-chip')).toHaveText('Escalated');
+    // A visitor asking in business hours makes it urgent (AC-4), and an urgent escalation
+    // shows one chip "Escalated · Urgent" (FEAT-075 AC-6); which one depends on the time.
+    const thread = await mei.request.get(`/api/v1/conversations/${id}`);
+    const { conversation } = (await thread.json()) as {
+      conversation: { escalation: { urgent: boolean } | null };
+    };
+    expect(conversation.escalation).not.toBeNull();
+    await expect(row.getByTestId('state-chip')).toHaveText(
+      conversation.escalation!.urgent ? 'Escalated · Urgent' : 'Escalated',
+    );
+    await expect(row.getByTestId('state-chip')).toHaveCount(1);
     await expectNoSeriousA11yViolations(mei);
 
     // The owner sees whom it was escalated to.

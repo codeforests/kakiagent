@@ -1,7 +1,7 @@
 # Implementation Plan: KakiAgent MVP
 
 > Status: **Signed off by the product owner, 2026-10-19** · Last updated: 2026-10-19 (revised after owner review: Team and My account moved to M3, alerts split by channel, NFR ownership added in §7; then MD, M6, FEAT-071 and CI/CD aligned with the launch environment, ADR-023 and ADR-024; 2026-10-20 turn plan and task dispatch per ADR-025 noted in §4)
-> Amended 2026-11-08 (M3 close, `docs/pipeline-verify-report.md`): §4 FRs columns of FEAT-007, 019, 035, 043, 044, 045, 049, 050, 051 and 054 now list the requirements their detailed designs and acceptance reports took on (already in the RTM Plan refs). Amended 2026-11-13 (M4 close): the same for FEAT-036, 037, 039 and 029; `scripts/check-rtm.mjs` now fails when a Plan ref feature's row doesn't list the requirement.
+> Amended 2026-11-08 (M3 close, `docs/pipeline-verify-report.md`): §4 FRs columns of FEAT-007, 019, 035, 043, 044, 045, 049, 050, 051 and 054 now list the requirements their detailed designs and acceptance reports took on (already in the RTM Plan refs). Amended 2026-11-13 (M4 close): the same for FEAT-036, 037, 039 and 029; `scripts/check-rtm.mjs` now fails when a Plan ref feature's row doesn't list the requirement. Amended 2026-11-14 (owner request): FEAT-075 Inbox redesign added to E5 and to §5 before M5; next free ID FEAT-076.
 > Inputs (all found, all signed off): [SRS v0.4](../01-requirements/SRS.md) · [use-cases.md](../01-requirements/use-cases.md) · [rtm.md](../01-requirements/rtm.md) · [architecture.md](../02-design/architecture.md) + [ADR-001..025](../02-design/adr/) · [ux-foundations.md](../02-design/ux-foundations.md) · [design.md](../02-design/design.md) · [design-manifest.json](../design-manifest.json)
 > Fidelity: full. Every FR, UC and SCR ID below resolves in those documents.
 
@@ -111,7 +111,7 @@ flowchart LR
 
 ## 4. Epic and feature breakdown
 
-Feature IDs are in definition order and are permanent: they are never renumbered or reused, and a removed feature is marked *Removed*. **Next free ID: FEAT-075.** The build order is in §5. Priority is the highest MoSCoW of the FRs a feature implements. "(p)" means the feature implements part of that FR; the rest is listed elsewhere.
+Feature IDs are in definition order and are permanent: they are never renumbered or reused, and a removed feature is marked *Removed*. **Next free ID: FEAT-076.** The build order is in §5. Priority is the highest MoSCoW of the FRs a feature implements. "(p)" means the feature implements part of that FR; the rest is listed elsewhere.
 
 ### E0 — Platform (`platform`, `llm-gateway`; ADR-001, -004, -007, -012, -014, -015, -021)
 
@@ -190,6 +190,7 @@ Feature IDs are in definition order and are permanent: they are never renumbered
 | FEAT-046 | Conversation search | M | INB-11 | UC-23 | SCR-APP-014 (p) | Postgres FTS + `pg_trgm` | messages |
 | FEAT-047 | Internal notes, tags and saved replies | S | INB-07, INB-10 | UC-23 | SCR-APP-015 (p) | `/inbox/notes`, `/saved-replies` | notes, tags, saved_replies |
 | FEAT-048 | PWA install and web push | S | INB-06, LED-04 (p: web push) | UC-23 | SCR-APP-014 (p), -056 (p) | service worker; Web Push | push_subscriptions |
+| FEAT-075 | Inbox redesign: layout, filters, rows, empty state and conversation header for desktop and phone; selection clears when a view or filter hides it (owner request 2026-11-14, same functionality) | M | INB-01 (p: list layout, views and filters), INB-04 (p: sidebar layout), INB-06 (p: 375 px layout) | UC-23 (p) | SCR-APP-014 (p), -015 (p) | dashboard only; no endpoint change | — |
 
 ### E6 — Leads and notifications (`leads`; notifications in `platform`)
 
@@ -279,6 +280,7 @@ Feature IDs are in definition order and are permanent: they are never renumbered
 | **M2 Owner onboarding** | FEAT-009 → 012 → 013 → 014 → 015 → 016 → 017 → 027 → 028 → 018 → 019 → 032 → 033 → 058 → 034 → 057 → 006 → 054 → 035 | Interim demos after FEAT-013 (crawl → review) and FEAT-027 (coaching) (owner, 2026-10-19). Milestone demo: J1 in under 15 minutes, J8 kill switch, J11 coaching correction |
 | **M3 Human in the loop** | FEAT-007 → 008 → 042 → 043 → 052 → 044 → 045 → 046 → 049 → 055 → 056 → 050 → 051 | J3 quote approved from a phone (email alert), J4 takeover, J10 withdrawal; a staff member invited and given approval rights |
 | **M4 Channels and context** | FEAT-036 → 037 → 039 → 038 → 026 → 029 | J5 widget → Telegram, J9 after-hours email; owner alerts on Telegram |
+| **Owner request** (2026-11-14, before M5) | FEAT-075 | Inbox and conversation on desktop and phone with the new layout; every existing inbox E2E still green |
 | **M5 Governance and operations** | FEAT-060 → 061 → 059 → 062 → 070 → 063 → 010 → 067 → 065 → 066 → 071 → 072 → 073 | J6 PDPA deletion with chain still verifying; operator support session; downgrade preview |
 | **M6 Pilot readiness** (no new features) | Full eval ≥ 300 + red-team ≥ 50; E2E J1–J11 on the launch environment; k6 load test (NFR-01, -03, -16); dependency-outage drill (NFR-17, NFR-04 fallback); restore drill (NFR-08); incident tabletop (GOV-10); manual WCAG audit; real-device browser pass (NFR-14); ASVS L1 and Cyber Essentials checklists (NFR-05, NFR-06); residency check of every store and model call (NFR-07); operator on-call rota (NFR-20); legal review (SRS §8 item 3); pen test before the first paying tenant (NFR-15) | Pilot go/no-go with the readiness report |
 | **M7 After pilot** (Shoulds, the Could, fast-follows) | FEAT-074, 040, 041, 031, 030, 020, 021, 047, 048, 053, 064, 068, 069, plus other industry templates (ONB-06 remainder, scheduled as a new feature when it's picked up) | Re-planned with pilot feedback |

@@ -57,7 +57,7 @@ export function SearchField() {
         type="search"
         className="input search-field__input"
         aria-describedby="inbox-search-help"
-        placeholder="e.g. Mei Ling, 9123 4567"
+        placeholder="Search name, phone or message"
         autoComplete="off"
         maxLength={100}
         value={text}

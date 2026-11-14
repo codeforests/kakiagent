@@ -36,6 +36,7 @@ import {
   STATE_LABEL,
   STATE_TOKEN,
   webRows,
+  visitorLabel,
 } from '../lib/inbox.ts';
 
 // Lucide-style 24-px strokes for the inbox (design.md §2.4); decorative, labels carry meaning.
@@ -50,6 +51,11 @@ const GLYPHS = {
   info: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 16v-4M12 8h.01',
   alert: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 8v4M12 16h.01',
   'arrow-left': 'M19 12H5M12 19l-7-7 7-7',
+  sliders: 'M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4',
+  'message-square-text':
+    'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2zM7 8h10M7 12h6',
+  eye: 'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
+  x: 'M18 6 6 18M6 6l12 12',
   'more-horizontal': 'M12 12h.01M19 12h.01M5 12h.01',
   chat: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z',
   'chevron-down': 'M6 9l6 6 6-6',
@@ -106,7 +112,21 @@ export function Glyph({ name, size = 16 }: { name: GlyphName; size?: number }) {
   );
 }
 
-export function StateChip({ status }: { status: ConversationStatus }) {
+/** The state chip; an urgent escalation shows one danger chip "Escalated · Urgent" (FEAT-075 AC-6). */
+export function StateChip({
+  status,
+  urgent = false,
+}: {
+  status: ConversationStatus;
+  urgent?: boolean;
+}) {
+  if (urgent && status === 'escalated')
+    return (
+      <span className="state-chip state-chip--urgent" data-testid="state-chip">
+        <Glyph name="alert-triangle" size={12} />
+        {STATE_LABEL.escalated} · Urgent
+      </span>
+    );
   return (
     <span className={`state-chip state-chip--${STATE_TOKEN[status]}`} data-testid="state-chip">
       <Glyph name={STATE_ICON[status] as GlyphName} size={12} />
@@ -120,16 +140,6 @@ export function FlaggedChip() {
     <span className="state-chip state-chip--flagged" data-testid="flagged-chip">
       <Glyph name="flag" size={12} />
       Flagged
-    </span>
-  );
-}
-
-/** An urgent escalation (FEAT-044 ui-design SCR-APP-014): text, never colour only. */
-export function UrgentChip() {
-  return (
-    <span className="state-chip state-chip--urgent" data-testid="urgent-chip">
-      <Glyph name="alert-triangle" size={12} />
-      Urgent
     </span>
   );
 }
@@ -204,8 +214,18 @@ const AUTHOR_LABEL: Record<ThreadMessage['author'], string> = {
   system: 'Assistant',
 };
 
-/** A staff bubble's label: "You" for mine, else the name, else "Team member". */
-function authorLabel(m: ThreadMessage, meId: string | null): string {
+/**
+ * A bubble's label: the visitor by contact name, else by channel (FEAT-075 AC-8); staff
+ * "You" for mine, else the name, else "Team member".
+ */
+function authorLabel(
+  m: ThreadMessage,
+  meId: string | null,
+  channel: ConversationSummary['channel'] | undefined,
+  visitorName: string | null | undefined,
+): string {
+  if (m.author === 'visitor')
+    return channel ? visitorLabel(channel, visitorName) : AUTHOR_LABEL.visitor;
   if (m.author !== 'staff') return AUTHOR_LABEL[m.author];
   if (m.authorUserId && m.authorUserId === meId) return 'You';
   return m.authorName ?? AUTHOR_LABEL.staff;
@@ -292,9 +312,12 @@ export function Bubble({
   match = false,
   onRetryError,
   channel,
+  visitorName,
 }: {
   message: ThreadMessage;
   facts: Map<string, FactChip>;
+  /** The contact's name, for the visitor's bubbles (FEAT-075 AC-8). */
+  visitorName?: string | null;
   meId?: string | null;
   /** The message a search result opened at (FEAT-046). */
   match?: boolean;
@@ -317,8 +340,10 @@ export function Bubble({
   if (message.body === '' && message.notice)
     return (
       <li className="thread-notice" data-testid="thread-notice" data-kind={message.noticeKind}>
-        <Glyph name="chat" size={16} />
-        <span>Visitor saw: {message.notice}</span>
+        <Glyph name="eye" size={16} />
+        <span>
+          <strong>Visitor saw:</strong> {message.notice}
+        </span>
       </li>
     );
   const side = message.author === 'visitor' ? 'in' : 'out';
@@ -332,7 +357,9 @@ export function Bubble({
       data-match={match ? 'true' : undefined}
     >
       <div className="bubble-meta">
-        <span>{authorLabel(message, meId)}</span>
+        <span className="bubble-meta__author">
+          {authorLabel(message, meId, channel, visitorName)}
+        </span>
         <time dateTime={message.createdAt}>{clockTime(message.createdAt)}</time>
       </div>
       <div
@@ -402,6 +429,15 @@ function RecapNotice({
         </Button>
       )}
       <DeliveryLine message={message} onRetryError={onRetryError} />
+    </li>
+  );
+}
+
+/** A day divider in the thread (FEAT-075 ui-design Thread): "Today", "Yesterday", "12 Nov". */
+export function DayDivider({ label }: { label: string }) {
+  return (
+    <li className="thread-day" data-testid="thread-day">
+      <span>{label}</span>
     </li>
   );
 }
@@ -581,7 +617,7 @@ export function ContextSidebar({ thread }: { thread: ConversationThread }) {
   return (
     <div className="context-sidebar" data-testid="context-sidebar">
       <Section title="Contact">
-        <p className="sidebar-strong">{contact.name ?? contact.label}</p>
+        <p className="sidebar-name">{contact.name ?? contact.label}</p>
         {contact.email && (
           <CopyRow
             label="email"
@@ -598,8 +634,8 @@ export function ContextSidebar({ thread }: { thread: ConversationThread }) {
             badge={contact.verified.telegram && <VerifiedMark />}
           />
         )}
-        <p>First seen {shortDate(contact.firstSeenAt)}</p>
-        <p>
+        <p className="sidebar-caption">
+          First seen {shortDate(contact.firstSeenAt)} ·{' '}
           {earlier === 0
             ? 'First conversation'
             : `${earlier} earlier conversation${earlier === 1 ? '' : 's'}`}
@@ -624,8 +660,36 @@ export function ContextSidebar({ thread }: { thread: ConversationThread }) {
           </p>
         )}
       </Section>
-      <Section title="Channel">
-        <p>{CHANNEL_LABEL[channel]}</p>
+      <Section title="Channel · Lead">
+        <div className="sidebar-columns">
+          <div>
+            <p className="sidebar-label">Channel</p>
+            <p>{CHANNEL_LABEL[channel]}</p>
+          </div>
+          <div>
+            <p className="sidebar-label">Lead</p>
+            {lead ? (
+              <div className="sidebar-lead" data-testid="sidebar-lead">
+                <span className={`chip chip--${LEAD_STATUS[lead.status].tone}`}>
+                  {LEAD_STATUS[lead.status].label}
+                </span>{' '}
+                <ScoreChip scoring={lead.scoring} />
+                <p>Updated {clockTime(lead.updatedAt)}</p>
+                <p>{leadLines(lead).consent}</p>
+                <p>{leadLines(lead).offers}</p>
+                {leadLines(lead).withdrawn && (
+                  <p className="consent-withdrawn" data-testid="sidebar-withdrawn">
+                    <Glyph name="alert" size={14} />
+                    {leadLines(lead).withdrawn}
+                  </p>
+                )}
+                <Link to={`/leads/${lead.id}`}>Open lead</Link>
+              </div>
+            ) : (
+              <p className="sidebar-caption">No details left yet.</p>
+            )}
+          </div>
+        </div>
       </Section>
       <Section title="Intent">
         <WebIntent web={web} />
@@ -633,9 +697,9 @@ export function ContextSidebar({ thread }: { thread: ConversationThread }) {
         {intents.length === 0 ? (
           <p className="sidebar-caption">No signals yet.</p>
         ) : (
-          <ul className="sidebar-list" data-testid="intent-list">
+          <ul className="intent-tags" data-testid="intent-list">
             {intents.map((i) => (
-              <li key={i.signal}>
+              <li key={i.signal} className="intent-tag">
                 {intentLabel(i.signal)}
                 {i.count > 1 && ` (${i.count})`}
               </li>
@@ -652,28 +716,6 @@ export function ContextSidebar({ thread }: { thread: ConversationThread }) {
           </div>
         </Section>
       )}
-      <Section title="Lead">
-        {lead ? (
-          <div className="sidebar-lead" data-testid="sidebar-lead">
-            <span className={`chip chip--${LEAD_STATUS[lead.status].tone}`}>
-              {LEAD_STATUS[lead.status].label}
-            </span>{' '}
-            <ScoreChip scoring={lead.scoring} />
-            <p>Updated {clockTime(lead.updatedAt)}</p>
-            <p>{leadLines(lead).consent}</p>
-            <p>{leadLines(lead).offers}</p>
-            {leadLines(lead).withdrawn && (
-              <p className="consent-withdrawn" data-testid="sidebar-withdrawn">
-                <Glyph name="alert" size={14} />
-                {leadLines(lead).withdrawn}
-              </p>
-            )}
-            <Link to={`/leads/${lead.id}`}>Open lead</Link>
-          </div>
-        ) : (
-          <p className="sidebar-caption">No details left yet.</p>
-        )}
-      </Section>
       <Section title="Facts used">
         {facts.length === 0 ? (
           <p className="sidebar-caption">

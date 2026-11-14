@@ -8,12 +8,15 @@ import type {
 import { Button, EmptyState, ErrorState, SlideOver } from '@kaki/ui';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router';
 import { api, ApiError } from '../lib/api.ts';
 import { useToast } from '../lib/form.ts';
 import {
+  CHANNEL_LABEL,
   channelCaption,
+  dayLabel,
+  threadDay,
   clockTime,
   mergeMessages,
   STATE_LABEL,
@@ -26,6 +29,7 @@ import { onConversation } from '../lib/realtime.ts';
 import {
   Bubble,
   ContextSidebar,
+  DayDivider,
   Divider,
   FlaggedChip,
   Glyph,
@@ -165,6 +169,25 @@ export function ConversationPane({ id, backTo }: { id: string; backTo: string })
         ? (t.sidebar.contact.name ?? PARTY_LABEL.telegram)
         : PARTY_LABEL.widget;
 
+  // The state chip (merged when urgent) and Flagged: beside the title, on line 2 below 640.
+  const chips = (
+    <>
+      <StateChip status={c.status} urgent={c.escalation?.urgent ?? false} />
+      {c.flaggedAt && <FlaggedChip />}
+    </>
+  );
+  const detailsTrigger = (
+    <button
+      type="button"
+      className="icon-button"
+      aria-label="Conversation details"
+      ref={detailsButton}
+      onClick={() => setDetails(true)}
+    >
+      <Glyph name="info" size={20} />
+    </button>
+  );
+
   return (
     <div className="conversation">
       <div className="conversation__main">
@@ -176,66 +199,74 @@ export function ConversationPane({ id, backTo }: { id: string; backTo: string })
           <div className="thread-header__text">
             <div className="thread-header__title">
               <h2 ref={titleRef} tabIndex={-1}>
-                {party}
+                {(!phone || !c.subject) && <span className="thread-header__party">{party}</span>}
+                {c.subject && (
+                  <span
+                    className="thread-header__subject"
+                    title={c.subject}
+                    data-testid="thread-subject"
+                  >
+                    {c.subject}
+                  </span>
+                )}
               </h2>
-              <StateChip status={c.status} />
-              {c.flaggedAt && <FlaggedChip />}
+              {!phone && chips}
             </div>
-            {c.subject && (
-              <p className="thread-header__subject" title={c.subject} data-testid="thread-subject">
-                {c.subject}
-              </p>
-            )}
             <p className="thread-header__caption">
-              {channelCaption(c.channel, t.sidebar.contact.telegramUsername)} · started{' '}
-              {clockTime(c.createdAt)}
+              {phone ? (
+                <>
+                  {chips}
+                  <span className="thread-header__who">
+                    {party} · {CHANNEL_LABEL[c.channel]}
+                  </span>
+                </>
+              ) : (
+                <>
+                  {channelCaption(c.channel, t.sidebar.contact.telegramUsername)} · started{' '}
+                  {clockTime(c.createdAt)}
+                </>
+              )}
             </p>
           </div>
-          {open &&
-            (phone ? (
-              <DropdownMenu.Root modal={false}>
-                <DropdownMenu.Trigger className="icon-button" aria-label="More actions">
-                  <Glyph name="more-horizontal" size={20} />
-                </DropdownMenu.Trigger>
-                <DropdownMenu.Portal>
-                  <DropdownMenu.Content className="menu" align="end" sideOffset={4}>
-                    {dock.mode === 'mine' && (
-                      <DropdownMenu.Item
-                        className="menu__item"
-                        disabled={dock.handBack.isPending}
-                        onSelect={() => dock.handBack.mutate()}
-                      >
-                        Hand back to assistant
-                      </DropdownMenu.Item>
-                    )}
+          {open && !phone && (
+            <Button
+              variant="secondary"
+              className="thread-header__close"
+              onClick={startClose}
+              disabled={close.isPending}
+              aria-busy={close.isPending || undefined}
+            >
+              {close.isPending && <span className="spinner" aria-hidden="true" />}
+              Close conversation
+            </Button>
+          )}
+          {phone && !wide && detailsTrigger}
+          {open && (phone || dock.mode === 'mine') && (
+            <DropdownMenu.Root modal={false}>
+              <DropdownMenu.Trigger className="icon-button" aria-label="More actions">
+                <Glyph name="more-horizontal" size={20} />
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Portal>
+                <DropdownMenu.Content className="menu" align="end" sideOffset={4}>
+                  {dock.mode === 'mine' && (
+                    <DropdownMenu.Item
+                      className="menu__item"
+                      disabled={dock.handBack.isPending}
+                      onSelect={() => dock.handBack.mutate()}
+                    >
+                      Hand back to assistant
+                    </DropdownMenu.Item>
+                  )}
+                  {phone && (
                     <DropdownMenu.Item className="menu__item" onSelect={startClose}>
                       Close conversation
                     </DropdownMenu.Item>
-                  </DropdownMenu.Content>
-                </DropdownMenu.Portal>
-              </DropdownMenu.Root>
-            ) : (
-              <Button
-                variant="secondary"
-                onClick={startClose}
-                disabled={close.isPending}
-                aria-busy={close.isPending || undefined}
-              >
-                {close.isPending && <span className="spinner" aria-hidden="true" />}
-                Close conversation
-              </Button>
-            ))}
-          {!wide && (
-            <button
-              type="button"
-              className="icon-button"
-              aria-label="Conversation details"
-              ref={detailsButton}
-              onClick={() => setDetails(true)}
-            >
-              <Glyph name="info" size={20} />
-            </button>
+                  )}
+                </DropdownMenu.Content>
+              </DropdownMenu.Portal>
+            </DropdownMenu.Root>
           )}
+          {!phone && !wide && detailsTrigger}
         </header>
         {changed && (
           <div className="alert alert--warning" role="alert">
@@ -268,6 +299,7 @@ export function ConversationPane({ id, backTo }: { id: string; backTo: string })
           meId={me.data?.user.id ?? null}
           matchId={matchId}
           channel={c.channel}
+          visitorName={t.sidebar.contact.name}
         />
         <ThreadDock
           conversation={c}
@@ -316,9 +348,11 @@ function ThreadLog({
   matchId,
   onRetryError,
   channel,
+  visitorName,
 }: {
   onRetryError: (text: string) => void;
   channel: ConversationChannel;
+  visitorName: string | null;
   messages: ThreadMessage[];
   events: ThreadEvent[];
   facts: FactChip[];
@@ -400,21 +434,30 @@ function ThreadLog({
       )}
       <div role="log" aria-label="Conversation">
         <ol className="thread-log" data-testid="thread-log">
-          {items.map((item) =>
-            item.kind === 'message' ? (
-              <Bubble
-                key={item.key}
-                message={item.message}
-                facts={factMap}
-                meId={meId}
-                match={item.message.id === matchId}
-                onRetryError={onRetryError}
-                channel={channel}
-              />
-            ) : (
-              <Divider key={item.key} event={item.event} />
-            ),
-          )}
+          {items.map((item, i) => {
+            const iso = new Date(item.at).toISOString();
+            const prevAt = items[i - 1]?.at;
+            const newDay =
+              prevAt === undefined || threadDay(new Date(prevAt).toISOString()) !== threadDay(iso);
+            return (
+              <Fragment key={item.key}>
+                {newDay && <DayDivider label={dayLabel(iso)} />}
+                {item.kind === 'message' ? (
+                  <Bubble
+                    message={item.message}
+                    facts={factMap}
+                    meId={meId}
+                    match={item.message.id === matchId}
+                    onRetryError={onRetryError}
+                    channel={channel}
+                    visitorName={visitorName}
+                  />
+                ) : (
+                  <Divider event={item.event} />
+                )}
+              </Fragment>
+            );
+          })}
         </ol>
       </div>
       {unseen && (
