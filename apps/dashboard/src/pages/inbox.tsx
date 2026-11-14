@@ -1,6 +1,12 @@
-import type { InboxCounts, InboxView } from '@kaki/contracts';
+import type { ConversationList, InboxCounts, InboxView } from '@kaki/contracts';
 import { Button, EmptyState, ErrorState } from '@kaki/ui';
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import {
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+  type InfiniteData,
+  type QueryClient,
+} from '@tanstack/react-query';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
@@ -12,9 +18,11 @@ import {
   channelOf,
   COUNTS_KEY,
   flattenPages,
+  inView,
   listKey,
   MEMBERS_KEY,
   searchFromView,
+  threadKey,
   VIEW_LABEL,
   VIEW_SHORT_LABEL,
   VIEWS,
@@ -155,6 +163,7 @@ function InboxList({
   selected: string | null;
 }) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const announcement = useAnnouncement();
   const search = useInboxSearch();
   const counts = useCounts();
@@ -175,11 +184,22 @@ function InboxList({
   });
   const meId = me.data?.user.id ?? null;
   const now = useMinuteNow();
-  // Switching views keeps the open conversation on screen (the thread pane, ≥ 1024).
   const [filtersOpen, setFiltersOpen] = useState(false);
   const filtersButton = useRef<HTMLButtonElement>(null);
   const active = (filter.channel ? 1 : 0) + (filter.assignee ? 1 : 0);
-  const to = (f: InboxFilter) => `/inbox${selected ? `/${selected}` : ''}${searchFromView(f)}`;
+  // FEAT-075 D2: a view or filter change keeps the open conversation only when it belongs in
+  // the result (`inView`, from the summary the client already has); otherwise the empty state.
+  // A live change never deselects: only these links and selects go through `to`.
+  const thread = useQuery({
+    queryKey: threadKey(selected ?? ''),
+    queryFn: () => api.conversation(selected ?? ''),
+    enabled: false,
+  });
+  const summary = selected
+    ? (thread.data?.conversation ?? rowsOf(queryClient, selected))
+    : undefined;
+  const to = (f: InboxFilter) =>
+    `/inbox${selected && inView(summary, f, meId) ? `/${selected}` : ''}${searchFromView(f)}`;
 
   return (
     <>
@@ -511,6 +531,17 @@ function ListEmpty({ filter, onClear }: { filter: InboxFilter; onClear: () => vo
       </EmptyState>
     );
   return <EmptyState title={EMPTY_TITLE[filter.view]}>{EMPTY_VIEW[filter.view]}</EmptyState>;
+}
+
+/** The open conversation's summary from any cached list page, when the thread isn't loaded. */
+function rowsOf(queryClient: QueryClient, id: string) {
+  for (const [, data] of queryClient.getQueriesData<InfiniteData<ConversationList, unknown>>({
+    queryKey: ['conversations'],
+  })) {
+    const hit = flattenPages(data).find((c) => c.id === id);
+    if (hit) return hit;
+  }
+  return undefined;
 }
 
 /** The current time, refreshed every minute (escalation wait times, FEAT-044). */
