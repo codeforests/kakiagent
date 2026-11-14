@@ -241,9 +241,12 @@ export function AuditFiltersBar({
           </button>
         ))}
       </div>
-      <label className="field audit-filters__select">
-        <span className="field__label">Type</span>
+      <div className="field audit-filters__select">
+        <label className="field__label" htmlFor={`${idPrefix}-type`}>
+          Type
+        </label>
         <select
+          id={`${idPrefix}-type`}
           className="input"
           value={filter.group ?? ''}
           onChange={(e) => {
@@ -259,10 +262,13 @@ export function AuditFiltersBar({
             </option>
           ))}
         </select>
-      </label>
-      <label className="field audit-filters__select">
-        <span className="field__label">Who</span>
+      </div>
+      <div className="field audit-filters__select">
+        <label className="field__label" htmlFor={`${idPrefix}-who`}>
+          Who
+        </label>
         <select
+          id={`${idPrefix}-who`}
           className="input"
           value={whoOf(filter)}
           onChange={(e) => onChange(withWho(filter, e.target.value))}
@@ -279,7 +285,7 @@ export function AuditFiltersBar({
           <option value="visitor">Visitor</option>
           <option value="operator">KakiAgent support</option>
         </select>
-      </label>
+      </div>
     </div>
   );
 }

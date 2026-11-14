@@ -6164,6 +6164,7 @@ a.settings-row:hover {
 .sidebar-audit {
   display: inline-flex;
   align-items: center;
+  min-height: var(--size-control-sm);
   gap: var(--space-2);
 }
 @media (max-width: 639px) {
