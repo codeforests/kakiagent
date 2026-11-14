@@ -29,7 +29,8 @@ The diff adds 12 test files and changes none of the existing assertions: `identi
 
 ## Corrected tests
 
-None.
+- `e2e/tests/audit-log.e2e.ts`: the spec now creates its own team entries (invite, then revoke, through the API) before filtering by Team; the seeded tenant has none when this spec runs first (run 134). Its timeout is 150 s, since its cooldown wait and two verifies can pass the 60 s default. The assertions are unchanged.
+- `e2e/tests/telegram-channel.e2e.ts`: no assertion changed; on a persistent 429 from "Check again" it now logs each check's time and status, the connection's health times and the Telegram alerts still retrying (see Findings 5).
 
 ## Independent execution
 
@@ -50,6 +51,8 @@ Fresh clone, `pnpm install`, `pnpm tokens`, then `scripts/test-env.sh scripts/ch
 1. Export dialog shows no entry count (AC-8 says "format, count, filters"): there is no count endpoint, and the 413 answer names the count above the cap. Minor, accepted; a count could come from `auditCount` later.
 2. "Show entry" and "Clear filters" are ghost buttons rather than the link style in ui-design (no link button exists in `@kaki/ui`). Cosmetic, accepted.
 3. API test doesn't hit 409 `verify_running` end to end; the domain test covers `VerifyRunning` and the route maps it in `audit.ts`. Not blocking.
+4. **Fixed during verify (run 133, all three browsers):** the audit filter selects were wrapped in their `<label>`, so their accessible names took in the option text ("TypeAll typesTeam…", reproduced in Chromium) and `getByLabel('Type')` found nothing. They are now labelled by `id`. The inbox sidebar's "View audit log" link was 20 px tall, which failed axe target-size in 8 existing inbox specs; it now has `min-height: var(--size-control-sm)`. Both are UI defects, fixed here because each was a one-line change to this feature's own code (`3c4c91b`).
+5. `telegram-channel.e2e.ts` "Check again" stayed 429 for 60 s twice on chromium in run 135 (the run and its re-run), then passed in run 137, which was green. The cause wasn't captured. Likely: Telegram alert retries to the revoked bot (10 s, 20 s, 40 s backoff) each mark the channel as just checked, so the 30 s cooldown doesn't lapse. The diagnostics stay in the spec, and the item is in pending actions.
 
 ## RTM
 
@@ -59,4 +62,4 @@ Test refs appended to GOV-02, GOV-01 (partial: dashboard "Verify audit chain" ac
 
 ## CI
 
-CI_LINE
+GitHub CI run 137 on `ba42592`, 2026-11-14: all 11 jobs green (lint/typecheck, unit, integration and coverage incl. the S3 suites, build and size, terraform, eval, scanning, E2E chromium, firefox and webkit, incl. `audit-log.e2e.ts`). Earlier runs: 133 (E2E red: Findings 4), 134 (cancelled after the chromium audit spec failed on the Team filter data), 135 (only chromium red, Telegram 429 twice: Findings 5).
