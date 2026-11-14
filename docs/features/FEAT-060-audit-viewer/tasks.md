@@ -1,7 +1,7 @@
 # Tasks: FEAT-060 — Audit log viewer, chain verification and export
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: designed · Last updated: 2026-11-14 (design)
+> Status: designed · Last updated: 2026-11-14 (build, backend T1–T5)
 
 - [x] T1 — Contracts and capability: section "Dashboard API: audit log" (§3: `AUDIT_EVENT_GROUPS`, `AuditGroup`, `auditGroupOf` also as the Zod-free `@kaki/contracts/audit` export, `AUDIT_PAGE_MAX`, `AUDIT_EXPORT_MAX`, `AuditQuery`, `AuditSubject`, `AuditRow`, `AuditPage`, `AuditFilters`, `AuditVerifyResult`, `AuditLastVerified`, `AuditExportBody`, `AuditTooMany`); identity `audit.read` for Owner and Admin (design §3, §5.5; D2, D6)
       Done when: `pnpm --filter @kaki/contracts test` passes (`auditGroupOf` maps one code per group, `ai.paused` → assistant, an unknown prefix → other; `AuditQuery` defaults `limit` 50, refuses 101, a bad date and unknown keys; `AuditExportBody` needs `format`) and `pnpm --filter @kaki/identity test` passes the capability table (Agent lacks `audit.read`).
@@ -33,3 +33,11 @@
 ## Verification evidence
 
 (filled by the build and verify stages)
+
+Backend session (2026-11-14):
+- AC-1: `governance/test/audit-read.int.test.ts` (order, paging, SGT bounds, each filter and combined, `other`, tenant B) and `apps/api/test/audit.int.test.ts` (Owner/Admin 200, Agent 403 on all six routes, conversation filter, 400s, tenant B) pass.
+- AC-2: `audit-read.int` none → kept → erased after `erasePii`, the PII text never in a row.
+- AC-3: `governance/test/audit-verify.int.test.ts` (checked, hash_mismatch at seq 3, truncated, unavailable, none_yet, cooldown with seconds left, running under a held lock, one PII-free `audit.verified`) and the api's verify → 429 case pass.
+- AC-4: `governance/test/audit-export.int.test.ts` (conversation and date filters, JSON recomputes `hash`, formula cell prefixed, appends during the export left out, cap, one `audit.exported` with IDs/codes) and the api's re-auth 403, CSV/JSON headers, 413 cases pass; `audit-export.test.ts` unit (BOM, CRLF, round-trip of commas, quotes, newlines, Chinese).
+- AC-5: 75,000 entries: CSV 1.3 s, JSON 0.6 s, verify 2.2 s (asserted < 60 s each).
+- AC-6–AC-8: UI session.
