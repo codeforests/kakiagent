@@ -1,7 +1,7 @@
 # Tasks: FEAT-075 — Inbox redesign
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: `developer-done` · 2026-11-14 (after rework 1: R1, R2 from [rework-1.md](rework-1.md))
+> Status: `accepted` · 2026-11-14 (after rework 1: R1, R2 from [rework-1.md](rework-1.md); [acceptance-report.md](acceptance-report.md))
 > One build session (UI only: no contract, schema or package change). Visual reference: the approved prototype canvas named in ui-design.md.
 
 - [x] T1 — `lib/inbox.ts`: `inView(summary, filter, meId)` mirroring `viewFilter` in `packages/inbox/src/views.ts` plus the channel and assignee rules; `VIEW_SHORT_LABEL`; visitor author label helper (contact name, else `PARTY_LABEL[channel]`) (design §5.1, §5.3; D2, D5; AC-3, AC-8)
