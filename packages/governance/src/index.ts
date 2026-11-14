@@ -82,3 +82,23 @@ export {
   toAuditRow,
   type AuditRecord,
 } from './audit-read.js';
+export {
+  lastVerification,
+  VERIFY_COOLDOWN_S,
+  VerifyCooldown,
+  verifyForDashboard,
+  verifyLockKey,
+  VerifyRunning,
+  type LastVerification,
+} from './audit-verify.js';
+export {
+  AUDIT_CSV_HEADER,
+  auditCsv,
+  auditExported,
+  auditExportFileName,
+  auditJson,
+  csvCell,
+  exportAudit,
+  sgtTimestamp,
+  TooManyAuditEntries,
+} from './audit-export.js';

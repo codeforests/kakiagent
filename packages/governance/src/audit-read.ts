@@ -152,9 +152,16 @@ export async function auditEntry(
   return rows[0] ? toRecord(rows[0]) : null;
 }
 
-export async function auditCount(tx: Tx, tenantId: string, q: AuditFilter): Promise<number> {
+/** How many entries match; with `upTo`, only those with `seq <= upTo` (an export's snapshot). */
+export async function auditCount(
+  tx: Tx,
+  tenantId: string,
+  q: AuditFilter,
+  upTo?: number,
+): Promise<number> {
+  const bound = upTo === undefined ? sql`` : sql` and e.seq <= ${upTo}`;
   const { rows } = await tx.execute<{ n: string | number }>(
-    sql`select count(*) as n from audit_entries e where ${auditWhere(tenantId, q)}`,
+    sql`select count(*) as n from audit_entries e where ${auditWhere(tenantId, q)}${bound}`,
   );
   return Number(rows[0]!.n);
 }
