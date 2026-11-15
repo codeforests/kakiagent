@@ -88,6 +88,9 @@ a {
   --content-pad: var(--space-5);
   padding: var(--content-pad);
   width: 100%;
+  /* A grid item's minimum is its content's minimum by default, so one wide table or long
+     unbroken value widened the whole page; with 0, wide content scrolls in its own box. */
+  min-width: 0;
   max-width: var(--size-content-max);
 }
 .content:focus {
