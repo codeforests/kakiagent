@@ -110,6 +110,8 @@ test('consent mode: nothing before Allow, then the inbox shows the pages', async
   const conversationId = await created;
   await visitor.context().close();
 
+  // Details beside the conversation need a 1440 px window; narrower ones use the drawer.
+  await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`/inbox/${conversationId}`);
   const intent = page.getByTestId('context-sidebar').first().getByTestId('web-intent');
   await expect(intent).toContainText('Now on');
@@ -145,6 +147,8 @@ test('tracking off: the next conversation shows only the current page', async ({
   expect(events).toHaveLength(0);
   await visitor.context().close();
 
+  // Details beside the conversation need a 1440 px window; narrower ones use the drawer.
+  await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`/inbox/${conversationId}`);
   const sidebar = page.getByTestId('context-sidebar').first();
   const intent = sidebar.getByTestId('web-intent');

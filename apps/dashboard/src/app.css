@@ -83,7 +83,10 @@ a {
 }
 .content {
   grid-area: main;
-  padding: var(--space-5);
+  /* Pages that change their padding set this, so banners (which bleed out by the same amount)
+     stay under the top bar and beside the sidebar instead of sliding under them. */
+  --content-pad: var(--space-5);
+  padding: var(--content-pad);
   width: 100%;
   max-width: var(--size-content-max);
 }
@@ -606,9 +609,9 @@ a {
   padding: 0 var(--space-1);
   line-height: var(--type-caption-line);
 }
-/* The 360 px pane (1024–1279): caption-size labels, so five views and four counts still fit,
+/* The 360 px pane (1024–1439): caption-size labels, so five views and four counts still fit,
    and an icon-only Filters button, so the search placeholder isn't cut off. */
-@media (min-width: 1024px) and (max-width: 1279px) {
+@media (min-width: 1024px) and (max-width: 1439px) {
   .filters-button {
     padding: 0 var(--space-3);
   }
@@ -664,7 +667,7 @@ a {
     flex-direction: column;
     min-height: 0;
     overflow: hidden;
-    padding: 0;
+    --content-pad: 0px;
   }
   .content:has(.inbox) > .alert,
   .content:has(.inbox) > .banners {
@@ -724,7 +727,9 @@ a {
     display: none;
   }
 }
-@media (min-width: 1280px) {
+/* The list widens only where the conversation keeps its room (laptops at 1280–1439 px stay at
+   360 px; whether the details panel sits beside the conversation is measured, conversation.tsx). */
+@media (min-width: 1440px) {
   .content > .inbox {
     grid-template-columns: 400px minmax(0, 1fr);
   }
@@ -1388,7 +1393,20 @@ a {
   height: calc(var(--space-8) + var(--space-2));
 }
 .thread-header__title h2 {
+  flex: 0 1 auto;
   min-width: 0;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Chips keep their size and wrap to the next line as a unit instead of being squeezed under
+   the title or the header's buttons (narrow conversation panes, e.g. 14" laptops). */
+.thread-header__title > .state-chip,
+.thread-header__title > .chip {
+  flex: none;
+}
+.thread-header__caption {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1400,7 +1418,8 @@ a {
 .thread-header__party + .thread-header__subject::before {
   content: ' · ';
 }
-.thread-header__close {
+.thread-header__close,
+.thread-header > .icon-button {
   flex: none;
 }
 .thread-scroll {
@@ -4899,7 +4918,8 @@ a.settings-row:hover {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  margin: calc(-1 * var(--space-5)) calc(-1 * var(--space-5)) var(--space-5);
+  margin: calc(-1 * var(--content-pad, var(--space-5)))
+    calc(-1 * var(--content-pad, var(--space-5))) var(--content-pad, var(--space-5));
 }
 .banner {
   display: flex;
@@ -6020,7 +6040,13 @@ a.settings-row:hover {
 /* ---- Leads (SCR-APP-032, SCR-APP-033; FEAT-050 ui-design) ---- */
 .leads,
 .lead-page {
+  min-width: 0;
   max-width: calc(var(--size-reading-max) * 1.6);
+}
+/* A wide table scrolls inside its own box rather than making the page scroll sideways. */
+.table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
 }
 .leads-filters {
   display: flex;
@@ -6059,7 +6085,8 @@ a.settings-row:hover {
   margin: 0;
 }
 .lead-row__need {
-  max-width: calc(var(--size-reading-max) / 2);
+  /* Shrinks with the window (≈ 1280 px laptops) instead of holding the table at 360 px. */
+  max-width: clamp(calc(var(--space-11) * 2), 22vw, calc(var(--size-reading-max) / 2));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

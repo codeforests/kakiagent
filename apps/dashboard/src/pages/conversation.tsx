@@ -24,7 +24,7 @@ import {
   threadKey,
   PARTY_LABEL,
 } from '../lib/inbox.ts';
-import { useMedia } from '../lib/media.ts';
+import { useElementWidth, useMedia } from '../lib/media.ts';
 import { onConversation } from '../lib/realtime.ts';
 import {
   Bubble,
@@ -69,11 +69,28 @@ function timeline(messages: ThreadMessage[], events: ThreadEvent[], hasEarlier: 
   return items.sort((a, b) => a.at - b.at || a.rank - b.rank);
 }
 
-/** The thread pane (SCR-APP-015): header, log, dock, and the context sidebar by width. */
+/** The details panel's width beside the conversation (`.conversation__sidebar`). */
+const DETAILS_WIDTH = 320;
+/**
+ * The narrowest the conversation itself may get with the details panel beside it. With the nav
+ * (240) and the list (400 from 1440 px) that puts the switch just under a 1440 px window.
+ */
+const CONVERSATION_MIN = 460;
+/** Below this the header's Close conversation button moves into More actions. */
+const HEADER_ROOMY = 440;
+
+/**
+ * The thread pane (SCR-APP-015): header, log, dock, and the context sidebar by the room the pane
+ * actually has, not by viewport width: the sidebar sits beside the conversation only when the
+ * conversation keeps at least CONVERSATION_MIN px (1440 px windows and up), and opens as a drawer
+ * otherwise, so 14" laptops (1280–1439 px) get a readable conversation.
+ */
 export function ConversationPane({ id, backTo }: { id: string; backTo: string }) {
   const queryClient = useQueryClient();
-  const wide = useMedia('(min-width: 1280px)');
+  const [paneRef, paneWidth] = useElementWidth<HTMLDivElement>();
+  const wide = paneWidth >= DETAILS_WIDTH + CONVERSATION_MIN;
   const phone = useMedia('(max-width: 639px)');
+  const compact = phone || (paneWidth > 0 && paneWidth - (wide ? DETAILS_WIDTH : 0) < HEADER_ROOMY);
   const [details, setDetails] = useState(false);
   const [toast, setToast] = useToast();
   const [changed, setChanged] = useState<ConversationStatus | null>(null);
@@ -189,7 +206,7 @@ export function ConversationPane({ id, backTo }: { id: string; backTo: string })
   );
 
   return (
-    <div className="conversation">
+    <div className="conversation" ref={paneRef}>
       <div className="conversation__main">
         <header className="thread-header">
           <Link to={backTo} className="icon-button thread-header__back" aria-label="Back to inbox">
@@ -228,7 +245,7 @@ export function ConversationPane({ id, backTo }: { id: string; backTo: string })
               )}
             </p>
           </div>
-          {open && !phone && (
+          {open && !compact && (
             <Button
               variant="secondary"
               className="thread-header__close"
@@ -241,7 +258,7 @@ export function ConversationPane({ id, backTo }: { id: string; backTo: string })
             </Button>
           )}
           {phone && !wide && detailsTrigger}
-          {open && (phone || dock.mode === 'mine') && (
+          {open && (compact || dock.mode === 'mine') && (
             <DropdownMenu.Root modal={false}>
               <DropdownMenu.Trigger className="icon-button" aria-label="More actions">
                 <Glyph name="more-horizontal" size={20} />
@@ -257,7 +274,7 @@ export function ConversationPane({ id, backTo }: { id: string; backTo: string })
                       Hand back to assistant
                     </DropdownMenu.Item>
                   )}
-                  {phone && (
+                  {compact && (
                     <DropdownMenu.Item className="menu__item" onSelect={startClose}>
                       Close conversation
                     </DropdownMenu.Item>

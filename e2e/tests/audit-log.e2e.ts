@@ -181,6 +181,8 @@ test('an agent has no audit log row, no sidebar link and no access', async ({ pa
   await expect(page.getByRole('heading', { name: 'Settings', level: 1 })).toBeVisible();
   await expect(page.getByText('Leads and consent').first()).toBeVisible();
   await expect(page.getByText('Audit log')).toHaveCount(0);
+  // Details beside the conversation need a 1440 px window; narrower ones use the drawer.
+  await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`/inbox/${conversationId}`);
   await expect(page.getByTestId('context-sidebar').first()).toBeAttached();
   await expect(page.getByRole('link', { name: 'View audit log' })).toHaveCount(0);
