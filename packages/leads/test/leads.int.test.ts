@@ -363,7 +363,12 @@ describe('capture (LED-01, LED-09; AC-1, AC-5, AC-6)', () => {
       `select event_type, payload from audit_entries where tenant_id = $1 and event_type in ('lead.created', 'consent.recorded') order by seq`,
       [TENANT_A],
     );
-    expect(JSON.stringify(audit.rows)).not.toMatch(/Mei|9123|example/i);
+    // Random UUIDs are masked first: one containing "9123" made this fail by chance.
+    const auditText = JSON.stringify(audit.rows).replace(
+      /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi,
+      '<uuid>',
+    );
+    expect(auditText).not.toMatch(/Mei|9123|example/i);
     expect((await verifyChain(tdb.zone('dashboard'), TENANT_A)).ok).toBe(true);
   });
 

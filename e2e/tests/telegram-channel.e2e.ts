@@ -179,6 +179,8 @@ test('the Owner connects a Telegram bot, customers get AI replies, and alerts re
     expect(results).toHaveLength(1);
     conversationId = results[0]!.conversation.id;
   }).toPass({ timeout: 15_000 });
+  // Details beside the conversation need a 1440 px window; narrower ones use the drawer.
+  await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/inbox?channel=telegram');
   const row = page.locator(`[data-testid="conversation-row"][data-id="${conversationId}"]`);
   await expect(row).toHaveCount(1);

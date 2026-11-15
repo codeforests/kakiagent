@@ -55,7 +55,7 @@ const EMPTY_TITLE: Record<Exclude<InboxView, 'open'>, string> = {
 
 /**
  * The inbox (SCR-APP-014) with the open conversation (SCR-APP-015): list · thread ·
- * sidebar at ≥ 1280, list · thread below, one pane at a time under 1024 (ui-design Layout).
+ * details beside the conversation when it has room (conversation.tsx), list · thread below, one pane at a time under 1024 (ui-design Layout).
  */
 export function InboxPage() {
   const { conversationId } = useParams();

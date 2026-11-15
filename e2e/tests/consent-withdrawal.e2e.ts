@@ -102,7 +102,8 @@ test('a visitor withdraws consent in the chat; the owner sees it and the export 
   await page.setViewportSize({ width: 375, height: 5000 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
   await expectNoSeriousA11yViolations(page);
-  await page.setViewportSize({ width: 1280, height: 900 });
+  // Details beside the conversation need a 1440 px window; narrower ones use the drawer.
+  await page.setViewportSize({ width: 1440, height: 900 });
   await entry.getByRole('link', { name: 'See conversation' }).click();
   await expect(page.getByTestId('sidebar-withdrawn').first()).toContainText(
     /^Consent withdrawn · /,

@@ -136,23 +136,26 @@ export function LeadsPage() {
         />
       )}
       {items.length > 0 && (
-        <table className="fact-table lead-table" data-testid="lead-table">
-          <thead>
-            <tr>
-              <th scope="col">Name</th>
-              <th scope="col">Contact</th>
-              <th scope="col">Need</th>
-              <th scope="col">Score</th>
-              <th scope="col">Status</th>
-              <th scope="col">Updated</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((l) => (
-              <LeadTableRow key={l.id} lead={l} now={now} back={leadsSearchOf(filter)} />
-            ))}
-          </tbody>
-        </table>
+        // Scrolls on its own if it still can't fit, so the page never scrolls sideways.
+        <div className="table-scroll">
+          <table className="fact-table lead-table" data-testid="lead-table">
+            <thead>
+              <tr>
+                <th scope="col">Name</th>
+                <th scope="col">Contact</th>
+                <th scope="col">Need</th>
+                <th scope="col">Score</th>
+                <th scope="col">Status</th>
+                <th scope="col">Updated</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((l) => (
+                <LeadTableRow key={l.id} lead={l} now={now} back={leadsSearchOf(filter)} />
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
       {list.hasNextPage && (
         <div className="load-more">
