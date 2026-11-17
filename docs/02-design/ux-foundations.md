@@ -17,7 +17,7 @@ KakiAgent lets a Singapore SME build a knowledge base from its own material, app
 
 Email, Telegram and Meta are visitor channels whose UI belongs to those apps; they aren't surfaces here. Our outbound alert emails and Telegram messages are covered by the cross-surface flows (Part C).
 
-**Design-source mode:** research. The owner picked the "calm, trustworthy pro" personality and Direction A, *Harbour* (design.md §9).
+**Design-source mode:** research. The owner picked the "calm, trustworthy pro" personality and Direction A, *Harbour* (design.md §9). Amended 2026-11-17 to *Harbour v2* (neutral greys, selection by fill, Inter, softer radii) for APP and OPS; the screen inventory, flows and navigation are unchanged (design.md §9).
 
 Screen IDs `SCR-<CODE>-<NNN>` are permanent: they are never renumbered or reused, and removed screens are marked *Removed*. The next free IDs are **SCR-APP-061, SCR-WGT-008 and SCR-OPS-010**.
 
