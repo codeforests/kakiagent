@@ -63,6 +63,7 @@ export function declarations(flat, mode) {
         [`${n}-line`, String(v.lineHeight)],
         [`${n}-weight`, String(v.fontWeight)],
       );
+      if (v.letterSpacing !== undefined) target.push([`${n}-tracking`, String(v.letterSpacing)]);
       continue;
     }
     target.push([cssName(path), cssValue(token, valueOf(flat, token, mode))]);
@@ -88,6 +89,8 @@ export const PAIRS = [
   ['color.text.secondary', 'color.bg.surface', 4.5],
   ['color.text.secondary', 'color.bg.canvas', 4.5],
   ['color.text.secondary', 'color.bg.subtle', 4.5],
+  ['color.text.primary', 'color.bg.fill', 4.5],
+  ['color.text.secondary', 'color.bg.fill', 4.5],
   ['color.text.on-accent', 'color.accent.default', 4.5],
   ['color.text.on-accent', 'color.accent.hover', 4.5],
   ['color.accent.default', 'color.bg.surface', 4.5],

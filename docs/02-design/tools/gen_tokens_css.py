@@ -9,7 +9,7 @@ import json, os, re, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DESIGN = os.path.dirname(HERE)
-tokens = json.load(open(os.path.join(DESIGN, "tokens.json")))
+tokens = json.load(open(os.path.join(DESIGN, "tokens.json"), encoding="utf-8"))
 MODE = "org.kakiagent.modes"
 
 def walk(node, path=()):
@@ -62,6 +62,8 @@ for path, t in flat.items():
         light.append(f"  {n}-size: {v['fontSize']};")
         light.append(f"  {n}-line: {v['lineHeight']};")
         light.append(f"  {n}-weight: {v['fontWeight']};")
+        if "letterSpacing" in v:
+            light.append(f"  {n}-tracking: {v['letterSpacing']};")
         continue
     lv = css_val(t, value(t, "light"))
     light.append(f"  {name(path)}: {lv};")
@@ -74,13 +76,13 @@ css = (":root {\n" + "\n".join(light) + "\n}\n"
        + "@media (prefers-color-scheme: dark) {\n  :root:not([data-theme=\"light\"]) {\n" + dark_body + "\n  }\n}\n"
        + ":root[data-theme=\"dark\"] {\n" + "\n".join(dark) + "\n}\n")
 
-open(os.path.join(DESIGN, "anchors", "tokens.css"), "w").write(
+open(os.path.join(DESIGN, "anchors", "tokens.css"), "w", encoding="utf-8", newline="\n").write(
     "/* GENERATED from docs/02-design/tokens.json — do not edit by hand. */\n" + css)
 md_path = os.path.join(DESIGN, "design.md")
-md = open(md_path).read()
+md = open(md_path, encoding="utf-8").read()
 begin, end = "<!-- BEGIN GENERATED: tokens.css — do not edit by hand -->", "<!-- END GENERATED -->"
 i, j = md.index(begin) + len(begin), md.index(end)
-open(md_path, "w").write(md[:i] + "\n```css\n" + css.rstrip() + "\n```\n" + md[j:])
+open(md_path, "w", encoding="utf-8", newline="\n").write(md[:i] + "\n```css\n" + css.rstrip() + "\n```\n" + md[j:])
 
 # Contrast checks: (fg, bg, minimum)
 def lum(h):
@@ -96,6 +98,7 @@ PAIRS = [
     ("color.text.primary", "color.bg.canvas", 4.5), ("color.text.primary", "color.bg.surface", 4.5),
     ("color.text.secondary", "color.bg.surface", 4.5), ("color.text.secondary", "color.bg.canvas", 4.5),
     ("color.text.secondary", "color.bg.subtle", 4.5),
+    ("color.text.primary", "color.bg.fill", 4.5), ("color.text.secondary", "color.bg.fill", 4.5),
     ("color.text.on-accent", "color.accent.default", 4.5), ("color.text.on-accent", "color.accent.hover", 4.5),
     ("color.accent.default", "color.bg.surface", 4.5), ("color.accent.default", "color.bg.canvas", 4.5),
     ("color.accent.default", "color.accent.soft", 4.5),
