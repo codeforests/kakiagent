@@ -2164,8 +2164,20 @@ export const SummariseJob = z.object({
   conversationId: z.uuid(),
 });
 export type SummariseJob = z.infer<typeof SummariseJob>;
-/** Everything on `conversation-turns`: an auto-close, escalation reminder, approval timer, delivery-failed, handoff-email or summarise job, or a visitor turn. */
+/**
+ * After a data-subject deletion (GOV-05; FEAT-061 §5.4): the deleted email attachments' S3
+ * keys, removed by the agent-worker. Own FIFO group `dsr:<requestId>`.
+ */
+export const DsrObjectsJob = z.object({
+  kind: z.literal('dsr_objects'),
+  tenantId: z.uuid(),
+  requestId: z.uuid(),
+  keys: z.array(z.string().min(1).max(1024)).max(10_000),
+});
+export type DsrObjectsJob = z.infer<typeof DsrObjectsJob>;
+/** Everything on `conversation-turns`: an auto-close, escalation reminder, approval timer, delivery-failed, handoff-email, summarise or DSR-objects job, or a visitor turn. */
 export const TurnQueueJob = z.union([
+  DsrObjectsJob,
   AutoCloseJob,
   EscalationReminderJob,
   ApprovalTimerJob,

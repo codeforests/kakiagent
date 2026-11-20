@@ -142,3 +142,4 @@ export {
 } from './dsr/find.js';
 export { exportSubject, scopeOf } from './dsr/export.js';
 export { correctSubject } from './dsr/correct.js';
+export { eraseSubject, type EraseOutcome } from './dsr/erase.js';
