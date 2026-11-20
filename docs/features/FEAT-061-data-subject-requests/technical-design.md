@@ -117,6 +117,9 @@ Routes in §3; `dsr.manage` in identity's capability table (Owner, Admin). Erase
 - **D12 — Backups age out (RDS 35 days); no backup surgery.** GOV-05 allows "within the backup retention window". Rejected: restoring and scrubbing snapshots.
 - **D13 — Re-auth on erase and export; none on correction** (AUTH-03 lists PDPA deletion and exports, not correction).
 - **D14 — UI mockup not reviewed by Ken** (autonomous run); committed at `mockup/dsr-mockup.html`.
+- **D18 — "Audit reference" links to the Audit log's Contacts group (UI build).** FEAT-060's Audit log has no entry-number filter, so `/settings/audit?seq=` would show the unfiltered log. Rejected: adding a `seq` filter to FEAT-060 here (another feature's screen and contract).
+- **D19 — Find results are read-only while a request is Open, and on correction requests (UI build).** Ticking only matters for export and delete, which need "verified" (D9); the preview shows what is held. Rejected: tick boxes on the preview that nothing uses.
+- **D20 — "Close without action" takes a required free-text reason with two quick-fill buttons ("Duplicate", "They withdrew the request") (UI build).** Rejected: a radio list plus an "Other" text field (one more control for the same stored text).
 
 ## 8. Escalations and open items
 

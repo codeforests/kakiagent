@@ -1,22 +1,24 @@
 # Handoff: FEAT-061 — Data-subject requests: find, export, correct, delete across stores
-Branch: feat/FEAT-061-data-subject-requests · PR: none · Updated: 2026-11-20 by build (backend, part 2)
-Stage done: build (T1–T8 of 12; backend complete)
-Next: build (UI, T9–T11) — kickoff: "Build FEAT-061 (UI) on branch feat/FEAT-061-data-subject-requests. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage build."
+Branch: feat/FEAT-061-data-subject-requests · PR: draft (see the branch's PR) · Updated: 2026-11-20 by build (UI)
+Stage done: build (T1–T11 of 12; status developer-done)
+Next: verify — kickoff: "Verify FEAT-061 on branch feat/FEAT-061-data-subject-requests. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
 
 ## What the next stage needs
-- Routes (`apps/api/src/data-requests.ts`, all `dsr.manage`, Agent 403, other tenant 404, a non-UUID ID 404): `GET /api/v1/data-requests?view=open|closed&cursor` → `DsrList`; `POST /api/v1/data-requests` `DsrCreateBody` → 201 `DsrDetail`; `GET|PATCH /:id` (`DsrPatchBody`, open only); `POST /:id/verify` `DsrVerifyBody`; `/:id/unverified` and `/:id/close` `DsrReasonBody`; `/:id/complete` `DsrCompleteBody` (access/correction only); `GET /:id/find` → `DsrFindResult` (open or verified, else 409); `POST /:id/export` `DsrExportBody` → JSON attachment (`Content-Disposition` filename `data-request-DSR-XXXXXXXX-YYYY-MM-DD.json`); `POST /:id/corrections` `DsrCorrectionBody` → `DsrDetail`; `POST /:id/erase` `DsrEraseBody` (`confirm: 'delete'`) → `DsrEraseResult` (`chain` `intact|broken|not_checked`).
-- Errors are `{ error, message }` with `error` in contracts `DSR_ERRORS`: 404 `not_found`, 409 `state_changed`/`wrong_type`, 422 `not_in_result`/`nothing_selected`, 413 `too_large`; Zod body errors 400 `bad_request` (so a future date or no identifier arrives as 400 `bad_request`; show the client-side messages from ui-design). Export and erase answer 403 `reauth_required` (`ReauthRequired`): wrap both in `useReauthGuard().guard`. Correction has no re-auth (D13).
-- `chain: 'not_checked'` means the 30 s verify cooldown or a running check (D11): show "Verify from the Audit log". `backupsClearBy` = completed day + `BACKUP_RETENTION_DAYS` (35).
-- After an erase, `detail.objects` is `pending` until the agent-worker's `dsr_objects` job runs, then `done` (refetch to see it).
-- The dashboard's `lib/audit.ts` needs event texts for `dsr.opened|updated|verified|unverified|closed|completed|exported|corrected|erased|objects_removed` and `audit.pii_erased` (contacts group already includes `dsr.`).
-- `docs/operations/data-subject-requests.md` is written (T8); link it from the page's help text if ui-design asks for one.
-- Build changes this session: 0059 now also grants the visitor zone SELECT on `objects_pending, objects_done_at` (idempotent job); the worker logic lives in governance `dsr/workers.ts` so its integration test is in governance; terraform `dsr_object_remover` policy and the env vars are in `envs/prod/main.tf`.
+- Screens: `pages/data-requests.tsx` (SCR-APP-048, `/settings/privacy/requests`), `pages/data-request.tsx` + `pages/data-request-act.tsx` (SCR-APP-049, `/settings/privacy/requests/:id`: verify, find, act, done), `pages/data-request-parts.tsx` (chips, breadcrumb, New/Edit `RequestFormDialog`, Privacy and data's `DataRequestsCard`); data, words and queries in `lib/data-requests.ts` (13 unit tests); API calls in `lib/api.ts` (`dataRequests`…`eraseDataRequest`); `dsr.*` texts in `lib/audit.ts`; CSS in the FEAT-061 block at the end of `app.css`.
+- Export and erase run through `useReauthGuard().guard`; 409 `state_changed`/`wrong_type` and 422 `not_in_result` show a page alert with Reload / Search again; other errors stay in the dialog.
+- The done state's chain result only exists in the erase response: after a reload it shows "Check it from the Audit log" (the outcome stores counts and `auditSeq`, not the chain).
+- UI decisions D18 (audit link goes to the Contacts group; no `seq` filter in FEAT-060), D19 (find is read-only while Open and on correction requests), D20 (close reason: free text + quick fills); log rows 15–17.
+- The Edit dialog has no Note field: `DsrPatchBody` takes no note.
+- Stubbed-API Chromium check (T10) passed: Cancel focused in the delete confirm, Delete enabled only at "delete" (trimmed, any case), erase body, done state, 375 px no sideways scroll.
 
 ## Left to CI or later
-- E2E (T11), renders and axe run in GitHub CI (no Docker here). Terraform `validate`/`test` in CI (the provider registry was unreachable; `fmt -check` passed). `governance anchors.int.test.ts` needs S3 and fails locally without `KAKI_TEST_S3_ENDPOINT`; the DSR suites pass.
+- `e2e/tests/data-requests.e2e.ts` (T11) has not run: no Docker or local stack here. It relies on the dev tenant's lead capture (consent card, "Your details") as `consent-withdrawal.e2e.ts` does, and asserts "Chain verified" strictly (no other spec runs a verify within 30 s before it with `workers: 1`).
+- Axe and screen renders at 1440/375 run in that spec in CI.
+- From the backend sessions: terraform validate/test and `governance anchors.int.test.ts` (S3) in CI; `apps/api uploads.int.test.ts` needs LocalStack.
 
 ## Pending for Ken
-- None blocking. No new M5 decision rows this session (rows 12–14 from part 1 stand).
+- None blocking. Decision-log rows 15–17 added this session.
 
-## Token use (build backend part 2; /mnt/project-files missing, so noted here)
-- ~60 tool calls; new context roughly 110k beyond the ~85k start. Most went to reading the worker `main.ts` files and the notification/recipient grants (~25k), the API's audit routes as the pattern (~8k), and the API test (~10k output). Nothing needed a fix round beyond two wrong test column names (audit table is `audit_entries`/`subject_refs`). Part 1 took ~95 calls and ~190k; splitting the backend in two kept both sessions under 200k.
+## Token use (build UI; /mnt/project-files missing, so noted here)
+- ~60 tool calls; new context roughly 120k beyond the start. Most went to reading the dashboard patterns (leads, lead, audit, privacy-parts, ConfirmDialog/FormDialog, ~30k), the contracts' DSR section (~10k), and writing the four page files (~35k output). One fix round (unbuilt `@kaki/design-tokens` for typecheck).
+- Modern Web Guidance: skill listed (y), but `pnpx modern-web-guidance@1.0.1 search` was refused twice by this session's command sandbox, so no guides were fetched in the build; the design stage's `dialog` and `required-field-feedback` guidance (ui-design.md) was applied: safe action focused in the delete confirm (Radix `ConfirmDialog` kept over native `<dialog>`), errors only after leaving a field or on submit with an `ErrorSummary`. No conflicts; ~0 tokens added by guides.
