@@ -28,6 +28,7 @@ import { EmailChannelPage } from './pages/email-channel.tsx';
 import { TelegramChannelPage } from './pages/telegram-channel.tsx';
 import { PrivacyPage } from './pages/privacy.tsx';
 import { DataRequestsPage } from './pages/data-requests.tsx';
+import { DataRequestPage } from './pages/data-request.tsx';
 import { LeadsSettingsPage } from './pages/leads-settings.tsx';
 import { AuditPage } from './pages/audit.tsx';
 import { LeadsPage } from './pages/leads.tsx';
@@ -133,6 +134,7 @@ export const router = createBrowserRouter([
       { path: 'settings/privacy', element: <PrivacyPage /> },
       // FEAT-061: SCR-APP-048 and SCR-APP-049 (Owner and Admin).
       { path: 'settings/privacy/requests', element: <DataRequestsPage /> },
+      { path: 'settings/privacy/requests/:id', element: <DataRequestPage /> },
       { path: 'settings/rules', element: <RulesPage /> },
       // Leads and consent (FEAT-049, SCR-APP-043).
       { path: 'settings/leads', element: <LeadsSettingsPage /> },
