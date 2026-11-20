@@ -271,6 +271,15 @@ data "aws_iam_policy_document" "attachment_scanner" {
   }
 }
 
+# A data-subject deletion's attachment files (FEAT-061 §5.6): the agent-worker's `dsr_objects`
+# job batch-deletes the erased conversations' attachments.
+data "aws_iam_policy_document" "dsr_object_remover" {
+  statement {
+    actions   = ["s3:DeleteObject"]
+    resources = ["${module.storage.bucket_arns["attachments"]}/email/*"]
+  }
+}
+
 module "service" {
   source   = "../../modules/service"
   for_each = local.roles
@@ -303,6 +312,7 @@ module "service" {
     agent-worker = {
       sqs  = data.aws_iam_policy_document.turns_consumer.json
       mail = data.aws_iam_policy_document.mail_receiver.json
+      dsr  = data.aws_iam_policy_document.dsr_object_remover.json
     }
     ingest-worker = {
       sqs         = data.aws_iam_policy_document.ingest_consumer.json
@@ -339,6 +349,8 @@ module "service" {
         PUBLIC_HOOKS_URL = local.public_url
         # "Verify audit chain" lists the anchors (FEAT-060 §5.6).
         AUDIT_ANCHOR_BUCKET = module.storage.bucket_names["audit-anchors"]
+        # A completed deletion shows when backups age out (FEAT-061 D12): the database's retention.
+        BACKUP_RETENTION_DAYS = tostring(module.data.database_summary.backup_days)
       }
       realtime = { PORT = "3001", VALKEY_URL = local.valkey }
       agent-worker = {
@@ -356,6 +368,8 @@ module "service" {
         SQS_CHANNEL_SEND_QUEUE_URL  = module.queues.queue_urls["channel-send"]
         EMAIL_FROM                  = "KakiAgent <${module.mail.from_address}>"
         SES_MESSAGE_ID_DOMAIN       = module.mail.message_id_domain
+        # Data-subject deletions remove attachment files here (FEAT-061 §5.6).
+        ATTACHMENTS_BUCKET = module.storage.bucket_names["attachments"]
       }
       ingest-worker = {
         HEALTH_PORT          = "3003"
@@ -382,6 +396,8 @@ module "service" {
         SES_CONFIGURATION_SET      = module.mail.configuration_set_name
         # FEAT-037: Telegram's health check re-registers a missing webhook here.
         PUBLIC_HOOKS_URL = local.public_url
+        # FEAT-061: data-request due alerts, hourly.
+        DSR_DUE_SWEEP_MS = "3600000"
       }
     }[each.key] : k => v },
   )

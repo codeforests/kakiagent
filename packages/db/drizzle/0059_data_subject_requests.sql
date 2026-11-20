@@ -64,7 +64,7 @@ CREATE POLICY dsr_dashboard_insert ON dsr_requests AS RESTRICTIVE FOR INSERT TO 
   WITH CHECK (source = 'dashboard' AND created_by IS NOT NULL AND status = 'open');--> statement-breakpoint
 -- A visitor's "delete my data" opens a request (§5.5, D6); the agent-worker marks files removed (§5.6).
 GRANT INSERT ON dsr_requests TO app_agent_visitor;--> statement-breakpoint
-GRANT SELECT (tenant_id, id, conversation_id, status) ON dsr_requests TO app_agent_visitor;--> statement-breakpoint
+GRANT SELECT (tenant_id, id, conversation_id, status, objects_pending, objects_done_at) ON dsr_requests TO app_agent_visitor;--> statement-breakpoint
 GRANT UPDATE (objects_pending, objects_done_at, updated_at) ON dsr_requests TO app_agent_visitor;--> statement-breakpoint
 CREATE POLICY dsr_visitor_insert ON dsr_requests AS RESTRICTIVE FOR INSERT TO app_agent_visitor
   WITH CHECK (source = 'conversation' AND created_by IS NULL AND status = 'open');--> statement-breakpoint
