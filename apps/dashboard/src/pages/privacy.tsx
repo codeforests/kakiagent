@@ -1,5 +1,6 @@
 import { Link } from 'react-router';
 import { useToast } from '../lib/form.ts';
+import { DataRequestsCard } from './data-request-parts.tsx';
 import {
   DocumentsSection,
   NoticeForm,
@@ -30,6 +31,7 @@ export function PrivacyPage() {
           <ReadinessAlert data={data} />
           <NoticeForm key={`n${generation}`} data={data} onReload={reload} onToast={setToast} />
           <PurposeForm key={`p${generation}`} data={data} onReload={reload} onToast={setToast} />
+          <DataRequestsCard />
           <DocumentsSection data={data} onToast={setToast} />
           <TermsSection data={data} />
           {toast && (

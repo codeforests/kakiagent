@@ -143,6 +143,18 @@ import {
   type ReviewScopeQuery,
   type UpdateFactBody,
   type UploadRequestBody,
+  DsrDetail,
+  DsrEraseResult,
+  DsrFindResult,
+  DsrList,
+  type DsrCompleteBody,
+  type DsrCorrectionBody,
+  type DsrCreateBody,
+  type DsrEraseBody,
+  type DsrExportBody,
+  type DsrPatchBody,
+  type DsrReasonBody,
+  type DsrVerifyBody,
 } from '@kaki/contracts';
 import type { z } from 'zod';
 
@@ -491,6 +503,35 @@ export const api = {
     const name = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') ?? '')?.[1];
     return { name: name ?? null, blob: await res.blob() };
   },
+  // Data-subject requests (SCR-APP-048/049, FEAT-061 §3): Owner and Admin.
+  dataRequests: (view: 'open' | 'closed', cursor?: string) =>
+    getJson(`/api/v1/data-requests${query({ view, cursor })}`, DsrList),
+  dataRequest: (id: string) =>
+    getJson(`/api/v1/data-requests/${encodeURIComponent(id)}`, DsrDetail),
+  createDataRequest: (body: DsrCreateBody) =>
+    request('POST', '/api/v1/data-requests', DsrDetail, body),
+  updateDataRequest: (id: string, body: DsrPatchBody) =>
+    request('PATCH', `/api/v1/data-requests/${encodeURIComponent(id)}`, DsrDetail, body),
+  dataRequestAction: (
+    id: string,
+    action: 'verify' | 'unverified' | 'close' | 'complete',
+    body: DsrVerifyBody | DsrReasonBody | DsrCompleteBody,
+  ) =>
+    request('POST', `/api/v1/data-requests/${encodeURIComponent(id)}/${action}`, DsrDetail, body),
+  findDataRequest: (id: string) =>
+    getJson(`/api/v1/data-requests/${encodeURIComponent(id)}/find`, DsrFindResult),
+  /** The JSON file in the response, after re-auth (AUTH-03). */
+  exportDataRequest: async (id: string, body: DsrExportBody) => {
+    const res = await send('POST', `/api/v1/data-requests/${encodeURIComponent(id)}/export`, body);
+    const name = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') ?? '')?.[1];
+    return { name: name ?? null, blob: await res.blob() };
+  },
+  correctDataRequest: (id: string, body: DsrCorrectionBody) =>
+    request('POST', `/api/v1/data-requests/${encodeURIComponent(id)}/corrections`, DsrDetail, body),
+  eraseDataRequest: (id: string, body: DsrEraseBody) =>
+    request('POST', `/api/v1/data-requests/${encodeURIComponent(id)}/erase`, DsrEraseResult, body),
+  /** A clean email attachment, downloaded with the session cookie. */
+  attachmentUrl: (id: string) => `/api/v1/attachments/${encodeURIComponent(id)}`,
   /** A plain link: the browser downloads it with the session cookie. */
   documentUrl: (doc: 'data-flow' | 'dpa') => `/api/v1/settings/privacy/documents/${doc}.pdf`,
   /** FEAT-012 §3: SCR-APP-023, SCR-APP-024 and the website form. */
