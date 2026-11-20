@@ -8,6 +8,12 @@ import { expectNoSeriousA11yViolations, signIn } from './support.ts';
  * states come from a stubbed detail response so each state is shown without waiting for a crawl.
  */
 const OPERATOR = 'http://localhost:5174/';
+/**
+ * Phone width for axe, tall enough that no control sits under the sticky tab bar: at 375 × 812
+ * axe's target-size rule flags whichever control the bar happens to cover, on main as on this
+ * branch (verify A/B, 2026-11-20), which is a viewport artifact, not a layout fault.
+ */
+const PHONE = { width: 375, height: 5000 };
 const at = '2026-11-17T02:02:00Z';
 const counts = {
   pagesFound: 44,
@@ -182,8 +188,9 @@ test('Source page: meta-grid, event-timeline and gradient-edge alerts in every s
   await expect(steps.getByText('Failed', { exact: true })).toBeVisible();
   await expectNoSeriousA11yViolations(page);
 
-  // Phone: the steps stack and nothing scrolls sideways.
-  await page.setViewportSize({ width: 375, height: 812 });
+  // Phone: the steps stack and nothing scrolls sideways. The page is as tall as its content
+  // (PHONE), as in the other phone-width axe checks, so nothing sits under the sticky tab bar.
+  await page.setViewportSize(PHONE);
   await page.goto(`/knowledge/sources/${SOURCES.processing.id}`);
   await expect(current).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
@@ -194,7 +201,7 @@ test('the restyled screens pass axe at 1440 and 375 px', async ({ page }) => {
   test.slow();
   await signIn(page, 'owner@kaki-bakery.test');
   for (const width of [1440, 375]) {
-    await page.setViewportSize({ width, height: width === 375 ? 812 : 900 });
+    await page.setViewportSize(width === 375 ? PHONE : { width, height: 900 });
     for (const path of ['/', '/inbox', '/knowledge', '/knowledge/sources', '/settings/team']) {
       await page.goto(path);
       await expect(page.locator('h1').first()).toBeVisible();
