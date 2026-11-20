@@ -2324,14 +2324,35 @@ a {
   opacity: 0.6;
   cursor: default;
 }
+/* Harbour v2 alert (design.md §4.3, FEAT-076 D3): a border, the tone's tint fading out from the
+   leading edge, and a tone icon drawn by ::before (a mask, so its colour is the tone token and
+   screen readers read nothing extra). Children keep the v1 column layout beside the icon. */
 .alert {
+  --alert-tint: var(--color-info-soft);
+  --alert-ink: var(--color-info-default);
+  --alert-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 11v5M12 8h.01'/%3E%3C/svg%3E");
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: var(--space-3);
   margin-bottom: var(--space-5);
-  padding: var(--space-4) var(--space-5);
+  padding: var(--space-5);
+  padding-left: calc(var(--space-5) + var(--space-6) + var(--space-4));
+  border: 1px solid var(--color-border-default);
   border-radius: var(--radius-lg);
+  background: linear-gradient(90deg, var(--alert-tint) 0%, var(--color-bg-surface) 40%);
+}
+.alert::before {
+  content: '';
+  position: absolute;
+  top: var(--space-5);
+  left: var(--space-5);
+  width: var(--space-6);
+  height: var(--space-6);
+  background: var(--alert-ink);
+  -webkit-mask: var(--alert-icon) center / contain no-repeat;
+  mask: var(--alert-icon) center / contain no-repeat;
 }
 .alert p,
 .alert ul {
@@ -2343,21 +2364,42 @@ a {
   align-items: center;
   min-height: var(--space-7);
 }
+/* The lead phrase; with a title, the rest of the alert is secondary text. */
 .alert__title {
-  font-size: var(--type-title-sm-size);
-  font-weight: var(--font-weight-semibold);
+  font-size: var(--type-body-size);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+}
+.alert:has(.alert__title) > :not(.alert__title, a, button, .kaki-btn) {
+  color: var(--color-text-secondary);
 }
 .alert--danger {
-  background: var(--color-danger-soft);
+  --alert-tint: var(--color-danger-soft);
+  --alert-ink: var(--color-danger-default);
+  --alert-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='m9 9 6 6M15 9l-6 6'/%3E%3C/svg%3E");
 }
 .alert--warning {
-  background: var(--color-warning-soft);
+  --alert-tint: var(--color-warning-soft);
+  --alert-ink: var(--color-warning-default);
+  --alert-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10.3 3.9 2 18a2 2 0 0 0 1.7 3h16.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z'/%3E%3Cpath d='M12 9v4M12 17h.01'/%3E%3C/svg%3E");
 }
 .alert--info {
-  background: var(--color-info-soft);
+  --alert-tint: var(--color-info-soft);
+  --alert-ink: var(--color-info-default);
+  --alert-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 11v5M12 8h.01'/%3E%3C/svg%3E");
 }
 .alert--success {
-  background: var(--color-success-soft);
+  --alert-tint: var(--color-success-soft);
+  --alert-ink: var(--color-success-default);
+  --alert-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='m8 12 3 3 5-6'/%3E%3C/svg%3E");
+}
+@media (forced-colors: active) {
+  .alert {
+    background: Canvas;
+  }
+  .alert::before {
+    background: CanvasText;
+  }
 }
 .skeleton-field {
   height: calc(var(--size-control-md) + var(--space-7));
