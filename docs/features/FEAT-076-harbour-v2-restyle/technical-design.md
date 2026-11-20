@@ -1,7 +1,7 @@
 # Technical design: FEAT-076 — Harbour v2 restyle
 
 > Implements: KB-12 (p: a source's status shown as an `event-timeline` on SCR-APP-024), NFR-09 (p: the v2 restyle keeps the dashboard and operator console at WCAG 2.1 AA) · Realizes: UC-03 (step 5: "showing progress per source") · Screens: SCR-APP-024 (p: `meta-grid`, `event-timeline`); every SCR-APP and SCR-OPS screen (p: styling) (see [ui-design.md](ui-design.md)) · Module: `packages/ui`, `apps/dashboard`, `apps/operator`; no endpoint, contract, schema or widget change
-> Status: designed · 2026-11-17 · Owner request (Ken, 2026-11-17): apply design.md v2 (PR #73) with the same functionality; Ken approves the mockup ([mockup/harbour-v2-mockup.html](mockup/harbour-v2-mockup.html)) before any build
+> Status: designed · 2026-11-17 · mockup approved 2026-11-20 (D9–D11) · Owner request (Ken, 2026-11-17): apply design.md v2 (PR #73) with the same functionality; Ken approves the mockup ([mockup/harbour-v2-mockup.html](mockup/harbour-v2-mockup.html)) before any build
 
 ## 1. Intent
 
@@ -130,6 +130,9 @@ None.
 - **D6 — Selected list rows keep `--color-accent-soft`.** design.md §4.4 keeps this for tables and lists, so the inbox's selected row stays teal-tinted; only navigation and tabs use the grey fill. Asked as question 2.
 - **D7 — Operator chrome colours derived from tokens with `color-mix`.** The dark sidebar needs a lighter fill and a muted text that tokens.json doesn't define for light mode; `color-mix` of surface and text-primary keeps "token variables only" without adding tokens.
 - **D8 — One build session, UI only.** No backend layer; nine tasks, split by component so each is checked by a stubbed-API Playwright script.
+- **D9 — Mockup approved (Ken, 2026-11-20: "Agree with above changes").** The v2 look on Source, Home, Inbox, operator Tenants and the phone views is the reference.
+- **D10 — Selected inbox row keeps `--color-accent-soft`** (question 2; D6 stands).
+- **D11 — Ready sources get the success outcome alert** (question 3; D4 resolved yes): when `status` is ready and `counts.facts > 0`, a success alert above the timeline: lead "Finished reading {n} {unit}." (websites and files: pages read; spreadsheets: rows imported; chats: the existing unit words, falling back to no count) and body "{r} of the {f} facts need your review before your assistant uses them." with a "Review facts" link to `/review` when `r > 0`; when `r = 0`, body "Your assistant can use all {f} facts now." and no link. The zero-facts info alert is unchanged.
 
 ## 8. Escalations and open items
 
