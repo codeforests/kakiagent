@@ -1,7 +1,7 @@
 # Tasks: FEAT-061 — Data-subject requests: find, export, correct, delete across stores
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: designed · Last updated: 2026-11-20 (design)
+> Status: designed (build T1–T6 done) · Last updated: 2026-11-20 (build)
 
 - [x] T1 — Schema: `0059_data_subject_requests.sql` + Drizzle `dsrRequests`, `TENANT_SCOPED_TABLES`, RLS case; grants and restrictive policies (visitor insert, dashboard `contact_identities` `lead_form` only, dashboard `contacts` update columns); notification kind `dsr_due_soon` and subject `data_request`; roles `kaki_dsr_erase`, `kaki_dsr_search`, `kaki_dsr_timer` with `dsr_erase()`, `dsr_search_hits()`, `dsr_queue_due_alerts()` (design §4; AC-1, AC-6, AC-8)
       Done when: `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes, including the new RLS case (tenant B can't see or insert tenant A's request) and a check that `app_dashboard` can't DELETE from `messages` directly.

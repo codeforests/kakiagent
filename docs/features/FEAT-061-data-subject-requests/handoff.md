@@ -1,22 +1,22 @@
 # Handoff: FEAT-061 — Data-subject requests: find, export, correct, delete across stores
-Branch: feat/FEAT-061-data-subject-requests · PR: none · Updated: 2026-11-20 by design
-Stage done: design
-Next: build (backend, T1–T8) — kickoff: "Build FEAT-061 (backend) on branch feat/FEAT-061-data-subject-requests. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage build."
+Branch: feat/FEAT-061-data-subject-requests · PR: none · Updated: 2026-11-20 by build (backend, part 1)
+Stage done: build (T1–T6 of 12)
+Next: build (backend, T7–T8) — kickoff: "Build FEAT-061 (backend) on branch feat/FEAT-061-data-subject-requests. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage build." (resume at T7; then the UI session T9–T11)
 
 ## What the next stage needs
-- Governance is the bottom module: `dsr/*` reads other modules' tables through `@kaki/db` schema only and deletes only via `dsr_erase()` (NOLOGIN `kaki_dsr_erase`, pattern `contact_merge()` in 0055). Don't import inbox/leads/channels/kb from governance.
-- Before writing `dsr_erase()`, list every FK onto `conversations`, `messages` and `contacts` (`grep -n "foreignColumns: \[conversations\|foreignColumns: \[contacts\|foreignColumns: \[messages" packages/db/src/schema.ts`) and delete no-cascade children first; `leads.conversation_id` is SET NULL, `conversations.contact_id` has no cascade.
-- `DSR_STORES` must classify every `TENANT_SCOPED_TABLES` entry (T3 test); T5's test asserts zero rows per `find+erase` store.
-- `dataRequestHandler` keeps the escalation and adds `openDataRequest` (D6); texts unchanged.
-- S3 deletion rides `conversation-turns` as `{ kind: 'dsr_objects' }` (no new outbox topic).
-- All decisions D1–D14 were taken without Ken (autonomous M5 run) and are in `docs/build/m5-decision-log.md` rows 1–11.
+- Governance exports (`packages/governance/src/index.ts`): `createRequest`, `updateRequest`, `verifyRequest`, `markUnverified`, `closeRequest`, `completeRequest`, `listRequests`, `getRequest`, `requestEvents`, `memberIdsOf`, `toDetail(row, events, nameOf, { backupRetentionDays })`, `findSubject(tx, tenantId, identifiersOf(row))` (→ `.result` is `DsrFindResult`), `exportSubject(tx, t, user, id, version, sel)` (→ `{ file, fileName }`), `correctSubject`, `eraseSubject(tx, t, user, id, version, sel)` (→ `{ request, counts, auditSeq, objectKeys }`), `openFromConversation`. Errors are `DsrError` with `.code` in contracts `DSR_ERRORS`: map `not_found` 404, `state_changed`/`wrong_type` 409, `not_in_result`/`nothing_selected` 422, `too_large` 413.
+- `find` on an `open` request (D9 preview) isn't gated in governance: the API checks status (`open` or `verified`); export/correct/erase call `requireVerified` themselves.
+- After `eraseSubject` commits, the API calls `verifyForDashboard` (D11) for `chain`; `VerifyCooldown`/`VerifyRunning` → `not_checked`. `toDetail` gives `backupsClearBy` = completed day + `backupRetentionDays` (api config `BACKUP_RETENTION_DAYS`, default 35, D12).
+- Contracts: section "Dashboard API: data-subject requests" (end of `contracts/src/index.ts`); `DsrFindResult.contacts[].leads` is an array (lead IDs for correction), and `other` has no `handoffLinks` (the dashboard may not read `handoff_links`, FEAT-038's RLS test). `DsrObjectsJob` is in `TurnQueueJob`; the agent-worker branch for `kind: 'dsr_objects'` (T7) deletes `keys` from the attachments bucket, then sets `objects_pending = 0, objects_done_at = now()` (visitor-zone grant on those columns + `updated_at`) and audits `dsr.objects_removed`.
+- Scheduler T7: `select tenant_id, id from dsr_queue_due_alerts()` as `app_outbox`; then per row `notify` kind `dsr_due_soon`, subject `{ type: 'data_request', id }`, recipients Owner + Admins. Templates and `linkFor` (`/settings/privacy/requests/:id`) are done (T1); `muteEvent('dsr_due_soon')` is null.
+- Build deviations, logged as M5 decisions 12–14: `dsr_correct()` instead of new dashboard grants (D15); deletion also removes corrections from the deleted conversations and their coaching replays (D16); no requester values in `audit_pii` (D17). `dsr_erase()` takes 5 arguments (no actor).
+- Audit event codes: `dsr.opened|updated|verified|unverified|closed|completed|exported|corrected|erased` (+ `audit.pii_erased` per contact); the contacts audit group now includes `dsr.` (contracts `audit.ts`). The dashboard's `lib/audit.ts` event texts need these (UI session).
 
 ## Left to CI or later
-- E2E (T11) and screen renders run in GitHub CI (no Docker here). Terraform validate/test in CI if the registry is unreachable.
+- E2E (T11) and renders run in GitHub CI. `anchors.int.test.ts` needs S3 (no `KAKI_TEST_S3_ENDPOINT` here), so `governance test:integration` shows that one file failing locally; the DSR suites pass.
 
 ## Pending for Ken
-- None blocking. Ken reviews the M5 decision log on 2026-11-27 (mockup not reviewed, D14).
+- None blocking. M5 decision log rows 12–14 added by this session.
 
-## Token use (design session; /mnt/project-files missing, so noted here)
-- ~40 tool calls; new context roughly 95k beyond the ~85k start (code-map and schema greps were the bulk, ~35k; the design documents ~25k output). Modern Web Guidance: skill present (y); searches "destructive confirmation dialog", "form validation errors"; guides `dialog`, `required-field-feedback` (~6k); outcome in ui-design.md "Gaps": `@kaki/ui` ConfirmDialog wins over native `<dialog>`, both agree on focusing Cancel and post-interaction errors.
-- Would save more: a code-map table of "FKs onto conversations/contacts" (cost ~8k of awk over schema.ts here).
+## Token use (build part 1; /mnt/project-files missing, so noted here)
+- ~95 tool calls; new context roughly 190k beyond the ~85k start. Most went to schema/grant discovery (psql against a scratch test DB was cheaper than reading schema.ts, ~15k), the 0059 functions (~20k output) and test seeding (~15k). The two RLS invariants found by running the RLS suite (dashboard writes on contacts/leads, reads of handoff_links) cost two fix rounds (~10k); a design read of `rls.int.test.ts` for "dashboard can't" lines would have caught them earlier.
