@@ -1,7 +1,7 @@
 # Tasks: FEAT-076 — Harbour v2 restyle
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md); look: [mockup/harbour-v2-mockup.html](mockup/harbour-v2-mockup.html))
-> Status: `developer-done` · 2026-11-20 · mockup approved by Ken 2026-11-20 (technical-design D9–D11)
+> Status: `accepted` · 2026-11-20 ([acceptance-report.md](acceptance-report.md); GitHub CI run 144 green) · mockup approved by Ken 2026-11-20 (technical-design D9–D11)
 > One build session, UI only (no contract, schema or backend change; D8). Each task: edit → `pnpm --filter <pkg> typecheck` → its check → one commit. A stubbed-API Playwright script (static `vite preview` build + `page.route('**/api/**')`) logs only the computed styles it asserts. Without a local stack, E2E and axe run in the verify stage's GitHub CI.
 
 - [x] T1 — Inter self-hosted: `@fontsource/inter` `5.2.8` (exact) in `packages/ui`; `packages/ui/src/fonts.css` importing `latin-400`, `latin-500`, `latin-600`, `latin-400-italic`; `exports["./fonts.css"]`; imported first in `apps/dashboard/src/main.tsx` and `apps/operator/src/main.tsx` (design §5.1; D1; AC-1, AC-2)
@@ -32,7 +32,7 @@
       Note: `fonts.css` added to dependency-cruiser's declared `@kaki/ui` entry points (like `styles.css`). Local run 2026-11-20: `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm --filter @kaki/e2e typecheck`, `pnpm test` (172 files, 1,947 tests), `pnpm build`, `pnpm size` all PASS.
 
 ## Verification evidence
-_(build stage, 2026-11-20; E2E and axe pending the verify stage's GitHub CI)_
+_(build stage, 2026-11-20; E2E and axe confirmed by the verify stage in GitHub CI run 144 at `4b36020`, see acceptance-report.md)_
 - AC-1: T1 stubbed script: `document.fonts.check('500 14px Inter')` true on the dashboard, `600` on the operator console; every WOFF2 request same-origin; no Google Fonts request; each dist has exactly four `inter-latin-*.woff2`. E2E `harbour-v2.e2e.ts` test 1 checks the same against the real stack.
 - AC-2: `pnpm --filter @kaki/widget build && pnpm size` PASS; no `.woff*` in `apps/widget/dist`; the widget doesn't import `@kaki/ui`.
 - AC-3: T3 script: active nav `#E9E9E9` / `#191919`, 32 px; phone tab-bar icon pill `#E9E9E9`. E2E test 2.
