@@ -1,5 +1,5 @@
 # Handoff: FEAT-076 — Harbour v2 restyle
-Branch: feat/FEAT-076-harbour-v2-restyle · PR: (draft, see below) · Updated: 2026-11-20 by build
+Branch: feat/FEAT-076-harbour-v2-restyle · PR: https://github.com/codeforests/kakiagent/pull/75 (draft) · Updated: 2026-11-20 by build
 Stage done: build (T1–T9 of 9)
 Next: verify — kickoff: "Verify FEAT-076 on branch feat/FEAT-076-harbour-v2-restyle. Read docs/build/STATE.md, then run .claude/skills/feature-stage/SKILL.md, stage verify."
 
