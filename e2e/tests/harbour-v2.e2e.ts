@@ -205,6 +205,8 @@ test('the restyled screens pass axe at 1440 and 375 px', async ({ page }) => {
     for (const path of ['/', '/inbox', '/knowledge', '/knowledge/sources', '/settings/team']) {
       await page.goto(path);
       await expect(page.locator('h1').first()).toBeVisible();
+      // Axe a settled page: loading skeletons are replaced by content first.
+      await expect(page.locator('main [aria-busy="true"]')).toHaveCount(0);
       await expectNoSeriousA11yViolations(page);
     }
   }
