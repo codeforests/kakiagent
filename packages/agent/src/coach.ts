@@ -427,6 +427,9 @@ function dispatchContext(
       handoffOptions: async () => {
         throw new Error('coaching has no conversation');
       },
+      openDataRequest: async () => {
+        throw new Error('coaching has no conversation');
+      },
     },
     coaching: {
       propose: (proposal) =>

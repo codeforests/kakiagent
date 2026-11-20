@@ -143,3 +143,4 @@ export {
 export { exportSubject, scopeOf } from './dsr/export.js';
 export { correctSubject } from './dsr/correct.js';
 export { eraseSubject, type EraseOutcome } from './dsr/erase.js';
+export { openFromConversation } from './dsr/conversation.js';

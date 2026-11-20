@@ -145,6 +145,10 @@
     "expectRoute": "reply.simple",
     "expect": [
       {
+        "kind": "data-request",
+        "types": ["deletion"]
+      },
+      {
         "kind": "contains",
         "text": "S$55.00"
       },

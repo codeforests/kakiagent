@@ -81,7 +81,15 @@ export interface ConversationPort {
    * Nothing reaches the visitor but the waiting notice, or (D3) a plain quote sent at once.
    */
   draftApproval(request: RequestCommitmentArgs): Promise<ApprovalPortResult>;
+  /**
+   * Opens a data-subject request for this conversation (GOV-05, LED-07; FEAT-061 §5.5, D6):
+   * governance `openFromConversation`, one live request per conversation.
+   */
+  openDataRequest(type: DataRequestType): Promise<{ status: 'opened' | 'already_open' }>;
 }
+
+export const DATA_REQUEST_TYPES = ['access', 'correction', 'deletion'] as const;
+export type DataRequestType = (typeof DATA_REQUEST_TYPES)[number];
 
 /** Which channels a visitor can continue the chat on (FEAT-038 §5.2 step 2). */
 export interface HandoffChannels {
@@ -172,6 +180,8 @@ export interface TaskResult {
   card?: MessageCard;
   /** What a commitment request did (FEAT-055). */
   approval?: ApprovalPortResult;
+  /** What a data-subject request did (FEAT-061). */
+  dataRequest?: { status: 'opened' | 'already_open' };
 }
 
 export interface TaskHandler<A = unknown> {
@@ -345,16 +355,21 @@ export const withdrawConsentHandler: TaskHandler<Record<string, unknown>> = {
 };
 
 /**
- * GOV-05 routing (FEAT-051 §5.3, D5; AC-9): a request to delete their data goes to the team as
- * an escalation until FEAT-061 replaces this `run` with a data-subject request.
+ * GOV-05 routing (FEAT-051 §5.3, D5; FEAT-061 §5.5, D6; AC-9): a request about the visitor's
+ * data opens a data-subject request (one per conversation) and still goes to the team as an
+ * escalation. The type comes from triage's args, deletion when it gives none.
  */
-export const dataRequestHandler: TaskHandler<Record<string, unknown>> = {
+export const DataRequestArgs = z
+  .object({ type: z.enum(DATA_REQUEST_TYPES).default('deletion').catch('deletion') })
+  .catch({ type: 'deletion' });
+export const dataRequestHandler: TaskHandler<z.infer<typeof DataRequestArgs>> = {
   kind: 'data_request',
   scopes: ['visitor'],
-  args: z.record(z.string(), z.unknown()).catch({}),
-  async run(ctx) {
+  args: DataRequestArgs,
+  async run(ctx, args) {
+    const dataRequest = await ctx.conversation.openDataRequest(args.type);
     const { status } = await ctx.conversation.escalate('data_request');
-    return { escalation: { status }, reply: { key: 'data_request' } };
+    return { dataRequest, escalation: { status }, reply: { key: 'data_request' } };
   },
 };
 

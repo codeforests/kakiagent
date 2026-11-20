@@ -152,7 +152,7 @@ export const TRIAGE_SYSTEM = [
   '  escalate: the visitor asks for a person.',
   '  handoff_channel: the visitor wants to continue on another channel (args: channel).',
   '  withdraw_consent: the visitor asks to stop being contacted or to stop using their details.',
-  '  data_request: the visitor asks to see, correct or delete their personal data.',
+  '  data_request: the visitor asks to see, correct or delete their personal data. Arg type: access, correction or deletion.',
   '  crisis: the visitor mentions self-harm, suicide or danger to themselves or someone else.',
   '  abuse: insults, harassment or threats aimed at the business, its staff or the assistant.',
   '  out_of_scope: a question unrelated to this business (args: topic, one of medical, legal, financial, illegal, blocked, other: medical, legal or financial advice, or help with something illegal).',

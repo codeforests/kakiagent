@@ -1,0 +1,36 @@
+[
+  {
+    "id": "data-request-access-en",
+    "subset": "multi-task",
+    "fast": true,
+    "messages": [{ "role": "user", "content": "I want to see my personal data that you keep" }],
+    "expectTasks": ["data_request"],
+    "expect": [
+      { "kind": "data-request", "types": ["access"] },
+      { "kind": "escalated", "sources": ["data_request"] },
+      { "kind": "contains", "text": "passed your request about your personal data" }
+    ]
+  },
+  {
+    "id": "data-request-access-singlish",
+    "subset": "singlish",
+    "fast": true,
+    "messages": [{ "role": "user", "content": "eh can let me see all my data or not" }],
+    "expectTasks": ["data_request"],
+    "expect": [
+      { "kind": "data-request", "types": ["access"] },
+      { "kind": "escalated", "sources": ["data_request"] }
+    ]
+  },
+  {
+    "id": "data-request-access-chinese",
+    "subset": "chinese",
+    "fast": true,
+    "messages": [{ "role": "user", "content": "我想查看我的个人资料" }],
+    "expectTasks": ["data_request"],
+    "expect": [
+      { "kind": "data-request", "types": ["access"] },
+      { "kind": "escalated", "sources": ["data_request"] }
+    ]
+  }
+]
