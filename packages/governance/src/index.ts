@@ -102,3 +102,32 @@ export {
   sgtTimestamp,
   TooManyAuditEntries,
 } from './audit-export.js';
+export {
+  addDays,
+  dsrRef,
+  dueState,
+  initials,
+  maskedRequester,
+  maskEmailValue,
+  maskPhoneValue,
+  requesterLabel,
+} from './dsr/due.js';
+export { DSR_STORES, storesWith, type DsrAction, type DsrStoreEntry } from './dsr/stores.js';
+export {
+  closeRequest,
+  completeRequest,
+  createRequest,
+  DsrError,
+  getRequest,
+  listRequests,
+  markUnverified,
+  memberIdsOf,
+  requestEvents,
+  requireVerified,
+  toDetail,
+  toSummary,
+  updateRequest,
+  verifyRequest,
+  type DsrEvent,
+  type DsrRow,
+} from './dsr/requests.js';
