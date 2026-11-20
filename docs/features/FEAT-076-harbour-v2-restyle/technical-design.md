@@ -133,6 +133,7 @@ None.
 - **D9 — Mockup approved (Ken, 2026-11-20: "Agree with above changes").** The v2 look on Source, Home, Inbox, operator Tenants and the phone views is the reference.
 - **D10 — Selected inbox row keeps `--color-accent-soft`** (question 2; D6 stands).
 - **D11 — Ready sources get the success outcome alert** (question 3; D4 resolved yes): when `status` is ready and `counts.facts > 0`, a success alert above the timeline: lead "Finished reading {n} {unit}." (websites and files: pages read; spreadsheets: rows imported; chats: the existing unit words, falling back to no count) and body "{r} of the {f} facts need your review before your assistant uses them." with a "Review facts" link to `/review` when `r > 0`; when `r = 0`, body "Your assistant can use all {f} facts now." and no link. The zero-facts info alert is unchanged.
+- **D12 — Section cards by element, not by a markup sweep (build, 2026-11-20).** Every `<section className="card …">` in the dashboard is a page section holding a form group or table (about 60 across 29 files), so CSS `section.card` takes `--radius-2xl` and padding 24 (16 below 640); `.card--section` marks any other. Excluded: `.channel-card` (a grid tile) and `.settings-group` (a padding-0 list of rows). Chips that changed radius: `status-badge`, `chip`, `state-chip` (all 24 px), `audit-chip`, `filter-chip`, `fact-chip`, `intent-tag`, filter counts; the AI status pill, avatars, toggles, dots and the new-message pill stay round.
 
 ## 8. Escalations and open items
 

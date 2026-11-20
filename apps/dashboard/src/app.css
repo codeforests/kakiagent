@@ -421,6 +421,8 @@ a {
   font-size: var(--type-heading-size);
   line-height: var(--type-heading-line);
   font-weight: var(--type-heading-weight);
+  letter-spacing: var(--type-heading-tracking);
+  text-wrap: balance;
   margin: 0 0 var(--space-5);
 }
 .page-header .page-title {
@@ -540,7 +542,7 @@ a {
 .filters-button__count {
   min-width: var(--space-5);
   padding: 0 var(--space-2);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-chip);
   background: var(--color-accent-default);
   color: var(--color-text-on-accent);
   font-size: var(--type-caption-size);
@@ -581,7 +583,7 @@ a {
   padding-left: var(--space-3);
   background: var(--color-bg-subtle);
   border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-chip);
   font-size: var(--type-body-sm-size);
   line-height: var(--type-body-sm-line);
 }
@@ -1015,9 +1017,9 @@ a {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  padding: 0 var(--space-2);
-  min-height: calc(var(--space-5) + var(--space-1));
-  border-radius: var(--radius-full);
+  padding: 0 var(--space-3);
+  min-height: var(--space-7);
+  border-radius: var(--radius-chip);
   font-size: var(--type-caption-size);
   font-weight: var(--font-weight-medium);
   white-space: nowrap;
@@ -1242,7 +1244,7 @@ a {
   min-height: var(--size-control-sm);
   padding: 0 var(--space-3);
   border: 0;
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-chip);
   background: var(--color-bg-subtle);
   color: var(--color-text-secondary);
   font: inherit;
@@ -1712,7 +1714,7 @@ a {
 .intent-tag {
   padding: var(--space-1) var(--space-3);
   border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-chip);
   font-size: var(--type-body-sm-size);
   line-height: var(--type-body-sm-line);
 }
@@ -2089,9 +2091,9 @@ a {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  min-height: calc(var(--space-5) + var(--space-2));
+  min-height: var(--space-7);
   padding: 0 var(--space-3);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-chip);
   font-size: var(--type-caption-size);
   font-weight: var(--font-weight-medium);
   white-space: nowrap;
@@ -2130,8 +2132,8 @@ a {
 .fact-table th {
   text-align: left;
   padding: var(--space-3) var(--space-5);
-  background: var(--color-bg-subtle);
-  font-size: var(--type-body-sm-size);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
   font-weight: var(--font-weight-medium);
   color: var(--color-text-secondary);
 }
@@ -2238,6 +2240,19 @@ a {
   border: 1px solid var(--color-border-default);
   border-radius: var(--radius-lg);
   padding: var(--space-5) var(--space-6);
+}
+/* Harbour v2 section card (design.md §4.4): a page section holding a table or a form group.
+   Every <section class="card"> is one (FEAT-076 D12); .card--section marks any other. */
+section.card:not(.channel-card, .settings-group),
+.card--section {
+  border-radius: var(--radius-2xl);
+  padding: var(--space-7);
+}
+@media (max-width: 639px) {
+  section.card:not(.channel-card, .settings-group),
+  .card--section {
+    padding: var(--space-5);
+  }
 }
 .fact-form {
   display: flex;
@@ -2452,10 +2467,10 @@ a {
 .chip {
   display: inline-flex;
   align-items: center;
-  min-height: calc(var(--space-5) + var(--space-2));
+  min-height: var(--space-7);
   margin-left: var(--space-3);
   padding: 0 var(--space-3);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-chip);
   font-size: var(--type-caption-size);
   font-weight: var(--font-weight-medium);
   white-space: nowrap;
@@ -2465,7 +2480,7 @@ a {
   color: var(--color-warning-default);
 }
 .chip--neutral {
-  background: var(--color-bg-subtle);
+  background: var(--color-bg-fill);
   color: var(--color-text-secondary);
 }
 .load-more {
@@ -2853,7 +2868,7 @@ a.settings-row:hover {
   margin-left: auto;
 }
 .status-badge--neutral {
-  background: var(--color-bg-subtle);
+  background: var(--color-bg-fill);
   color: var(--color-text-secondary);
 }
 .status-badge--info {
@@ -3014,6 +3029,8 @@ a.settings-row:hover {
   margin: 0;
   font-size: var(--type-display-size);
   line-height: var(--type-display-line);
+  font-weight: var(--type-display-weight);
+  letter-spacing: var(--type-display-tracking);
   font-variant-numeric: tabular-nums;
 }
 .source-pages__head {
@@ -3918,7 +3935,7 @@ a.settings-row:hover {
   padding: 0 var(--space-3);
   min-height: calc(var(--space-6) + var(--space-2));
   border: 1px solid var(--color-accent-default);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-chip);
   color: var(--color-text-primary);
   font-size: var(--type-caption-size);
   text-decoration: none;
@@ -4653,7 +4670,7 @@ a.settings-row:hover {
 }
 .privacy-table thead th {
   border-top: 0;
-  background: var(--color-bg-subtle);
+  font-size: var(--type-caption-size);
   color: var(--color-text-secondary);
   font-weight: var(--font-weight-medium);
 }
@@ -5395,7 +5412,7 @@ a.settings-row:hover {
 }
 .team-table thead th {
   border-top: 0;
-  background: var(--color-bg-subtle);
+  font-size: var(--type-caption-size);
   color: var(--color-text-secondary);
   font-weight: var(--font-weight-medium);
 }
@@ -6682,7 +6699,7 @@ a.settings-row:hover {
   min-height: var(--size-control-md);
   padding: 0 var(--space-4);
   border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-chip);
   background: var(--color-bg-surface);
   color: var(--color-text-primary);
   font: inherit;
