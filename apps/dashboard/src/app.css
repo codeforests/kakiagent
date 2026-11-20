@@ -624,16 +624,15 @@ a {
 }
 /* FEAT-075 (AC-4): all five views fit the list pane at ≥ 1024, no scrollbar. */
 .tabs.inbox__views {
-  gap: var(--space-3);
+  gap: var(--space-1);
   justify-content: space-between;
 }
+/* Segmented (FEAT-076 D5), kept compact so five views still fit the 360 px pane. */
 .inbox__views .tabs__tab {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: 0;
+  position: relative;
+  gap: var(--space-1);
+  padding: 0 var(--space-1);
   font-size: var(--type-body-sm-size);
-  text-decoration: none;
 }
 .inbox__views .count-pill {
   min-width: var(--space-5);
@@ -656,15 +655,13 @@ a {
     white-space: nowrap;
   }
   .tabs.inbox__views {
-    gap: var(--space-2);
+    gap: 0;
   }
   .inbox__views .tabs__tab {
     gap: var(--space-1);
+    padding: 0 var(--space-1);
     font-size: var(--type-caption-size);
   }
-}
-.inbox__views .tabs__tab[data-state='active'] {
-  font-weight: var(--font-weight-semibold);
 }
 .inbox__more {
   margin-left: auto;
@@ -2566,27 +2563,63 @@ a.settings-row:hover {
   margin: 0;
   color: var(--color-text-secondary);
 }
+/* Harbour v2 segmented tabs (design.md §4.4): no underline; the selected tab is a neutral fill.
+   One rule for every kind of tab: Radix (data-state, aria-selected), NavLink (.active) and
+   plain links (aria-current). */
 .tabs {
   display: flex;
-  gap: var(--space-5);
-  border-bottom: 1px solid var(--color-border-default);
+  gap: var(--space-2);
   overflow-x: auto;
 }
 .tabs__tab {
-  min-height: var(--size-control-lg);
-  padding: 0 var(--space-1);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--size-control-sm);
+  padding: 0 var(--space-4);
   border: 0;
-  border-bottom: 2px solid transparent;
+  border-radius: var(--radius-md);
   background: transparent;
   color: var(--color-text-secondary);
   font: inherit;
   font-weight: var(--font-weight-medium);
+  text-decoration: none;
   white-space: nowrap;
   cursor: pointer;
+  transition: background-color var(--duration-fast) var(--easing-standard);
 }
-.tabs__tab[data-state='active'] {
+@media (pointer: coarse) {
+  .tabs__tab {
+    min-height: var(--size-control-lg);
+  }
+}
+.tabs__tab:hover {
+  background: var(--color-bg-subtle);
   color: var(--color-text-primary);
-  border-bottom-color: var(--color-accent-default);
+}
+.tabs__tab[data-state='active'],
+.tabs__tab[aria-selected='true'],
+.tabs__tab[aria-current='page'],
+.tabs__tab.active {
+  background: var(--color-bg-fill);
+  color: var(--color-text-primary);
+}
+.tabs__tab:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+/* A neutral count would vanish into the selected tab's fill; toned counts keep their tone. */
+.tabs__tab:is([data-state='active'], [aria-current='page'], .active)
+  .count-pill:is(.count-pill--neutral, :not([class*='count-pill--'])) {
+  background: var(--color-bg-surface);
+}
+@media (forced-colors: active) {
+  .tabs__tab[data-state='active'],
+  .tabs__tab[aria-selected='true'],
+  .tabs__tab[aria-current='page'],
+  .tabs__tab.active {
+    outline: 1px solid CanvasText;
+  }
 }
 .tabs__help {
   margin: 0;
@@ -2758,16 +2791,6 @@ a.settings-row:hover {
 /* ---- Knowledge sources (FEAT-012 ui-design: SCR-APP-023, -024, -007, -028) ---- */
 .knowledge-tabs {
   margin-bottom: var(--space-5);
-}
-.knowledge-tabs .tabs__tab {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  text-decoration: none;
-}
-.knowledge-tabs .tabs__tab.active {
-  color: var(--color-text-primary);
-  border-bottom-color: var(--color-accent-default);
 }
 .count-pill {
   display: inline-flex;
@@ -6093,14 +6116,6 @@ a.settings-row:hover {
 .leads-tabs .tabs__tab {
   /* Holds the count's sr-only text inside the scrolling row (no page scroll on phones). */
   position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  text-decoration: none;
-}
-.leads-tabs .tabs__tab[aria-current='page'] {
-  color: var(--color-text-primary);
-  border-bottom-color: var(--color-accent-default);
 }
 .count-pill--neutral {
   background: var(--color-bg-fill);
