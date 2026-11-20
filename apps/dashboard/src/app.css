@@ -41,8 +41,8 @@ a {
 .sidebar {
   display: none;
   grid-area: side;
-  background: var(--color-bg-surface);
-  border-right: 1px solid var(--color-border-default);
+  /* Harbour v2 (design.md §4.5): the sidebar sits on the canvas, no fill or divider. */
+  background: var(--color-bg-canvas);
   padding: var(--space-5) var(--space-3);
 }
 .sidebar ul,
@@ -70,7 +70,7 @@ a {
   /* A long business name shrinks (ellipsis) instead of widening the grid track at 375 px. */
   min-width: 0;
   padding: 0 var(--space-5);
-  background: var(--color-bg-surface);
+  background: var(--color-bg-canvas);
   border-bottom: 1px solid var(--color-border-default);
 }
 .topbar__tenant {
@@ -111,20 +111,31 @@ a {
 .nav-item {
   display: flex;
   align-items: center;
-  gap: var(--space-4);
-  min-height: var(--size-control-md);
+  gap: var(--space-3);
+  min-height: var(--size-control-sm);
   padding: 0 var(--space-4);
   border-radius: var(--radius-md);
   text-decoration: none;
   color: var(--color-text-secondary);
 }
+.nav-item svg {
+  flex: none;
+  width: calc(var(--space-5) + var(--space-1));
+  height: calc(var(--space-5) + var(--space-1));
+}
+@media (pointer: coarse) {
+  .nav-item {
+    min-height: var(--size-control-lg);
+  }
+}
 .nav-item:hover {
   background: var(--color-bg-subtle);
   color: var(--color-text-primary);
 }
+/* Harbour v2: selection is a neutral fill with primary text, never the accent. */
 .nav-item.active {
-  background: var(--color-accent-soft);
-  color: var(--color-accent-default);
+  background: var(--color-bg-fill);
+  color: var(--color-text-primary);
 }
 .tab-bar-item {
   display: flex;
@@ -137,8 +148,25 @@ a {
   text-decoration: none;
   color: var(--color-text-secondary);
 }
+.tab-bar-item__icon {
+  display: grid;
+  place-items: center;
+  width: var(--space-10);
+  height: calc(var(--space-7) + var(--space-2));
+  border-radius: var(--radius-md);
+}
 .tab-bar-item.active {
-  color: var(--color-accent-default);
+  color: var(--color-text-primary);
+}
+.tab-bar-item.active .tab-bar-item__icon {
+  background: var(--color-bg-fill);
+}
+/* A fill disappears in forced colours; an outline keeps the selection visible. */
+@media (forced-colors: active) {
+  .nav-item.active,
+  .tab-bar-item.active .tab-bar-item__icon {
+    outline: 1px solid CanvasText;
+  }
 }
 
 @media (min-width: 768px) {
@@ -648,8 +676,8 @@ a {
 .count-pill {
   min-width: var(--space-5);
   padding: 0 var(--space-2);
-  border-radius: var(--radius-full);
-  background: var(--color-bg-subtle);
+  border-radius: var(--radius-chip);
+  background: var(--color-bg-fill);
   color: var(--color-text-secondary);
   font-size: var(--type-caption-size);
   text-align: center;
@@ -2747,7 +2775,7 @@ a.settings-row:hover {
   justify-content: center;
   min-width: var(--space-6);
   padding: 0 var(--space-2);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-chip);
   font-size: var(--type-caption-size);
   font-weight: var(--font-weight-medium);
   font-variant-numeric: tabular-nums;
@@ -3160,7 +3188,7 @@ a.settings-row:hover {
   color: var(--color-warning-default);
 }
 .count-pill--neutral {
-  background: var(--color-bg-subtle);
+  background: var(--color-bg-fill);
   color: var(--color-text-secondary);
 }
 .tab-bar-item {
@@ -6075,7 +6103,7 @@ a.settings-row:hover {
   border-bottom-color: var(--color-accent-default);
 }
 .count-pill--neutral {
-  background: var(--color-bg-subtle);
+  background: var(--color-bg-fill);
   color: var(--color-text-secondary);
 }
 .leads-score {
