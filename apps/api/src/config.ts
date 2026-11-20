@@ -68,6 +68,8 @@ export const schema = envSchemas.base
     ATTACHMENTS_BUCKET: z.string().min(3),
     /** The audit anchors bucket, listed (never read) by "Verify audit chain" (FEAT-060 §5.6). */
     AUDIT_ANCHOR_BUCKET: z.string().min(3),
+    /** The database's backup retention: a completed deletion shows when backups age out (FEAT-061 D12). */
+    BACKUP_RETENTION_DAYS: z.coerce.number().int().min(1).max(35).default(35),
     /** The custom sending domain's provider: SES v2, or `fixture` locally (refused in production). */
     EMAIL_IDENTITY_PROVIDER: z.enum(['ses', 'fixture']).default('ses'),
     SES_CONFIGURATION_SET: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
