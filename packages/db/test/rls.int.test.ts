@@ -5979,3 +5979,152 @@ describe('web context tracking (FEAT-029)', () => {
       ).rejects.toThrow(/permission denied/);
   });
 });
+
+describe('data-subject requests (FEAT-061)', () => {
+  const q = <T extends pg.QueryResultRow = { id: string }>(sql: string, args: unknown[] = []) =>
+    owner.query<T>(sql, args);
+  const request = (t: string, receivedOn = `current_date`) =>
+    q(
+      `insert into dsr_requests (tenant_id, type, source, received_on, requester_email, created_by)
+       values ($1, 'deletion', 'dashboard', ${receivedOn}, 'mei@example.com', gen_random_uuid()) returning id`,
+      [t],
+    );
+
+  afterAll(async () => {
+    await q(`delete from dsr_requests`);
+  });
+
+  it("tenant B can't see, change or insert tenant A's requests", async () => {
+    const a = (await request(TENANT_A)).rows[0]!.id;
+    for (const role of ['app_agent_visitor', 'app_dashboard'] as const) {
+      const seen = await asRole(
+        role,
+        TENANT_B,
+        async (c) => (await c.query(`select id from dsr_requests`)).rowCount,
+      );
+      expect(seen).toBe(0);
+    }
+    const changed = await asRole(
+      'app_dashboard',
+      TENANT_B,
+      async (c) =>
+        (await c.query(`update dsr_requests set note = 'x' where id = $1`, [a])).rowCount,
+    );
+    expect(changed).toBe(0);
+    await expect(
+      asRole('app_dashboard', TENANT_B, (c) =>
+        c.query(
+          `insert into dsr_requests (tenant_id, type, source, received_on, requester_email, created_by)
+           values ($1, 'access', 'dashboard', current_date, 'x@example.com', gen_random_uuid())`,
+          [TENANT_A],
+        ),
+      ),
+    ).rejects.toThrow(/row-level security/);
+    const due = await q<{ due: string }>(
+      `select (due_on - received_on)::text as due from dsr_requests where id = $1`,
+      [a],
+    );
+    expect(due.rows[0]!.due).toBe('30');
+  });
+
+  it('the visitor zone opens only conversation requests, one live per conversation', async () => {
+    const conv = randomUUID();
+    const open = (c: pg.Client, source = 'conversation') =>
+      c.query(
+        `insert into dsr_requests (tenant_id, type, source, received_on, conversation_id)
+         values ($1, 'deletion', $2, current_date, $3)
+         on conflict (tenant_id, conversation_id) where status in ('open', 'verified') do nothing
+         returning id`,
+        [TENANT_A, source, conv],
+      );
+    const n = await asRole('app_agent_visitor', TENANT_A, async (c) => [
+      (await open(c)).rowCount,
+      (await open(c)).rowCount,
+    ]);
+    expect(n).toEqual([1, 0]);
+    await expect(
+      asRole('app_agent_visitor', TENANT_A, (c) => open(c, 'dashboard')),
+    ).rejects.toThrow(/row-level security/);
+    await expect(
+      asRole('app_agent_visitor', TENANT_A, (c) => c.query(`select note from dsr_requests`)),
+    ).rejects.toThrow(/permission denied/);
+  });
+
+  it("the dashboard can't delete stored data directly, only through dsr_erase()", async () => {
+    for (const sql of [
+      `delete from messages`,
+      `delete from conversations`,
+      `delete from contacts`,
+      `delete from dsr_requests`,
+    ])
+      await expect(asRole('app_dashboard', TENANT_A, (c) => c.query(sql))).rejects.toThrow(
+        /permission denied/,
+      );
+    for (const role of ['app_agent_visitor', 'app_outbox'] as const)
+      await expect(
+        asRole(role, TENANT_A, (c) =>
+          c.query(`select dsr_erase(gen_random_uuid(), '{}', '{}', '{}', '{}')`),
+        ),
+      ).rejects.toThrow(/permission denied/);
+    const a = (await request(TENANT_A)).rows[0]!.id;
+    // Not verified yet: refused.
+    await expect(
+      asRole('app_dashboard', TENANT_A, (c) =>
+        c.query(`select dsr_erase($1, '{}', '{}', '{}', '{}')`, [a]),
+      ),
+    ).rejects.toThrow(/not a verified deletion request/);
+    // Another tenant's request is not found.
+    await expect(
+      asRole('app_dashboard', TENANT_B, (c) =>
+        c.query(`select dsr_erase($1, '{}', '{}', '{}', '{}')`, [a]),
+      ),
+    ).rejects.toThrow(/request not found/);
+  });
+
+  it("the dashboard still can't write contacts, leads or identities directly, only through dsr_correct()", async () => {
+    for (const sql of [
+      `update contacts set email = 'x@y.co'`,
+      `update leads set need = 'x'`,
+      `delete from contact_identities`,
+      `insert into contact_identities (tenant_id, contact_id, kind, value, source) values ('${TENANT_A}', gen_random_uuid(), 'email', 'x@y.co', 'lead_form')`,
+    ])
+      await expect(asRole('app_dashboard', TENANT_A, (c) => c.query(sql))).rejects.toThrow(
+        /permission denied/,
+      );
+    const a = (await request(TENANT_A)).rows[0]!.id;
+    await expect(
+      asRole('app_dashboard', TENANT_A, (c) =>
+        c.query(`select dsr_correct($1, gen_random_uuid(), '{}', null, null)`, [a]),
+      ),
+    ).rejects.toThrow(/not a verified correction request/);
+    await expect(
+      asRole('app_agent_visitor', TENANT_A, (c) =>
+        c.query(`select dsr_correct($1, gen_random_uuid(), '{}', null, null)`, [a]),
+      ),
+    ).rejects.toThrow(/permission denied/);
+  });
+
+  it('dsr_queue_due_alerts() marks requests within 7 days of due once, for the scheduler only', async () => {
+    await q(`delete from dsr_requests`);
+    const soon = (await request(TENANT_A, `current_date - 24`)).rows[0]!.id;
+    await request(TENANT_A, `current_date - 20`);
+    const other = (await request(TENANT_B, `current_date - 23`)).rows[0]!.id;
+    const closed = (await request(TENANT_B, `current_date - 25`)).rows[0]!.id;
+    await q(
+      `update dsr_requests set status = 'closed', closed_at = now(), close_reason = 'dup' where id = $1`,
+      [closed],
+    );
+    const rows = await asRole('app_outbox', null, async (c) => [
+      (await c.query<{ id: string }>(`select id from dsr_queue_due_alerts()`)).rows.map(
+        (r) => r.id,
+      ),
+      (await c.query(`select id from dsr_queue_due_alerts()`)).rowCount,
+    ]);
+    expect(new Set(rows[0] as string[])).toEqual(new Set([soon, other]));
+    expect(rows[1]).toBe(0);
+    for (const role of ['app_agent_visitor', 'app_dashboard'] as const)
+      await expect(
+        asRole(role, TENANT_A, (c) => c.query(`select dsr_queue_due_alerts()`)),
+      ).rejects.toThrow(/permission denied/);
+  });
+});

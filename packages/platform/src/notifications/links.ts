@@ -31,6 +31,8 @@ export function linkFor(kind: NotificationKind, subject: Subject, appUrl: string
       return `${base}/settings/channels`;
     case 'test':
       return `${base}${SETTINGS_PATH}`;
+    case 'dsr_due_soon':
+      return `${base}/settings/privacy/requests/${subject.id}`;
   }
 }
 
