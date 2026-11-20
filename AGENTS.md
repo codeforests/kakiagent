@@ -119,5 +119,6 @@ These span many documents and are easy to break by accident. Read the cited ADR 
 - **Screen IDs** (`SCR-APP-`, `SCR-WGT-`, `SCR-OPS-`) are permanent, like requirement IDs. The inventory is in `ux-foundations.md`; next free IDs are listed in its §1.
 - `docs/design-manifest.json` is the screen registry, written only by the ui-design step.
 - The widget uses only `--kaki-*` variables inside its closed Shadow DOM (ADR-016, design.md §4.9).
+- **Browser support:** NFR-14 (the latest two versions of Chrome, Edge, Firefox and Safari; Safari on iOS 16+; Chrome on Android 10+). A platform feature that Safari 16 lacks needs feature detection and a fallback. Add no polyfills or new dependencies without a design decision, and never in the widget (ADR-016 budget).
 
 Inference cost and latency figures are estimates from 2026-10-19 (ADR-007, `architecture.md` §8.5 and §11). Check model availability and prices against live docs before relying on them.

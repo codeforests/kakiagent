@@ -61,7 +61,15 @@ The repo is public, so GitHub Actions minutes are free. CI (`.github/workflows/c
 
 Every stage session appends its token numbers to `/mnt/project-files/reviews/feat-NNN-token-use.md`, with a short comparison to earlier features (the feature-stage skill, "Ending every stage").
 
-**context-mode trial (Ken, 2026-11-01): FEAT-045 only.** Its stage threads run with the context-mode plugin (v1.0.169), which the cloud environment's setup script installs. In those threads, prefer `ctx_batch_execute`/`ctx_execute` for commands with long output and `ctx_search` over re-reading it; Read a file before you Edit it as usual. Each token log adds the `ctx_stats` output and compares with FEAT-052. After FEAT-045, Ken decides whether to keep it; until then other features run without it. **Result:** none of FEAT-045's stage threads had the `ctx_*` tools (the setup-script lines weren't active), so the trial has no data yet; Ken decides whether to retry it on FEAT-046.
+**context-mode trial (Ken, 2026-11-01):** FEAT-045 only; no thread got the `ctx_*` tools, so there is no data; Ken decides whether to retry.
+
+## Modern Web Guidance trial (Ken, 2026-11-20; UI stages only)
+
+The Chrome team's `modern-web-guidance` plugin (pinned v1.0.1, commit `64a6d70`) is installed by the cloud environment's setup script (log: `/tmp/mwg-setup.log`). It applies to the **design stage's `ui-design.md`** and **`Build FEAT-NNN (UI)`** sessions (and a one-session build's UI tasks); backend builds and verify don't use it. Check first that the skill list has `modern-web-guidance:modern-web-guidance`; if not, say so in the token log and carry on without it.
+
+- Before designing or building a UI pattern (dialog, popover, form validation, table, focus handling, live region, layout), search it: `pnpx modern-web-guidance@1.0.1 search "<2–5 word pattern>"`, then `pnpx modern-web-guidance@1.0.1 retrieve "<id>"` for one or two matching guides. Use `@1.0.1`, not the skill's `@latest`. Queries name the generic pattern only, never the product, tenant or feature.
+- **The project wins on conflict:** `design.md`, `tokens.json`, the feature's `ui-design.md`, existing `@kaki/ui` components, ADR-016 and NFR-14 (`AGENTS.md`, Browser support) override a guide. A guide never adds a dependency or polyfill, a hard-coded value, or a new component that `@kaki/ui` already has.
+- The skill's "Modern Web Guidance" disclosure goes in the token log, not the reply to Ken. Each UI session's token-log section adds a `Modern Web Guidance` block: skill present (y/n), searches and guide ids, what each changed (file), conflicts and which side won, rough tokens the guides added. `/mnt/project-files/reviews/modern-web-guidance-trial.md` says how the trial is judged.
 
 ## Environment
 
