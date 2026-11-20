@@ -41,7 +41,7 @@ The design session names the branch in its `handoff.md` and final reply; later k
 
 ## Ken's rules
 
-- **M5 autonomous run (Ken, 2026-11-20):** until M5's last feature (FEAT-073) merges, stages run without waiting for Ken. Where a stage would ask Ken, it decides, takes the most conservative option that keeps the requirement, and records the decision in `docs/build/m5-decision-log.md` (same commit). The verify stage squash-merges its PR itself once it is accepted, the local checks pass and GitHub CI is green, then posts the merge to the log. Nothing else changes: build order, one PR per feature, RTM, never weakening tests. Ken reviews the log on 2026-11-27.
+- **M5 autonomous run (Ken, 2026-11-20):** until M5's last feature (FEAT-073) merges, stages run without waiting for Ken. Where a stage would ask Ken, it decides, takes the most conservative option that keeps the requirement, and records the decision in `docs/build/m5-decision-log.md` (same commit). The verify stage squash-merges its PR itself once it is accepted, the local checks pass and GitHub CI is green, then posts the merge to the log. Nothing else changes: build order, one PR per feature, RTM, never weakening tests. Ken reviews the log on 2026-11-28.
 - One feature at a time, in the order above. Don't start the next one until Ken says so.
 - One PR per feature, from `feat/FEAT-NNN-<slug>`. Squash-merge only with Ken's approval, after the local checks and GitHub CI are green. The PR body starts with the project's attribution block; assign and request review from `codeforests`.
 - Locally, run only this feature's tests while building; the verify stage runs the full local checks above. CI runs per the cadence above.
