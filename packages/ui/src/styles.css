@@ -32,20 +32,28 @@
 .kaki-btn--primary:hover {
   background: var(--color-accent-hover);
 }
+.kaki-btn--primary:active {
+  background: var(--color-accent-active);
+}
+/* Harbour v2 (design.md §4.1): secondary and ghost are neutral; teal stays on primary only. */
 .kaki-btn--secondary {
   background: var(--color-bg-surface);
   color: var(--color-text-primary);
-  border-color: var(--color-border-strong);
+  border-color: var(--color-border-default);
 }
 .kaki-btn--secondary:hover {
   background: var(--color-bg-subtle);
 }
 .kaki-btn--ghost {
   background: transparent;
-  color: var(--color-accent-default);
+  color: var(--color-text-primary);
 }
 .kaki-btn--ghost:hover {
-  background: var(--color-accent-soft);
+  background: var(--color-bg-subtle);
+}
+.kaki-btn--secondary:active,
+.kaki-btn--ghost:active {
+  background: var(--color-bg-fill);
 }
 
 .kaki-state {
