@@ -9,7 +9,7 @@ export const AUDIT_EVENT_GROUPS = [
   { key: 'assistant', prefixes: ['agent.', 'tool.', 'coach.', 'ai.'] },
   { key: 'knowledge', prefixes: ['fact.', 'kb.', 'kb_source.', 'correction.'] },
   { key: 'approvals', prefixes: ['approval.', 'rules.'] },
-  { key: 'contacts', prefixes: ['contact.', 'consent.', 'lead.', 'tracking.'] },
+  { key: 'contacts', prefixes: ['contact.', 'consent.', 'lead.', 'tracking.', 'dsr.'] },
   { key: 'team', prefixes: ['member.', 'tenant.', 'terms.'] },
   { key: 'settings', prefixes: ['settings.', 'widget.', 'channel.', 'onboarding.', 'escalation.'] },
   { key: 'audit', prefixes: ['audit.'] },
