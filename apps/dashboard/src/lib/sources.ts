@@ -6,6 +6,7 @@ import {
   type SourceFailure,
   type SourcePage,
 } from '@kaki/contracts';
+import type { StepIcon, TimelineStep } from '@kaki/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { api } from './api.ts';
@@ -445,3 +446,125 @@ export function useRetry(onRetried: (s: Source) => void) {
 
 export const failedCount = (sources: Source[] | undefined) =>
   sources?.filter((s) => s.status === 'failed').length ?? 0;
+
+// ---- FEAT-076: the Source page's event-timeline and ready outcome (technical-design §5.8) ----
+
+type Stage = NonNullable<Source['stage']>;
+
+/** Each kind's stages in the order the ingest job runs them (`packages/kb/src/ingest/job.ts`). */
+const KIND_STAGES: Record<Source['kind'], Stage[]> = {
+  website: ['crawl', 'extract', 'promote'],
+  file: ['scan', 'parse', 'extract', 'promote'],
+  chat: ['scan', 'parse', 'extract', 'promote'],
+  spreadsheet: ['scan', 'parse', 'map', 'import', 'promote'],
+};
+
+/** Short step names for the timeline's badges; none says "Ready", "Facts found" or "Pages read". */
+const STEP_LABEL: Record<Stage, string> = {
+  scan: 'Malware check',
+  parse: 'Read file',
+  map: 'Map columns',
+  import: 'Import rows',
+  crawl: 'Read pages',
+  extract: 'Find facts',
+  promote: 'Save facts',
+};
+const CHAT_STEP_LABEL: Partial<Record<Stage, string>> = {
+  parse: 'Remove personal data',
+  extract: 'Find questions',
+};
+const STEP_ICON: Record<Stage, StepIcon> = {
+  scan: 'shield',
+  parse: 'file',
+  map: 'columns',
+  import: 'table',
+  crawl: 'globe',
+  extract: 'sparkles',
+  promote: 'save',
+};
+
+/**
+ * The timeline's steps: Added (its time), the kind's stages (Done / In progress / Waiting, as
+ * the API has no per-stage times, D2), then Finished or Failed (its time). `announce` names the
+ * step in progress, for the polite live region.
+ */
+export function sourceTimeline(s: Source): { steps: TimelineStep[]; announce?: string } {
+  const stages = KIND_STAGES[s.kind];
+  const at = s.stage ? stages.indexOf(s.stage) : -1;
+  const label = (stage: Stage) =>
+    (s.kind === 'chat' ? CHAT_STEP_LABEL[stage] : undefined) ?? STEP_LABEL[stage];
+  const ended = s.status === 'ready' || s.status === 'failed';
+  const endTime = updatedLabel(s.finishedAt ?? s.updatedAt);
+  const middle = stages.map((stage, i): TimelineStep => {
+    const step = { key: stage, label: label(stage), icon: STEP_ICON[stage] };
+    if (s.status === 'ready' || (at >= 0 && i < at))
+      return { ...step, state: 'done', caption: 'Done' };
+    if (i === at && s.status === 'failed')
+      return { ...step, state: 'failed', caption: 'Stopped here' };
+    if (i === at) return { ...step, state: 'current', caption: currentCaption(s) };
+    return { ...step, state: 'waiting', caption: 'Waiting' };
+  });
+  const steps: TimelineStep[] = [
+    {
+      key: 'added',
+      label: 'Added',
+      icon: 'plus',
+      state: 'done',
+      caption: updatedLabel(s.createdAt),
+    },
+    ...middle,
+    s.status === 'failed'
+      ? { key: 'end', label: 'Failed', icon: 'flag', state: 'failed', caption: endTime }
+      : {
+          key: 'end',
+          label: 'Finished',
+          icon: 'flag',
+          state: ended ? 'success' : 'waiting',
+          caption: ended ? endTime : 'Waiting',
+        },
+  ];
+  const n = steps.findIndex((step) => step.state === 'current');
+  return {
+    steps,
+    announce:
+      n < 0 ? undefined : `Step ${n + 1} of ${steps.length}: ${steps[n]!.label}, in progress`,
+  };
+}
+
+/** The step in progress: what it waits for, or how far it is. */
+function currentCaption(s: Source): string {
+  if (waitingToMap(s)) return 'Waiting for you';
+  // A queued source that started a stage is waiting for a retry (UC-03 5c), as sourceSummary.
+  if (s.status === 'queued' && s.stage !== 'crawl') return 'Waiting to retry';
+  const p = stageProgress(s);
+  return p ? `In progress · ${p.done} of ${p.of}` : 'In progress';
+}
+
+/**
+ * The success alert above a ready source's timeline (FEAT-076 D11), or null when the source
+ * isn't ready or found no facts (the zero-facts info alert covers that).
+ */
+export function readyOutcome(s: Source): { lead: string; body: string; review: boolean } | null {
+  const { facts, factsNeedingReview: review, pagesIncluded: read } = s.counts;
+  if (s.status !== 'ready' || facts === 0) return null;
+  const unit = unitWords(s);
+  const lead = unit
+    ? `Finished reading ${read} ${read === 1 ? unit.one : unit.many}.`
+    : 'Finished reading the image.';
+  if (review === 0)
+    return {
+      lead,
+      body:
+        facts === 1
+          ? 'Your assistant can use its fact now.'
+          : `Your assistant can use all ${facts} facts now.`,
+      review: false,
+    };
+  const body =
+    facts === 1
+      ? 'Its fact needs your review before your assistant uses it.'
+      : review === facts
+        ? `All ${facts} facts need your review before your assistant uses them.`
+        : `${review} of the ${facts} facts ${review === 1 ? 'needs' : 'need'} your review before your assistant uses ${review === 1 ? 'it' : 'them'}.`;
+  return { lead, body, review: true };
+}

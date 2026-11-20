@@ -32,20 +32,28 @@
 .kaki-btn--primary:hover {
   background: var(--color-accent-hover);
 }
+.kaki-btn--primary:active {
+  background: var(--color-accent-active);
+}
+/* Harbour v2 (design.md §4.1): secondary and ghost are neutral; teal stays on primary only. */
 .kaki-btn--secondary {
   background: var(--color-bg-surface);
   color: var(--color-text-primary);
-  border-color: var(--color-border-strong);
+  border-color: var(--color-border-default);
 }
 .kaki-btn--secondary:hover {
   background: var(--color-bg-subtle);
 }
 .kaki-btn--ghost {
   background: transparent;
-  color: var(--color-accent-default);
+  color: var(--color-text-primary);
 }
 .kaki-btn--ghost:hover {
-  background: var(--color-accent-soft);
+  background: var(--color-bg-subtle);
+}
+.kaki-btn--secondary:active,
+.kaki-btn--ghost:active {
+  background: var(--color-bg-fill);
 }
 
 .kaki-state {
@@ -224,4 +232,195 @@
   flex: 1;
   overflow-y: auto;
   padding: var(--space-4);
+}
+
+.kaki-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* design.md §4.4 `meta-grid`: label/value pairs under a detail page's title (FEAT-076). */
+.kaki-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--space-5) var(--space-7);
+  margin: 0 0 var(--space-8);
+}
+.kaki-meta-grid__item {
+  min-width: 0;
+}
+.kaki-meta-grid dt {
+  margin-bottom: var(--space-2);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary);
+}
+.kaki-meta-grid dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 639px) {
+  .kaki-meta-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-bottom: var(--space-6);
+  }
+}
+
+/* design.md §4.4 `event-timeline`: a job's steps in a dot-grid well (FEAT-076). */
+.kaki-timeline {
+  position: relative;
+  padding: var(--space-8);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-bg-canvas);
+  background-image: radial-gradient(var(--color-border-default) 1px, transparent 1px);
+  background-size: var(--space-4) var(--space-4);
+}
+.kaki-timeline__steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+}
+.kaki-timeline__step {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-width: 0;
+}
+/* The line to the next step, from the node's right edge across the column. */
+.kaki-timeline__step:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  top: var(--space-7);
+  left: var(--space-10);
+  right: 0;
+  height: 1px;
+  background: var(--color-border-default);
+}
+.kaki-timeline__node {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: var(--space-10);
+  height: var(--space-10);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-surface);
+  color: var(--color-text-secondary);
+}
+.kaki-timeline__node svg {
+  width: var(--space-6);
+  height: var(--space-6);
+}
+.kaki-timeline__step--current .kaki-timeline__node {
+  border-color: var(--color-info-default);
+  color: var(--color-info-default);
+}
+.kaki-timeline__step--success .kaki-timeline__node {
+  color: var(--color-success-default);
+}
+.kaki-timeline__step--failed .kaki-timeline__node {
+  color: var(--color-danger-default);
+}
+.kaki-timeline__spin {
+  animation: kaki-spin 1s linear infinite;
+}
+@keyframes kaki-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kaki-timeline__spin {
+    animation: none;
+  }
+}
+.kaki-timeline__text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.kaki-timeline__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--space-7);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-chip);
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+}
+.kaki-timeline__badge svg {
+  width: var(--space-4);
+  height: var(--space-4);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.kaki-timeline__badge--neutral {
+  background: var(--color-bg-fill);
+  color: var(--color-text-secondary);
+}
+.kaki-timeline__badge--info {
+  background: var(--color-info-soft);
+  color: var(--color-info-default);
+}
+.kaki-timeline__badge--success {
+  background: var(--color-success-soft);
+  color: var(--color-success-default);
+}
+.kaki-timeline__badge--danger {
+  background: var(--color-danger-soft);
+  color: var(--color-danger-default);
+}
+.kaki-timeline__caption {
+  font-size: var(--type-caption-size);
+  line-height: var(--type-caption-line);
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+/* Below 640 px the steps stack, joined by a vertical line. */
+@media (max-width: 639px) {
+  .kaki-timeline {
+    padding: var(--space-6);
+  }
+  .kaki-timeline__steps {
+    grid-auto-flow: row;
+    grid-auto-columns: auto;
+  }
+  .kaki-timeline__step {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-4);
+    padding-bottom: var(--space-5);
+  }
+  .kaki-timeline__step:last-child {
+    padding-bottom: 0;
+  }
+  .kaki-timeline__step:not(:last-child)::after {
+    top: var(--space-10);
+    bottom: 0;
+    left: var(--space-7);
+    right: auto;
+    width: 1px;
+    height: auto;
+  }
 }

@@ -1,0 +1,761 @@
+<title>Harbour v2 Mockup</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono&display=swap">
+<style>
+/* FEAT-076 mockup. Harbour v2 values copied from docs/02-design/anchors/tokens.css (tokens.json v2).
+   Layout: a review bar with one tab per screen; each screen is drawn at its real width inside a frame.
+   The dashboard and operator console are light only (design.md §9), so this page is light only on purpose.
+   Inter is loaded from Google Fonts here for the mockup only; the app self-hosts the WOFF2 files (design.md §2.2). */
+:root {
+  color-scheme: light;
+  --color-bg-canvas: #FDFDFD; --color-bg-surface: #FFFFFF; --color-bg-subtle: #F2F2F2; --color-bg-fill: #E9E9E9;
+  --color-border-default: #D7D7D7; --color-border-strong: #7E7E7E;
+  --color-text-primary: #191919; --color-text-secondary: #4D4D4D; --color-text-on-accent: #FFFFFF; --color-text-link: #0E7490;
+  --color-accent-default: #0E7490; --color-accent-hover: #0B5F76; --color-accent-soft: #E0F2F6; --color-focus: #0E7490;
+  --color-success-default: #137333; --color-success-soft: #E7F5EC;
+  --color-warning-default: #A84D08; --color-warning-soft: #FDF1E3;
+  --color-danger-default: #B91C1C; --color-danger-soft: #FCE9E9;
+  --color-info-default: #1D4ED8; --color-info-soft: #E8EEFC;
+  --color-pending-default: #6D28D9; --color-pending-soft: #F1EAFD;
+  --ops-chrome: #191919; --ops-chrome-text: #FFFFFF; --ops-chrome-muted: #C9C9C9; --ops-chrome-fill: #333333;
+  --review-bg: #EFEFEF;
+  --font-sans: Inter, "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  --space-1: 2px; --space-2: 4px; --space-3: 8px; --space-4: 12px; --space-5: 16px; --space-6: 20px; --space-7: 24px; --space-8: 32px; --space-9: 40px;
+  --radius-sm: 6px; --radius-chip: 8px; --radius-md: 12px; --radius-lg: 16px; --radius-xl: 16px; --radius-2xl: 24px; --radius-full: 9999px;
+  --type-heading-tracking: -0.02em;
+  --shadow-md: 0 4px 12px rgba(0,0,0,.08), 0 1px 3px rgba(0,0,0,.06);
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--review-bg); color: var(--color-text-primary); font-family: var(--font-sans); font-size: 14px; line-height: 20px; }
+a { color: var(--color-text-link); text-underline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---------- review chrome (not part of the design) ---------- */
+.review { padding-block: 20px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.review__head { max-width: 1440px; margin: 0 auto 16px; display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: end; justify-content: space-between; }
+.review__head h1 { margin: 0; font-size: 20px; line-height: 28px; font-weight: 600; }
+.review__head p { margin: 4px 0 0; color: var(--color-text-secondary); max-width: 70ch; }
+.review__nav { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; background: var(--color-bg-surface); border: 1px solid var(--color-border-default); border-radius: var(--radius-md); }
+.review__nav a { padding: 6px 12px; border-radius: 9px; color: var(--color-text-secondary); text-decoration: none; font-weight: 500; }
+.review__nav a:hover { background: var(--color-bg-subtle); color: var(--color-text-primary); }
+.review__nav a[aria-current="page"] { background: var(--color-bg-fill); color: var(--color-text-primary); }
+.frame-wrap { max-width: 1440px; margin: 0 auto; overflow-x: auto; border-radius: 12px; }
+.frame { width: 1440px; background: var(--color-bg-canvas); border: 1px solid var(--color-border-default); border-radius: 12px; overflow: hidden; }
+.frame__label { display: flex; justify-content: space-between; gap: 12px; padding: 8px 16px; font-size: 12px; color: var(--color-text-secondary); background: var(--color-bg-surface); border-bottom: 1px solid var(--color-border-default); }
+.notes { max-width: 1440px; margin: 16px auto 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+.note { background: var(--color-bg-surface); border: 1px solid var(--color-border-default); border-radius: 12px; padding: 12px 16px; min-width: 0; }
+.note h2 { margin: 0 0 4px; font-size: 13px; font-weight: 600; }
+.note p, .note li { margin: 0; color: var(--color-text-secondary); font-size: 13px; line-height: 18px; }
+.note ul { margin: 0; padding-left: 18px; }
+.screen { display: none; }
+.screen.is-shown { display: block; }
+.state-switch { display: inline-flex; gap: 4px; }
+.state-switch button { font: inherit; font-size: 12px; font-weight: 500; padding: 2px 10px; border-radius: 8px; border: 1px solid var(--color-border-default); background: var(--color-bg-surface); color: var(--color-text-secondary); cursor: pointer; }
+.state-switch button[aria-pressed="true"] { background: var(--color-bg-fill); color: var(--color-text-primary); border-color: transparent; }
+.phones { display: flex; flex-wrap: wrap; gap: 24px; justify-content: center; max-width: 1440px; margin: 0 auto; }
+.phone { width: 375px; max-width: 100%; height: 760px; background: var(--color-bg-canvas); border: 1px solid var(--color-border-default); border-radius: 28px; overflow: hidden; display: flex; flex-direction: column; }
+
+/* ---------- Harbour v2: dashboard shell ---------- */
+.shell { display: grid; grid-template-columns: 240px 1fr; grid-template-rows: 56px 1fr; min-height: 860px; }
+.sidebar { grid-row: 1 / 3; padding: 16px 12px; background: var(--color-bg-canvas); }
+.sidebar__brand { font-weight: 600; font-size: 16px; line-height: 24px; padding: 4px 12px 20px; }
+.sidebar ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.nav-item { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border-radius: var(--radius-md); color: var(--color-text-secondary); text-decoration: none; }
+.nav-item svg { width: 18px; height: 18px; flex: none; }
+.nav-item:hover { background: var(--color-bg-subtle); color: var(--color-text-primary); }
+.nav-item[aria-current="page"] { background: var(--color-bg-fill); color: var(--color-text-primary); }
+.nav-item__count { margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: var(--radius-chip); font-size: 12px; line-height: 20px; font-weight: 500; text-align: center; font-variant-numeric: tabular-nums; background: var(--color-bg-fill); color: var(--color-text-secondary); }
+.nav-item__count--review { background: var(--color-warning-soft); color: var(--color-warning-default); }
+.nav-item__count--pending { background: var(--color-pending-soft); color: var(--color-pending-default); }
+.nav-item__count--danger { background: var(--color-danger-soft); color: var(--color-danger-default); }
+.topbar { display: flex; align-items: center; gap: 12px; padding: 0 24px; border-bottom: 1px solid var(--color-border-default); background: var(--color-bg-canvas); }
+.topbar__tenant { font-weight: 500; display: inline-flex; gap: 6px; align-items: center; }
+.topbar__search { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; width: 280px; border: 1px solid var(--color-border-default); border-radius: var(--radius-md); color: var(--color-text-secondary); background: var(--color-bg-surface); }
+.topbar__search kbd { margin-left: auto; font: 12px var(--font-sans); padding: 0 6px; border-radius: 6px; background: var(--color-bg-subtle); }
+.ai-pill { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border-radius: var(--radius-full); background: var(--color-success-soft); color: var(--color-success-default); font-size: 12px; font-weight: 500; }
+.ai-pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--color-accent-soft); color: var(--color-accent-default); display: grid; place-items: center; font-weight: 500; font-size: 13px; flex: none; }
+.content { padding: 24px 32px 48px; min-width: 0; }
+.content__inner { max-width: 1200px; }
+
+/* ---------- Harbour v2: components ---------- */
+.back-link { display: inline-flex; gap: 4px; align-items: center; color: var(--color-text-secondary); text-decoration: none; margin-bottom: 12px; font-size: 13px; }
+.back-link:hover { color: var(--color-text-primary); }
+.page-head { display: flex; gap: 16px; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; }
+.page-title { margin: 0; font-size: 28px; line-height: 34px; font-weight: 500; letter-spacing: var(--type-heading-tracking); text-wrap: balance; }
+.page-sub { margin: 4px 0 0; color: var(--color-text-secondary); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 36px; padding: 0 16px; border-radius: var(--radius-md); border: 1px solid transparent; font: inherit; font-weight: 500; cursor: pointer; text-decoration: none; white-space: nowrap; }
+.btn svg { width: 16px; height: 16px; }
+.btn--primary { background: var(--color-accent-default); color: var(--color-text-on-accent); }
+.btn--primary:hover { background: var(--color-accent-hover); }
+.btn--secondary { background: var(--color-bg-surface); border-color: var(--color-border-default); color: var(--color-text-primary); }
+.btn--secondary:hover { background: var(--color-bg-subtle); }
+.btn--secondary:active, .btn--ghost:active { background: var(--color-bg-fill); }
+.btn--ghost { background: transparent; color: var(--color-text-primary); }
+.btn--ghost:hover { background: var(--color-bg-subtle); }
+.btn--danger-ghost { background: transparent; color: var(--color-danger-default); }
+.btn--danger-ghost:hover { background: var(--color-danger-soft); }
+.btn--sm { height: 32px; padding: 0 12px; }
+
+.badge { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: var(--radius-chip); font-size: 12px; line-height: 16px; font-weight: 500; white-space: nowrap; }
+.badge svg { width: 12px; height: 12px; flex: none; }
+.badge--neutral { background: var(--color-bg-fill); color: var(--color-text-secondary); }
+.badge--success { background: var(--color-success-soft); color: var(--color-success-default); }
+.badge--info { background: var(--color-info-soft); color: var(--color-info-default); }
+.badge--warning { background: var(--color-warning-soft); color: var(--color-warning-default); }
+.badge--danger { background: var(--color-danger-soft); color: var(--color-danger-default); }
+.badge--pending { background: var(--color-pending-soft); color: var(--color-pending-default); }
+.badge--accent { background: var(--color-accent-soft); color: var(--color-accent-default); }
+.spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+
+.meta-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px 24px; margin: 0 0 32px; }
+.meta-grid > div { min-width: 0; }
+.meta-grid dt { font-size: 12px; line-height: 16px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-text-secondary); margin-bottom: 4px; }
+.meta-grid dd { margin: 0; overflow-wrap: anywhere; }
+.meta-grid dd .ok { display: inline-flex; gap: 4px; align-items: center; }
+.meta-grid dd .ok svg { width: 16px; height: 16px; color: var(--color-success-default); }
+
+.section-card { background: var(--color-bg-surface); border: 1px solid var(--color-border-default); border-radius: var(--radius-2xl); padding: 24px; margin-bottom: 24px; }
+.section-card__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.section-card__title { margin: 0; font-size: 20px; line-height: 28px; font-weight: 600; }
+.card { background: var(--color-bg-surface); border: 1px solid var(--color-border-default); border-radius: var(--radius-lg); padding: 16px 20px; }
+
+.alert { display: grid; grid-template-columns: 20px 1fr auto; gap: 4px 12px; align-items: start; padding: 16px; border-radius: var(--radius-lg); border: 1px solid var(--color-border-default); margin-bottom: 16px; }
+.alert > svg { width: 20px; height: 20px; grid-row: 1 / 3; }
+.alert__lead { font-weight: 500; color: var(--color-text-primary); }
+.alert__body { margin: 0; color: var(--color-text-secondary); grid-column: 2; }
+.alert__action { grid-column: 3; grid-row: 1 / 3; align-self: center; }
+.alert--success { background: linear-gradient(90deg, var(--color-success-soft) 0%, var(--color-bg-surface) 40%); } .alert--success > svg { color: var(--color-success-default); }
+.alert--info { background: linear-gradient(90deg, var(--color-info-soft) 0%, var(--color-bg-surface) 40%); } .alert--info > svg { color: var(--color-info-default); }
+.alert--warning { background: linear-gradient(90deg, var(--color-warning-soft) 0%, var(--color-bg-surface) 40%); } .alert--warning > svg { color: var(--color-warning-default); }
+.alert--danger { background: linear-gradient(90deg, var(--color-danger-soft) 0%, var(--color-bg-surface) 40%); } .alert--danger > svg { color: var(--color-danger-default); }
+
+.timeline-well { background-color: var(--color-bg-canvas); background-image: radial-gradient(var(--color-border-default) 1px, transparent 1px); background-size: 12px 12px; border-radius: var(--radius-lg); padding: 32px; margin-bottom: 20px; border: 1px solid var(--color-border-default); }
+.timeline { list-style: none; margin: 0; padding: 0; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; }
+.timeline li { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-width: 0; }
+.timeline li:not(:last-child)::after { content: ""; position: absolute; top: 24px; left: 48px; right: 0; height: 1px; background: var(--color-border-default); }
+.tl-node { width: 48px; height: 48px; border-radius: var(--radius-lg); background: var(--color-bg-surface); border: 1px solid var(--color-border-default); display: grid; place-items: center; color: var(--color-text-secondary); position: relative; z-index: 1; }
+.tl-node svg { width: 20px; height: 20px; }
+.tl-node--success { color: var(--color-success-default); }
+.tl-node--danger { color: var(--color-danger-default); }
+.tl-node--current { color: var(--color-info-default); border-color: var(--color-info-default); }
+.tl-time { font-size: 12px; line-height: 16px; color: var(--color-text-secondary); font-variant-numeric: tabular-nums; }
+
+.progress { height: 6px; border-radius: var(--radius-full); background: var(--color-bg-subtle); overflow: hidden; margin-top: 8px; }
+.progress > div { height: 100%; background: var(--color-accent-default); border-radius: inherit; }
+.stage-line { display: flex; justify-content: space-between; gap: 12px; color: var(--color-text-secondary); }
+.figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px 24px; margin: 0; }
+.figures dt { color: var(--color-text-secondary); font-size: 13px; }
+.figures dd { margin: 2px 0 0; font-size: 30px; line-height: 38px; font-weight: 500; letter-spacing: var(--type-heading-tracking); font-variant-numeric: tabular-nums; }
+
+.seg-tabs { display: inline-flex; gap: 4px; flex-wrap: nowrap; overflow-x: auto; max-width: 100%; }
+.seg-tab { height: 32px; padding: 0 12px; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--color-text-secondary); font: inherit; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; cursor: pointer; }
+.seg-tab:hover { background: var(--color-bg-subtle); }
+.seg-tab[aria-selected="true"] { background: var(--color-bg-fill); color: var(--color-text-primary); }
+.seg-tab .count { min-width: 20px; height: 20px; padding: 0 6px; border-radius: var(--radius-chip); background: var(--color-bg-fill); font-size: 12px; line-height: 20px; text-align: center; font-variant-numeric: tabular-nums; }
+.seg-tab[aria-selected="true"] .count { background: var(--color-bg-surface); }
+
+.table { width: 100%; border-collapse: collapse; }
+.table th { text-align: left; font-size: 12px; line-height: 16px; font-weight: 500; color: var(--color-text-secondary); padding: 0 12px 10px; border-bottom: 1px solid var(--color-border-default); background: none; }
+.table td { padding: 0 12px; height: 48px; border-bottom: 1px solid var(--color-border-default); vertical-align: middle; }
+.table tr:last-child td { border-bottom: 0; }
+.table tbody tr:hover td { background: var(--color-bg-subtle); }
+.table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.table .path { font-family: var(--font-mono); font-size: 13px; }
+.muted { color: var(--color-text-secondary); }
+.caption { font-size: 12px; line-height: 16px; color: var(--color-text-secondary); }
+.row-actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+
+/* Home */
+.kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+.kpi { display: block; text-decoration: none; color: inherit; }
+.kpi:hover { border-color: var(--color-border-strong); }
+.kpi__label { font-size: 13px; color: var(--color-text-secondary); }
+.kpi__value { font-size: 30px; line-height: 38px; font-weight: 500; letter-spacing: var(--type-heading-tracking); font-variant-numeric: tabular-nums; margin-top: 4px; }
+.kpi__delta { font-size: 12px; color: var(--color-success-default); }
+.setup { display: grid; grid-template-columns: 1fr auto; gap: 8px 24px; align-items: center; }
+.setup p { margin: 0; color: var(--color-text-secondary); }
+
+/* Inbox */
+.inbox { display: grid; grid-template-columns: 400px 1fr 320px; height: 804px; }
+.inbox__list { border-right: 1px solid var(--color-border-default); background: var(--color-bg-surface); display: flex; flex-direction: column; min-width: 0; }
+.inbox__list-head { padding: 20px 20px 12px; display: flex; flex-direction: column; gap: 12px; border-bottom: 1px solid var(--color-border-default); }
+.inbox-row { display: grid; grid-template-columns: 36px 1fr; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--color-border-default); text-decoration: none; color: inherit; }
+.inbox-row:hover { background: var(--color-bg-subtle); }
+.inbox-row[aria-current="true"] { background: var(--color-accent-soft); }
+.inbox-row__top { display: flex; justify-content: space-between; gap: 8px; }
+.inbox-row__name { font-weight: 500; }
+.inbox-row__snip { color: var(--color-text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 2px 0 6px; }
+.thread { display: flex; flex-direction: column; min-width: 0; background: var(--color-bg-canvas); }
+.thread__head { padding: 16px 24px; border-bottom: 1px solid var(--color-border-default); display: flex; align-items: center; gap: 12px; background: var(--color-bg-surface); }
+.thread__title { font-size: 16px; line-height: 24px; font-weight: 600; margin: 0; }
+.thread__log { flex: 1; padding: 24px; display: flex; flex-direction: column; gap: 12px; overflow: hidden; }
+.bubble { max-width: 70%; padding: 10px 14px; border-radius: var(--radius-xl); }
+.bubble--visitor { background: var(--color-bg-surface); border: 1px solid var(--color-border-default); align-self: flex-start; }
+.bubble--ai { background: var(--color-accent-soft); align-self: flex-end; }
+.bubble__by { font-size: 12px; color: var(--color-text-secondary); margin-bottom: 2px; }
+.fact-chip { display: inline-flex; margin-top: 6px; height: 24px; padding: 0 8px; border-radius: var(--radius-chip); background: var(--color-bg-surface); border: 1px solid var(--color-border-default); font-size: 12px; align-items: center; gap: 4px; color: var(--color-text-secondary); }
+.dock { padding: 16px 24px; border-top: 1px solid var(--color-border-default); background: var(--color-bg-surface); display: flex; gap: 12px; align-items: center; }
+.dock__field { flex: 1; height: 40px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); padding: 0 12px; display: flex; align-items: center; color: var(--color-text-secondary); }
+.details { border-left: 1px solid var(--color-border-default); background: var(--color-bg-surface); padding: 20px; display: flex; flex-direction: column; gap: 20px; overflow: hidden; }
+.details h3 { margin: 0 0 8px; font-size: 12px; line-height: 16px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 400; color: var(--color-text-secondary); }
+.details dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; }
+.details dt { color: var(--color-text-secondary); }
+.details dd { margin: 0; }
+
+/* Operator console */
+.ops { display: grid; grid-template-columns: 240px 1fr; grid-template-rows: 56px 1fr; min-height: 860px; }
+.ops__sidebar { grid-row: 1 / 3; background: var(--ops-chrome); color: var(--ops-chrome-text); padding: 16px 12px; }
+.ops__sidebar .sidebar__brand { color: var(--ops-chrome-text); }
+.ops .nav-item { color: var(--ops-chrome-muted); }
+.ops .nav-item:hover { background: var(--ops-chrome-fill); color: var(--ops-chrome-text); }
+.ops .nav-item[aria-current="page"] { background: var(--ops-chrome-fill); color: var(--ops-chrome-text); }
+.ops__label { height: 28px; display: inline-flex; align-items: center; padding: 0 12px; border-radius: var(--radius-chip); background: var(--color-bg-fill); color: var(--color-text-secondary); font-size: 13px; font-weight: 500; }
+.ops .table td { height: 40px; font-size: 13px; }
+.meter { display: inline-block; width: 80px; height: 6px; background: var(--color-bg-subtle); border-radius: 999px; overflow: hidden; vertical-align: middle; margin-right: 8px; }
+.meter > i { display: block; height: 100%; background: var(--color-accent-default); }
+.meter > i.warn { background: var(--color-warning-default); }
+.dots { display: inline-flex; gap: 4px; }
+.dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--color-success-default); }
+.dots i.w { background: var(--color-warning-default); } .dots i.off { background: var(--color-border-strong); }
+.filters { display: flex; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.field-sm { height: 36px; width: 280px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); padding: 0 12px; display: inline-flex; align-items: center; gap: 8px; color: var(--color-text-secondary); background: var(--color-bg-surface); }
+.field-sm svg { width: 16px; height: 16px; }
+
+/* Phone */
+.p-top { height: 56px; display: flex; align-items: center; gap: 8px; padding: 0 16px; border-bottom: 1px solid var(--color-border-default); flex: none; }
+.p-top .ai-pill { margin-left: auto; }
+.p-body { flex: 1; overflow: hidden; padding: 16px; }
+.p-body .page-title { font-size: 28px; }
+.p-body .timeline { grid-auto-flow: row; grid-auto-columns: auto; gap: 0; }
+.p-body .timeline li { flex-direction: row; align-items: center; gap: 12px; padding-bottom: 16px; flex-wrap: wrap; }
+.p-body .timeline li > .tl-text { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.p-body .timeline li:not(:last-child)::after { top: 48px; bottom: 0; left: 24px; right: auto; width: 1px; height: auto; }
+.p-body .timeline-well { padding: 20px; }
+.p-body .section-card { padding: 16px; }
+.p-body .meta-grid { grid-template-columns: 1fr 1fr; margin-bottom: 20px; }
+.tabbar { height: 64px; display: grid; grid-template-columns: repeat(5, 1fr); border-top: 1px solid var(--color-border-default); background: var(--color-bg-surface); flex: none; }
+.tab-bar-item { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 12px; line-height: 16px; color: var(--color-text-secondary); text-decoration: none; position: relative; }
+.tab-bar-item__icon { width: 48px; height: 28px; border-radius: var(--radius-md); display: grid; place-items: center; }
+.tab-bar-item svg { width: 24px; height: 24px; }
+.tab-bar-item[aria-current="page"] { color: var(--color-text-primary); }
+.tab-bar-item[aria-current="page"] .tab-bar-item__icon { background: var(--color-bg-fill); }
+.tab-bar-item__dot { position: absolute; top: 6px; left: calc(50% + 8px); min-width: 18px; height: 18px; padding: 0 5px; border-radius: var(--radius-chip); background: var(--color-warning-soft); color: var(--color-warning-default); font-size: 11px; line-height: 18px; font-weight: 500; text-align: center; }
+
+/* Components sheet */
+.sheet { padding: 32px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.sheet .section-card { margin: 0; }
+.cmp-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+.vs { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.vs h4 { margin: 0 0 8px; font-size: 12px; font-weight: 500; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: .04em; }
+.v1-nav { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border-radius: 6px; background: #E0F2F6; color: #0E7490; }
+.v1-tabs { display: flex; gap: 16px; border-bottom: 1px solid var(--color-border-default); }
+.v1-tabs span { padding: 8px 2px; color: var(--color-text-secondary); font-weight: 500; }
+.v1-tabs span.on { color: var(--color-text-primary); border-bottom: 2px solid var(--color-accent-default); }
+.v1-chip { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 999px; background: var(--color-warning-soft); color: var(--color-warning-default); font-size: 12px; font-weight: 500; }
+.v1-alert { padding: 12px 16px; border-radius: 8px; background: var(--color-warning-soft); }
+@media (max-width: 640px) { .sheet { grid-template-columns: 1fr; padding: 16px; } .vs { grid-template-columns: 1fr; } }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M10 21v-6h4v6"/></symbol>
+    <symbol id="i-inbox" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5h13L22 12v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6z"/></symbol>
+    <symbol id="i-approve" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="m8 12 3 3 5-6"/></symbol>
+    <symbol id="i-review" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6h11M10 12h11M10 18h11"/><path d="m3 6 1.5 1.5L7 5M3 12l1.5 1.5L7 11M3 18l1.5 1.5L7 17"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5V5a2 2 0 0 1 2-2h14v16H6.5A2.5 2.5 0 0 0 4 21.5 2.5 2.5 0 0 0 6.5 24"/><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/></symbol>
+    <symbol id="i-chat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0 1 14 0"/><path d="M16 4a4 4 0 0 1 0 8M22 21a7 7 0 0 0-4-6.3"/></symbol>
+    <symbol id="i-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M8 16v-5M13 16V8M18 16v-3"/></symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-10"/></symbol>
+    <symbol id="i-check-circle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h0"/></symbol>
+    <symbol id="i-warn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 2 18a2 2 0 0 0 1.7 3h16.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h0"/></symbol>
+    <symbol id="i-x-circle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="m9 9 6 6M15 9l-6 6"/></symbol>
+    <symbol id="i-loader" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3a9 9 0 1 0 9 9"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></symbol>
+    <symbol id="i-pages" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/></symbol>
+    <symbol id="i-save" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h11l5 5v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M7 3v5h8M7 21v-7h10v7"/></symbol>
+    <symbol id="i-flag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V4h12l-2 4 2 4H4"/></symbol>
+    <symbol id="i-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-building" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 7h1M14 7h1M9 11h1M14 11h1M9 15h1M14 15h1"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21h4"/></symbol>
+    <symbol id="i-life" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="m5.6 5.6 3.6 3.6M14.8 14.8l3.6 3.6M18.4 5.6l-3.6 3.6M9.2 14.8l-3.6 3.6"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/></symbol>
+  </defs>
+</svg>
+
+<div class="review">
+  <div class="review__head">
+    <div>
+      <h1>FEAT-076 · Harbour v2 mockup</h1>
+      <p>For Ken to approve before any UI code is written. Each screen is drawn at its real width with the v2 tokens. Example data only. The notes under each screen say what changes from today.</p>
+    </div>
+    <nav class="review__nav" aria-label="Screens">
+      <a href="#source">Source detail</a>
+      <a href="#home">Home</a>
+      <a href="#inbox">Inbox</a>
+      <a href="#tenants">Operator · Tenants</a>
+      <a href="#phone">Phone 375 px</a>
+      <a href="#components">v1 → v2</a>
+    </nav>
+  </div>
+
+  <!-- ===================== SOURCE DETAIL ===================== -->
+  <section class="screen" id="screen-source" aria-label="Source detail">
+    <div class="frame-wrap"><div class="frame">
+      <div class="frame__label"><span>SCR-APP-024 Source · 1440 px · kakibakery.sg (website)</span>
+        <span class="state-switch" role="group" aria-label="Source state">
+          <button type="button" data-state="processing" aria-pressed="true">Processing</button>
+          <button type="button" data-state="ready" aria-pressed="false">Ready</button>
+          <button type="button" data-state="failed" aria-pressed="false">Failed</button>
+        </span>
+      </div>
+      <div class="shell">
+        <nav class="sidebar" aria-label="Main">
+          <div class="sidebar__brand">KakiAgent</div>
+          <ul>
+            <li><a class="nav-item" href="#home"><svg><use href="#i-home"/></svg>Home</a></li>
+            <li><a class="nav-item" href="#inbox"><svg><use href="#i-inbox"/></svg>Inbox<span class="nav-item__count">4</span></a></li>
+            <li><a class="nav-item" href="#source"><svg><use href="#i-approve"/></svg>Approvals<span class="nav-item__count nav-item__count--pending">2</span></a></li>
+            <li><a class="nav-item" href="#source"><svg><use href="#i-review"/></svg>Review<span class="nav-item__count nav-item__count--review">6</span></a></li>
+            <li><a class="nav-item" href="#source" aria-current="page"><svg><use href="#i-book"/></svg>Knowledge</a></li>
+            <li><a class="nav-item" href="#source"><svg><use href="#i-chat"/></svg>Coach</a></li>
+            <li><a class="nav-item" href="#source"><svg><use href="#i-users"/></svg>Leads</a></li>
+            <li><a class="nav-item" href="#source"><svg><use href="#i-chart"/></svg>Insights</a></li>
+            <li><a class="nav-item" href="#source"><svg><use href="#i-sliders"/></svg>Settings</a></li>
+          </ul>
+        </nav>
+        <header class="topbar">
+          <span class="topbar__tenant">Kaki Bakery <svg width="16" height="16"><use href="#i-down"/></svg></span>
+          <span class="topbar__search"><svg width="16" height="16"><use href="#i-search"/></svg>Search conversations<kbd>/</kbd></span>
+          <span class="ai-pill">AI live</span>
+          <span class="avatar">TA</span>
+        </header>
+        <main class="content"><div class="content__inner">
+          <a class="back-link" href="#source"><svg width="16" height="16"><use href="#i-left"/></svg>Sources</a>
+          <div class="page-head">
+            <div>
+              <h2 class="page-title">kakibakery.sg</h2>
+              <p class="page-sub"><a href="#source">https://kakibakery.sg ↗</a></p>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn--secondary" type="button" data-only="ready">Read again</button>
+              <button class="btn btn--danger-ghost" type="button">Delete source</button>
+            </div>
+          </div>
+
+          <dl class="meta-grid">
+            <div><dt>Status</dt><dd>
+              <span class="badge badge--info" data-only="processing"><svg class="spin"><use href="#i-loader"/></svg>Processing</span>
+              <span class="badge badge--success" data-only="ready"><svg><use href="#i-check"/></svg>Ready</span>
+              <span class="badge badge--danger" data-only="failed"><svg><use href="#i-x-circle"/></svg>Failed</span>
+            </dd></div>
+            <div><dt>Type</dt><dd>Website · up to 50 pages</dd></div>
+            <div><dt>Added</dt><dd>17 Nov 2026, 10:02</dd></div>
+            <div><dt>Finished</dt><dd><span data-only="processing">Not yet</span><span data-only="ready">17 Nov 2026, 10:09</span><span data-only="failed">17 Nov 2026, 10:04</span></dd></div>
+            <div><dt>Ownership</dt><dd>Confirmed by you on 17 Nov 2026</dd></div>
+          </dl>
+
+          <section class="section-card" aria-labelledby="progress-title">
+            <div class="section-card__head"><h3 class="section-card__title" id="progress-title">Progress</h3></div>
+
+            <div class="alert alert--danger" role="alert" data-only="failed">
+              <svg><use href="#i-x-circle"/></svg>
+              <span class="alert__lead">We couldn't reach kakibakery.sg.</span>
+              <p class="alert__body">The site didn't answer for 30 seconds. Check that it's online, then retry.</p>
+              <span class="alert__action"><button class="btn btn--secondary btn--sm" type="button">Retry</button></span>
+            </div>
+            <div class="alert alert--success" data-only="ready">
+              <svg><use href="#i-check-circle"/></svg>
+              <span class="alert__lead">Finished reading 38 pages.</span>
+              <p class="alert__body">6 of the 41 facts need your review before your assistant uses them.</p>
+              <span class="alert__action"><a href="#source">Review facts</a></span>
+            </div>
+
+            <div class="timeline-well">
+              <ol class="timeline" aria-label="Steps">
+                <li><span class="tl-node"><svg><use href="#i-plus"/></svg></span><span class="badge badge--neutral"><svg><use href="#i-check"/></svg>Added</span><span class="tl-time">17 Nov, 10:02</span></li>
+                <li data-step="read"><span class="tl-node"><svg><use href="#i-globe"/></svg></span><span class="badge badge--neutral"><svg><use href="#i-check"/></svg>Read pages</span><span class="tl-time">Done</span></li>
+                <li data-step="find"><span class="tl-node"><svg><use href="#i-spark"/></svg></span><span class="badge badge--neutral"><svg><use href="#i-check"/></svg>Find facts</span><span class="tl-time">Done</span></li>
+                <li data-step="save"><span class="tl-node"><svg><use href="#i-save"/></svg></span><span class="badge badge--neutral">Save facts</span><span class="tl-time">Waiting</span></li>
+                <li data-step="end"><span class="tl-node"><svg><use href="#i-flag"/></svg></span><span class="badge badge--neutral">Finished</span><span class="tl-time">Waiting</span></li>
+              </ol>
+            </div>
+
+            <div data-only="processing">
+              <div class="stage-line"><span>Finding facts · 18 of 38</span><span class="tabular">47%</span></div>
+              <div class="progress" aria-hidden="true"><div style="width:47%"></div></div>
+            </div>
+            <dl class="figures" data-only="ready">
+              <div><dt>Facts found</dt><dd><a href="#source">41</a></dd></div>
+              <div><dt>Need review</dt><dd><a href="#source">6</a></dd></div>
+              <div><dt>Pages read</dt><dd>38</dd></div>
+            </dl>
+          </section>
+
+          <section class="section-card" aria-labelledby="pages-title" data-hide="failed">
+            <div class="section-card__head">
+              <h3 class="section-card__title" id="pages-title">Pages</h3>
+              <div class="seg-tabs" role="tablist" aria-label="Show pages">
+                <button class="seg-tab" role="tab" aria-selected="true" type="button">All <span class="count">44</span></button>
+                <button class="seg-tab" role="tab" aria-selected="false" type="button">Included <span class="count">38</span></button>
+                <button class="seg-tab" role="tab" aria-selected="false" type="button">Excluded <span class="count">5</span></button>
+                <button class="seg-tab" role="tab" aria-selected="false" type="button">Skipped <span class="count">1</span></button>
+              </div>
+            </div>
+            <table class="table">
+              <thead><tr><th scope="col">Page</th><th scope="col">Result</th><th scope="col" class="num">Facts</th></tr></thead>
+              <tbody>
+                <tr><td class="path">/</td><td><span class="badge badge--success"><svg><use href="#i-check"/></svg>Included</span></td><td class="num">4</td></tr>
+                <tr><td class="path">/menu/cakes</td><td><span class="badge badge--success"><svg><use href="#i-check"/></svg>Included</span></td><td class="num">12</td></tr>
+                <tr><td class="path">/menu/bread</td><td><span class="badge badge--success"><svg><use href="#i-check"/></svg>Included</span></td><td class="num">9</td></tr>
+                <tr><td class="path">/delivery</td><td><span class="badge badge--success"><svg><use href="#i-check"/></svg>Included</span></td><td class="num">5</td></tr>
+                <tr><td class="path">/checkout</td><td><span class="badge badge--neutral">Excluded</span> <span class="caption">Checkout pages hold no facts</span></td><td class="num">—</td></tr>
+                <tr><td class="path">/blog/2019/opening-day</td><td><span class="badge badge--warning"><svg><use href="#i-warn"/></svg>Skipped</span> <span class="caption">Over your plan's 50 pages</span></td><td class="num">—</td></tr>
+              </tbody>
+            </table>
+          </section>
+        </div></main>
+      </div>
+    </div></div>
+    <div class="notes">
+      <div class="note"><h2>New: meta-grid</h2><p>The lines under the title become label/value pairs. The status pill moves into it, so "Ready" appears once on the page. The malware line on file sources ("Checked for malware: none found") is the value of a "Safety" pair.</p></div>
+      <div class="note"><h2>New: event-timeline</h2><p>The job's steps in a dot-grid well. Times show where the source records them (added, finished); the steps between say Done, In progress or Waiting. Steps follow the source kind: files add "Malware check" and "Read file", spreadsheets add "Map columns" and "Import rows".</p></div>
+      <div class="note"><h2>Outcome alert</h2><p>Failed keeps today's message and Retry, now as a gradient-edge alert. Ready gets a success alert with a link to Review (question 3 for Ken). The progress bar and the figures stay under the timeline.</p></div>
+    </div>
+  </section>
+
+  <!-- ===================== HOME ===================== -->
+  <section class="screen" id="screen-home" aria-label="Home">
+    <div class="frame-wrap"><div class="frame">
+      <div class="frame__label"><span>SCR-APP Home · 1440 px · Owner during setup</span><span>KPI tiles are shown as they will look when FEAT-065 builds them</span></div>
+      <div class="shell">
+        <nav class="sidebar" aria-label="Main">
+          <div class="sidebar__brand">KakiAgent</div>
+          <ul>
+            <li><a class="nav-item" href="#home" aria-current="page"><svg><use href="#i-home"/></svg>Home</a></li>
+            <li><a class="nav-item" href="#inbox"><svg><use href="#i-inbox"/></svg>Inbox<span class="nav-item__count">4</span></a></li>
+            <li><a class="nav-item" href="#home"><svg><use href="#i-approve"/></svg>Approvals<span class="nav-item__count nav-item__count--pending">2</span></a></li>
+            <li><a class="nav-item" href="#home"><svg><use href="#i-review"/></svg>Review<span class="nav-item__count nav-item__count--review">6</span></a></li>
+            <li><a class="nav-item" href="#source"><svg><use href="#i-book"/></svg>Knowledge</a></li>
+            <li><a class="nav-item" href="#home"><svg><use href="#i-chat"/></svg>Coach</a></li>
+            <li><a class="nav-item" href="#home"><svg><use href="#i-users"/></svg>Leads</a></li>
+            <li><a class="nav-item" href="#home"><svg><use href="#i-chart"/></svg>Insights</a></li>
+            <li><a class="nav-item" href="#home"><svg><use href="#i-sliders"/></svg>Settings</a></li>
+          </ul>
+        </nav>
+        <header class="topbar">
+          <span class="topbar__tenant">Kaki Bakery <svg width="16" height="16"><use href="#i-down"/></svg></span>
+          <span class="topbar__search"><svg width="16" height="16"><use href="#i-search"/></svg>Search conversations<kbd>/</kbd></span>
+          <span class="ai-pill">AI live</span>
+          <span class="avatar">TA</span>
+        </header>
+        <main class="content"><div class="content__inner">
+          <div class="page-head"><h2 class="page-title">Home</h2></div>
+          <section class="section-card" aria-labelledby="setup-t">
+            <div class="setup">
+              <div>
+                <h3 class="section-card__title" id="setup-t">Finish setting up your assistant</h3>
+                <p>Step 5 of 7: Test your assistant. 4 of 7 steps finished.</p>
+                <div class="progress" style="max-width:480px"><div style="width:57%"></div></div>
+              </div>
+              <a class="btn btn--primary" href="#home">Continue setup</a>
+            </div>
+          </section>
+          <div class="kpis">
+            <a class="card kpi" href="#inbox"><div class="kpi__label">Conversations, 7 days</div><div class="kpi__value">128</div><div class="kpi__delta">↑ 12% on last week</div></a>
+            <a class="card kpi" href="#inbox"><div class="kpi__label">Answered by AI</div><div class="kpi__value">86%</div><div class="kpi__delta">↑ 3% on last week</div></a>
+            <a class="card kpi" href="#home"><div class="kpi__label">New leads</div><div class="kpi__value">14</div><div class="kpi__delta">↑ 4 on last week</div></a>
+            <a class="card kpi" href="#home"><div class="kpi__label">Waiting for you</div><div class="kpi__value">8</div><div class="kpi__delta muted" style="color:var(--color-text-secondary)">6 facts · 2 approvals</div></a>
+          </div>
+          <div class="alert alert--info">
+            <svg><use href="#i-info"/></svg>
+            <span class="alert__lead">Your assistant is running locally.</span>
+            <p class="alert__body">Send a message from the widget host page and it shows up in the inbox straight away.</p>
+            <span class="alert__action"><a class="btn btn--secondary btn--sm" href="#inbox">Open the inbox</a></span>
+          </div>
+        </div></main>
+      </div>
+    </div></div>
+    <div class="notes">
+      <div class="note"><h2>Shell</h2><p>The sidebar sits on the canvas with no fill or divider. The active item is a grey fill with dark text; teal no longer marks navigation. Count badges are 8 px rounded rectangles: grey for counts, amber for Review, violet for Approvals.</p></div>
+      <div class="note"><h2>Page title</h2><p>28/34, weight 500, −0.02em tracking. Section cards ("Finish setting up") take the 24 px radius; small cards (KPI tiles) keep 16 px.</p></div>
+      <div class="note"><h2>Not in FEAT-076</h2><p>The KPI tiles and the info alert show the v2 look only. Home's content doesn't change: today it shows the setup card and the "running locally" empty state.</p></div>
+    </div>
+  </section>
+
+  <!-- ===================== INBOX ===================== -->
+  <section class="screen" id="screen-inbox" aria-label="Inbox">
+    <div class="frame-wrap"><div class="frame">
+      <div class="frame__label"><span>SCR-APP-014 Inbox + SCR-APP-015 Conversation · 1440 px</span><span>FEAT-075 layout kept; only the shapes change</span></div>
+      <div class="shell">
+        <nav class="sidebar" aria-label="Main">
+          <div class="sidebar__brand">KakiAgent</div>
+          <ul>
+            <li><a class="nav-item" href="#home"><svg><use href="#i-home"/></svg>Home</a></li>
+            <li><a class="nav-item" href="#inbox" aria-current="page"><svg><use href="#i-inbox"/></svg>Inbox<span class="nav-item__count">4</span></a></li>
+            <li><a class="nav-item" href="#inbox"><svg><use href="#i-approve"/></svg>Approvals<span class="nav-item__count nav-item__count--pending">2</span></a></li>
+            <li><a class="nav-item" href="#inbox"><svg><use href="#i-review"/></svg>Review<span class="nav-item__count nav-item__count--review">6</span></a></li>
+            <li><a class="nav-item" href="#source"><svg><use href="#i-book"/></svg>Knowledge</a></li>
+            <li><a class="nav-item" href="#inbox"><svg><use href="#i-chat"/></svg>Coach</a></li>
+            <li><a class="nav-item" href="#inbox"><svg><use href="#i-users"/></svg>Leads</a></li>
+            <li><a class="nav-item" href="#inbox"><svg><use href="#i-chart"/></svg>Insights</a></li>
+            <li><a class="nav-item" href="#inbox"><svg><use href="#i-sliders"/></svg>Settings</a></li>
+          </ul>
+        </nav>
+        <header class="topbar">
+          <span class="topbar__tenant">Kaki Bakery <svg width="16" height="16"><use href="#i-down"/></svg></span>
+          <span class="topbar__search"><svg width="16" height="16"><use href="#i-search"/></svg>Search conversations<kbd>/</kbd></span>
+          <span class="ai-pill">AI live</span>
+          <span class="avatar">TA</span>
+        </header>
+        <main class="inbox">
+          <div class="inbox__list">
+            <div class="inbox__list-head">
+              <div style="display:flex;justify-content:space-between;align-items:center"><h2 class="page-title">Inbox</h2><span class="badge badge--success"><svg><use href="#i-check"/></svg>Connected</span></div>
+              <div class="seg-tabs" role="tablist" aria-label="Views">
+                <button class="seg-tab" role="tab" aria-selected="true" type="button">Open <span class="count">4</span></button>
+                <button class="seg-tab" role="tab" aria-selected="false" type="button">Escalated <span class="count">1</span></button>
+                <button class="seg-tab" role="tab" aria-selected="false" type="button">Approval <span class="count">2</span></button>
+                <button class="seg-tab" role="tab" aria-selected="false" type="button">Flagged</button>
+                <button class="seg-tab" role="tab" aria-selected="false" type="button">Closed</button>
+              </div>
+            </div>
+            <a class="inbox-row" href="#inbox" aria-current="true"><span class="avatar">M</span><span style="min-width:0"><span class="inbox-row__top"><span class="inbox-row__name">Mei Ling</span><span class="caption">10:42</span></span><p class="inbox-row__snip">Can I collect the durian cake on Saturday morning?</p><span class="badge badge--accent">AI handling</span></span></a>
+            <a class="inbox-row" href="#inbox"><span class="avatar">R</span><span style="min-width:0"><span class="inbox-row__top"><span class="inbox-row__name">Raj Kumar</span><span class="caption">10:15</span></span><p class="inbox-row__snip">I want 40 kueh lapis for an office party, any discount?</p><span class="badge badge--pending">Waiting for approval</span></span></a>
+            <a class="inbox-row" href="#inbox"><span class="avatar">S</span><span style="min-width:0"><span class="inbox-row__top"><span class="inbox-row__name">Visitor on the website</span><span class="caption">09:58</span></span><p class="inbox-row__snip">My order came with the wrong cake, I want to speak to someone</p><span class="badge badge--warning"><svg><use href="#i-warn"/></svg>Escalated</span></span></a>
+            <a class="inbox-row" href="#inbox"><span class="avatar">J</span><span style="min-width:0"><span class="inbox-row__top"><span class="inbox-row__name">Jasmine Tan</span><span class="caption">Yesterday</span></span><p class="inbox-row__snip">Thanks! See you then.</p><span class="badge badge--info">You're handling</span></span></a>
+          </div>
+          <div class="thread">
+            <div class="thread__head"><span class="avatar">M</span><div style="flex:1"><h3 class="thread__title">Mei Ling</h3><span class="caption">Website widget · started 10:40</span></div><span class="badge badge--accent">AI handling</span><button class="btn btn--secondary btn--sm" type="button">Take over</button><button class="btn btn--ghost btn--sm" type="button">Close</button></div>
+            <div class="thread__log">
+              <div class="bubble bubble--visitor"><div class="bubble__by">Mei Ling</div>Hi, do you have durian cake this weekend?</div>
+              <div class="bubble bubble--ai"><div class="bubble__by">AI assistant</div>Yes, the Mao Shan Wang durian cake is available on Saturday and Sunday. A 1 kg cake is S$68.<br><span class="fact-chip"><svg width="12" height="12"><use href="#i-check"/></svg>Price · /menu/cakes</span></div>
+              <div class="bubble bubble--visitor"><div class="bubble__by">Mei Ling</div>Can I collect the durian cake on Saturday morning?</div>
+            </div>
+            <div class="dock"><span class="dock__field">Take over to reply</span><button class="btn btn--primary" type="button">Take over</button></div>
+          </div>
+          <aside class="details" aria-label="Conversation details">
+            <div><h3>Contact</h3><dl><dt>Name</dt><dd>Mei Ling</dd><dt>Email</dt><dd>meiling@example.sg</dd></dl></div>
+            <div><h3>Lead</h3><dl><dt>Status</dt><dd><span class="badge badge--info">New</span></dd><dt>Score</dt><dd><span class="badge badge--success">Hot</span></dd></dl></div>
+            <div><h3>Page</h3><p class="muted" style="margin:0">/menu/cakes · 2 min</p></div>
+          </aside>
+        </main>
+      </div>
+    </div></div>
+    <div class="notes">
+      <div class="note"><h2>View tabs become segmented</h2><p>FEAT-075's underlined view tabs (Open, Escalated, Approval, Flagged, Closed) take the v2 segmented style: grey fill for the selected view, counts in a neutral pill. Labels and behaviour stay.</p></div>
+      <div class="note"><h2>Rows and pills</h2><p>State pills are 24 px tall with 8 px corners. The selected row keeps the teal tint (design.md table rule); see question 2 for Ken.</p></div>
+      <div class="note"><h2>Buttons</h2><p>Secondary buttons get a light grey border; ghost buttons use dark text instead of teal. Teal stays only on the primary button, links and focus.</p></div>
+    </div>
+  </section>
+
+  <!-- ===================== OPERATOR TENANTS ===================== -->
+  <section class="screen" id="screen-tenants" aria-label="Operator tenants">
+    <div class="frame-wrap"><div class="frame">
+      <div class="frame__label"><span>SCR-OPS Tenants · 1440 px</span><span>The table is FEAT-070's; FEAT-076 restyles the console shell</span></div>
+      <div class="ops">
+        <nav class="ops__sidebar" aria-label="Operator">
+          <div class="sidebar__brand">KakiAgent</div>
+          <ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px">
+            <li><a class="nav-item" href="#tenants" aria-current="page"><svg><use href="#i-building"/></svg>Tenants</a></li>
+            <li><a class="nav-item" href="#tenants"><svg><use href="#i-life"/></svg>Support</a></li>
+            <li><a class="nav-item" href="#tenants"><svg><use href="#i-bell"/></svg>Alerts</a></li>
+            <li><a class="nav-item" href="#tenants"><svg><use href="#i-warn"/></svg>Incidents</a></li>
+            <li><a class="nav-item" href="#tenants"><svg><use href="#i-file"/></svg>Legal documents</a></li>
+            <li><a class="nav-item" href="#tenants"><svg><use href="#i-review"/></svg>Operator audit</a></li>
+          </ul>
+        </nav>
+        <header class="topbar"><span class="ops__label">Operator console</span><span style="margin-left:auto" class="avatar">OP</span></header>
+        <main class="content"><div class="content__inner">
+          <div class="page-head"><div><h2 class="page-title">Tenants</h2><p class="page-sub">42 businesses · 31 active</p></div></div>
+          <section class="section-card">
+            <div class="filters">
+              <div class="seg-tabs" role="tablist" aria-label="Tenant state">
+                <button class="seg-tab" role="tab" aria-selected="true" type="button">All <span class="count">42</span></button>
+                <button class="seg-tab" role="tab" aria-selected="false" type="button">Trial <span class="count">8</span></button>
+                <button class="seg-tab" role="tab" aria-selected="false" type="button">Active <span class="count">31</span></button>
+                <button class="seg-tab" role="tab" aria-selected="false" type="button">Suspended <span class="count">2</span></button>
+                <button class="seg-tab" role="tab" aria-selected="false" type="button">Deleting <span class="count">1</span></button>
+              </div>
+              <span class="field-sm"><svg><use href="#i-search"/></svg>Search by name or UEN</span>
+            </div>
+            <table class="table">
+              <thead><tr><th scope="col">Business</th><th scope="col">Plan</th><th scope="col">State</th><th scope="col">Fair use</th><th scope="col" class="num">LLM spend 7d</th><th scope="col">Channels</th><th scope="col">Last active</th></tr></thead>
+              <tbody>
+                <tr><td>Kaki Bakery</td><td>Growth</td><td><span class="badge badge--success"><svg><use href="#i-check"/></svg>Active</span></td><td><span class="meter"><i style="width:62%"></i></span><span class="caption">62%</span></td><td class="num">S$4.12</td><td><span class="dots"><i></i><i></i><i class="w"></i></span></td><td class="muted">2 min ago</td></tr>
+                <tr><td>Tan Brothers Aircon</td><td>Starter</td><td><span class="badge badge--info">Trial</span></td><td><span class="meter"><i style="width:18%"></i></span><span class="caption">18%</span></td><td class="num">S$0.86</td><td><span class="dots"><i></i></span></td><td class="muted">1 h ago</td></tr>
+                <tr><td>Bloom &amp; Co Florist</td><td>Growth</td><td><span class="badge badge--success"><svg><use href="#i-check"/></svg>Active</span></td><td><span class="meter"><i class="warn" style="width:91%"></i></span><span class="caption">91%</span></td><td class="num">S$7.40</td><td><span class="dots"><i></i><i></i></span></td><td class="muted">5 min ago</td></tr>
+                <tr><td>Little Steps Tuition</td><td>Starter</td><td><span class="badge badge--warning"><svg><use href="#i-warn"/></svg>Suspended</span></td><td><span class="meter"><i style="width:0%"></i></span><span class="caption">0%</span></td><td class="num">S$0.00</td><td><span class="dots"><i class="off"></i></span></td><td class="muted">12 days ago</td></tr>
+                <tr><td>Hock Seng Hardware</td><td>Starter</td><td><span class="badge badge--danger"><svg><use href="#i-x-circle"/></svg>Deleting</span></td><td><span class="meter"><i style="width:0%"></i></span><span class="caption">0%</span></td><td class="num">S$0.00</td><td><span class="dots"><i class="off"></i></span></td><td class="muted">30 days ago</td></tr>
+              </tbody>
+            </table>
+          </section>
+        </div></main>
+      </div>
+    </div></div>
+    <div class="notes">
+      <div class="note"><h2>Console shell</h2><p>The dark sidebar stays (design.md §4.9, the console must never look like a tenant's dashboard). Its items get the v2 shape: 32 px, 12 px corners, selection by a lighter fill instead of an underline or teal.</p></div>
+      <div class="note"><h2>Label</h2><p>"Operator console" becomes an 8 px-corner neutral pill on the grey fill.</p></div>
+      <div class="note"><h2>Scope</h2><p>Today the console is a placeholder shell. FEAT-076 restyles the shell; the tenant table, filters and search arrive with FEAT-070 and follow this look.</p></div>
+    </div>
+  </section>
+
+  <!-- ===================== PHONE ===================== -->
+  <section class="screen" id="screen-phone" aria-label="Phone views">
+    <div class="phones">
+      <div class="phone">
+        <div class="p-top"><span class="topbar__tenant">Kaki Bakery</span><span class="ai-pill">AI live</span><span class="avatar">TA</span></div>
+        <div class="p-body">
+          <a class="back-link" href="#phone"><svg width="16" height="16"><use href="#i-left"/></svg>Sources</a>
+          <h2 class="page-title" style="margin-bottom:16px">kakibakery.sg</h2>
+          <dl class="meta-grid">
+            <div><dt>Status</dt><dd><span class="badge badge--info"><svg class="spin"><use href="#i-loader"/></svg>Processing</span></dd></div>
+            <div><dt>Added</dt><dd>17 Nov, 10:02</dd></div>
+          </dl>
+          <section class="section-card">
+            <div class="timeline-well">
+              <ol class="timeline" aria-label="Steps">
+                <li><span class="tl-node"><svg><use href="#i-plus"/></svg></span><span class="tl-text"><span class="badge badge--neutral"><svg><use href="#i-check"/></svg>Added</span><span class="tl-time">17 Nov, 10:02</span></span></li>
+                <li><span class="tl-node"><svg><use href="#i-globe"/></svg></span><span class="tl-text"><span class="badge badge--neutral"><svg><use href="#i-check"/></svg>Read pages</span><span class="tl-time">Done</span></span></li>
+                <li aria-current="step"><span class="tl-node tl-node--current"><svg class="spin"><use href="#i-loader"/></svg></span><span class="tl-text"><span class="badge badge--info">Find facts</span><span class="tl-time">In progress · 18 of 38</span></span></li>
+                <li><span class="tl-node"><svg><use href="#i-save"/></svg></span><span class="tl-text"><span class="badge badge--neutral">Save facts</span><span class="tl-time">Waiting</span></span></li>
+              </ol>
+            </div>
+          </section>
+        </div>
+        <nav class="tabbar" aria-label="Main">
+          <a class="tab-bar-item" href="#phone"><span class="tab-bar-item__icon"><svg><use href="#i-home"/></svg></span>Home</a>
+          <a class="tab-bar-item" href="#phone"><span class="tab-bar-item__icon"><svg><use href="#i-inbox"/></svg></span>Inbox</a>
+          <a class="tab-bar-item" href="#phone"><span class="tab-bar-item__icon"><svg><use href="#i-approve"/></svg></span>Approvals</a>
+          <a class="tab-bar-item" href="#phone"><span class="tab-bar-item__icon"><svg><use href="#i-review"/></svg></span>Review<span class="tab-bar-item__dot">6</span></a>
+          <a class="tab-bar-item" href="#phone" aria-current="page"><span class="tab-bar-item__icon"><svg><use href="#i-more"/></svg></span>More</a>
+        </nav>
+      </div>
+      <div class="phone">
+        <div class="p-top"><span class="topbar__tenant">Kaki Bakery</span><span class="ai-pill">AI live</span><span class="avatar">TA</span></div>
+        <div class="p-body">
+          <h2 class="page-title" style="margin-bottom:16px">Home</h2>
+          <section class="section-card">
+            <h3 class="section-card__title" style="font-size:16px;line-height:24px">Finish setting up your assistant</h3>
+            <p class="muted" style="margin:4px 0 12px">Step 5 of 7: Test your assistant. 4 of 7 steps finished.</p>
+            <div class="progress"><div style="width:57%"></div></div>
+            <a class="btn btn--primary" href="#phone" style="margin-top:16px;height:44px;width:100%">Continue setup</a>
+          </section>
+          <div class="alert alert--warning" style="grid-template-columns:20px 1fr">
+            <svg><use href="#i-warn"/></svg>
+            <span class="alert__lead">Email isn't sending.</span>
+            <p class="alert__body">Replies to email visitors are waiting. <a href="#phone">Fix email</a></p>
+          </div>
+        </div>
+        <nav class="tabbar" aria-label="Main">
+          <a class="tab-bar-item" href="#phone" aria-current="page"><span class="tab-bar-item__icon"><svg><use href="#i-home"/></svg></span>Home</a>
+          <a class="tab-bar-item" href="#phone"><span class="tab-bar-item__icon"><svg><use href="#i-inbox"/></svg></span>Inbox</a>
+          <a class="tab-bar-item" href="#phone"><span class="tab-bar-item__icon"><svg><use href="#i-approve"/></svg></span>Approvals</a>
+          <a class="tab-bar-item" href="#phone"><span class="tab-bar-item__icon"><svg><use href="#i-review"/></svg></span>Review<span class="tab-bar-item__dot">6</span></a>
+          <a class="tab-bar-item" href="#phone"><span class="tab-bar-item__icon"><svg><use href="#i-more"/></svg></span>More</a>
+        </nav>
+      </div>
+    </div>
+    <div class="notes">
+      <div class="note"><h2>Tab bar</h2><p>The active tab is dark text with a grey pill behind its icon; teal no longer marks it.</p></div>
+      <div class="note"><h2>Timeline on a phone</h2><p>Below 640 px the steps stack vertically, joined by a vertical line. The step in progress carries aria-current="step".</p></div>
+      <div class="note"><h2>Alerts on a phone</h2><p>The action moves under the text instead of sitting on the right.</p></div>
+    </div>
+  </section>
+
+  <!-- ===================== COMPONENTS ===================== -->
+  <section class="screen" id="screen-components" aria-label="Components, v1 to v2">
+    <div class="frame-wrap"><div class="frame" style="width:auto;min-width:0">
+      <div class="frame__label"><span>Every component FEAT-076 changes, today (v1 shapes) next to v2</span></div>
+      <div class="sheet">
+        <section class="section-card"><h3 class="section-card__title" style="margin-bottom:12px">Nav item</h3>
+          <div class="vs"><div><h4>Today</h4><div class="v1-nav"><svg width="18" height="18"><use href="#i-inbox"/></svg>Inbox</div></div>
+          <div><h4>v2</h4><a class="nav-item" href="#components" aria-current="page"><svg><use href="#i-inbox"/></svg>Inbox<span class="nav-item__count">4</span></a></div></div></section>
+        <section class="section-card"><h3 class="section-card__title" style="margin-bottom:12px">Tabs</h3>
+          <div class="vs"><div><h4>Today</h4><div class="v1-tabs"><span class="on">Facts</span><span>Sources</span><span>Gaps</span></div></div>
+          <div><h4>v2</h4><div class="seg-tabs"><button class="seg-tab" aria-selected="true" type="button">Facts</button><button class="seg-tab" aria-selected="false" type="button">Sources</button><button class="seg-tab" aria-selected="false" type="button">Gaps</button></div></div></div></section>
+        <section class="section-card"><h3 class="section-card__title" style="margin-bottom:12px">Status badge</h3>
+          <div class="vs"><div><h4>Today</h4><span class="v1-chip">Needs review</span></div>
+          <div><h4>v2</h4><div class="cmp-row"><span class="badge badge--warning"><svg><use href="#i-warn"/></svg>Needs review</span><span class="badge badge--success"><svg><use href="#i-check"/></svg>Approved</span><span class="badge badge--danger"><svg><use href="#i-x-circle"/></svg>Conflict</span><span class="badge badge--neutral">Closed</span></div></div></div></section>
+        <section class="section-card"><h3 class="section-card__title" style="margin-bottom:12px">Buttons</h3>
+          <div class="cmp-row"><button class="btn btn--primary" type="button">Primary</button><button class="btn btn--secondary" type="button">Secondary</button><button class="btn btn--ghost" type="button">Ghost</button><button class="btn btn--danger-ghost" type="button">Delete</button></div>
+          <p class="caption" style="margin:0">Secondary: light grey border (was the dark input border). Ghost: dark text, grey hover (was teal).</p></section>
+        <section class="section-card" style="grid-column:1/-1"><h3 class="section-card__title" style="margin-bottom:12px">Alert</h3>
+          <div class="vs"><div><h4>Today</h4><div class="v1-alert">Two answers disagree about Saturday hours. Pick the right one before the assistant uses it.</div></div>
+          <div><h4>v2</h4>
+            <div class="alert alert--warning"><svg><use href="#i-warn"/></svg><span class="alert__lead">Two answers disagree about Saturday hours.</span><p class="alert__body">Pick the right one before the assistant uses it.</p></div>
+            <div class="alert alert--info"><svg><use href="#i-info"/></svg><span class="alert__lead">Your plan reads up to 50 pages.</span><p class="alert__body">Pages over the limit are skipped and listed.</p></div>
+          </div></div>
+          <p class="caption" style="margin:0">Icons come from CSS, so no page markup changes. Where an alert has no lead phrase, its first line is the lead.</p></section>
+        <section class="section-card" style="grid-column:1/-1"><h3 class="section-card__title" style="margin-bottom:12px">Table header</h3>
+          <table class="table"><thead><tr><th scope="col">Fact</th><th scope="col">Source</th><th scope="col">State</th></tr></thead><tbody><tr><td>Durian cake 1 kg is S$68</td><td class="muted">/menu/cakes</td><td><span class="badge badge--success"><svg><use href="#i-check"/></svg>Approved</span></td></tr></tbody></table>
+          <p class="caption" style="margin:8px 0 0">No grey fill behind the header; a single rule under it.</p></section>
+      </div>
+    </div></div>
+  </section>
+</div>
+
+<script>
+(function () {
+  var ids = ['source', 'home', 'inbox', 'tenants', 'phone', 'components'];
+  function show() {
+    var h = (location.hash || '#source').slice(1);
+    if (ids.indexOf(h) < 0) h = 'source';
+    ids.forEach(function (id) {
+      document.getElementById('screen-' + id).classList.toggle('is-shown', id === h);
+    });
+    document.querySelectorAll('.review__nav a').forEach(function (a) {
+      if (a.getAttribute('href') === '#' + h) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+    });
+  }
+  window.addEventListener('hashchange', show);
+  show();
+
+  // Source states: processing, ready, failed.
+  var steps = {
+    processing: { read: 'done', find: 'current', save: 'wait', end: 'wait' },
+    ready: { read: 'done', find: 'done', save: 'done', end: 'ready' },
+    failed: { read: 'failed', find: 'wait', save: 'wait', end: 'failedEnd' }
+  };
+  var LABEL = { read: 'Read pages', find: 'Find facts', save: 'Save facts', end: 'Finished' };
+  var ICON = { read: 'i-globe', find: 'i-spark', save: 'i-save', end: 'i-flag' };
+  function setState(s) {
+    document.querySelectorAll('.state-switch button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.state === s)); });
+    document.querySelectorAll('#screen-source [data-only]').forEach(function (el) { el.hidden = el.dataset.only !== s; });
+    document.querySelectorAll('#screen-source [data-hide]').forEach(function (el) { el.hidden = el.dataset.hide === s; });
+    var plan = steps[s];
+    Object.keys(plan).forEach(function (k) {
+      var li = document.querySelector('#screen-source [data-step="' + k + '"]');
+      var st = plan[k], node = li.querySelector('.tl-node'), badge = li.querySelector('.badge'), time = li.querySelector('.tl-time');
+      li.removeAttribute('aria-current');
+      node.className = 'tl-node';
+      var icon = ICON[k], tone = 'neutral', label = LABEL[k], check = false, t = 'Waiting';
+      if (st === 'done') { check = true; t = 'Done'; }
+      if (st === 'current') { li.setAttribute('aria-current', 'step'); node.className = 'tl-node tl-node--current'; icon = 'i-loader'; tone = 'info'; t = 'In progress · 18 of 38'; }
+      if (st === 'ready') { node.className = 'tl-node tl-node--success'; icon = 'i-check-circle'; tone = 'success'; check = true; t = '17 Nov, 10:09'; }
+      if (st === 'failed') { node.className = 'tl-node tl-node--danger'; icon = 'i-x-circle'; tone = 'danger'; t = 'Stopped here'; }
+      if (st === 'failedEnd') { node.className = 'tl-node tl-node--danger'; icon = 'i-x-circle'; tone = 'danger'; label = 'Failed'; t = '17 Nov, 10:04'; }
+      node.innerHTML = '<svg' + (st === 'current' ? ' class="spin"' : '') + '><use href="#' + icon + '"/></svg>';
+      badge.className = 'badge badge--' + tone;
+      badge.innerHTML = (check ? '<svg><use href="#i-check"/></svg>' : '') + label;
+      time.textContent = t;
+    });
+  }
+  document.querySelectorAll('.state-switch button').forEach(function (b) { b.addEventListener('click', function () { setState(b.dataset.state); }); });
+  setState('processing');
+})();
+</script>

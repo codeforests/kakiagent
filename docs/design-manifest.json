@@ -2,7 +2,8 @@
   "version": 1,
   "policy": {
     "fallback": "code-native",
-    "note": "Set 2026-10-19 by the product owner (no design tool connected; HTML prototypes for anchors). Overridable per screen. Paths are relative to docs/."
+    "note": "Set 2026-10-19 by the product owner (no design tool connected; HTML prototypes for anchors). Overridable per screen. Paths are relative to docs/.",
+    "restyle": "Harbour v2 (design.md v2, signed off 2026-11-17) restyles every APP and OPS screen through FEAT-076 (features/FEAT-076-harbour-v2-restyle/ui-design.md): shell, tabs, alerts, badges, buttons, cards, table headers, titles. Screen specs keep their layout and copy; design.md v2 is the source for component shapes. Visual reference: features/FEAT-076-harbour-v2-restyle/mockup/harbour-v2-mockup.html. The widget (WGT) is unchanged."
   },
   "screens": {
     "SCR-APP-001": {
@@ -783,8 +784,10 @@
       "source": {
         "spec": "features/FEAT-012-website-crawl/ui-design.md#scr-app-024--source",
         "extended_by": [
-          "features/FEAT-015-file-upload/ui-design.md#scr-app-024--source-extended-a-files-extraction"
-        ]
+          "features/FEAT-015-file-upload/ui-design.md#scr-app-024--source-extended-a-files-extraction",
+          "features/FEAT-076-harbour-v2-restyle/ui-design.md#scr-app-024--source-extended-meta-grid-event-timeline"
+        ],
+        "prototype": "features/FEAT-076-harbour-v2-restyle/mockup/harbour-v2-mockup.html#source"
       },
       "states": {
         "covered": [
@@ -795,7 +798,11 @@
           "error",
           "not-found",
           "delete-confirm",
-          "filtered-empty"
+          "filtered-empty",
+          "waiting to map",
+          "waiting to retry",
+          "timeline steps by kind (website, file, chat export, spreadsheet)",
+          "meta-grid header"
         ],
         "gaps": [
           "changes since the last crawl (FEAT-020)"
@@ -813,7 +820,8 @@
         "escalations": []
       },
       "status": "designed",
-      "designed_at": "2026-10-23"
+      "designed_at": "2026-10-23",
+      "amendment_note": "Header and status restyled by FEAT-076 (Harbour v2, owner request 2026-11-17): the head lines become a meta-grid and the status section an event-timeline; FEAT-012/015/016/017 stay the source for behaviour and copy. Mockup pending Ken's approval."
     },
     "SCR-APP-025": {
       "name": "Spreadsheet import",

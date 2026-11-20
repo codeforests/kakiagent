@@ -1,3 +1,4 @@
+import '@kaki/ui/fonts.css';
 import '@kaki/design-tokens/tokens.css';
 import '@kaki/ui/styles.css';
 import './app.css';

@@ -142,7 +142,9 @@ export function AppShell({ focused = false }: { focused?: boolean }) {
           <nav className="tabbar" aria-label="Main">
             {TAB_BAR.map((item) => (
               <NavLink key={item.to} to={item.to} end={item.to === '/'} className="tab-bar-item">
-                <Icon name={item.icon} size={24} />
+                <span className="tab-bar-item__icon">
+                  <Icon name={item.icon} size={24} />
+                </span>
                 <span>{item.label}</span>
                 <NavCount value={counts[item.to]} />
               </NavLink>

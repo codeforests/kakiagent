@@ -24,7 +24,7 @@ module.exports = {
           '^packages/identity/src/testing\\.ts$',
           '^packages/kb/src/(stale|gap-cluster)\\.ts$',
           '^packages/channels/src/(theme/index|contract-suite|telegram/fake|contacts/index|handoff/index|tracking/index)\\.ts$',
-          '^packages/ui/src/styles\\.css$',
+          '^packages/ui/src/(styles|fonts)\\.css$',
           '^packages/contracts/src/lead-check\\.ts$',
           '^packages/contracts/src/quote\\.ts$',
           '^packages/contracts/src/audit\\.ts$',
