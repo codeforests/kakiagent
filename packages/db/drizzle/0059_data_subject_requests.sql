@@ -341,7 +341,7 @@ CREATE FUNCTION dsr_correct(req uuid, contact uuid, fields jsonb, lead uuid, lea
     fields := coalesce(fields, '{}'::jsonb);
     IF fields ? 'name' THEN
       UPDATE contacts SET name = fields->>'name', updated_at = now() WHERE tenant_id = t AND id = contact;
-      changed := changed || 'contact.name';
+      changed := array_append(changed, 'contact.name');
     END IF;
     FOREACH k IN ARRAY ARRAY['email', 'phone'] LOOP
       IF fields ? k THEN
@@ -361,7 +361,7 @@ CREATE FUNCTION dsr_correct(req uuid, contact uuid, fields jsonb, lead uuid, lea
             VALUES (t, contact, k, new_v, 'lead_form')
             ON CONFLICT (tenant_id, contact_id, kind, value, source) DO NOTHING;
         END IF;
-        changed := changed || ('contact.' || k);
+        changed := array_append(changed, ('contact.' || k));
       END IF;
     END LOOP;
     IF lead IS NOT NULL THEN
@@ -372,15 +372,15 @@ CREATE FUNCTION dsr_correct(req uuid, contact uuid, fields jsonb, lead uuid, lea
       lead_fields := coalesce(lead_fields, '{}'::jsonb);
       IF lead_fields ? 'need' THEN
         UPDATE leads SET need = lead_fields->>'need', updated_at = now() WHERE tenant_id = t AND id = lead;
-        changed := changed || 'lead.need';
+        changed := array_append(changed, 'lead.need');
       END IF;
       IF lead_fields ? 'budget' THEN
         UPDATE leads SET budget = lead_fields->>'budget', updated_at = now() WHERE tenant_id = t AND id = lead;
-        changed := changed || 'lead.budget';
+        changed := array_append(changed, 'lead.budget');
       END IF;
       IF lead_fields ? 'preferredTime' THEN
         UPDATE leads SET preferred_time = lead_fields->>'preferredTime', updated_at = now() WHERE tenant_id = t AND id = lead;
-        changed := changed || 'lead.preferredTime';
+        changed := array_append(changed, 'lead.preferred_time');
       END IF;
     END IF;
     RETURN changed;

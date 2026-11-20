@@ -131,3 +131,14 @@ export {
   type DsrEvent,
   type DsrRow,
 } from './dsr/requests.js';
+export {
+  checkSelection,
+  excerptOf,
+  findSubject,
+  identifiersOf,
+  mentionPatterns,
+  type FoundSubject,
+  type Identifiers,
+} from './dsr/find.js';
+export { exportSubject, scopeOf } from './dsr/export.js';
+export { correctSubject } from './dsr/correct.js';

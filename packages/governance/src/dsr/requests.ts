@@ -149,7 +149,9 @@ export async function updateRequest(
     event: 'updated',
     requestId: id,
     actor: { type: 'user', id: userId },
-    payload: { fields: fields.map(auditCode) },
+    payload: {
+      fields: fields.map((f) => auditCode(f.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`))),
+    },
   });
   return row;
 }

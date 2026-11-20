@@ -4449,7 +4449,6 @@ export const DsrFindResult = z.object({
     suggestions: z.number().int(),
     summaries: z.number().int(),
     trackingEvents: z.number().int(),
-    handoffLinks: z.number().int(),
     telegramChats: z.number().int(),
   }),
 });
