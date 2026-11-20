@@ -2993,10 +2993,6 @@ a.settings-row:hover {
   max-width: calc(var(--size-reading-max) * 0.8);
 }
 .source-page__head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-4);
   margin-bottom: var(--space-5);
 }
 .source-page__head .page-title {
@@ -3005,8 +3001,11 @@ a.settings-row:hover {
 }
 .source-status {
   display: grid;
-  gap: var(--space-3);
-  margin-bottom: var(--space-5);
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+.source-status > .section-title {
+  margin: 0;
 }
 .source-status .alert {
   margin-bottom: 0;

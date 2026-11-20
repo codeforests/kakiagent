@@ -1,5 +1,5 @@
 import type { Source, SourcePage as Page } from '@kaki/contracts';
-import { Button, ConfirmDialog, EmptyState, ErrorState } from '@kaki/ui';
+import { Button, ConfirmDialog, EmptyState, ErrorState, EventTimeline, MetaGrid } from '@kaki/ui';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
@@ -15,8 +15,10 @@ import {
   PAGE_STATE,
   pageLabel,
   pageResult,
+  readyOutcome,
   sizeLabel,
   sourceSummary,
+  sourceTimeline,
   unitWords,
   useRetry,
   useSource,
@@ -143,6 +145,9 @@ export function SourcePage() {
       <p className="source-figures__note">{file.ocrPages} read with OCR</p>
     ) : null;
 
+  const timeline = sourceTimeline(source);
+  const outcome = readyOutcome(source);
+
   const onRetry = () =>
     retry.mutate(source, {
       onError: (err) => {
@@ -158,41 +163,90 @@ export function SourcePage() {
         Sources
       </Link>
       <div className="source-page__head">
-        <div>
-          <h1 className="page-title">{source.name}</h1>
-          {source.url && (
-            <p className="source-page__meta">
-              <a href={source.url} target="_blank" rel="noreferrer noopener">
-                {source.url}
-                <span aria-hidden="true"> ↗</span>
-                <span className="sr-only"> (opens in a new tab)</span>
-              </a>
-            </p>
-          )}
-          {source.attestedAt && (
-            <p className="source-page__meta">
-              Confirmed by you on {updatedLabel(source.attestedAt)}
-            </p>
-          )}
-          {file && (
-            <p className="source-page__meta">
-              {[
-                ...(type ? [FILE_TYPE_LABEL[type]] : []),
-                sizeLabel(file.sizeBytes),
-                `Uploaded ${updatedLabel(source.createdAt)}`,
-              ].join(' · ')}
-            </p>
-          )}
-          {file?.scannedAt && (
-            <p className="source-page__meta source-page__clean">
-              <CheckIcon /> Checked for malware: none found
-            </p>
-          )}
-        </div>
-        <SourceState source={source} />
+        <h1 className="page-title">{source.name}</h1>
+        {source.url && (
+          <p className="source-page__meta">
+            <a href={source.url} target="_blank" rel="noreferrer noopener">
+              {source.url}
+              <span aria-hidden="true"> ↗</span>
+              <span className="sr-only"> (opens in a new tab)</span>
+            </a>
+          </p>
+        )}
       </div>
+      {/* design.md §4.4 meta-grid (FEAT-076): the status moved here, so "Ready" shows once. */}
+      <MetaGrid
+        className="source-meta"
+        items={[
+          { label: 'Status', value: <SourceState source={source} /> },
+          {
+            label: 'Type',
+            value: file
+              ? [...(type ? [FILE_TYPE_LABEL[type]] : []), sizeLabel(file.sizeBytes)].join(' · ')
+              : source.pageLimit
+                ? `Website · up to ${source.pageLimit} pages`
+                : 'Website',
+          },
+          { label: file ? 'Uploaded' : 'Added', value: updatedLabel(source.createdAt) },
+          {
+            label: 'Finished',
+            value:
+              source.status === 'ready' || source.status === 'failed'
+                ? updatedLabel(source.finishedAt ?? source.updatedAt)
+                : 'Not yet',
+          },
+          ...(source.attestedAt
+            ? [
+                {
+                  label: 'Ownership',
+                  value: `Confirmed by you on ${updatedLabel(source.attestedAt)}`,
+                },
+              ]
+            : []),
+          ...(file?.scannedAt
+            ? [
+                {
+                  label: 'Safety',
+                  value: (
+                    <span className="source-page__clean">
+                      <CheckIcon /> Checked for malware: none found
+                    </span>
+                  ),
+                },
+              ]
+            : []),
+        ]}
+      />
 
-      <section className="card source-status" aria-label="Status">
+      <section className="card source-status" aria-labelledby="progress-title">
+        <h2 className="section-title" id="progress-title">
+          Progress
+        </h2>
+        {source.status === 'failed' && (
+          <div className="alert alert--danger" role="alert">
+            <p>{failureText(source)}</p>
+            {source.retryable ? (
+              <Button
+                variant="secondary"
+                onClick={onRetry}
+                disabled={retry.isPending}
+                aria-busy={retry.isPending || undefined}
+              >
+                {retry.isPending ? 'Retrying…' : 'Retry'}
+              </Button>
+            ) : (
+              <UploadAgain source={source} />
+            )}
+          </div>
+        )}
+        {outcome && (
+          <div className="alert alert--success">
+            <p className="alert__title">{outcome.lead}</p>
+            <p>{outcome.body}</p>
+            {outcome.review && <Link to="/review">Review facts</Link>}
+          </div>
+        )}
+        <EventTimeline label="Steps" steps={timeline.steps} announce={timeline.announce} />
         {busy(source) && (
           <>
             <p className="source-status__stage">{sourceSummary(source)}</p>
@@ -223,23 +277,6 @@ export function SourcePage() {
             )}
           </dl>
         )}
-        {source.status === 'failed' && (
-          <div className="alert alert--danger" role="alert">
-            <p>{failureText(source)}</p>
-            {source.retryable ? (
-              <Button
-                variant="secondary"
-                onClick={onRetry}
-                disabled={retry.isPending}
-                aria-busy={retry.isPending || undefined}
-              >
-                {retry.isPending ? 'Retrying…' : 'Retry'}
-              </Button>
-            ) : (
-              <UploadAgain source={source} />
-            )}
-          </div>
-        )}
       </section>
 
       {source.status === 'ready' && source.counts.facts === 0 && (
@@ -250,7 +287,7 @@ export function SourcePage() {
       )}
 
       {showPages && (
-        <section className="source-pages" aria-labelledby="pages-title">
+        <section className="card source-pages" aria-labelledby="pages-title">
           <div className="source-pages__head">
             <h2 className="section-title" id="pages-title">
               {pagesTitle}

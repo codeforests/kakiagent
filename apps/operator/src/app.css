@@ -30,7 +30,40 @@ body {
   padding: 0;
   display: flex;
   flex-direction: column;
+  gap: var(--space-1);
+}
+/* Harbour v2 nav-item on the dark chrome (FEAT-076 D7): the muted text and the selection fill
+   are mixes of two tokens, so no literal colour and no new token. */
+.ops__nav-item {
+  display: flex;
+  align-items: center;
   gap: var(--space-3);
+  min-height: var(--size-control-sm);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-md);
+  color: color-mix(in srgb, var(--color-bg-surface) 78%, var(--color-text-primary));
+}
+.ops__nav-item svg {
+  flex: none;
+  width: calc(var(--space-5) + var(--space-1));
+  height: calc(var(--space-5) + var(--space-1));
+}
+.ops__nav-item[aria-current='page'] {
+  background: color-mix(in srgb, var(--color-bg-surface) 14%, var(--color-text-primary));
+  color: var(--color-bg-surface);
+}
+@media (forced-colors: active) {
+  .ops__nav-item[aria-current='page'] {
+    outline: 1px solid CanvasText;
+  }
+}
+.page-title {
+  margin: 0 0 var(--space-5);
+  font-size: var(--type-heading-size);
+  line-height: var(--type-heading-line);
+  font-weight: var(--type-heading-weight);
+  letter-spacing: var(--type-heading-tracking);
+  text-wrap: balance;
 }
 .ops__brand {
   font-weight: var(--font-weight-semibold);
@@ -41,18 +74,18 @@ body {
   display: flex;
   align-items: center;
   padding: 0 var(--space-5);
-  background: var(--color-bg-surface);
+  background: var(--color-bg-canvas);
   border-bottom: 1px solid var(--color-border-default);
 }
 .ops__label {
   padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-full);
-  background: var(--color-bg-subtle);
+  border-radius: var(--radius-chip);
+  background: var(--color-bg-fill);
   color: var(--color-text-secondary);
   font-size: var(--type-body-sm-size);
   font-weight: var(--font-weight-medium);
 }
 .ops__main {
   grid-area: main;
-  padding: var(--space-5);
+  padding: var(--space-7) var(--space-8);
 }
