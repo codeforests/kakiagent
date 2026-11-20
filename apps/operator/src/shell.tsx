@@ -13,7 +13,10 @@ const NAV = [
     'M10.3 3.9 2 18a2 2 0 0 0 1.7 3h16.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01',
   ],
   ['Legal documents', 'M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM14 3v6h6'],
-  ['Operator audit', 'M10 6h11M10 12h11M10 18h11M3 6l1.5 1.5L7 5M3 12l1.5 1.5L7 11M3 18l1.5 1.5L7 17'],
+  [
+    'Operator audit',
+    'M10 6h11M10 12h11M10 18h11M3 6l1.5 1.5L7 5M3 12l1.5 1.5L7 11M3 18l1.5 1.5L7 17',
+  ],
 ] as const;
 
 /**
@@ -30,7 +33,10 @@ export function OperatorShell() {
         <ul>
           {NAV.map(([label, path]) => (
             <li key={label}>
-              <span className="ops__nav-item" aria-current={label === 'Tenants' ? 'page' : undefined}>
+              <span
+                className="ops__nav-item"
+                aria-current={label === 'Tenants' ? 'page' : undefined}
+              >
                 <svg
                   viewBox="0 0 24 24"
                   fill="none"

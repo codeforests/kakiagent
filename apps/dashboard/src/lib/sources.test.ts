@@ -39,7 +39,13 @@ const source = (o: Partial<Source> = {}): Source => ({
   version: 1,
   ...o,
 });
-const file = { name: 'menu.pdf', sizeBytes: 1000, type: 'pdf' as const, ocrPages: 0, scannedAt: null };
+const file = {
+  name: 'menu.pdf',
+  sizeBytes: 1000,
+  type: 'pdf' as const,
+  ocrPages: 0,
+  scannedAt: null,
+};
 const view = (s: Source) =>
   sourceTimeline(s).steps.map((step) => `${step.label}:${step.state}:${step.caption}`);
 
@@ -89,7 +95,11 @@ describe('sourceTimeline', () => {
 
   it('queued before any stage: only Added is done, nothing is announced', () => {
     const s = source({ status: 'queued', stage: null });
-    expect(view(s).slice(1).every((v) => v.includes(':waiting:'))).toBe(true);
+    expect(
+      view(s)
+        .slice(1)
+        .every((v) => v.includes(':waiting:')),
+    ).toBe(true);
     expect(sourceTimeline(s).announce).toBeUndefined();
   });
 
@@ -100,7 +110,11 @@ describe('sourceTimeline', () => {
     const sheet = source({ kind: 'spreadsheet', file, status: 'queued', stage: 'map' });
     expect(view(sheet)[3]).toBe('Map columns:current:Waiting for you');
     // A crawl that hasn't found its first page has no count yet.
-    const crawl = source({ status: 'processing', stage: 'crawl', counts: { ...counts, pagesFound: 0 } });
+    const crawl = source({
+      status: 'processing',
+      stage: 'crawl',
+      counts: { ...counts, pagesFound: 0 },
+    });
     expect(view(crawl)[1]).toBe('Read pages:current:In progress');
   });
 
@@ -116,7 +130,12 @@ describe('sourceTimeline', () => {
   });
 
   it('failed: the failing stage stopped, later ones wait, Failed ends it', () => {
-    const s = source({ status: 'failed', stage: 'crawl', failure: 'site_unreachable', updatedAt: finished });
+    const s = source({
+      status: 'failed',
+      stage: 'crawl',
+      failure: 'site_unreachable',
+      updatedAt: finished,
+    });
     expect(view(s).slice(1)).toEqual([
       'Read pages:failed:Stopped here',
       'Find facts:waiting:Waiting',
@@ -163,9 +182,10 @@ describe('readyOutcome', () => {
 
   it('uses the file’s own unit, and none for an image', () => {
     const slides = { ...file, name: 'deck.pptx', type: 'pptx' as const };
-    expect(ready({ facts: 2, factsNeedingReview: 2, pagesIncluded: 1 }, { kind: 'file', file: slides })?.lead).toBe(
-      'Finished reading 1 slide.',
-    );
+    expect(
+      ready({ facts: 2, factsNeedingReview: 2, pagesIncluded: 1 }, { kind: 'file', file: slides })
+        ?.lead,
+    ).toBe('Finished reading 1 slide.');
     const image = { ...file, name: 'menu.png', type: 'png' as const };
     expect(ready({ facts: 1, factsNeedingReview: 1 }, { kind: 'file', file: image })).toEqual({
       lead: 'Finished reading the image.',

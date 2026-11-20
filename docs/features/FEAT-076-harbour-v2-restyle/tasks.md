@@ -1,7 +1,7 @@
 # Tasks: FEAT-076 — Harbour v2 restyle
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md); look: [mockup/harbour-v2-mockup.html](mockup/harbour-v2-mockup.html))
-> Status: `designed` · 2026-11-17 · **build blocked until Ken approves the mockup** (handoff.md, Pending for Ken)
+> Status: `developer-done` · 2026-11-20 · mockup approved by Ken 2026-11-20 (technical-design D9–D11)
 > One build session, UI only (no contract, schema or backend change; D8). Each task: edit → `pnpm --filter <pkg> typecheck` → its check → one commit. A stubbed-API Playwright script (static `vite preview` build + `page.route('**/api/**')`) logs only the computed styles it asserts. Without a local stack, E2E and axe run in the verify stage's GitHub CI.
 
 - [x] T1 — Inter self-hosted: `@fontsource/inter` `5.2.8` (exact) in `packages/ui`; `packages/ui/src/fonts.css` importing `latin-400`, `latin-500`, `latin-600`, `latin-400-italic`; `exports["./fonts.css"]`; imported first in `apps/dashboard/src/main.tsx` and `apps/operator/src/main.tsx` (design §5.1; D1; AC-1, AC-2)
@@ -27,8 +27,19 @@
       Note: Ken said yes (D11), so the ready-state success alert is built (`readyOutcome`, with a "Review facts" link only when facts wait for review).
       Note: spreadsheet and chat sources render SCR-APP-025/026 (`SpreadsheetPage`, `ChatPage`), not this page, so the timeline shows on website and file sources; `sourceTimeline` still knows all four kinds (unit-tested) for when those screens adopt it. Files label the date "Uploaded" (the existing word), websites "Added".
       Evidence (stubbed script, dist build): processing website: 'Ready' 0, current step "Find facts | In progress · 18 of 38"; ready website: 'Ready' 1, 'Facts found' 1, 'Pages read' 1, `.source-figures` 1; failed: no figures, danger alert first; ready PDF: 'Checked for malware: none found' 1; 375 px: scrollWidth 375, steps stacked. Operator: current item 11.51:1, idle 10.99:1. `sources.test.ts` 11 cases pass.
-- [ ] T9 — E2E and verify: new `e2e/tests/harbour-v2.e2e.ts` (signed in as the Kaki Bakery owner: Inter loaded same-origin and no Google Fonts request; active nav fill; segmented tab; alert border and gradient on a page that shows one; Source page meta-grid and timeline with `aria-current` for a source the spec creates; `expectNoSeriousA11yViolations` at 1440 and 375 on Home, Inbox, Knowledge, a Source, Team; operator console at `http://localhost:5174` at 1440); then `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build && pnpm size` (AC-1–AC-10)
+- [x] T9 — E2E and verify: new `e2e/tests/harbour-v2.e2e.ts` (signed in as the Kaki Bakery owner: Inter loaded same-origin and no Google Fonts request; active nav fill; segmented tab; alert border and gradient on a page that shows one; Source page meta-grid and timeline with `aria-current` for a source the spec creates; `expectNoSeriousA11yViolations` at 1440 and 375 on Home, Inbox, Knowledge, a Source, Team; operator console at `http://localhost:5174` at 1440); then `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build && pnpm size` (AC-1–AC-10)
       Done when: all local checks pass; the spec typechecks. Note: E2E (all browsers) and axe run in the verify stage's GitHub CI (no Docker here); every existing spec must pass unchanged (AC-10).
+      Note: `fonts.css` added to dependency-cruiser's declared `@kaki/ui` entry points (like `styles.css`). Local run 2026-11-20: `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm --filter @kaki/e2e typecheck`, `pnpm test` (172 files, 1,947 tests), `pnpm build`, `pnpm size` all PASS.
 
 ## Verification evidence
-_(filled by the build and verify stages, one bullet per AC)_
+_(build stage, 2026-11-20; E2E and axe pending the verify stage's GitHub CI)_
+- AC-1: T1 stubbed script: `document.fonts.check('500 14px Inter')` true on the dashboard, `600` on the operator console; every WOFF2 request same-origin; no Google Fonts request; each dist has exactly four `inter-latin-*.woff2`. E2E `harbour-v2.e2e.ts` test 1 checks the same against the real stack.
+- AC-2: `pnpm --filter @kaki/widget build && pnpm size` PASS; no `.woff*` in `apps/widget/dist`; the widget doesn't import `@kaki/ui`.
+- AC-3: T3 script: active nav `#E9E9E9` / `#191919`, 32 px; phone tab-bar icon pill `#E9E9E9`. E2E test 2.
+- AC-4: T4 script: Knowledge, inbox, Leads and Approvals tabs selected `#E9E9E9`, no underline, 12 px radius; inbox views fit at 1440 (21 px slack) and 1024 (8 px); 375 px scrollWidth 375 on `/inbox`, `/leads`, `/knowledge/sources`. E2E test 2; FEAT-075's fit check in `inbox.e2e.ts` runs in CI.
+- AC-5: T5 script: each tone's gradient starts at its soft token, 1 px border, 20 px icon in the tone colour; no alert copy changed. E2E test 3 (success alert).
+- AC-6: T2/T6 scripts: secondary border `#D7D7D7`, ghost text `#191919`; badge 24 px / 8 px; section card 24 px radius and padding; `th` transparent; title −0.56 px at weight 500.
+- AC-7: T8 script and E2E test 3: meta-grid (Status, Type, Added/Uploaded, Finished, Ownership or Safety); timeline steps by kind; one `aria-current="step"` while processing. `sources.test.ts` (11) and `timeline.test.ts` (3) pass.
+- AC-8: T8 script: 'Ready' ×1, 'Facts found' ×1, 'Pages read' ×1, malware text ×1, `.source-figures` when ready; processing/waiting-to-retry/waiting-for-you/failed captions unit-tested; loading, error, not found unchanged.
+- AC-9: E2E tests 3 and 4 run axe at 1440 and 375 on Home, Inbox, Knowledge, Sources, a Source in each state, Team, and the operator console: pending CI.
+- AC-10: no existing spec edited (`git diff origin/main --stat -- e2e/tests` adds only `harbour-v2.e2e.ts`): pending CI on Chromium, Firefox and WebKit.

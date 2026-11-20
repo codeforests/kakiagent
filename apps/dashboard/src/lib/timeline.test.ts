@@ -12,7 +12,13 @@ describe('EventTimeline', () => {
       steps: [
         { key: 'added', label: 'Added', icon: 'plus', state: 'done', caption: '17 Nov' },
         { key: 'crawl', label: 'Read pages', icon: 'globe', state: 'done', caption: 'Done' },
-        { key: 'extract', label: 'Find facts', icon: 'sparkles', state: 'current', caption: '18 of 38' },
+        {
+          key: 'extract',
+          label: 'Find facts',
+          icon: 'sparkles',
+          state: 'current',
+          caption: '18 of 38',
+        },
         { key: 'promote', label: 'Save facts', icon: 'save', state: 'waiting', caption: 'Waiting' },
       ],
     }),
