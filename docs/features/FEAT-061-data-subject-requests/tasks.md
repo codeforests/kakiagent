@@ -1,7 +1,7 @@
 # Tasks: FEAT-061 — Data-subject requests: find, export, correct, delete across stores
 
 > Executes: [technical-design.md](technical-design.md) (screens: [ui-design.md](ui-design.md))
-> Status: developer-done (build T1–T11 done; T12 is the verify stage) · Last updated: 2026-11-20 (build)
+> Status: accepted · Last updated: 2026-11-21 (verify)
 
 - [x] T1 — Schema: `0059_data_subject_requests.sql` + Drizzle `dsrRequests`, `TENANT_SCOPED_TABLES`, RLS case; grants and restrictive policies (visitor insert, dashboard `contact_identities` `lead_form` only, dashboard `contacts` update columns); notification kind `dsr_due_soon` and subject `data_request`; roles `kaki_dsr_erase`, `kaki_dsr_search`, `kaki_dsr_timer` with `dsr_erase()`, `dsr_search_hits()`, `dsr_queue_due_alerts()` (design §4; AC-1, AC-6, AC-8)
       Done when: `scripts/test-env.sh pnpm --filter @kaki/db test:integration` passes, including the new RLS case (tenant B can't see or insert tenant A's request) and a check that `app_dashboard` can't DELETE from `messages` directly.
@@ -33,5 +33,16 @@
 - [x] T11 — E2E `e2e/tests/data-requests.e2e.ts`: create → verify → find → export → delete → done with chain intact, as Owner; Agent sees no-permission; axe at 1440 and 375 × 5000 (AC-1–AC-7, AC-11)
       Note: runs in GitHub CI (no Docker in cloud sessions); the spec creates its own contact and conversation through the widget API.
       Evidence: `e2e/tests/data-requests.e2e.ts` written (2 tests): a widget visitor leaves name and a fresh phone; the Owner goes Privacy and data → Manage requests, logs an Access request (toast "Request logged. Due …"), verifies, sees the person (ticked, "1 lead") and one conversation, exports through "Confirm it's you" (file name pattern, contact name/phone and the visitor's message in the JSON), marks it completed; logs a Deletion request, verifies, delete confirm focuses Cancel, Delete disabled until "delete", re-auth, done state ("1 person, 1 conversation, N messages", "Chain verified", "Cleared by", "Entry #N", requester masked), the contact row is gone; axe at 1440 and 375 × 5000 on the request and the Closed list (cards at 375, no sideways scroll). An Agent gets "You don't have access to this page" with no New request. Lint and `tsc` for the spec passed; it runs in GitHub CI (no Docker here). Full `pnpm format:check`, `pnpm lint`, `pnpm typecheck` passed.
-- [ ] T12 — Verify: full local checks, RTM, acceptance report (verify stage)
-      Verification evidence: one bullet per AC-1–AC-11.
+- [x] T12 — Verify: full local checks, RTM, acceptance report (verify stage)
+      Verification evidence (details in acceptance-report.md):
+      - AC-1: `dsr-requests.int`, `api data-requests.int` (Agent 403 ×12, tenant B 404), RLS case, `identity.test` — pass.
+      - AC-2: `dsr-requests.int` transitions, 409s; contracts `dsr.test` — pass.
+      - AC-3: `dsr-find.int` every store, three identifier kinds, mentions, tenant B — pass.
+      - AC-4: api export re-auth 403 → 200, 422 outside find; E2E export — pass.
+      - AC-5: `dsr-find.int` correction, verified identity kept — pass.
+      - AC-6: `dsr-erase.int` zero rows per store, chain verifies, outbox keys; api erase re-auth, `chain: 'intact'` — pass.
+      - AC-7: api `backupsClearBy`; E2E done state; operations doc — pass.
+      - AC-8: `dsr-workers.int` alerts once, not mutable, none closed — pass.
+      - AC-9: agent `withdraw.int` one request + escalation; eval — pass.
+      - AC-10: `dsr/stores.test` — pass.
+      - AC-11: E2E axe 1440/375; card-link name fixed in verify (`f6f1b7e`, run 145) — pass in CI.
