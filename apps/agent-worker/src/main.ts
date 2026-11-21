@@ -11,7 +11,7 @@ import {
   type DeliverDeps,
   type DeliveryRow,
 } from '@kaki/channels';
-import { visitorPrivacy } from '@kaki/governance';
+import { removeDsrObjects, visitorPrivacy } from '@kaki/governance';
 import { usageSink } from '@kaki/analytics';
 import { runApprovalTimer } from '@kaki/approvals';
 import { ChannelQueueJob, TurnQueueJob, type RealtimeEvent } from '@kaki/contracts';
@@ -43,6 +43,7 @@ import { visitorTenantState } from '@kaki/tenancy';
 import { localSealer } from '@kaki/platform/secrets';
 import { sendHandoffEmail } from '@kaki/channels/handoff';
 import { z } from 'zod';
+import { s3DsrObjectStore } from './dsr-objects.js';
 import { s3MailStore } from './mail-store.js';
 
 const config = loadConfig(
@@ -70,6 +71,8 @@ const config = loadConfig(
       HANDOFF_LINK_SECRET: envSchemas.secret,
       /** The api's public origin: the email handoff's confirm link `<url>/continue/<code>`. */
       PUBLIC_API_URL: envSchemas.url.transform((u) => u.replace(/\/+$/, '')),
+      /** Attachment files a data-subject deletion removes (FEAT-061 §5.6). */
+      ATTACHMENTS_BUCKET: z.string().min(3),
     }),
 );
 const stopTelemetry = startTelemetry('agent-worker', config.OTEL_EXPORTER_OTLP_ENDPOINT);
@@ -176,6 +179,12 @@ async function publishDelivery(tenantId: string, row: DeliveryRow | null) {
     events.push([[channels.inbox(tenantId)], { type: 'conversation', conversation: out.summary }]);
   await publishAll(events, logger);
 }
+
+const dsrObjects = s3DsrObjectStore({
+  bucket: config.ATTACHMENTS_BUCKET,
+  region: config.AWS_REGION,
+  endpoint: config.AWS_ENDPOINT_URL,
+});
 
 const health = startHealthServer(config.HEALTH_PORT, { database: () => ping(visitorDb) });
 const abort = new AbortController();
@@ -315,6 +324,22 @@ const consuming = queue.consume<unknown>(
       logger.info(
         { outboxId: msg.id, tenantId: t, conversationId: parsed.conversationId, ...r },
         `memory ${r.outcome}`,
+      );
+      return;
+    }
+    // A data-subject deletion's attachment files (GOV-05; FEAT-061 §5.6): deleted from S3, then
+    // the request's files marked done; a redelivered job deletes again and audits nothing.
+    if ('kind' in parsed && parsed.kind === 'dsr_objects') {
+      const outcome = await removeDsrObjects(visitorDb, dsrObjects, parsed);
+      logger.info(
+        {
+          outboxId: msg.id,
+          tenantId: parsed.tenantId,
+          requestId: parsed.requestId,
+          keys: parsed.keys.length,
+          outcome,
+        },
+        'dsr objects',
       );
       return;
     }

@@ -36,6 +36,7 @@ import { staleScanOnce } from './stale-scan.js';
 import { approvalTimersOnce } from './approval-timers.js';
 import { channelDeliveriesOnce } from './channel-deliveries.js';
 import { autoCloseOnce } from './auto-close.js';
+import { dsrDueOnce } from './dsr-due.js';
 import { handoffPurgeOnce } from './handoff-purge.js';
 import { trackingPurgeOnce } from './tracking-purge.js';
 import { escalationRemindersOnce } from './escalation-reminders.js';
@@ -109,6 +110,8 @@ const config = loadConfig(
       HANDOFF_PURGE_MS: z.coerce.number().int().positive().default(86_400_000),
       /** Purges page events past 180 days and tracking choices past 13 months (FEAT-029 §5.9): daily. */
       TRACKING_PURGE_MS: z.coerce.number().int().positive().default(86_400_000),
+      /** Data-request due alerts at 7 days before the legal deadline (FEAT-061 §5.6): hourly. */
+      DSR_DUE_SWEEP_MS: z.coerce.number().int().positive().default(3_600_000),
       /** The custom sending domain's checks (FEAT-036 §5.1): SES v2, or `fixture` locally. */
       EMAIL_IDENTITY_PROVIDER: z.enum(['ses', 'fixture']).default('ses'),
       SES_CONFIGURATION_SET: z.preprocess((v) => (v === '' ? undefined : v), z.string().optional()),
@@ -314,6 +317,11 @@ const trackingPurgeTimer = setInterval(
   config.TRACKING_PURGE_MS,
 );
 
+// Data-subject requests (GOV-05; FEAT-061 §5.6, D8): once an hour, alerts Owners and Admins
+// about each request 7 days or less from due, once per request.
+const dsrDueRun = dsrDueOnce(outboxDb, logger);
+const dsrDueTimer = setInterval(() => void dsrDueOnce(outboxDb, logger), config.DSR_DUE_SWEEP_MS);
+
 // Escalation reminders (FEAT-044 §5.5): queues a reminder job for each open escalation whose
 // time has come; the agent-worker reminds the assignee (and from the third, owners and admins).
 const escalationRun = escalationRemindersOnce(outboxDb, logger);
@@ -350,6 +358,7 @@ async function shutdown() {
   clearInterval(autoCloseTimer);
   clearInterval(handoffPurgeTimer);
   clearInterval(trackingPurgeTimer);
+  clearInterval(dsrDueTimer);
   clearInterval(escalationTimer);
   clearInterval(approvalTimer);
   clearInterval(deliveryTimer);
@@ -365,6 +374,7 @@ async function shutdown() {
     autoCloseRun,
     handoffPurgeRun,
     trackingPurgeRun,
+    dsrDueRun,
     escalationRun,
     approvalRun,
     deliveryRun,

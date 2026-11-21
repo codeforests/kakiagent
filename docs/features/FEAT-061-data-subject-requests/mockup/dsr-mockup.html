@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Data requests mockup</title>
+<!-- FEAT-061 mockup (not reviewed by Ken, D14). Tokens and components from the anchors; layout-only CSS below uses tokens only. -->
+<link rel="stylesheet" href="../../../02-design/anchors/tokens.css">
+<link rel="stylesheet" href="../../../02-design/anchors/components.css">
+<style>
+  .page { max-width: 1080px; margin: 0 auto; padding: var(--space-7) var(--space-5); display: grid; gap: var(--space-6); }
+  .cols { display: grid; gap: var(--space-6); grid-template-columns: 1fr; }
+  @media (min-width: 1024px) { .cols { grid-template-columns: 1fr 320px; } }
+  .stack { display: grid; gap: var(--space-5); }
+  .row { display: flex; gap: var(--space-3); align-items: center; flex-wrap: wrap; }
+  .between { justify-content: space-between; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--color-border-default); }
+  th { color: var(--color-text-secondary); font-weight: 500; }
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: var(--space-3) var(--space-6); margin: 0; }
+  dt { color: var(--color-text-secondary); }
+  dd { margin: 0; }
+  .wrap { overflow-x: auto; }
+  section[data-screen] { display: none; }
+  section[data-screen].on { display: grid; }
+  .dialog-demo { max-width: 480px; }
+</style>
+</head>
+<body>
+<div class="proto-bar" role="toolbar" aria-label="Mockup screens">
+  <button data-go="list" aria-pressed="true">SCR-APP-048 list</button>
+  <button data-go="detail" aria-pressed="false">SCR-APP-049 verified, results</button>
+  <button data-go="confirm" aria-pressed="false">Delete confirm</button>
+  <button data-go="done" aria-pressed="false">Done</button>
+</div>
+
+<main class="page" id="main">
+  <section data-screen="list" class="stack on" aria-labelledby="h-list">
+    <p class="caption">Settings › Privacy and data › Data requests</p>
+    <div class="row between">
+      <h1 id="h-list">Data requests</h1>
+      <button class="btn btn-primary">New request</button>
+    </div>
+    <p class="muted">PDPA gives customers the right to see, correct or delete their data. Each request is due 30 days after you receive it.</p>
+    <div class="tabs" role="tablist"><button class="tab" role="tab" aria-selected="true">Open (3)</button><button class="tab" role="tab" aria-selected="false">Closed</button></div>
+    <div class="card wrap">
+      <table>
+        <thead><tr><th>Request</th><th>Type</th><th>Received</th><th>Due</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td><span class="mono">DSR-7F3A21C0</span><br><span class="caption">+65 ••••4417</span></td><td>Deletion</td><td>18 Oct 2026</td><td><span class="chip chip-danger">Overdue by 3 days</span></td><td><span class="chip chip-neutral">Open</span></td></tr>
+          <tr><td><span class="mono">DSR-1A2B3C4D</span><br><span class="caption">m•••@gmail.com</span></td><td>Deletion</td><td>27 Oct 2026</td><td><span class="chip chip-fact-review">Due in 6 days</span></td><td><span class="chip chip-conv-ai">Identity verified</span></td></tr>
+          <tr><td><span class="mono">DSR-90EE12AB</span><br><span class="caption">From a chat</span></td><td>Access</td><td>19 Nov 2026</td><td><span class="caption">Due 19 Dec</span></td><td><span class="chip chip-neutral">Open</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section data-screen="detail" class="stack" aria-labelledby="h-detail">
+    <p class="caption">Settings › Privacy and data › Data requests › DSR-1A2B3C4D</p>
+    <div class="row"><h1 id="h-detail">Deletion request</h1><span class="chip chip-conv-ai">Identity verified</span><span class="chip chip-fact-review">Due in 6 days</span></div>
+    <p class="caption">Received 27 Oct 2026 · Logged by Mei Ling</p>
+    <div class="cols">
+      <div class="stack">
+        <article class="card stack">
+          <h2>Step 1 · Verify identity</h2>
+          <p class="row"><span class="chip chip-success">Verified</span> Identity verified by Mei Ling on 28 Oct: they replied from the email address we hold. "Replied to our email from m.tan@gmail.com."</p>
+        </article>
+        <article class="card stack">
+          <h2>Step 2 · Data we hold</h2>
+          <p class="caption">Searched for: m.tan@gmail.com · +65 9123 4417</p>
+          <label class="row"><input type="checkbox" class="checkbox" checked> <strong>Michelle Tan</strong> m.tan@gmail.com · +65 9123 4417 <span class="caption">3 conversations · 1 lead · 2 consents · 1 merged record · personal data in 4 audit entries</span></label>
+          <div class="wrap"><table>
+            <thead><tr><th scope="col"><span class="sr-only">Include</span></th><th>Channel</th><th>Started</th><th>Messages</th><th>Files</th></tr></thead>
+            <tbody>
+              <tr><td><input type="checkbox" checked disabled aria-label="Email, 2 Oct, goes with Michelle Tan"></td><td>Email</td><td>2 Oct</td><td>14</td><td>2</td></tr>
+              <tr><td><input type="checkbox" checked disabled aria-label="Widget, 9 Oct, goes with Michelle Tan"></td><td>Website chat</td><td>9 Oct</td><td>22</td><td>0</td></tr>
+              <tr><td><input type="checkbox" aria-label="Website chat, 1 Sep, mentions them"></td><td>Website chat <span class="chip chip-neutral">Mentions them</span></td><td>1 Sep</td><td>8</td><td>0</td></tr>
+            </tbody>
+          </table></div>
+          <p class="caption">Also removed with the person: 1 approval · 2 escalations · 3 suggested replies · 1 memory note · 41 page-view records</p>
+          <p class="body-sm"><strong>Selected:</strong> 1 person, 3 conversations, 2 files, 0 knowledge items</p>
+        </article>
+        <article class="card stack">
+          <h2>Step 3 · Delete</h2>
+          <div class="row"><button class="btn btn-danger">Delete selected data</button><button class="btn btn-ghost">Close without action</button></div>
+        </article>
+      </div>
+      <aside class="stack">
+        <article class="card"><h2>Request details</h2><dl><dt>Requester</dt><dd>Michelle Tan<br>m.tan@gmail.com</dd><dt>Received</dt><dd>27 Oct 2026</dd><dt>Due</dt><dd>26 Nov 2026</dd></dl></article>
+        <article class="card"><h2>History</h2><p class="body-sm">28 Oct · Identity verified · Mei Ling<br>27 Oct · Logged · Mei Ling</p></article>
+      </aside>
+    </div>
+  </section>
+
+  <section data-screen="confirm" class="stack" aria-labelledby="h-confirm">
+    <div class="dialog dialog-demo" role="alertdialog" aria-labelledby="h-confirm" aria-describedby="d-confirm">
+      <h2 id="h-confirm">Delete this person's data?</h2>
+      <p id="d-confirm">1 person, 3 conversations (44 messages), 2 files. This can't be undone. It is removed now; backups clear within 35 days.</p>
+      <div class="field"><label for="typed">Type delete to confirm</label><input id="typed" class="input" autocomplete="off"></div>
+      <div class="dialog-actions"><button class="btn btn-secondary" autofocus>Cancel</button><button class="btn btn-danger" disabled>Delete</button></div>
+    </div>
+  </section>
+
+  <section data-screen="done" class="stack" aria-labelledby="h-done">
+    <h1 id="h-done">Deletion request</h1>
+    <div class="alert" role="status"><strong>Data deleted on 20 Nov 2026.</strong></div>
+    <article class="card"><dl>
+      <dt>Removed</dt><dd>1 person, 3 conversations, 44 messages, 2 files</dd>
+      <dt>Files in storage</dt><dd>Removed</dd>
+      <dt>Backups</dt><dd>Cleared by 25 Dec 2026</dd>
+      <dt>Audit reference</dt><dd><a href="#">Entry #4,512</a></dd>
+      <dt>Audit chain</dt><dd><span class="chip chip-success">Chain verified</span></dd>
+      <dt>Requester</dt><dd>M. T. · m•••@gmail.com <span class="caption">Details masked after deletion</span></dd>
+    </dl><p class="caption">Tell the requester the outcome.</p></article>
+  </section>
+</main>
+<script>
+  const bar = document.querySelector('.proto-bar');
+  bar.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-go]'); if (!b) return;
+    bar.querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    document.querySelectorAll('section[data-screen]').forEach((s) => s.classList.toggle('on', s.dataset.screen === b.dataset.go));
+    const typed = document.getElementById('typed'); if (b.dataset.go === 'confirm') typed.value = '';
+  });
+  document.getElementById('typed').addEventListener('input', (e) => {
+    e.target.closest('.dialog').querySelector('.btn-danger').disabled = e.target.value.trim().toLowerCase() !== 'delete';
+  });
+</script>
+</body>
+</html>

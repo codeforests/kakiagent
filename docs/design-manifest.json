@@ -1776,14 +1776,21 @@
           "Retention periods (FEAT-059)",
           "Terms re-acceptance flow (FEAT-073)"
         ],
-        "supplements": []
+        "supplements": [
+          {
+            "feature": "FEAT-061",
+            "spec": "features/FEAT-061-data-subject-requests/ui-design.md#scr-app-047--privacy-and-data-partial",
+            "adds": "Data requests row with open and due-soon counts"
+          }
+        ]
       },
       "contract_bindings": [
         "GET /api/v1/settings/privacy",
         "PUT /api/v1/settings/privacy/notice",
         "PUT /api/v1/settings/privacy/purpose",
         "GET /api/v1/settings/privacy/documents/data-flow.pdf",
-        "GET /api/v1/settings/privacy/documents/dpa.pdf"
+        "GET /api/v1/settings/privacy/documents/dpa.pdf",
+        "GET /api/v1/data-requests?view=open (counts)"
       ],
       "conformance": {
         "result": "pass",
@@ -2620,6 +2627,96 @@
       },
       "status": "designed",
       "designed_at": "2026-11-12"
+    },
+    "SCR-APP-048": {
+      "name": "Data requests",
+      "surface": "APP",
+      "feature": "FEAT-061",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-061-data-subject-requests/ui-design.md#scr-app-048--data-requests",
+        "mockup": "features/FEAT-061-data-subject-requests/mockup/dsr-mockup.html"
+      },
+      "states": {
+        "covered": [
+          "loading",
+          "empty open",
+          "empty closed",
+          "error",
+          "permission",
+          "due soon",
+          "overdue",
+          "new request",
+          "validation errors"
+        ],
+        "gaps": [],
+        "supplements": []
+      },
+      "contract_bindings": [
+        "GET /api/v1/data-requests",
+        "POST /api/v1/data-requests"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-11-20"
+    },
+    "SCR-APP-049": {
+      "name": "Data request",
+      "surface": "APP",
+      "feature": "FEAT-061",
+      "strategy": "code-native",
+      "source": {
+        "spec": "features/FEAT-061-data-subject-requests/ui-design.md#scr-app-049--data-request",
+        "mockup": "features/FEAT-061-data-subject-requests/mockup/dsr-mockup.html"
+      },
+      "states": {
+        "covered": [
+          "loading",
+          "not found",
+          "error",
+          "permission",
+          "open",
+          "verifying",
+          "unverified",
+          "searching",
+          "nothing found",
+          "results",
+          "exporting",
+          "correcting",
+          "delete confirm",
+          "deleting",
+          "done",
+          "files removing",
+          "stale (409)",
+          "changed result (422)",
+          "closed"
+        ],
+        "gaps": [],
+        "supplements": []
+      },
+      "contract_bindings": [
+        "GET /api/v1/data-requests/:id",
+        "PATCH /api/v1/data-requests/:id",
+        "POST /api/v1/data-requests/:id/verify",
+        "POST /api/v1/data-requests/:id/unverified",
+        "POST /api/v1/data-requests/:id/close",
+        "POST /api/v1/data-requests/:id/complete",
+        "GET /api/v1/data-requests/:id/find",
+        "POST /api/v1/data-requests/:id/export",
+        "POST /api/v1/data-requests/:id/corrections",
+        "POST /api/v1/data-requests/:id/erase"
+      ],
+      "conformance": {
+        "result": "pass",
+        "corrections": [],
+        "escalations": []
+      },
+      "status": "designed",
+      "designed_at": "2026-11-20"
     }
   }
 }

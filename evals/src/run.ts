@@ -385,6 +385,8 @@ function memoryConversation(
     aiEnded: false,
     /** FEAT-044: the escalation requests the `escalate` handler made. */
     escalations: [] as string[],
+    /** FEAT-061: the data-subject requests the `data_request` handler opened. */
+    dataRequests: [] as string[],
   };
   const port: ConversationPort = {
     async flag(reason) {
@@ -407,6 +409,12 @@ function memoryConversation(
       return contact;
     },
     // FEAT-038: the case's live channels, as channels `handoffOptions` would read them.
+    // FEAT-061: one live request per conversation, as governance `openFromConversation` does.
+    async openDataRequest(type) {
+      const status = state.dataRequests.length ? 'already_open' : 'opened';
+      state.dataRequests.push(type);
+      return { status };
+    },
     async handoffOptions() {
       return handoff;
     },
@@ -553,6 +561,7 @@ async function runCase(c: Case) {
     flags: conversation.state.flags,
     aiEnded: conversation.state.aiEnded,
     escalations: conversation.state.escalations,
+    dataRequests: conversation.state.dataRequests,
     approval: null as { status: ApprovalPortResult['status']; notice: string | null } | null,
     memory: memoryLines(memory).join('\n'),
     history: history.map((m) => `${m.role}: ${m.content}`).join('\n'),

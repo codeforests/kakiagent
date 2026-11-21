@@ -107,3 +107,45 @@ describe('data_request in the visitor turn (AC-9)', () => {
     expect(esc.rows).toEqual([{ source: 'data_request' }]);
   });
 });
+
+describe('data_request opens a data-subject request (FEAT-061 §5.5; AC-9)', () => {
+  it('"please delete all my data" opens one request with the contact copied, and escalates; a second ask opens none', async () => {
+    const c = await chat(true);
+    const r = await c.say('please delete all my data');
+    expect(r?.dispatched).toEqual([{ task: 'data_request', index: 0, outcome: 'done' }]);
+    const rows = async () =>
+      (
+        await owner.query(
+          `select type, status, source, received_on::text as received, requester_name, requester_email, contact_id is not null as linked, created_by
+           from dsr_requests where conversation_id = $1`,
+          [c.conversationId],
+        )
+      ).rows;
+    const [req] = await rows();
+    expect(req).toMatchObject({
+      type: 'deletion',
+      status: 'open',
+      source: 'conversation',
+      received: '2026-11-04',
+      requester_name: 'Mei',
+      linked: true,
+      created_by: null,
+    });
+    expect(req.requester_email).toMatch(/@example\.com$/);
+    const esc = await owner.query(`select source from escalations where conversation_id = $1`, [
+      c.conversationId,
+    ]);
+    expect(esc.rows).toEqual([{ source: 'data_request' }]);
+    const audit = await owner.query(
+      `select actor_type, payload from audit_entries where tenant_id = $1 and event_type = 'dsr.opened'
+       and $2 = any(subject_refs)`,
+      [TENANT_A, `conversation:${c.conversationId}`],
+    );
+    expect(audit.rows).toEqual([
+      { actor_type: 'agent', payload: { type: 'deletion', source: 'conversation' } },
+    ]);
+
+    await c.say('I want to see my personal data');
+    expect(await rows()).toHaveLength(1);
+  });
+});

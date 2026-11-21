@@ -105,6 +105,11 @@ export const Expectation = z.discriminatedUnion('kind', [
   }),
   /** FEAT-044/051: the escalation sources the turn's handlers asked for, in order. */
   z.object({ kind: z.literal('escalated'), sources: z.array(z.string()) }),
+  /** FEAT-061: the data-subject requests the turn opened, by type, in order. */
+  z.object({
+    kind: z.literal('data-request'),
+    types: z.array(z.enum(['access', 'correction', 'deletion'])),
+  }),
   /**
    * FEAT-055 (AC-1–AC-3): what `request_commitment` did (`null`: no request), and the waiting
    * notice's text when one was stored.
@@ -330,6 +335,8 @@ export interface Reply {
   aiEnded: boolean;
   /** FEAT-044/051: the escalation sources asked for. */
   escalations: string[];
+  /** FEAT-061: the data-subject request types opened. */
+  dataRequests: string[];
   /** FEAT-049: the card stored under the reply (consent offer or lead form), or null. */
   card: MessageCard | null;
   /** FEAT-055: what the commitment request did, and the waiting notice; null without one. */
@@ -431,6 +438,8 @@ export function score(reply: Reply, expectations: Expectation[], ctx: ScoreConte
         );
       case 'escalated':
         return reply.escalations.join() === e.sources.join();
+      case 'data-request':
+        return reply.dataRequests.join() === e.types.join();
       case 'ai-ended':
         return reply.aiEnded === e.value;
       case 'no-leak': {

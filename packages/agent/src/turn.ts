@@ -1,7 +1,13 @@
 import { draftApproval, rulesInForce, type DraftResult, type PricedProduct } from '@kaki/approvals';
 import { handoffOptions } from '@kaki/channels/handoff';
 import { withTenant, type ZoneDb } from '@kaki/db';
-import { audit, auditCode, auditId, type AuditPayload } from '@kaki/governance';
+import {
+  audit,
+  auditCode,
+  auditId,
+  openFromConversation,
+  type AuditPayload,
+} from '@kaki/governance';
 import {
   appendAgentReply,
   appendSystemNotice,
@@ -559,6 +565,13 @@ export async function runVisitorTurn(
         return t
           ? { held: true, offers: t.offers, withdrawn: t.withdrawn }
           : { held: false, offers: false, withdrawn: false };
+      },
+      // GOV-05 (FEAT-061 §5.5, D6): one live data-subject request per conversation.
+      openDataRequest: async (type) => {
+        const r = await withTenant(zdb, tenantId, (tx) =>
+          openFromConversation(tx, tenantId, { conversationId, type, now: wall }),
+        );
+        return { status: r.status };
       },
       // CHN-07 (FEAT-038 §5.7): the live channels with what a link needs; reads only.
       handoffOptions: () => withTenant(zdb, tenantId, (tx) => handoffOptions(tx, tenantId)),

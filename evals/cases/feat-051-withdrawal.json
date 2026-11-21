@@ -94,6 +94,7 @@
     "expectTasks": ["data_request"],
     "expect": [
       { "kind": "escalated", "sources": ["data_request"] },
+      { "kind": "data-request", "types": ["deletion"] },
       { "kind": "contains", "text": "passed your request about your personal data" }
     ]
   },
@@ -106,7 +107,8 @@
     "expectTasks": ["withdraw_consent", "data_request"],
     "expect": [
       { "kind": "card", "card": "withdraw" },
-      { "kind": "escalated", "sources": ["data_request"] }
+      { "kind": "escalated", "sources": ["data_request"] },
+      { "kind": "data-request", "types": ["deletion"] }
     ]
   },
   {

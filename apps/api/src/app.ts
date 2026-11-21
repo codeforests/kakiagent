@@ -143,6 +143,7 @@ import { leadsErrorReply, registerLeadWidgetRoutes } from './leads-widget.js';
 import { contactsErrorReply, registerContactRoutes } from './contacts.js';
 import { leadSettingsErrorReply, registerLeadRoutes, registerLeadSettingsRoutes } from './leads.js';
 import { auditErrorReply, registerAuditRoutes } from './audit.js';
+import { dsrErrorReply, registerDataRequestRoutes } from './data-requests.js';
 import {
   AttestationRequiredError,
   FileTooLargeError,
@@ -414,6 +415,8 @@ export async function buildApp(deps: Deps) {
     if (channel) return reply.code(channel.status).send(channel.body);
     const leads = leadsErrorReply(err) ?? leadSettingsErrorReply(err) ?? contactsErrorReply(err);
     if (leads) return reply.code(leads.status).send(leads.body);
+    const dsr = dsrErrorReply(err);
+    if (dsr) return reply.code(dsr.status).send(dsr.body);
     const auditErr = auditErrorReply(err);
     if (auditErr) {
       if (auditErr.retryAfterS) reply.header('Retry-After', String(auditErr.retryAfterS));
@@ -732,6 +735,7 @@ export async function buildApp(deps: Deps) {
   registerLeadRoutes(app, deps, sessionFrom);
   registerContactRoutes(app, deps, sessionFrom);
   registerAuditRoutes(app, deps, sessionFrom);
+  registerDataRequestRoutes(app, deps, sessionFrom);
 
   return app;
 }

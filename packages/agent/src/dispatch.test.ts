@@ -46,6 +46,7 @@ function memoryConversation(
     ended: false,
     escalations: [] as string[],
     requests: [] as unknown[],
+    dataRequests: [] as string[],
   };
   const port: ConversationPort = {
     async flag(reason) {
@@ -68,6 +69,12 @@ function memoryConversation(
     },
     async handoffOptions() {
       return handoff;
+    },
+    async openDataRequest(type) {
+      state.dataRequests.push(type);
+      return {
+        status: state.dataRequests.length > 1 ? ('already_open' as const) : ('opened' as const),
+      };
     },
     async draftApproval(request) {
       state.requests.push(request);
@@ -590,6 +597,15 @@ describe('withdraw_consent and data_request (FEAT-051 §5.3; AC-2, AC-9)', () =>
     expect(out.card).toEqual({ kind: 'withdraw', offers: false });
     expect(out.replies).toEqual(['withdraw_confirm', 'data_request']);
     expect(conversation.escalations).toEqual(['data_request']);
+    // FEAT-061 D6: it also opens a data-subject request, deletion when triage names no type.
+    expect(conversation.dataRequests).toEqual(['deletion']);
+  });
+
+  it('a data request takes its type from the args and falls back to deletion (FEAT-061 §5.5)', async () => {
+    const { ctx, conversation } = context();
+    await dispatchPlan(visitorRegistry, planOf([['data_request', { type: 'access' }]]), ctx);
+    await dispatchPlan(visitorRegistry, planOf([['data_request', { type: 'everything' }]]), ctx);
+    expect(conversation.dataRequests).toEqual(['access', 'deletion']);
   });
 
   it('coaching scope and replay never run them', async () => {
@@ -601,6 +617,7 @@ describe('withdraw_consent and data_request (FEAT-051 §5.3; AC-2, AC-9)', () =>
     );
     expect(out.reports.map((r) => r.reason)).toEqual(['scope', 'scope']);
     expect(conversation.escalations).toEqual([]);
+    expect(conversation.dataRequests).toEqual([]);
     expect(replayRegistry.byKind.has('withdraw_consent')).toBe(false);
     expect(replayRegistry.byKind.has('data_request')).toBe(false);
   });

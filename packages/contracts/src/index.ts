@@ -2164,8 +2164,20 @@ export const SummariseJob = z.object({
   conversationId: z.uuid(),
 });
 export type SummariseJob = z.infer<typeof SummariseJob>;
-/** Everything on `conversation-turns`: an auto-close, escalation reminder, approval timer, delivery-failed, handoff-email or summarise job, or a visitor turn. */
+/**
+ * After a data-subject deletion (GOV-05; FEAT-061 §5.4): the deleted email attachments' S3
+ * keys, removed by the agent-worker. Own FIFO group `dsr:<requestId>`.
+ */
+export const DsrObjectsJob = z.object({
+  kind: z.literal('dsr_objects'),
+  tenantId: z.uuid(),
+  requestId: z.uuid(),
+  keys: z.array(z.string().min(1).max(1024)).max(10_000),
+});
+export type DsrObjectsJob = z.infer<typeof DsrObjectsJob>;
+/** Everything on `conversation-turns`: an auto-close, escalation reminder, approval timer, delivery-failed, handoff-email, summarise or DSR-objects job, or a visitor turn. */
 export const TurnQueueJob = z.union([
+  DsrObjectsJob,
   AutoCloseJob,
   EscalationReminderJob,
   ApprovalTimerJob,
@@ -4143,3 +4155,433 @@ export const AuditTooMany = z.object({
   max: z.number().int(),
 });
 export type AuditTooMany = z.infer<typeof AuditTooMany>;
+
+// ---- Dashboard API: data-subject requests (GOV-05; FEAT-061 §3) -----------------------------
+
+export const DSR_TYPES = ['access', 'correction', 'deletion'] as const;
+export const DSR_STATUSES = ['open', 'verified', 'completed', 'unverified', 'closed'] as const;
+export const DSR_CLOSED_STATUSES = ['completed', 'unverified', 'closed'] as const;
+export const DSR_SOURCES = ['dashboard', 'conversation'] as const;
+export const DSR_VERIFY_METHODS = [
+  'verified_channel',
+  'email_reply',
+  'phone_call',
+  'in_person',
+  'other',
+] as const;
+/** Every store a find, an export or a deletion reports a count for (`dsr_erase()`). */
+export const DSR_COUNT_STORES = [
+  'contacts',
+  'contact_identities',
+  'contact_merges',
+  'telegram_chats',
+  'handoff_links',
+  'consents',
+  'leads',
+  'conversations',
+  'messages',
+  'conversation_owners',
+  'conversation_summaries',
+  'escalations',
+  'approvals',
+  'used_link_nonces',
+  'suggestions',
+  'email_messages',
+  'email_threads',
+  'message_deliveries',
+  'email_attachments',
+  'corrections',
+  'coaching_sessions',
+  'visitor_events',
+  'visitor_tracking_choices',
+  'audit_pii',
+  'facts',
+  'fact_versions',
+  'kb_chunks',
+  'kb_staged_facts',
+] as const;
+export type DsrStore = (typeof DSR_COUNT_STORES)[number];
+export const DSR_ERRORS = [
+  'state_changed',
+  'wrong_type',
+  'not_in_result',
+  'nothing_selected',
+  'identifier_required',
+  'future_date',
+  'too_large',
+  'not_found',
+] as const;
+export type DsrErrorCode = (typeof DSR_ERRORS)[number];
+/** Export cap (§5.3, FEAT-060's cap pattern): more messages than this answers 413 `too_large`. */
+export const DSR_EXPORT_MAX_MESSAGES = 20_000;
+export const DSR_PAGE_SIZE = 50;
+/** Days before the due date that a request counts as due soon and alerts (D8). */
+export const DSR_DUE_SOON_DAYS = 7;
+export const DSR_DUE_DAYS = 30;
+
+export const DsrType = z.enum(DSR_TYPES);
+export type DsrType = z.infer<typeof DsrType>;
+export const DsrStatus = z.enum(DSR_STATUSES);
+export type DsrStatus = z.infer<typeof DsrStatus>;
+export const DsrSource = z.enum(DSR_SOURCES);
+export type DsrSource = z.infer<typeof DsrSource>;
+export const DsrVerifyMethod = z.enum(DSR_VERIFY_METHODS);
+export type DsrVerifyMethod = z.infer<typeof DsrVerifyMethod>;
+export const DsrDueState = z.enum(['ok', 'due_soon', 'overdue', 'closed']);
+export type DsrDueState = z.infer<typeof DsrDueState>;
+
+/** Today in Singapore, `YYYY-MM-DD`. */
+export function sgToday(now: Date = new Date()): string {
+  return new Date(now.getTime() + 8 * 3_600_000).toISOString().slice(0, 10);
+}
+
+const dsrText = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max)
+    .transform((s) => (s === '' ? undefined : s))
+    .optional();
+
+/** An email, lower-cased; a blank one is left out. */
+const DsrEmail = z
+  .string()
+  .trim()
+  .transform((s) => s.toLowerCase())
+  .refine((s) => s === '' || isEmail(s), 'Enter an email like name@example.com')
+  .transform((s) => (s === '' ? undefined : s))
+  .optional();
+/** A Singapore phone, normalised to `+65…` as contacts store it; a blank one is left out. */
+const DsrPhone = z
+  .string()
+  .transform((s, ctx) => {
+    const n = normaliseSgPhone(s);
+    if (n === null) {
+      ctx.addIssue({ code: 'custom', message: 'Enter a Singapore number like 9123 4567' });
+      return z.NEVER;
+    }
+    return n === '' ? undefined : n;
+  })
+  .optional();
+const DsrTelegramId = z
+  .string()
+  .trim()
+  .refine((s) => s === '' || /^[0-9]{1,20}$/.test(s), 'A Telegram ID is digits only')
+  .transform((s) => (s === '' ? undefined : s))
+  .optional();
+
+/** Who the request is from (§3). At least one identifier to search by. */
+export const DsrRequester = z
+  .strictObject({
+    name: dsrText(120),
+    email: DsrEmail,
+    phone: DsrPhone,
+    telegramId: DsrTelegramId,
+  })
+  .superRefine((r, ctx) => {
+    if (!r.email && !r.phone && !r.telegramId)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['email'],
+        message: 'identifier_required',
+      });
+  });
+export type DsrRequester = z.infer<typeof DsrRequester>;
+
+const ReceivedOn = SgDate.refine((s) => s <= sgToday(), 'future_date');
+
+export const DsrCreateBody = z.strictObject({
+  type: DsrType,
+  receivedOn: ReceivedOn,
+  requester: DsrRequester,
+  note: dsrText(500),
+});
+export type DsrCreateBody = z.infer<typeof DsrCreateBody>;
+
+const Version = z.number().int().positive();
+
+export const DsrPatchBody = z.strictObject({
+  version: Version,
+  type: DsrType.optional(),
+  receivedOn: ReceivedOn.optional(),
+  requester: DsrRequester.optional(),
+});
+export type DsrPatchBody = z.infer<typeof DsrPatchBody>;
+
+const Reason = z.string().trim().min(1, 'Enter a reason').max(500);
+export const DsrVerifyBody = z.strictObject({
+  version: Version,
+  method: DsrVerifyMethod,
+  note: z.string().trim().min(1, 'Say how you checked who they are').max(500),
+});
+export type DsrVerifyBody = z.infer<typeof DsrVerifyBody>;
+export const DsrReasonBody = z.strictObject({ version: Version, reason: Reason });
+export type DsrReasonBody = z.infer<typeof DsrReasonBody>;
+export const DsrCompleteBody = z.strictObject({ version: Version, note: dsrText(500) });
+export type DsrCompleteBody = z.infer<typeof DsrCompleteBody>;
+
+export const DsrListQuery = z.strictObject({
+  view: z.enum(['open', 'closed']).default('open'),
+  cursor: z.string().max(200).optional(),
+});
+export type DsrListQuery = z.infer<typeof DsrListQuery>;
+
+export const DsrSummary = z.object({
+  id: z.uuid(),
+  ref: z.string(),
+  type: DsrType,
+  status: DsrStatus,
+  source: DsrSource,
+  receivedOn: z.string(),
+  dueOn: z.string(),
+  dueState: DsrDueState,
+  /** Masked: `m•••@gmail.com`, `+65 ••••1234`, name initials. */
+  requesterLabel: z.string(),
+  createdAt: z.string(),
+});
+export type DsrSummary = z.infer<typeof DsrSummary>;
+
+export const DsrList = z.object({
+  items: z.array(DsrSummary),
+  next: z.string().nullable(),
+  counts: z.object({
+    open: z.number().int(),
+    dueSoon: z.number().int(),
+    overdue: z.number().int(),
+  }),
+});
+export type DsrList = z.infer<typeof DsrList>;
+
+export const DsrOutcome = z.object({
+  counts: z.record(z.string(), z.number().int()).optional(),
+  auditSeq: z.number().int().optional(),
+  exported: z.number().int().optional(),
+  corrected: z.array(z.string()).optional(),
+});
+export type DsrOutcome = z.infer<typeof DsrOutcome>;
+
+export const DsrDetail = DsrSummary.extend({
+  version: z.number().int(),
+  /** Full while the request holds them; masked after a deletion (D3). */
+  requester: z.object({
+    name: z.string().nullable(),
+    email: z.string().nullable(),
+    phone: z.string().nullable(),
+    telegramId: z.string().nullable(),
+    erased: z.boolean(),
+  }),
+  note: z.string().nullable(),
+  conversationId: z.uuid().nullable(),
+  contactId: z.uuid().nullable(),
+  verification: z
+    .object({
+      method: DsrVerifyMethod,
+      note: z.string(),
+      by: z.string().nullable(),
+      at: z.string(),
+    })
+    .nullable(),
+  closed: z
+    .object({
+      reason: z.string().nullable(),
+      by: z.string().nullable(),
+      at: z.string(),
+      outcome: DsrOutcome.nullable(),
+    })
+    .nullable(),
+  objects: z.enum(['none', 'pending', 'done']),
+  backupsClearBy: z.string().nullable(),
+  events: z.array(z.object({ at: z.string(), code: z.string(), by: z.string().nullable() })),
+});
+export type DsrDetail = z.infer<typeof DsrDetail>;
+
+export const DsrFindResult = z.object({
+  searchedFor: z.object({
+    email: z.string().optional(),
+    phone: z.string().optional(),
+    telegramId: z.string().optional(),
+  }),
+  contacts: z.array(
+    z.object({
+      id: z.uuid(),
+      name: z.string().nullable(),
+      email: z.string().nullable(),
+      phone: z.string().nullable(),
+      telegram: z.string().nullable(),
+      mergedFrom: z.number().int(),
+      identities: z.number().int(),
+      leads: z.array(
+        z.object({
+          id: z.uuid(),
+          status: z.string(),
+          need: z.string().nullable(),
+          budget: z.string().nullable(),
+          preferredTime: z.string().nullable(),
+        }),
+      ),
+      consents: z.number().int(),
+      conversations: z.number().int(),
+      auditPii: z.number().int(),
+    }),
+  ),
+  conversations: z.array(
+    z.object({
+      id: z.uuid(),
+      channel: z.string(),
+      startedAt: z.string(),
+      lastMessageAt: z.string(),
+      messages: z.number().int(),
+      attachments: z.number().int(),
+      contactId: z.uuid().nullable(),
+      match: z.enum(['contact', 'mention']),
+    }),
+  ),
+  attachments: z.array(
+    z.object({
+      id: z.uuid(),
+      conversationId: z.uuid(),
+      name: z.string(),
+      size: z.number().int(),
+      contentType: z.string().nullable(),
+      status: z.string(),
+    }),
+  ),
+  kb: z.array(
+    z.object({
+      kind: z.enum(['fact', 'staged']),
+      id: z.uuid(),
+      title: z.string(),
+      excerpt: z.string(),
+      sourceName: z.string().nullable(),
+    }),
+  ),
+  other: z.object({
+    approvals: z.number().int(),
+    escalations: z.number().int(),
+    suggestions: z.number().int(),
+    summaries: z.number().int(),
+    trackingEvents: z.number().int(),
+    telegramChats: z.number().int(),
+  }),
+});
+export type DsrFindResult = z.infer<typeof DsrFindResult>;
+
+/** What an export or a deletion covers (D10): the server re-runs find and refuses anything else. */
+export const DsrSelection = z.strictObject({
+  contactIds: z.array(z.uuid()).max(20).default([]),
+  conversationIds: z.array(z.uuid()).max(500).default([]),
+  factIds: z.array(z.uuid()).max(100).default([]),
+  stagedFactIds: z.array(z.uuid()).max(100).default([]),
+});
+export type DsrSelection = z.infer<typeof DsrSelection>;
+
+export const DsrExportBody = z.strictObject({ version: Version, selection: DsrSelection });
+export type DsrExportBody = z.infer<typeof DsrExportBody>;
+
+export interface DsrExport {
+  request: { ref: string; type: DsrType; receivedOn: string };
+  exportedAt: string;
+  contacts: {
+    id: string;
+    name: string | null;
+    email: string | null;
+    phone: string | null;
+    telegramId: string | null;
+    telegramUsername: string | null;
+    createdAt: string;
+  }[];
+  identities: { contactId: string; kind: string; value: string; verified: boolean }[];
+  consents: { contactId: string | null; purpose: string; decision: string; at: string }[];
+  leads: {
+    contactId: string;
+    status: string;
+    need: string | null;
+    budget: string | null;
+    preferredTime: string | null;
+    createdAt: string;
+  }[];
+  conversations: {
+    id: string;
+    channel: string;
+    startedAt: string;
+    messages: { at: string; author: string; body: string }[];
+  }[];
+  attachments: { name: string; size: number; contentType: string | null; receivedAt: string }[];
+  approvals: { conversationId: string; kind: string; status: string; at: string }[];
+  kb: { kind: 'fact' | 'staged'; id: string; value: unknown }[];
+}
+
+const NullableField = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max)
+    .nullable()
+    .transform((s) => (s === '' ? null : s))
+    .optional();
+
+export const DsrCorrectionBody = z
+  .strictObject({
+    version: Version,
+    contactId: z.uuid(),
+    contact: z
+      .strictObject({
+        name: NullableField(120),
+        email: z
+          .string()
+          .trim()
+          .transform((s) => s.toLowerCase())
+          .refine((s) => s === '' || isEmail(s), 'Enter an email like name@example.com')
+          .nullable()
+          .transform((s) => (s === '' ? null : s))
+          .optional(),
+        phone: z
+          .string()
+          .nullable()
+          .transform((s, ctx) => {
+            if (s === null) return null;
+            const n = normaliseSgPhone(s);
+            if (n === null) {
+              ctx.addIssue({ code: 'custom', message: 'Enter a Singapore number like 9123 4567' });
+              return z.NEVER;
+            }
+            return n === '' ? null : n;
+          })
+          .optional(),
+      })
+      .optional(),
+    lead: z
+      .strictObject({
+        id: z.uuid(),
+        need: NullableField(1000),
+        budget: NullableField(120),
+        preferredTime: NullableField(120),
+      })
+      .optional(),
+  })
+  .refine(
+    (b) =>
+      Object.values(b.contact ?? {}).some((v) => v !== undefined) ||
+      (b.lead !== undefined &&
+        [b.lead.need, b.lead.budget, b.lead.preferredTime].some((v) => v !== undefined)),
+    { message: 'nothing_selected', path: ['contact'] },
+  );
+export type DsrCorrectionBody = z.infer<typeof DsrCorrectionBody>;
+
+export const DsrEraseBody = z.strictObject({
+  version: Version,
+  selection: DsrSelection,
+  confirm: z.literal('delete'),
+});
+export type DsrEraseBody = z.infer<typeof DsrEraseBody>;
+
+export const DsrEraseResult = z.object({
+  detail: DsrDetail,
+  counts: z.record(z.string(), z.number().int()),
+  auditSeq: z.number().int(),
+  chain: z.enum(['intact', 'broken', 'not_checked']),
+});
+export type DsrEraseResult = z.infer<typeof DsrEraseResult>;
+
+export const DsrError = z.object({ error: z.enum(DSR_ERRORS), message: z.string().optional() });
+export type DsrError = z.infer<typeof DsrError>;

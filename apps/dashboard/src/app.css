@@ -6846,3 +6846,189 @@ a.settings-row:hover {
     text-align: right;
   }
 }
+
+/* FEAT-061: Data requests (SCR-APP-048) and Data request (SCR-APP-049). */
+.dsr-page {
+  min-width: 0;
+  max-width: calc(var(--size-reading-max) * 1.6);
+}
+.dsr-page > .alert {
+  margin-bottom: var(--space-4);
+}
+.dsr-page > .alert:focus {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+.dsr-tabs {
+  margin-bottom: var(--space-4);
+}
+.dsr-tabs .tabs__tab {
+  position: relative;
+}
+.dsr-ref {
+  font-family: var(--font-family-mono);
+  font-variant-numeric: tabular-nums;
+}
+.dsr-caption,
+.dsr-due,
+.dsr-row__who,
+.dsr-form__hint {
+  color: var(--color-text-secondary);
+  font-size: var(--type-body-sm-size);
+  line-height: var(--type-body-sm-line);
+}
+.dsr-row__who {
+  display: block;
+}
+.dsr-cards {
+  display: none;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.dsr-card {
+  border-top: 1px solid var(--color-border-default);
+}
+.dsr-card__link {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3) 0;
+  min-height: var(--size-control-md);
+  color: var(--color-text-primary);
+  text-decoration: none;
+}
+.dsr-card__line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.dsr-card__meta {
+  justify-content: flex-start;
+  color: var(--color-text-secondary);
+  font-size: var(--type-body-sm-size);
+}
+@media (max-width: 767px) {
+  .dsr-table-wrap {
+    display: none;
+  }
+  .dsr-cards {
+    display: block;
+  }
+}
+.dsr-counts {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+}
+.dsr-header__chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-2) 0 0;
+}
+.dsr-header .dsr-caption {
+  margin: var(--space-2) 0 0;
+}
+.dsr-grid {
+  margin-top: var(--space-4);
+}
+.dsr-grid,
+.dsr-main,
+.dsr-aside {
+  display: grid;
+  gap: var(--space-4);
+  align-content: start;
+  min-width: 0;
+}
+@media (min-width: 1024px) {
+  .dsr-grid {
+    grid-template-columns: minmax(0, 1fr) calc(var(--size-sidebar) * 4 / 3);
+  }
+}
+.dsr-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.dsr-card-head .section-title,
+.dsr-main .section-title,
+.dsr-aside .section-title {
+  margin: 0;
+}
+.dsr-meta dd {
+  overflow-wrap: anywhere;
+}
+.dsr-actions,
+.dsr-quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.dsr-quick {
+  margin: var(--space-3) 0;
+}
+.dsr-verified {
+  display: flex;
+  gap: var(--space-2);
+  margin: 0;
+}
+.dsr-tick {
+  color: var(--color-success-default);
+}
+.dsr-people,
+.dsr-files,
+.dsr-kb,
+.dsr-history {
+  display: grid;
+  gap: var(--space-3);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.dsr-person {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+}
+.dsr-person__name {
+  font-weight: var(--font-weight-medium);
+}
+.dsr-kb li,
+.dsr-history li {
+  display: grid;
+  gap: var(--space-1);
+}
+.dsr-kb__excerpt {
+  overflow-wrap: anywhere;
+}
+.dsr-convs td {
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--color-border-default);
+  white-space: nowrap;
+}
+.dsr-convs th {
+  padding: var(--space-3) var(--space-4);
+}
+.dsr-summary {
+  position: sticky;
+  bottom: 0;
+  margin: 0;
+  padding: var(--space-3) 0;
+  background: var(--color-bg-surface);
+  border-top: 1px solid var(--color-border-default);
+  font-weight: var(--font-weight-medium);
+}
+.dsr-form__requester {
+  display: grid;
+  gap: var(--space-3);
+  border: 0;
+  margin: 0;
+  padding: 0;
+}

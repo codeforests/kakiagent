@@ -91,6 +91,9 @@ function dispatchCtx(scope: 'visitor' | 'coaching') {
       withdrawalOffer: async () => {
         throw new Error('coaching withdraws nothing');
       },
+      openDataRequest: async () => {
+        throw new Error('coaching has no conversation');
+      },
       handoffOptions: async () => {
         throw new Error('coaching hands off nothing');
       },

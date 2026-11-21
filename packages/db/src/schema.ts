@@ -1836,6 +1836,8 @@ export const NOTIFICATION_KINDS = [
   'escalation_reminder',
   'approval_undeliverable',
   'test',
+  // FEAT-061 D8: a legal deadline, never muted, so not an alert event.
+  'dsr_due_soon',
 ] as const;
 export const NOTIFICATION_STATUSES = [
   'pending',
@@ -1851,6 +1853,7 @@ export const NOTIFICATION_SUBJECTS = [
   'lead',
   'user',
   'channel',
+  'data_request',
 ] as const;
 
 /**
@@ -1933,10 +1936,7 @@ export const notifications = pgTable(
       foreignColumns: [memberships.tenantId, memberships.userId],
     }).onDelete('cascade'),
     check('notifications_kind_ck', sql`${t.kind} in (${inList(NOTIFICATION_KINDS)})`),
-    check(
-      'notifications_subject_ck',
-      sql`${t.subjectType} in ('conversation', 'approval', 'lead', 'user', 'channel')`,
-    ),
+    check('notifications_subject_ck', sql`${t.subjectType} in (${inList(NOTIFICATION_SUBJECTS)})`),
     check('notifications_channel_ck', sql`${t.channel} in ('email', 'telegram')`),
     check(
       'notifications_status_ck',
@@ -3025,6 +3025,108 @@ export const visitorTrackingChoices = pgTable(
   ],
 );
 
+/** PDPA request kinds, statuses and sources (GOV-05; FEAT-061 §3). */
+export const DSR_TYPES = ['access', 'correction', 'deletion'] as const;
+export const DSR_STATUSES = ['open', 'verified', 'completed', 'unverified', 'closed'] as const;
+export const DSR_CLOSED_STATUSES = ['completed', 'unverified', 'closed'] as const;
+export const DSR_SOURCES = ['dashboard', 'conversation'] as const;
+export const DSR_VERIFY_METHODS = [
+  'verified_channel',
+  'email_reply',
+  'phone_call',
+  'in_person',
+  'other',
+] as const;
+
+/**
+ * A data-subject request (GOV-05, UC-30; FEAT-061 §4): due 30 calendar days after it was
+ * received. The record outlives a deletion with the requester's details masked (D3). No FK to
+ * the conversation: the request outlives it. One live request per conversation (D6).
+ */
+export const dsrRequests = pgTable(
+  'dsr_requests',
+  {
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id),
+    id: uuid('id').notNull().defaultRandom(),
+    type: text('type', { enum: DSR_TYPES }).notNull(),
+    status: text('status', { enum: DSR_STATUSES }).notNull().default('open'),
+    source: text('source', { enum: DSR_SOURCES }).notNull(),
+    receivedOn: date('received_on', { mode: 'string' }).notNull(),
+    dueOn: date('due_on', { mode: 'string' })
+      .notNull()
+      .generatedAlwaysAs(sql`received_on + 30`),
+    requesterName: text('requester_name'),
+    requesterEmail: text('requester_email'),
+    requesterPhone: text('requester_phone'),
+    requesterTelegramId: text('requester_telegram_id'),
+    requesterErasedAt: timestamp('requester_erased_at', { withTimezone: true }),
+    note: text('note'),
+    conversationId: uuid('conversation_id'),
+    contactId: uuid('contact_id'),
+    verifyMethod: text('verify_method', { enum: DSR_VERIFY_METHODS }),
+    verifyNote: text('verify_note'),
+    verifiedBy: uuid('verified_by'),
+    verifiedAt: timestamp('verified_at', { withTimezone: true }),
+    closeReason: text('close_reason'),
+    closedBy: uuid('closed_by'),
+    closedAt: timestamp('closed_at', { withTimezone: true }),
+    outcome: jsonb('outcome').$type<Record<string, unknown>>(),
+    objectsPending: integer('objects_pending').notNull().default(0),
+    objectsDoneAt: timestamp('objects_done_at', { withTimezone: true }),
+    dueAlertedAt: timestamp('due_alerted_at', { withTimezone: true }),
+    /** Null: opened from a conversation (D6). */
+    createdBy: uuid('created_by'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+    version: integer('version').notNull().default(1),
+  },
+  (t) => [
+    primaryKey({ columns: [t.tenantId, t.id] }),
+    index('dsr_requests_status_due_idx').on(t.tenantId, t.status, t.dueOn),
+    uniqueIndex('dsr_requests_conversation_uq')
+      .on(t.tenantId, t.conversationId)
+      .where(sql`status in ('open', 'verified')`),
+    check('dsr_requests_type_ck', sql`${t.type} in (${inList(DSR_TYPES)})`),
+    check('dsr_requests_status_ck', sql`${t.status} in (${inList(DSR_STATUSES)})`),
+    check('dsr_requests_source_ck', sql`${t.source} in (${inList(DSR_SOURCES)})`),
+    check(
+      'dsr_requests_method_ck',
+      sql`${t.verifyMethod} is null or ${t.verifyMethod} in (${inList(DSR_VERIFY_METHODS)})`,
+    ),
+    check(
+      'dsr_requests_closed_ck',
+      sql`(${t.status} in (${inList(DSR_CLOSED_STATUSES)})) = (${t.closedAt} is not null)`,
+    ),
+    check(
+      'dsr_requests_verified_ck',
+      sql`${t.status} <> 'verified' or (${t.verifyMethod} is not null and ${t.verifiedAt} is not null)`,
+    ),
+    check(
+      'dsr_requests_reason_ck',
+      sql`${t.status} not in ('unverified', 'closed') or ${t.closeReason} is not null`,
+    ),
+    check(
+      'dsr_requests_identifier_ck',
+      sql`${t.requesterErasedAt} is not null or ${t.source} = 'conversation' or ${t.requesterEmail} is not null or ${t.requesterPhone} is not null or ${t.requesterTelegramId} is not null`,
+    ),
+    check(
+      'dsr_requests_phone_ck',
+      sql`${t.requesterErasedAt} is not null or ${t.requesterPhone} is null or ${t.requesterPhone} ~ '^[+]65[3689][0-9]{7}$'`,
+    ),
+    check(
+      'dsr_requests_telegram_ck',
+      sql`${t.requesterErasedAt} is not null or ${t.requesterTelegramId} is null or ${t.requesterTelegramId} ~ '^[0-9]{1,20}$'`,
+    ),
+    check(
+      'dsr_requests_text_ck',
+      sql`coalesce(length(${t.note}), 0) <= 500 and coalesce(length(${t.verifyNote}), 0) <= 500 and coalesce(length(${t.closeReason}), 0) <= 500 and coalesce(length(${t.requesterName}), 0) <= 120`,
+    ),
+    check('dsr_requests_objects_ck', sql`${t.objectsPending} >= 0`),
+  ],
+);
+
 export const TENANT_SCOPED_TABLES = [
   'tenants',
   'conversations',
@@ -3082,4 +3184,5 @@ export const TENANT_SCOPED_TABLES = [
   'conversation_summaries',
   'visitor_events',
   'visitor_tracking_choices',
+  'dsr_requests',
 ] as const;

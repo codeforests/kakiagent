@@ -28,6 +28,7 @@ const SUBJECT: Record<NotificationKind, string> = {
   escalation_reminder: 'Reminder: a customer is still waiting for a person',
   approval_undeliverable: "An approved reply couldn't reach the customer",
   test: 'Test alert from KakiAgent',
+  dsr_due_soon: 'A data request is due within 7 days',
 };
 
 const LINE: Record<NotificationKind, string> = {
@@ -42,6 +43,8 @@ const LINE: Record<NotificationKind, string> = {
   approval_undeliverable:
     'A decision was made after the chat closed, and the customer left no email or phone. Contact them another way if you can.',
   test: 'This is a test alert. Your alert emails are working.',
+  dsr_due_soon:
+    'A personal data request (PDPA) is due within 7 days. Answer it before its due date on the Data requests page.',
 };
 
 const escapeHtml = (s: string) =>

@@ -17,10 +17,10 @@ export type AlertEvent = (typeof ALERT_EVENTS)[number];
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 /**
  * The event a kind is muted with (FEAT-044 D6): a reminder follows its escalation's mute and an
- * undeliverable approval its approval's (FEAT-055 §4), so there is no separate preference. Null: never muted (the test alert).
+ * undeliverable approval its approval's (FEAT-055 §4), so there is no separate preference. Null: never muted (the test alert; a data request's legal deadline, FEAT-061 D8).
  */
 export function muteEvent(kind: NotificationKind): AlertEvent | null {
-  if (kind === 'test') return null;
+  if (kind === 'test' || kind === 'dsr_due_soon') return null;
   if (kind === 'escalation_reminder') return 'escalation';
   if (kind === 'approval_undeliverable') return 'approval_pending';
   return kind;

@@ -83,6 +83,10 @@ export class ReplayPorts implements ConversationPort {
   async draftApproval(): Promise<never> {
     throw new Error('a replay drafts no approval');
   }
+  /** A replay opens no data request (FEAT-061); in coaching scope the handler is refused anyway. */
+  async openDataRequest(): Promise<{ status: 'opened' }> {
+    return { status: 'opened' };
+  }
 }
 
 /** Earlier replayed turns whose effects include a done `abuse`. */

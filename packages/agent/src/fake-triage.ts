@@ -19,7 +19,7 @@ const RULES: [Exclude<TaskKind, 'answer'>, RegExp][] = [
   ],
   [
     'data_request',
-    /\b(delete|remove|see|correct) (my|all my) (data|details|personal)\b|删除我的(资料|数据)/i,
+    /\b(delete|remove|see|correct|update) (my|all my) (data|details|personal)\b|\bwhat (data|details|info) (you|u) (got|have|keep) (on|about) me\b|(删除|查看|更正)我的(个人)?(资料|数据)/i,
   ],
   [
     'escalate',
@@ -106,6 +106,16 @@ function leadArgs(text: string): { name: string; value: string }[] {
   return args;
 }
 
+/** `data_request`'s type (FEAT-061 §5.5): seeing is access, correcting is correction, else deletion. */
+function dataRequestArgs(text: string): { name: string; value: string }[] {
+  const type = /\b(see|what (data|details|info))\b|查看/i.test(text)
+    ? 'access'
+    : /\b(correct|update)\b|更正/i.test(text)
+      ? 'correction'
+      : 'deletion';
+  return [{ name: 'type', value: type }];
+}
+
 /**
  * `request_commitment`'s args (FEAT-055): the request text as `items` (approvals matches product
  * names in it), the first number as `quantity`, a percentage as `discount`, a day as `date`.
@@ -150,7 +160,9 @@ export function fakeTriage(req: GenerateRequest): string {
             ? leadArgs(text)
             : kind === 'request_commitment'
               ? commitmentArgs(text)
-              : [],
+              : kind === 'data_request'
+                ? dataRequestArgs(text)
+                : [],
     });
   if (!tasks.length) tasks.push({ kind: 'answer', args: [] });
   const complex = kinds.includes('request_commitment') || (text.match(/\d+/g)?.length ?? 0) >= 3;

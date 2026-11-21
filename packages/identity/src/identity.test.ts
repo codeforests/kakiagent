@@ -150,3 +150,11 @@ describe('audit capability (FEAT-060 D2)', () => {
     expect(can('agent', 'audit.read')).toBe(false);
   });
 });
+
+describe('data-subject request capability (FEAT-061 §5.7)', () => {
+  it('Owner and Admin handle data requests; Agents do not', () => {
+    expect(can('owner', 'dsr.manage')).toBe(true);
+    expect(can('admin', 'dsr.manage')).toBe(true);
+    expect(can('agent', 'dsr.manage')).toBe(false);
+  });
+});
