@@ -59,6 +59,7 @@ Fresh `pnpm install`, then `scripts/check-summary.sh` and `scripts/test-env.sh s
 2. After a reload, the done state can't show the chain result (it exists only in the erase response) and says "Check it from the Audit log" instead. This is accepted per D11.
 3. "Entry #N" links to the Audit log's Contacts group rather than to the entry, because FEAT-060 has no `seq` filter (D18). Minor, accepted; a later URL parameter would fix it.
 4. `dsr_erase()` itself doesn't check that its IDs fall within the request's find result; the domain layer does (`checkSelection`, tested to 422). This is the same trust model as `contact_merge()`: `app_dashboard` is application code. Not blocking.
+5. Not this feature's: in run 146, `telegram-channel.e2e.ts` "Check again" stayed at 429 for 60 s in Chromium and WebKit. This is the fault STATE.md records from run 135. The spec's diagnostics show why: the channel is `degraded` (`send_rejected`, 4 failures), and the `channel_degraded` Telegram alert is still retrying to the revoked bot (attempt 3, next at +40 s), so the health check keeps being marked recent and the cooldown never clears. FEAT-061 changes no channel, notification-delivery or Telegram code, and the same spec passed in all three browsers in run 145. The failed jobs were re-run once (Ken, 2026-11-07). Recorded in handoff.md for FEAT-037's owner: the alert retries should not refresh `health_checked_at`, or the spec should wait for them to finish before checking.
 
 ## RTM
 
@@ -69,4 +70,5 @@ Test refs appended to GOV-05, LED-07 (partial: the chat's deletion request opens
 ## CI
 
 - Run 145 at `29f2659`: 8 of 11 jobs green, including integration tests and coverage (Testcontainers: the S3 and Valkey suites the session could not run), terraform validate/test, build and widget size, and eval. E2E failed in Chromium, Firefox and WebKit on one check only, the phone-width card-link axe rule (Findings 1); 105 of 106 specs passed in each browser.
-- Run 146 at `f6f1b7e` (the fix): pending.
+- Run 146 at `f6f1b7e` (the fix), attempt 1: 9 of 11 jobs green. Firefox E2E passed all 106 specs, including both data-requests specs and their axe checks. Chromium and WebKit passed `data-requests.e2e.ts` and failed only `telegram-channel.e2e.ts` (Findings 5).
+- Run 146, attempt 2 (failed jobs re-run): pending.
