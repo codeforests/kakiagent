@@ -131,11 +131,8 @@ export function DataRequestsPage() {
           <ul className="dsr-cards" data-testid="dsr-cards">
             {items.map((r) => (
               <li key={r.id} className="dsr-card">
-                <Link
-                  className="dsr-card__link"
-                  to={`/settings/privacy/requests/${r.id}`}
-                  aria-label={rowLabel(r)}
-                >
+                <Link className="dsr-card__link" to={`/settings/privacy/requests/${r.id}`}>
+                  {/* No aria-label: the card's visible text is its name (WCAG 2.5.3; CI run 145). */}
                   <span className="dsr-card__line">
                     <span className="dsr-ref">{r.ref}</span>
                     <DueChip r={r} />
